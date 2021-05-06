@@ -457,15 +457,15 @@ main() {
       source ~/.profile
       cd -
 
-      if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
-        print_msg "Setting up tectoplot.compilers for conda environment tectoplot"
-
-        echo "if [[ ! -z \$CONDA_DEFAULT_ENV ]]; then " > ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-        [[ -z ${CC} ]] || echo "  CCOMPILER=$(which ${CC})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-        [[ -z ${CXX} ]] || echo "  CXXCOMPILER=$(which ${CXX})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-        [[ -z ${F90} ]] || echo "  F90COMPILER=$(which ${F90})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-        echo "fi " >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      fi
+      # if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
+      #   print_msg "Setting up tectoplot.compilers for conda environment tectoplot"
+      #
+      #   # echo "if [[ ! -z \$CONDA_DEFAULT_ENV ]]; then " > ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
+      #   # [[ -z ${CC} ]] || echo "  CCOMPILER=\$(which \${CC})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
+      #   # [[ -z ${CXX} ]] || echo "  CXXCOMPILER=\$(which \${CXX})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
+      #   # [[ -z ${F90} ]] || echo "  F90COMPILER=\$(which \${F90})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
+      #   # echo "fi " >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
+      # fi
     fi
   fi
   print_msg "Script completed.\n"
