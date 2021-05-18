@@ -30,6 +30,8 @@
 # This file will be sourced by tectoplot. All assignments should be bash format.
 # (REQUIRES: $TECTOPLOTDIR, $DEFDIR).
 
+
+
 # Default compilers are overridden by entries in tectoplot_defs/tectoplot.compilers
 
 CCOMPILER="gcc"
@@ -67,6 +69,13 @@ AWKSCRIPTDIR=${TECTOPLOTDIR}"awkscripts/"
 EULERVEC_AWK=$AWKSCRIPTDIR"eulervec_2pole_cart.awk"
 EULERVECLIST_AWK=$AWKSCRIPTDIR"eulervec_2pole_cart_list.awk"
 EULERADD_AWK=$AWKSCRIPTDIR"euleradd.awk"
+
+##### AWK 3D scripts and polyhedra files
+
+REPLICATE_OBS=$AWKSCRIPTDIR"replicate_obj.sh"
+REPLICATE_POLY=$AWKSCRIPTDIR"icosahedron.obj"
+REPLICATE_SPHERE=$AWKSCRIPTDIR"sphere.obj"
+REPLICATE_SPHERE4=$AWKSCRIPTDIR"sphere_4.obj"
 
 
 ##### FORTRAN code and executable path for Reasenberg declustering
@@ -106,6 +115,8 @@ F_GPS="gps/"                          # GPS velocity data
 ##### DATAROOT is the directory that contains all downloaded data directories.
 
 DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
+
+GMTCOLORS="$DEFDIR"tectoplot.gmtcolors
 
 TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
 TECTOPLOT_HEADERS=$DEFDIR"tectoplot.headers"

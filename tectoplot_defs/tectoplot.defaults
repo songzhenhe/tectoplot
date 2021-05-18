@@ -30,6 +30,20 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+PLY_FIB_KM=250          # Distance in km between global Fibonacci spiral points, PLY output
+PLY_VEXAG=1             # Vertical exaggeration of seismicity
+PLY_VEXAG_TOPO=1        # Vertical exaggeration of topography
+PLY_POLYMAG=6          # Minimum magnitude of earthquakes drawn as polygons instead of points
+PLY_POLYMAG_POWER=2.2     # Radius of polymag eqs is multiplied by magnitude to this power
+PLY_POLYSCALE=0.001      # Scale factor (radius of M=1) for earthquake polygons 1 = 100km
+
+# Default labels for profile axes
+
+PROFILE_X_LABEL="Distance (km)"
+PROFILE_Y_LABEL="Distance (km)"
+PROFILE_Z_LABEL="Distance (km)"
+
+
 DEM_LATBUFFER=0.0       # Extra width of DEM vs AOI (Degrees)
 DEM_LONBUFFER=0.0       # Extra height of DEM vs AOI (Degrees)
 
@@ -394,7 +408,7 @@ REMOVE_DEFAULTDEPTHS_MAXMAG=6     # But don't remove events above a (scaled?) ma
 REMOVE_DEFAULTDEPTHS_WITHPLOT=1   # Should we plot the removed events separately?
 REMOVE_EQUIVS=1              # Should we remove equivalent earthquakes if CMT exists?
 
-EQMINDEPTH_COLORSCALE=0      # minimum earthquake color depth
+EQMINDEPTH_COLORSCALE=-1      # minimum earthquake color depth
 EQMAXDEPTH_COLORSCALE=80     # maximum earthquake color depth (~transition to blue)
 SEISSIZE="0.05i"             # seismicity scale
 SEISTRANS=0                  # transparency of seismic data

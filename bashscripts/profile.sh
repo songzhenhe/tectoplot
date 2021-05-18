@@ -79,7 +79,6 @@ function tac() {
   tail -r -- "$@";
 }
 
-
 # project_xyz_pts_onto_track $1 $2 $3 $4 $5 $6
 #
 # Arguments
@@ -376,9 +375,9 @@ xyzfilelist=()
 xyzcommandlist=()
 
 # Default units are X=Y=Z=km. Use L command to update labels.
-x_axis_label="Distance (km)"
-y_axis_label="Distance (km)"
-z_axis_label="Distance (km)"
+x_axis_label="${PROFILE_X_LABEL}"
+y_axis_label="${PROFILE_Y_LABEL}"
+z_axis_label="${PROFILE_Z_LABEL}"
 
 # Search for, parse, and pre-process datasets to be plotted
 for i in $(seq 1 $k); do
@@ -391,12 +390,26 @@ for i in $(seq 1 $k); do
     y_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$3);gsub(/[ \t]+$/,"",$2);print $3}')
     z_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$4);gsub(/[ \t]+$/,"",$2);print $4}')
 
+echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
+
   # V changes the vertical exaggeration of perspective plots
   elif [[ ${FIRSTWORD:0:1} == "V" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     PERSPECTIVE_EXAG="${myarr[1]}"
 
-  # B plots labels from an XYZ+text format file
+  # M sets various flags
+  elif [[ ${FIRSTWORD:0:1} == "M" ]]; then
+
+    myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
+    if [[ "${myarr[1]}" =~ "USE_SHADED_RELIEF_TOPTILE" ]]; then
+      USE_SHADED_RELIEF_TOPTILE=1
+    fi
+    if [[ "${myarr[1]}" =~ "Y_UNITS" ]]; then
+      Y_UNIT_LABEL=1
+      Y_UNITS="${myarr[2]}"
+    fi
+
+# B plots labels from an XYZ+text format file
   elif [[ ${FIRSTWORD:0:1} == "B" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     # This is where we would load datasets to be displayed
@@ -433,19 +446,26 @@ for i in $(seq 1 $k); do
     # GRIDFILE 0.001 .1k 40k 0.1k
     grididnum[$i]=$(echo "grid${i}")
     gridfilelist[$i]=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
-    gridfilesellist[$i]=$(echo "cut_$(basename "${myarr[1]}")")
+    gridfilesellist[$i]=$(echo "cut_${i}_$(basename "${myarr[1]}")")
     gridzscalelist[$i]="${myarr[2]}"
     gridspacinglist[$i]="${myarr[3]}"
     gridwidthlist[$i]="${myarr[4]}"
     gridsamplewidthlist[$i]="${myarr[5]}"
 
-    # If this is a top tile grid, we can specify its cpt here.
+    # If this is a top tile grid, we can specify its cpt here and scale its values by gridzscalelist[$i].
     if [[ ${FIRSTWORD:0:1} == "G" ]]; then
       istopgrid[$i]=1
       if [[ -z "${myarr[6]}" ]]; then
-        echo "No CPT specified."
+        info_msg "No CPT specified for topgrid..."
       else
-        gridcptlist[$i]=$(echo "$(cd "$(dirname "${myarr[6]}")"; pwd)/$(basename "${myarr[6]}")")
+        replace_gmt_colornames_rgb "${myarr[6]}" > ${F_CPTS}topgrid_${i}.cpt
+        if [[ "${myarr[7]}" =~ "scale" ]]; then
+          info_msg "Scaling CPT Z values for topgrid."
+          scale_cpt ${F_CPTS}topgrid_${i}.cpt ${gridzscalelist[$i]} > ${F_CPTS}topgrid_${i}_scale.cpt
+          gridcptlist[$i]=${F_CPTS}topgrid_${i}_scale.cpt
+        else
+          gridcptlist[$i]=${F_CPTS}topgrid_${i}.cpt
+        fi
       fi
       info_msg "Loading top grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     else
@@ -456,6 +476,8 @@ for i in $(seq 1 $k); do
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
     rm -f ${F_PROFILES}tmp.nc
     gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+
+    info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
     gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
 
   # T is a grid sampled along a track line
@@ -481,7 +503,7 @@ for i in $(seq 1 $k); do
       gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
     fi
 
-  # X is an xyz dataset; E is an XYZ dataset scaled like an earthquake
+  # X is an xyz dataset; E is an earthquake dataset
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     # This is where we would load datasets to be displayed
@@ -557,9 +579,8 @@ for i in $(seq 1 $k); do
       dozflag=1
     fi
 
-    COLOR_R=($(grep ^"$COLOR " $TECTOPLOT_COLORS | head -n 1 | gawk '{print $2, $3, $4}'))
+    COLOR=$(grep ^"$COLOR " $GMTCOLORS | head -n 1 | gawk '{print $2}')
 
-    COLOR=$(echo "${COLOR_R[0]}/${COLOR_R[1]}/${COLOR_R[2]}")
     LIGHTCOLOR=$(echo $COLOR | gawk -F/ '{
       printf "%d/%d/%d", (255-$1)*0.25+$1,  (255-$2)*0.25+$2, (255-$3)*0.25+$3
     }')
@@ -857,17 +878,31 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
       if [[ ${istopgrid[$i]} -eq 1 ]]; then
-        if [[ -e ${COLORED_RELIEF} ]]; then
-          gdal_translate -q -b 1 ${COLORED_RELIEF} ${F_TOPO}colored_relief_red.tif
-          gdal_translate -q -b 2 ${COLORED_RELIEF} ${F_TOPO}colored_relief_green.tif
-          gdal_translate -q -b 3 ${COLORED_RELIEF} ${F_TOPO}colored_relief_blue.tif
+        if [[ $USE_SHADED_RELIEF_TOPTILE -eq 1 ]]; then
+          COLOR_SOURCE=${COLORED_RELIEF}
+          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_TOPO}colored_relief_red.tif
+          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_TOPO}colored_relief_green.tif
+          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_TOPO}colored_relief_blue.tif
 
-          gmt grdtrack -N -Vn -G${F_TOPO}colored_relief_red.tif -G${F_TOPO}colored_relief_green.tif  -G${F_TOPO}colored_relief_blue.tif ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
+        else
+          if [[ ! -s ${F_PROFILES}topgrid_relief.tif ]]; then
+            info_msg "Making new colored grid for toptile extraction"
+            # gmt_init_tmpdir
+            replace_gmt_colornames_rgb ${gridcptlist[$i]} > ./cpttmp.cpt
+            cpt_to_gdalcolor ./cpttmp.cpt > ${F_CPTS}gdal_topocolor.dat
+            gdaldem color-relief -q ${F_PROFILES}${gridfilesellist[$i]} ${F_CPTS}gdal_topocolor.dat ${F_PROFILES}topgrid_relief.tif
+          fi
+          COLOR_SOURCE="${F_PROFILES}topgrid_relief.tif"
+          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_TOPO}colored_relief_red.tif
+          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_TOPO}colored_relief_green.tif
+          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_TOPO}colored_relief_blue.tif
+        fi
+
+        gmt grdtrack -N -Vn -G${F_TOPO}colored_relief_red.tif -G${F_TOPO}colored_relief_green.tif  -G${F_TOPO}colored_relief_blue.tif ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 
-          if [[ -s ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt ]]; then
-            topgridcoloredreliefflag=1
-          fi
+        if [[ -s ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt ]]; then
+          topgridcoloredreliefflag=1
         fi
       fi
 
@@ -1075,7 +1110,6 @@ cat << EOF > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.vrt
 </OGRVRTDataSource>
 EOF
 
-
         if [[ $topgridcoloredreliefflag -eq 1 ]]; then
 cat << EOF > ${F_PROFILES}red.vrt
 <OGRVRTDataSource>
@@ -1131,6 +1165,7 @@ EOF
         numy=$(echo "($dem_maxy - $dem_miny)/$PERSPECTIVE_RES" | bc)
 
         cd ${F_PROFILES}
+
           gdal_grid -q -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
 
           if [[ $topgridcoloredreliefflag -eq 1 ]]; then
@@ -1277,11 +1312,11 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt ${F_PROFILES}
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt
 
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
-        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
+        tail -r ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
 
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
-        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+        tail -r ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 
         # PLOT ON THE COMBINED PS
@@ -1424,6 +1459,21 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       ##########################################################################
       # Plot earthquake data scaled by magnitude
 
+      if [[ $zctimeflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,6"
+        SEIS_CPT=${F_CPTS}"eqtime.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,7"
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      else
+        SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,2"
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
+
+
       if [[ ${xyzscaleeqsflag[i]} -eq 1 ]]; then
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
@@ -1447,34 +1497,36 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           mv ${F_PROFILES}tmp.dat ${F_PROFILES}finaldist_${FNAME}
         fi
 
+
         # PLOT ON THE MAP PS
-        gawk < ${F_PROFILES}finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1))}' > ${F_PROFILES}stretch_finaldist_${FNAME}
+        gawk < ${F_PROFILES}finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{$4=($4^str)/(sref^(str-1)); print}' > ${F_PROFILES}stretch_finaldist_${FNAME}
+
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p" >> plot.sh
-        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
+        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR ${SEIS_INPUTORDER1} -S${SEISSYMBOL} ${xyzcommandlist[i]} -C$SEIS_CPT $RJOK ${VERBOSE} >> ${PSFILE}" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> plot.sh
 
         # PLOT ON THE FLAT PROFILE PS
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_temp_plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p"  >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -G$COLOR ${SEIS_INPUTORDER1} -S${SEISSYMBOL} ${xyzcommandlist[i]} -C$SEIS_CPT $RJOK ${VERBOSE}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE SECTION PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT p" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -p -G$COLOR -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} ${xyzcommandlist[i]} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -p -G$COLOR ${SEIS_INPUTORDER1} -S${SEISSYMBOL} ${xyzcommandlist[i]} -C$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
 
       else
         # PLOT ON THE MAP PS
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
 
         # PLOT ON THE FLAT SECTION PS
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE SECTION PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -p -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
 
       rm -f presort_${FNAME}
@@ -1614,7 +1666,6 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       # project_xyz_pts_onto_track $trackfile $xyzfile $outputfile $xoffset $zoffset $zscale
 
-
       [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
       [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
       [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel.xyz ]] && project_xyz_pts_onto_track ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel.xyz ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz $XOFFSET_NUM $ZOFFSET_NUM $CMTZSCALE
@@ -1655,7 +1706,10 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         p2_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
 
-        cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        # cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+
+        # pscoupe outputs data into files called Aa... rather than to a specified output file
 
         rm -f *_map
         for pscoupefile in Aa*; do
@@ -1673,7 +1727,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         done
         rm -f Aa*
 
-        cat ${F_PROFILES}cmt_normal_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_normal_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
         rm -f *_map
         for pscoupefile in Aa*; do
           info_msg "Shifting profile $pscoupefile by $cur_x km to account for segmentation"
@@ -1690,7 +1744,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         done
         rm -f Aa*
 
-        cat ${F_PROFILES}cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
         rm -f *_map
         for pscoupefile in Aa*; do
           info_msg "Shifting profile $pscoupefile by $cur_x km to account for segmentation"
@@ -1716,55 +1770,107 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         fi
       done
 
+      # This is where we adjust the data to accommodate -zctime. We swap the third
+      # data field with epoch/1000000 and update the CPT path and the data file
+      # paths, then plot. This could be used to update the color with other fields
+      # as long as they are passed into the GMT format data files... (eg magnitude?)
+
+      if [[ $zctimeflag -eq 1 ]]; then
+        case ${CMTFORMAT} in
+          # We don't currently recognize the other formats as there are problems
+          # with plotting in rare cases, and the MomentTensor format works.
+          GlobalCMT) #
+          ;;
+          MomentTensor) # 15 total fields, 0-14; epoch is in 14
+            [[ -e ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_PROFILES}${LINEID}_cmt_thrust_profile_data_time.txt
+            CMT_PROFILE_THRUSTPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_thrust_profile_data_time.txt)
+            [[ -e ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_PROFILES}${LINEID}_cmt_normal_profile_data_time.txt
+            CMT_PROFILE_NORMALPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_normal_profile_data_time.txt)
+            [[ -e ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data_time.txt
+            CMT_PROFILE_STRIKESLIPPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data_time.txt)
+          ;;
+          TNP) #
+          ;;
+        esac
+        SEIS_CPT=${F_CPTS}"eqtime_cmt.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        case ${CMTFORMAT} in
+          # We don't currently recognize the other formats as there are problems
+          # with plotting in rare cases, and the MomentTensor format works.
+          GlobalCMT) #
+          ;;
+          MomentTensor) # 15 total fields, 0-14; epoch is in 14, cluster is in 15
+            [[ -e ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_PROFILES}${LINEID}_cmt_thrust_profile_data_time.txt
+            CMT_PROFILE_THRUSTPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_thrust_profile_data_time.txt)
+            [[ -e ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_PROFILES}${LINEID}_cmt_normal_profile_data_time.txt
+            CMT_PROFILE_NORMALPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_normal_profile_data_time.txt)
+            [[ -e ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt ]] && gawk < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data_time.txt
+            CMT_PROFILE_STRIKESLIPPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data_time.txt)
+          ;;
+          TNP) #
+          ;;
+        esac
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+
+      else
+        CMT_PROFILE_THRUSTPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt)
+        CMT_PROFILE_NORMALPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt)
+        CMT_PROFILE_STRIKESLIPPLOT=$(abs_path ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt)
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
+
       # Generate the plotting commands for the shell script
 
       if [[ $cmtthrustflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+
+        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_thrust_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_normal_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtssflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
 
@@ -1886,34 +1992,56 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 # head -n 1 ${F_PROFILES}finaldist_${FNAME}
 # 7.41567 80 80 4.1 1998-03-01T05:57:56 1079449 888703076 0.138888888889 Helvetica,black TL
 
-          [[ $EQ_LABELFORMAT == "idmag"    ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, $6, $4  }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "datemag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, tmp[1], $4 }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp[1], $6 }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "id"       ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, $6  }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "date"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp[1] }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "year"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp2[1] }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "yearmag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp2[1], $4 }' >> ${F_PROFILES}labels_${FNAME}
-          [[ $EQ_LABELFORMAT == "mag"      ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, 0-$2, $8, 0, $9, $4  }' >> ${F_PROFILES}labels_${FNAME}
+          [[ $EQ_LABELFORMAT == "idmag"    ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, $6, $4  }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "datemag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, 0-$2, $8, 0, $9, tmp[1], $4 }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp[1], $6 }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "id"       ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, $6  }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "date"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp[1] }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "year"     ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, 0-$2, $8, 0, $9, tmp2[1] }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "yearmag"  ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, 0-$2, $8, 0, $9, tmp2[1], $4 }' >> ${F_PROFILES}labels_preadjust_${FNAME}
+          [[ $EQ_LABELFORMAT == "mag"      ]] && gawk  < ${F_PROFILES}finaldist_${FNAME} '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, 0-$2, $8, 0, $9, $4  }' >> ${F_PROFILES}labels_preadjust_${FNAME}
 
 # echo "after:"
 # head -n 1 ${F_PROFILES}labels_${FNAME}
 # 7.41567	-80	0.138888888889	0	Helvetica,black	1998(4.1)
-
-
 # should be: 100.274	5.1732	10p,Helvetica,black	0	TL	1995(4)
 
+          # Recalculate the justification of each label based on its position on the profile
+
+          # CENTERX=$()
+          #
+cat <<-EOF > tmp.txt
+PROFILE_ZCENTER=\$(echo "(\${line_max_z} + \${line_min_z})/2" | bc -l)
+PROFILE_XCENTER=\$(echo "(\${line_max_x} + \${line_min_x})/2" | bc -l)
+gawk < ${F_PROFILES}labels_preadjust_${FNAME} -v cx=\$PROFILE_XCENTER -v cz=\$PROFILE_ZCENTER '{
+  if (\$1 > cx) {
+    hpos="R"
+  } else {
+    hpos="L"
+  }
+  if (\$2 < cz) {
+    vpos="B"
+  } else {
+    vpos="T"
+  }
+  \$5=sprintf("%s%s", hpos, vpos)
+  print
+  }' > ${F_PROFILES}labels_${FNAME}
+EOF
+
           # PLOT ON THE MAP PS
+          cat tmp.txt >> plot.sh
+
           echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> "${PSFILE}"" >> plot.sh
-          # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
 
           # PLOT ON THE FLAT SECTION PS
+          cat tmp.txt >> ${LINEID}_temp_plot.sh
+
           echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
-          # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-
           # PLOT ON THE OBLIQUE SECTION PS
+          cat tmp.txt >> ${LINEID}_plot.sh
           [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -p -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-          # [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
           rm -f presort_${FNAME}
         done # LABELS
@@ -2073,10 +2201,11 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       # If there is no top tile, we need to create some commands to allow a plot to be made correctly.
 
       if [[ -e ${LINEID}_topscript.sh ]]; then
+        echo "# Top tile plotting script..." >> ${LINEID}_plot_start.sh
         cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
         cleanup ${LINEID}_topscript.sh
       else
-        # COMEBACK
+        echo "# Top tile plotting script... alternative mode" >> ${LINEID}_plot_start.sh
         echo "VEXAG=\${3}" > ${LINEID}_topscript.sh
         echo "dem_miny=-${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
         echo "dem_maxy=${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
@@ -2142,7 +2271,7 @@ EOF
       # NO -K
       echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile" >> ${LINEID}_plot_start.sh
+      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile >/dev/null 2>&1 " >> ${LINEID}_plot_start.sh
 
       # Execute plot script
       chmod a+x ${LINEID}_plot_start.sh
@@ -2162,17 +2291,19 @@ EOF
 
     # Create the profile postscript plot
     # Profiles will be plotted by a master script that feeds in the appropriate parameters based on all profiles.
+    echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_profile_plot.sh
+    echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_profile_plot.sh
     echo "line_min_z=\$1" >> ${LINEID}_profile_plot.sh
     echo "line_max_z=\$2" >> ${LINEID}_profile_plot.sh
     echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> ${LINEID}_profile_plot.sh
     echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >>${LINEID}_profile_plot.sh
 
     # Center the frame on the new PS document
-    echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R${PROFILE_XMIN}/${PROFILE_XMAX}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
     cleanup ${LINEID}_temp_plot.sh
     echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
-    echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile_plot.sh
 
     echo "./${LINEID}_profile_plot.sh ${line_min_z} ${line_max_z}" >> ./plot_flat_profiles.sh
     chmod a+x ./${LINEID}_profile_plot.sh
@@ -2272,7 +2403,11 @@ fi
 # First, define variables and plot the frame. This sets -R and -J for the
 # actual plotting script commands in plot.sh
 
-echo "line_min_z=${min_z}" > plot_combined_profiles.sh
+echo "#!/usr/bin/env bash" > plot_combined_profiles.sh
+echo "rm -f ${F_PROFILES}all_profiles.ps" >> plot_combined_profiles.sh
+echo "line_min_x=${min_x}" >> plot_combined_profiles.sh
+echo "line_max_x=${max_x}" >> plot_combined_profiles.sh
+echo "line_min_z=${min_z}" >> plot_combined_profiles.sh
 echo "line_max_z=${max_z}" >> plot_combined_profiles.sh
 echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> plot_combined_profiles.sh
 echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> plot_combined_profiles.sh
@@ -2280,11 +2415,11 @@ PROFILE_Y_C=$(echo ${PROFILE_HEIGHT_IN} ${PROFILE_WIDTH_IN} | gawk '{print ($1+0
 echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')"  >> plot_combined_profiles.sh
 echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)"  >> plot_combined_profiles.sh
 echo "PROFILE_Y_C=\$(echo \${PROFILE_HEIGHT_IN} \${PROFILE_WIDTH_IN} | gawk '{print (\$1+0)+(\$2+0)  \"i\"}')"  >> plot_combined_profiles.sh
-echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R$min_x/$max_x/$min_z/$max_z --MAP_FRAME_PEN=thinner,black -K -O >> ${PSFILE}" >> plot_combined_profiles.sh
+echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
 cat plot.sh >> plot_combined_profiles.sh
 echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psxy -T -R -J -O -Vn >> ${PSFILE}" >> plot_combined_profiles.sh
-echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps" >> plot_combined_profiles.sh
+echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps >/dev/null 2>&1" >> plot_combined_profiles.sh
 
 # Execute plot script
 chmod a+x ./plot_combined_profiles.sh

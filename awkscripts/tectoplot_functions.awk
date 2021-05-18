@@ -51,6 +51,28 @@ function ceil(x)       { return int(x)+(x>int(x))       }
 function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
 
+# 3 vector math operations
+
+# Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v
+
+function v_cross(u1,u2,u3,v1,v2,v3) {
+  w_cross_1 = u2*v3 - u3*v2
+  w_cross_2 = u3*v1 - u1*v3
+  w_cross_3 = u1*v2 - u2*v1
+  v_cross_l = sqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3)
+  w_cross_1 = w_cross_1 / v_cross_l
+  w_cross_2 = w_cross_2 / v_cross_l
+  w_cross_3 = w_cross_3 / v_cross_l
+}
+
+# Set global variables w_sub_1, w_sub_2, and w_sub_3 as the resultant of u - v
+function v_subtract(u1,u2,u3,v1,v2,v3) {
+  w_sub_1 = u1-v1
+  w_sub_2 = u2-v2
+  w_sub_3 = u3-v3
+}
+
+
 
 # moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz)
 # This function takes the 6 components of a focal mechanism and calculates its

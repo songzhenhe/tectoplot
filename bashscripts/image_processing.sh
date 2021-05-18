@@ -43,10 +43,11 @@ function multiply_combine() {
 }
 
 function alpha_value() {
-  info_msg "Executing multiply combine of $1 and $2 [0-1]. Result=$3."
-  gdal_calc.py --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
+  info_msg "Executing alpha transparency of $1 by factor $2 [0-1]. Result=$3."
+  gdal_calc.py –-NoDataValue=none --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
                  ((A/255.)*(1-${2})+(255/255.)*(${2}))
                  ) * 255 )" --outfile="${3}"
+  gdal_edit.py -unsetnodata "${3}"
 }
 
 # function alpha_multiply_combine() {
@@ -214,4 +215,133 @@ function recolor_sea() {
   # merge the out files
   rm -f "${6}"
   gdal_merge.py -q -co "PHOTOMETRIC=RGB" -separate -o "${6}" outA.tif outB.tif outC.tif
+}
+
+# This function reformats an input CPT file to be in r/g/b (or h/s/v) format,
+# replacing GMT color names (e.g. seashell4) with r/g/b colors. Comments, BFN,
+# and trailing annotation fields are also printed.
+
+function replace_gmt_colornames_rgb() {
+  gawk '
+  BEGIN {
+    firstline=0
+  }
+  {
+    if(NR == FNR){
+      colors[$1] = $2
+    } else {
+      if (substr($0,0,1)!="#") {
+        firstline++
+        if (firstline==1) {
+          if (NF==4 || NF==5) {
+            format="a/b/c"
+          } else if (NF==8 || NF==9) {
+            format="a b c"
+          } else {
+            format="none"
+          }
+        }
+
+        if (format=="none") {
+          print
+        } else if (format=="a/b/c") {
+
+          if ($2 in colors) {
+            $2=colors[$2]
+          }
+          if (NF==2) {  # B colorname or B 3/4/5
+            print $1 "\t" $2
+          } else {
+            num1=split($2, c1, "/")
+            if (num1 != 3) {
+              print("CPT format inconsistent - expecting Z1 A/B/C Z2 A/B/C [N]") > "/dev/stderr"
+              exit
+            }
+            if ($4 in colors) {
+              $4=colors[$4]
+            } else {
+              num2=split($4, c2, "/")
+              if (num2 != 3) {
+                print("CPT format inconsistent - expecting Z1 A/B/C Z2 A/B/C [N]") > "/dev/stderr"
+                exit
+              }
+            }
+            print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5
+          }
+        } else {
+          if (NF==2) {
+            if ($2 in colors) {
+              $2=colors[$2]
+            }
+          }
+          print $1, $2 "/" $3 "/" $4, $5, $6 "/" $7 "/" $8, $9
+        }
+      } else {
+        print
+      }
+    }
+  }' ${GMTCOLORS} "$1"
+}
+
+# This function takes a GMT CPT file in R/G/B format and prints a gdal color
+# interval file, respecting the input hinge value. Comments and BFN are removed.
+
+function cpt_to_gdalcolor () {
+  if [[ "$2" == "" ]]; then
+    gawk < "$1" '{
+      if ($1 != "B" && $1 != "F" && $1 != "N" && substr($0,0,1) != "#") {
+        print $1, $2
+      }
+    }' | tr '/' ' ' | gawk '{
+      if ($2==255) {$2=254.9}
+      if ($3==255) {$3=254.9}
+      if ($4==255) {$4=254.9}
+      print
+    }'
+  else
+    gawk < "$1" -v hinge="${2}" '{
+      if ($1 != "B" && $1 != "F" && $1 != "N" && substr($0,0,1) != "#") {
+        if (count==1) {
+          print $1+0.01, $2
+          count=2
+        } else {
+          print $1, $2
+        }
+        if ($3 == hinge) {
+          if (count==0) {
+            print $3-0.0001, $4
+            count=1
+          }
+        }
+      }
+    }' | tr '/' ' ' | gawk '{
+      if ($2==255) {$2=254.9}
+      if ($3==255) {$3=254.9}
+      if ($4==255) {$4=254.9}
+      print
+    }'
+  fi
+}
+
+# This function takes a clean RGB CPT and scales the z values by the input factor
+# Comments, annotation letters, and BFN are preserved.
+
+function scale_cpt() {
+  gawk < "${1}" -v scale="${2}" '
+  BEGIN {
+    firstline=0
+  }
+  {
+    if (substr($0,0,1)!="#") {
+      if (NF >2) {
+        $1=$1*scale
+        $3=$3*scale
+        print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5
+      } else {
+        print
+      }
+    } else {
+      print
+    }
+  }'
 }

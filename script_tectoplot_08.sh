@@ -28,6 +28,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# To do: define grid points for plate motions using own lon/lat text file
 
 VERSION="0.4.1"
 TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
@@ -56,13 +57,14 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
 
 # To do: plot TPN axes on cross sections
 
-# Add option to filter for subduction interface focal mechanisms?
-# - Is within a slab2 clipping polygon
-# - Nodal plane strike and dip are similar to slab2 str slab2 dip
-# - is within +- X km of the slab2 dep
 
 # CHANGELOG
 
+# May    9,    2021: Added -zccluster to profiles, including CMT
+#                  : Updated earthquake culling code, fixed eqlabels on profiles
+# May    7,    2021: Many updates, added -zctime to profiles, remade git repo
+#                  : Updated installation script, miniconda+homebrew install, etc
+#                  : Updated -mprof to plot non-topo top tile
 # April 30,    2021: Fixed -cc on profiles, cleanup more files in profiles/
 # April 29,    2021: Added -bigbar, general fixes
 # April 26,    2021: Fixed legend, updated awk->gawk calls, added -checkdeps
@@ -203,17 +205,13 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
 #
 # Litho1 end cap profile needs to go on one end or the other depending on view azimuth
 #
-# !! Convert from different magnitude types to Mw using scaling relationships (e.g. Wetherill et al. 2017)
-#  (This should be done during catalog import so we don't have to manage different magnitude types)
-
-# Add option to adjust PROFILE_WIDTH_IN rather than max_z when plotting one-to-one?
-# Add option to decluster CMT/seismicity data before plotting to remove aftershocks?
 # Update legend to include more plot elements
 # Update multi_profile to plot data in 3D on oblique block plots? Need X',Y',Z,mag for eqs.
 # Add option to plot GPS velocity vectors at the surface along profiles?
 #     --> e.g. sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
 # Add option to profile.control to plot 3D datasets within the box?
 # Add option to smooth/filter the DEM before hillshading?
+
 # Add option to specify only a profile and plot default data onto that profile and a map within that AOI
 # Add routines to plot existing cached data tile extents (e.g. GMRT, other topo) and clear cached data
 # Need to formalize argument checking approach and apply it to all options
@@ -227,8 +225,7 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
 #
 # add a box-and-whisker option to the -mprof command, taking advantage of our quantile calculations and gmt psxy -E
 # Check behavior for plots with areas that cross the Lon=0/360 meridian [general behavior is to FAIL HARD]
-# Add options for controlling CPT of focal mechanisms/seismicity beyond coloring with depth (e.g. color with time)
-# Add option to color data based on distance from profile?
+# Add option to color/transparentify data based on distance from profile?
 #
 # Update script to apply gmt.conf at start and also at various other points
 # Update commands to use --GMT_HISTORY=false when necessary, rather than using extra tmp dirs
@@ -282,7 +279,6 @@ DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
 TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
 TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
-TECTOPLOT_COLORS=$DEFDIR"tectoplot.gmtcolors"
 TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
 TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
 
@@ -1148,6 +1144,11 @@ Example: Plot a two-panel map.
 EOF
   shift && continue
   fi
+  while ! arg_is_flag $2; do
+    shift
+  done
+
+
   ;;
   -query)
   if [[ $USAGEFLAG -eq 1 ]]; then
@@ -1158,6 +1159,9 @@ cat <<-EOF
 EOF
 shift && continue
   fi
+  while ! arg_is_flag $2; do
+    shift
+  done
   ;;
 
   -setup)
@@ -1698,6 +1702,7 @@ fi
     fi
     if arg_is_float $2; then
       CPROFLEN="${2}"
+      CPROFHALFLEN=$(echo "${CPROFLEN}" | gawk '{ print ($1+0)/2 }')
       shift
     else
       if [[ $2 =~ "map" ]]; then
@@ -1728,6 +1733,8 @@ fi
 
     # Create the template file that will be used to generate the cprof_profs.txt file
     # antiaz foreaz centerlon|eqlon centerlat|eqlat cprofhalflen
+    pwd
+    echo $CPROFAZ $CPROFLON $CPROFLAT $CPROFHALFLEN \>\> ${TMP}${F_PROFILES}cprof_prep.txt
     echo $CPROFAZ $CPROFLON $CPROFLAT $CPROFHALFLEN >> ${TMP}${F_PROFILES}cprof_prep.txt
     # Calculate the profile start and end points based on the given information
   ;;
@@ -2193,6 +2200,54 @@ fi
         CMTLETTER="c"
         ;;
       esac
+    fi
+    ;;
+
+# Filter focal mechanisms by various criteria
+# maxdip: at least one nodal plane dip is lower than this value
+
+  -cfilter)
+    cfilterflag=1
+
+    if [[ $2 =~ "maxdip" ]]; then
+      cfiltercommand+="${2}"
+      shift
+      if arg_is_positive_float $2; then
+        CF_MAXDIP="$2"
+        shift
+      else
+        info_msg "[-cfilter]: maxdip requires positive float argument"
+        exit
+      fi
+    fi
+    if [[ $2 =~ "mindip" ]]; then
+      cfiltercommand+="${2}"
+      shift
+      if arg_is_positive_float $2; then
+        CF_MINDIP="$2"
+        shift
+      else
+        info_msg "[-cfilter]: mindip requires positive float argument"
+        exit
+      fi
+    fi
+    if [[ $2 =~ "rakerange" ]]; then
+      cfiltercommand+="${2}"
+      shift
+      if arg_is_float $2; then
+        CF_MINRAKE="$2"
+        shift
+        if arg_is_float $2; then
+          CF_MAXRAKE="$2"
+          shift
+        else
+          info_msg "[-cfilter]: rakerange requires two float arguments"
+          exit
+        fi
+      else
+        info_msg "[-cfilter]: rakerange requires two float arguments"
+        exit
+      fi
     fi
     ;;
 
@@ -2694,6 +2749,7 @@ cat <<-EOF
 
   [displayoptions] are: { idmag datemag dateid id date mag year yearmag }
     date:           YYYY-MM-DD
+    datetime:       YYYY-MM-DD HH:MM:SS
     mag:            Magnitude (1 decimal place)
     id:             ID code
     year:           YYYY
@@ -2724,7 +2780,7 @@ fi
           eqlistarray+=("${REGION_EQ}")
           labeleqlistflag=1
           shift
-        elif [[ $2 == "idmag" || $2 == "datemag" || $2 == "dateid" || $2 == "id" || $2 == "date" || $2 == "mag" || $2 == "year" || $2 == "yearmag" ]]; then
+        elif [[ $2 == "idmag" || $2 == "datemag" || $2 == "datetime" || $2 == "dateid" || $2 == "id" || $2 == "date" || $2 == "mag" || $2 == "year" || $2 == "yearmag" ]]; then
           EQ_LABELFORMAT="${2}"
           shift
         else
@@ -2937,6 +2993,11 @@ fi
     fi
     plots+=("extragps")
     ;;
+
+  -fixcpt)
+  replace_gmt_colornames_rgb $2
+  exit
+  ;;
 
   -gcdm)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -3389,7 +3450,9 @@ fi
       info_msg "[-kml]: Region should be set with -r before -geotiff flag is set. Using default region."
     fi
     gmt gmtset MAP_FRAME_TYPE inside
-    RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
+
+    RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JQ${PSSIZE}i"
+
     GRIDCALL="bltr"
     usecustomrjflag=1
     insideframeflag=1
@@ -3778,6 +3841,8 @@ Profile control file format:
 ---
 # First line begins with @ and sets the data range, zero crossing line, zmatch
 @ XMIN[auto] XMAX[auto] ZMIN[auto] ZMAX[auto] CROSSINGZEROLINE_FILE ZMATCH_FLAG[match|null]
+# Profile axes labels
+L |Label X|Label Y|Label Z
 # Focal mechanism data file
 C CMTFILE SWATH_WIDTH ZSCALE GMT_arguments
 # Earthquake (scaled) xyzm data file
@@ -3789,7 +3854,7 @@ T GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
 # Grid swath profile
 S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 # Top grid for oblique profile
-G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING CPT
 # Point labels
 B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 # Profiles are defined with P command
@@ -4328,7 +4393,9 @@ fi
     gridfibonacciflag=1
     makegridflag=1
     FIB_KM="${2}"
-    FIB_N=$(echo "510000000 / ( $FIB_KM * $FIB_KM - 1 ) / 2" | bc)
+    # FIB_N=$(echo "510000000 / ( $FIB_KM * $FIB_KM - 1 ) / 2" | bc)
+    FIB_N=$(echo "510000000 / ( $FIB_KM * $FIB_KM ) / 2" | bc)
+
     shift
     if arg_is_flag $2; then
       info_msg "[-pf]: Plotting text labels for plate motion vectors"
@@ -4336,7 +4403,10 @@ fi
       PLATEVEC_TEXT_PLOT=0
       shift
     fi
-    # plots+=("grid")
+    ;;
+
+  -ppf)
+    plots+=("gridpoints")
     ;;
 
   -pg) # args: file
@@ -4994,7 +5064,7 @@ fi
           exit 1
         fi
 
-        ISCUSTOMREGION=($(grep "${2}" $CUSTOMREGIONS))
+        ISCUSTOMREGION=($(grep "^${2} " $CUSTOMREGIONS))
 
         # If the ID is not found in the custom regions file
 
@@ -5003,11 +5073,15 @@ fi
           COUNTRYID=${2}
           shift
 
+
+# ERROR? DOUBLED -WjTL has to be wrong, right?
           RCOUNTRYTL=($(gmt mapproject -R${COUNTRYID} -WjTL -WjTL ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
             echo "${COUNTRYID} is not a valid region" > /dev/stderr
             exit 1
           fi
+
+# ERROR? -WjTL -WjBR has to be wrong, right?
 
           RCOUNTRYBR=($(gmt mapproject -R${COUNTRYID} -WjTL -WjBR ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
@@ -5054,6 +5128,8 @@ fi
             info_msg "[-r]: MinLon is malformed: $3"
             exit 1
           fi
+
+          echo CUSTOMREGIONRJSTRING=${CUSTOMREGIONRJSTRING}
 
         fi
       fi
@@ -5821,6 +5897,32 @@ fi
 
   plotprofileonmapflag=1
 
+  ;;
+
+  -profileaxes)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profileaxes:   set label strings for profile X, Y, Z axes
+-profileaxes [x=\"${PROFILE_X_LABEL}\"] [[y=\"${PROFILE_Y_LABEL}\"]] [[z=\"${PROFILE_Z_LABEL}\"]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  if ! arg_is_flag $2; then
+    PROFILE_X_LABEL="$2"
+    shift
+  fi
+  if ! arg_is_flag $2; then
+    PROFILE_Y_LABEL="$2"
+    shift
+  fi
+  if ! arg_is_flag $2; then
+    PROFILE_Z_LABEL="$2"
+    shift
+  fi
+  PROFILE_CUSTOMAXES_FLAG=1
   ;;
 
   -sprof) # args lon1 lat1 lon2 lat2 width res
@@ -6752,6 +6854,76 @@ fi
     useowntopoctrlflag=1
     ;;
 
+
+  -makeply)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-makeply:      Make a 3D (X,Y,Z) ply file for Sketchfab using seismicity
+-makeply [[movie]] [[landkm ${PLY_FIB_KM}]] [[vexag ${PLY_VEXAG}]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  makeplyflag=1
+  makeplydemmeshflag=1
+  makeplysurfptsflag=0
+  # if [[ "${2}" =~ "movie" ]]; then
+  #   shift
+  #   if arg_is_positive_float "${2}"; then
+  #     PLY_MOVIESTEP="${2}"
+  #     shift
+  #   else
+  #     info_msg "[-makeply]: movie flag requires positive number of days per step"
+  #     exit 1
+  #   fi
+  # fi
+  if [[ "${2}" =~ "landkm" ]]; then
+    shift
+    if arg_is_positive_float "${2}"; then
+      PLY_FIB_KM="${2}"
+      shift
+      makeplydemmeshflag=0
+      makeplysurfptsflag=1
+    else
+      info_msg "[-makeply]: landkm option requires positive float argument"
+      exit 1
+    fi
+  fi
+  if [[ "${2}" =~ "vexag" ]]; then
+    shift
+    if arg_is_positive_float "${2}"; then
+      PLY_VEXAG="${2}"
+      shift
+    else
+      info_msg "[-makeply]: vexag option requires positive float argument"
+      exit 1
+    fi
+  fi
+  if [[ "${2}" =~ "topoexag" ]]; then
+    shift
+    if arg_is_positive_float "${2}"; then
+      PLY_VEXAG_TOPO="${2}"
+      shift
+    else
+      info_msg "[-makeply]: vexag option requires positive float argument"
+      exit 1
+    fi
+  fi
+  if [[ "${2}" =~ "maxsize" ]]; then
+    shift
+    if arg_is_positive_float "${2}"; then
+      PLY_MAXSIZE="${2}"
+      plymaxsizeflag=1
+      shift
+    else
+      info_msg "[-makeply]: maxsize option requires positive integer argument"
+      exit 1
+    fi
+  fi
+  ;;
+
   -tsl)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -7024,8 +7196,7 @@ cat <<-EOF
   [[contour]] argument is the string "contour" and turns on contouring of the
               smoothed average grid.
 
-Example: Residual Bouguer gravity of the Costa Rica subduction margin
-  tectoplot -r 46 66 -40 -24 -vcurv
+Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7159,6 +7330,7 @@ fi
     shift
     info_msg "[-vars]: Sourcing variable assignments from $VARFILE"
     source $VARFILE
+    cp ${VARFILE} ${TMP}input_vars.txt
     ;;
 
   -vc|--volc) # args: none
@@ -7325,8 +7497,10 @@ fi
 		fi
 		plots+=("seis")
     cpts+=("seisdepth")
-    echo $EQ_SOURCESTRING >> ${LONGSOURCES}
-    echo $EQ_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+
+    # If we haven't called -zadd -replace, set flag to add EQ sourcestring
+    [[ $ADD_EQ_SOURCESTRING -ne 2 ]] && ADD_EQ_SOURCESTRING=1
+
     ;;
 
   -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
@@ -7373,10 +7547,15 @@ fi
     if [[ "${2}" == "replace" ]]; then
       info_msg "[-zadd]: Seis replace flag specified. Replacing catalog hypocenters."
       eqcatalogreplaceflag=1
+      ADD_EQ_SOURCESTRING=2
       shift
     else
       eqcatalogreplaceflag=0
     fi
+
+    echo "CustomEQs" >> ${SHORTSOURCES}
+    echo "Seismicity from custom file ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
+
     ;;
 
   -zcnoscale)
@@ -7501,6 +7680,22 @@ fi
   seisdeclusterflag=1
   cpts+=("eqcluster")
   plots+=("eqcluster")
+  ;;
+
+  -zconland)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zconland:    select FMS/seismicity with origin epicenter on land
+-zconland
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+  shift && continue
+  fi
+
+  zconlandflag=1
+
   ;;
 
   -zctime)
@@ -7664,7 +7859,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zmag:         select magnitude range for seismicity
--zmag [[mindepth=${EQ_MINMAG}]] [[maxdepth=${EQ_MAXMAG}]]
+-zmag [[minmag=${EQ_MINMAG}]] [[maxmag=${EQ_MAXMAG}]]
 
 Example: Plot large magnitude seismicity in Indonesia
   tectoplot -r ID -a -z -zmag 7.5 10
@@ -7770,6 +7965,11 @@ done
 # IMMEDIATELY AFTER PROCESSING ARGUMENTS, DO THESE CRITICAL TASKS
 
 [[ $USAGEFLAG -eq 1 ]] && exit
+
+if [[ $ADD_EQ_SOURCESTRING -eq 1 ]]; then
+  echo $EQ_SOURCESTRING >> ${LONGSOURCES}
+  echo $EQ_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+fi
 
 # If we are asked to delete the topo for a custom region
 if [[ $tdeleteflag -eq 1 && $usingcustomregionflag -eq 1 ]]; then
@@ -7921,7 +8121,6 @@ gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
 # This was always a bad method, try to jettison it
 gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
 
-
 # The reason to do this is because our -R/// string needs to change based on
 # various earlier settings, so we need to update MINLON/MAXLON/MINLAT/MAXLAT
 
@@ -8001,7 +8200,6 @@ if [[ $recalcregionflag_bounds -eq 1 ]]; then
       info_msg "Could not update AOI based on map extent."
     fi
 fi
-
 
 NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
 
@@ -8190,7 +8388,7 @@ if [[ -s ${F_PROFILES}cprof_prep.txt ]]; then
       echo New CPHALFLEN=${CPHALFLEN}
     fi
 
-    CPAZ=90
+    # CPAZ=90
     if [[ $CPAZ =~ "slab2" ]]; then
     # Check for Slab2 strike here
       shift
@@ -8276,6 +8474,7 @@ fi
 ##### MAKE FIBONACCI GRID POINTS
 if [[ $gridfibonacciflag -eq 1 ]]; then
   FIB_PHI=1.618033988749895
+
   echo "" | gawk  -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
   @include "tectoplot_functions.awk"
   # function asin(x) { return atan2(x, sqrt(1-x*x)) }
@@ -9137,7 +9336,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   [[ $CMTFORMAT =~ "MomentTensor" ]]  && CMTLETTER="m"
   [[ $CMTFORMAT =~ "TNP" ]] && CMTLETTER="y"
 
-
   # If we are plotting from a global database
   if [[ $plotcmtfromglobal -eq 1 && $cmtreplaceflag -eq 0 ]]; then
     echo "CMT/$CMTTYPE" >> ${SHORTSOURCES}
@@ -9323,6 +9521,90 @@ if [[ $calccmtflag -eq 1 ]]; then
         ;;
     esac
     CMTFILE=$(abs_path ${F_CMT}cmt_polygonselect.dat)
+  fi
+
+
+  # 16.     strike1	          (°)
+  # 17.     dip1	            (°)
+  # 18.     rake1	            (°)
+  # 19.     strike2	          (°)
+  # 20.     dip2	            (°)
+  # 21.     rake2	            (°)
+  ##### Select focal mechanisms using cfilter
+  if [[ $cfilterflag -eq 1 ]]; then
+    cf_index=0
+    cp ${CMTFILE} ${F_CMT}cmt_cfilter.txt
+    FILTERFILE=$(abs_path ${F_CMT}cmt_cfilter.txt)
+    while : ; do
+      case ${cfiltercommand[$cf_index]} in
+        maxdip)
+          gawk < ${FILTERFILE} -v dip=${CF_MAXDIP} '{
+           if ($17 <= dip || $20 <= dip) {
+             print
+           }
+         }' > ${F_CMT}filter.out
+         mv ${F_CMT}filter.out ${FILTERFILE}
+        ;;
+        mindip)
+          gawk < ${FILTERFILE} -v dip=${CF_MINDIP} '{
+           if ($17 >= dip || $20 >= dip) {
+             print
+           }
+         }' > ${F_CMT}filter.out
+         mv ${F_CMT}filter.out ${FILTERFILE}
+        ;;
+        rakerange)
+        gawk < ${FILTERFILE} -v minrake=${CF_MINRAKE} -v maxrake=${CF_MAXRAKE} '{
+         if (minrake < maxrake) {
+           if (($18 >= minrake && $18 <= maxrake) || ($21 >= minrake && $21 <= maxrake)) {
+             print
+           }
+         } else {
+           # minrake = 160 maxrake = -160
+           # e.g. rake in [160:180] [-180:-160]
+           if ( ($18 <= maxrake && $18 >= -180) || ($21 >= minrake && $21 <= 180) ) {
+             print
+           }
+         }
+        }' > ${F_CMT}filter.out
+        mv ${F_CMT}filter.out ${FILTERFILE}
+        ;;
+      esac
+      cf_index=$(echo "${cf_index} + 1" | bc)
+      [[ -z ${cfiltercommand[$cf_index]} ]] && break
+    done
+    [[ -s ${FILTERFILE} ]] && CMTFILE=$(abs_path ${FILTERFILE})
+  fi
+
+
+  ##### Select focal mechanisms on land
+
+  if [[ $zconlandflag -eq 1 && -s $CMTFILE ]]; then
+    if [[ -s ${F_TOPO}dem.nc ]]; then
+      case $CMTTYPE in
+        ORIGIN)
+          gawk < ${CMTFILE} '{print $8, $9}' > ${F_CMT}cmt_epicenter.dat
+          ;;
+        CENTROID)
+          gawk < ${CMTFILE} '{print $5, $6}' > ${F_CMT}cmt_epicenter.dat
+          ;;
+      esac
+
+      gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${F_TOPO}dem.nc | gawk '
+      {
+        print ($1>0)?1:0
+      }'> ${F_CMT}cmt_onland_sel.txt
+      gawk '
+      (NR==FNR) {
+        toprint[NR]=$1
+      }
+      (NR!=FNR) {
+        if (toprint[NR-length(toprint)]==1) {
+          print
+        }
+      }' ${F_CMT}cmt_onland_sel.txt ${CMTFILE} > ${F_CMT}cmt_onland.txt
+    fi
+    [[ -s ${F_CMT}cmt_onland.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_onland.txt)
   fi
 
   ##### Select focal mechanisms based on SLAB2 interface
@@ -9628,82 +9910,131 @@ fi
 
   # This section is very sensitive to file formats and any change will break it.
 
+
+
+  # I want a new algorithm that fuses CMT and EQ formats more easily, sorts them
+  # by time, and then runs a window comparison to ID equivalent events.
+
   if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e ${F_SEIS}eqs.txt ]]; then
 
-    info_msg "Removing earthquake origins that have equivalent CMT..."
-
     before_e=$(wc -l < ${F_SEIS}eqs.txt)
-    # epoch is field 4 for CMTS
-    gawk < $CMTFILE '{
-      if ($10 != "none") {                       # Use origin location
-        print "O", $8, $9, $4, $10, $13, $3, $2
-      } else if ($11 != "none") {                # Use centroid location for events without origin
-        print "C", $5, $6, $4, $7, $13, $3, $2
+
+    gawk '
+    (NR==FNR) { # Read in EQs first
+      print $7, $0
+    }
+    (NR>FNR) { # Now read in focal mechanisms
+      print $4, $0
+    }
+    ' ${F_SEIS}eqs.txt $CMTFILE | sort -n -k 1,1 > ${F_CMT}equiv_presort.txt
+
+    gawk < ${F_CMT}equiv_presort.txt '
+      function abs(v) { return (v>0)?v:-v }
+      BEGIN {
+        delta_lon=2
+        delta_lat=2
+        delta_sec=15
+        delta_depth=30
+        delta_mag=0.5
       }
-    }' > ${F_SEIS}eq_comp.dat
+      {
+        data[NR]=$0
+        epoch[NR]=$1
+        numfields[NR]=NF
 
-    # Currently we only use the first 6 columns of the EQ data. Commented code
-    # indicates how to add more/pad if necessary
-    # A LON LAT DEPTH MAG TIMECODE ID EPOCH
-
-    # We need to first add a buffer of fake EQs to avoid problems with grep -A -B
-    gawk < ${F_SEIS}eqs.txt '{
-      print "EQ", $1, $2, $7, $3, $4, $5, $6
-    }' >> ${F_SEIS}eq_comp.dat
-
-    sort ${F_SEIS}eq_comp.dat -n -k 4,4 > ${F_SEIS}eq_comp_sort.dat
-
-    # If we don't do a cycle shift here, the earliest event can fall away and be lost!
-    sed '1d' ${F_SEIS}eq_comp_sort.dat > ${F_SEIS}eq_comp_sort_m1.dat
-    head -n 1 ${F_SEIS}eq_comp_sort.dat >> ${F_SEIS}eq_comp_sort_m1.dat  # Add removed EQ to end of file
-    sed '1d' ${F_SEIS}eq_comp_sort_m1.dat > ${F_SEIS}eq_comp_sort_m2.dat
-    head -n 1 ${F_SEIS}eq_comp_sort_m1.dat >> ${F_SEIS}eq_comp_sort_m2.dat # Add removed EQ to end of file
-
-    paste ${F_SEIS}eq_comp_sort.dat ${F_SEIS}eq_comp_sort_m1.dat ${F_SEIS}eq_comp_sort_m2.dat > ${F_SEIS}3comp.txt
-
-    # We want to remove from A any A event that is "close" to a C event
-    # This currently only compares the events closest in time to a CMT event, so
-    # it will not remove equivalent seismicity or equivalents separated by other
-    # events in the catalog.
-
-    # We  output a fused ID : IDA/IDB to allow grep to find events that have
-    # been culled.
-
-    # IDs are at field numbers 8,16,24
-
-    gawk < ${F_SEIS}3comp.txt -v secondlimit=5 -v deglimit=2 -v maglimit=0.3 '
-    @include "tectoplot_functions.awk"
-    {
-      if ($9 == "EQ") { # Only examine non-CMT events
-        if ($14 > 7.5) {
-          deglimit=3
-          secondlimit=120
-        }
-        printme = 1
-          if (($1 == "C" || $1 == "O") && abs($12-$4) < secondlimit && abs($10-$2) < deglimit && abs($11-$3) < deglimit && abs($14-$6) < maglimit) {
-              printme = 0
-              mixedid = sprintf("'s/%s/%s+%s/'",$8,$8,$16)
-          } else if (($17 == "C" || $17 == "O") && abs($20-$12) < secondlimit && abs($18-$10) < 2 && abs($19-$11) < 2 && abs($22-$14) < maglimit) {
-              printme = 0
-              mixedid = sprintf("'s/%s/%s+%s/'",$24,$24,$16)
-          }
-        if (printme == 1) {
-            print $10, $11, $13, $14, $15, $16, $12
+        if ($14 != "") {
+        # CMT entry
+          iscmt[NR]=1
+          lon[NR]=$9
+          lat[NR]=$10
+          depth[NR]=$11
+          mag[NR]=$14
+          idcode[NR]=$3
         } else {
-            print $10, $11, $13, $14, $15, $16, $12 > "eq_culled.txt"
-            print mixedid > "eq_idcull.sed"
-            mixedid=""
+        # Seismicity entry
+        # EPOCH LON LAT DEPTH MAG TIMECODE ID EPOCH CLUSTERID+0
+          iscmt[NR]=0
+          lon[NR]=$2
+          lat[NR]=$3
+          depth[NR]=$4
+          mag[NR]=$5
+          idcode[NR]=$7
         }
       }
-    }' > ${F_SEIS}eqs.txt
-    after_e=$(wc -l < ${F_SEIS}eqs.txt)
-    [[ -e ./eq_culled.txt ]] && mv ./eq_culled.txt ${F_SEIS}
+      END {
+        numentries=NR
+        # Check each earthquake entry
+        for(indd=1;indd<=numentries;indd++) {
 
-    info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
+          # For seismicity event, decide if there is a focal mechanism equivalent
+          if (iscmt[indd]==0) {
+            printme=1
+            for(j=indd-2; j<=indd+2; j++) {
+              # For the surrounding two events, if one is a CMT event
+              if (j>=1 && j<=numentries && j != indd && iscmt[j]==1) {
+                if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
+                     (abs(depth[indd]-depth[j])<=delta_depth) && (abs(epoch[indd]-epoch[j])<=delta_sec &&
+                     (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
+                     # This CMT [j] is a duplicate of the seismicity event [i]
+                    printme=0
+                    mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
+                    break
+                }
+              }
+            }
+            numf=split(data[indd], printout, " ")
+            if (printme==1) {
+              for (i=2; i<numf;i++) {
+                printf("%s ", printout[i])
+              }
+              printf("%s\n", printout[numf])
+            } else {
+              for (i=2; i<numf;i++) {
+                printf("%s ", printout[i]) >> "./eq_culled.txt"
+              }
+              printf("%s\n", printout[numf]) >> "./eq_culled.txt"
+              print mixedid >> "./eq_idcull.sed"
+            }
+          }
+        }
+      }
+      ' > ${F_SEIS}eqs_notculled.txt
 
-    info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
-    [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed -i '' ${CMTFILE}
-    # cleanup ${F_SEIS}eq_comp.dat ${F_SEIS}eq_comp_sort.dat ${F_SEIS}eq_comp_sort_m1.dat ${F_SEIS}eq_comp_sort_m2.dat ${F_SEIS}3comp.txt
+      [[ -s ${F_SEIS}eqs_notculled.txt ]] && cp ${F_SEIS}eqs_notculled.txt ${F_SEIS}eqs.txt
+      [[ -s ./eq_culled.txt ]] && mv ./eq_culled.txt ${F_SEIS}
+
+
+      after_e=$(wc -l < ${F_SEIS}eqs.txt)
+
+      info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
+
+      info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
+      [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed -i '' ${CMTFILE}
+
+      info_msg "Merging cluster IDs with CMT catalog"
+
+
+  fi
+
+  if [[ -s ${F_SEIS}eq_culled.txt && -s ${F_SEIS}catalog_clustered.txt && -s $CMTFILE ]]; then
+    # cat ${F_SEIS}catalog_clustered.txt ${F_SEIS}catalog_clustered.txt > ${F_SEIS}pre_cluster_cmt.txt
+    cat ${F_SEIS}eq_culled.txt ${F_SEIS}eqs.txt > ${F_SEIS}pre_cluster_cmt.txt
+    gawk '
+      (FNR==NR){
+        id[$6]=$6;
+        cluster[$6]=$8
+      }
+      (FNR != NR) {
+        split($2, ids, "+")
+        if (ids[2] in id) {
+          print $0, cluster[ids[2]]
+        } else {
+          print $0, 1
+        }
+      }' ${F_SEIS}pre_cluster_cmt.txt $CMTFILE > ${F_CMT}cmt_declustered.txt
+    if [[ -s ${F_CMT}cmt_declustered.txt ]]; then
+      CMTFILE=$(abs_path  ${F_CMT}cmt_declustered.txt)
+    fi
   fi
 
   # Now sort the remaining focal mechanisms in the same manner as the seismicity
@@ -9749,7 +10080,10 @@ fi
       a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
       split(a,b,"+")  # mantissa
       split(a,c,"E")  # exponent
-      print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, c[1], b[2], $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+      $14=c[1]
+      $15=b[2]
+      print
+      # print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, c[1], b[2], $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
     }' > ${F_CMT}cmt_scale.dat
     CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
   fi
@@ -9783,6 +10117,8 @@ fi
       strike1=$16;dip1=$17;rake1=$18;strike2=$19;dip2=$20;rake2=$21
       Mrr=$33; Mtt=$34; Mpp=$35; Mrt=$36; Mrp=$37; Mtp=$38
       Tval=$23; Taz=$24; Tinc=$25; Nval=$26; Naz=$27; Ninc=$28; Pval=$29; Paz=$30; Pinc=$31;
+      clusterid=$40
+
       epoch=iso8601_to_epoch(iso8601_code)
 
       timecode=$3
@@ -9796,39 +10132,41 @@ fi
 
       if (lon != "none" && lat != "none") {
 
-        if (fmt == "GlobalCMT") {
-          #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
-          if (substr($1,2,1) == "T") {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt_thrust.txt"
-          } else if (substr($1,2,1) == "N") {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt_normal.txt"
-          } else {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt_strikeslip.txt"
-          }
-          print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt.dat"
-
-        } else if (fmt == "MomentTensor") {
+        # if (fmt == "GlobalCMT") {
+        #   #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
+        #   if (substr($1,2,1) == "T") {
+        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+        #   } else if (substr($1,2,1) == "N") {
+        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_normal.txt"
+        #   } else {
+        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_strikeslip.txt"
+        #   }
+        #   print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt.dat"
+        #
+        # } else
+        if (fmt == "MomentTensor") {
           # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat [event_title] altdepth [timecode]
             if (substr($1,2,1) == "T") {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt_thrust.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
             } else if (substr($1,2,1) == "N") {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch  > "cmt_normal.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
             } else {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch  > "cmt_strikeslip.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
             }
-            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch  > "cmt.dat"
-        } else if (fmt == "TNP") {
-           # y  Best double couple defined from principal axis:
-  	       # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
-          if (substr($1,2,1) == "T") {
-            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch > "cmt_thrust.txt"
-          } else if (substr($1,2,1) == "N") {
-            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch  > "cmt_normal.txt"
-          } else {
-            print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch  > "cmt_strikeslip.txt"
-          }
-          print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch   > "cmt.dat"
+            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt.dat"
         }
+      # else if (fmt == "TNP") {
+      #      # y  Best double couple defined from principal axis:
+  	  #      # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
+      #     if (substr($1,2,1) == "T") {
+      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+      #     } else if (substr($1,2,1) == "N") {
+      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
+      #     } else {
+      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
+      #     }
+      #     print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid   > "cmt.dat"
+      #   }
 
         if (substr($1,2,1) == "T") {
           print lon, lat, Taz, Tinc > "t_axes_thrust.txt"
@@ -9846,11 +10184,11 @@ fi
 
         if (Mw >= minmag && Mw <= maxmag) {
           if (substr($1,2,1) == "T") {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "kin_thrust.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_thrust.txt"
           } else if (substr($1,2,1) == "N") {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "kin_normal.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_normal.txt"
           } else {
-            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch > "kin_strikeslip.txt"
+            print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_strikeslip.txt"
           }
         }
       }
@@ -9861,11 +10199,13 @@ fi
     [[ -e cmt_strikeslip.txt ]] && mv cmt_strikeslip.txt ../${F_CMT}
     [[ -e cmt.dat ]] && mv cmt.dat ../${F_CMT}
 
-    cp ../${F_CMT}cmt_thrust.txt ../${F_CMT}cmt_thrust_orig.txt
-    [[ -s ../${F_CMT}cmt_thrust_nearslab.txt ]] && cp ../${F_CMT}cmt_thrust_nearslab.txt ../${F_CMT}cmt_thrust.txt
+    # This code was clearly patched in to deal with a slab issue
 
-    # This assumes cmt_thrust.txt is in GlobalCMT format...
-    cp ../${F_CMT}cmt_thrust.txt kin_thrust.txt
+    # cp ../${F_CMT}cmt_thrust.txt ../${F_CMT}cmt_thrust_orig.txt
+    # [[ -s ../${F_CMT}cmt_thrust_nearslab.txt ]] && cp ../${F_CMT}cmt_thrust_nearslab.txt ../${F_CMT}cmt_thrust.txt
+    #
+    # # This assumes cmt_thrust.txt is in GlobalCMT format...
+    # cp ../${F_CMT}cmt_thrust.txt kin_thrust.txt
 
 
   touch kin_thrust.txt kin_normal.txt kin_strikeslip.txt
@@ -9896,15 +10236,13 @@ fi
 
 #### Back to seismicity for some reason
 
-
-
 if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
   info_msg "Removing earthquakes with poorly determined origin depths"
   [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
   # Plotting in km instead of in map geographic coords.
-  gawk < ${F_SEIS}eqs.txt '{
+  gawk < ${F_SEIS}eqs.txt -v defdepmag=$REMOVE_DEFAULTDEPTHS_MAXMAG '{
     if ($4 <= defdepmag) {
-      if ($3 == 10 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
+      if ($3 == 10 || $3 == 30 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
         seen[$3]++
       } else {
         print
@@ -10443,7 +10781,6 @@ if [[ $plotplates -eq 1 ]]; then
   fi #  if [[ $doplateedgesflag -eq 1 ]]; then
 fi # if [[ $plotplates -eq 1 ]]
 
-
 if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 ]]; then
   plots+=("mprof")
 fi
@@ -10657,9 +10994,15 @@ for cptfile in ${cpts[@]} ; do
       else
         # Make a color stretch CPT
         SEISDEPTH_CPT=$(abs_path $SEISDEPTH_CPT)
-        gmt makecpt -C${SEIS_CPT} -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}" -Z $VERBOSE > $SEISDEPTH_CPT
+        gmt makecpt -N -C${SEIS_CPT} -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}"/1 -Z $VERBOSE > $SEISDEPTH_CPT
         cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
         echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
+        echo "B	170/0/0" >> $SEISDEPTH_CPT
+        echo "F	0/0/205" >> $SEISDEPTH_CPT
+        echo "N	127.5" >> $SEISDEPTH_CPT
+        echo "B	170/0/0" >> $SEISDEPTH_NODEEPEST_CPT
+        echo "F	0/0/205" >> $SEISDEPTH_NODEEPEST_CPT
+        echo "N	127.5" >> $SEISDEPTH_NODEEPEST_CPT
       fi
 
     ;;
@@ -10982,7 +11325,6 @@ for plot in ${plots[@]} ; do
         gmt psxy ${F_CMT}cmt_alt_pts_thrust.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
         gmt psxy ${F_CMT}cmt_alt_pts_normal.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
         gmt psxy ${F_CMT}cmt_alt_pts_strikeslip.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> map.ps
-
       fi
 
       if [[ $zctimeflag -eq 1 ]]; then
@@ -10997,10 +11339,26 @@ for plot in ${plots[@]} ; do
             [[ -e ${F_CMT}cmt_strikeslip.txt ]] && gawk < ${F_CMT}cmt_strikeslip.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_CMT}cmt_strikeslip_time.txt
             CMT_STRIKESLIPPLOT=$(abs_path ${F_CMT}cmt_strikeslip_time.txt)
           ;;
-          TNP)
+          TNP) #
           ;;
         esac
         SEIS_CPT=${F_CPTS}"eqtime_cmt.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        case ${CMTFORMAT} in
+          GlobalCMT) #
+          ;;
+          MomentTensor) # 15 total fields, 0-14; epoch is in 14
+            [[ -e ${F_CMT}cmt_thrust.txt ]] && gawk < ${F_CMT}cmt_thrust.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_CMT}cmt_thrust_cluster.txt
+            CMT_THRUSTPLOT=$(abs_path ${F_CMT}cmt_thrust_cluster.txt)
+            [[ -e ${F_CMT}cmt_normal.txt ]] && gawk < ${F_CMT}cmt_normal.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_CMT}cmt_normal_cluster.txt
+            CMT_NORMALPLOT=$(abs_path ${F_CMT}cmt_normal_cluster.txt)
+            [[ -e ${F_CMT}cmt_strikeslip.txt ]] && gawk < ${F_CMT}cmt_strikeslip.txt '{temp=$3; $3=$16; $16=temp; print}' > ${F_CMT}cmt_strikeslip_cluster.txt
+            CMT_STRIKESLIPPLOT=$(abs_path ${F_CMT}cmt_strikeslip_cluster.txt)
+          ;;
+          TNP) #
+          ;;
+        esac
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
       else
         CMT_THRUSTPLOT=$(abs_path ${F_CMT}cmt_thrust.txt)
         CMT_NORMALPLOT=$(abs_path ${F_CMT}cmt_normal.txt)
@@ -11137,6 +11495,7 @@ for plot in ${plots[@]} ; do
 
         [[ $EQ_LABELFORMAT == "idmag" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, $6, $4 }' >> ${F_CMT}cmt.labels
         [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> ${F_CMT}cmt.labels
+        [[ $EQ_LABELFORMAT == "datetime" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s %s\n", $1, $2, $8, 0, $9, tmp[1], tmp[2] }' >> ${F_CMT}cmt.labels
         [[ $EQ_LABELFORMAT == "dateid" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> ${F_CMT}cmt.labels
         [[ $EQ_LABELFORMAT == "id" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6 }' >> ${F_CMT}cmt.labels
         [[ $EQ_LABELFORMAT == "date" ]] && gawk  < ${F_CMT}cmtlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> ${F_CMT}cmt.labels
@@ -11184,6 +11543,7 @@ for plot in ${plots[@]} ; do
 
         [[ $EQ_LABELFORMAT == "idmag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, $6, $4  }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "datetime" ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s %s\n", $1, $2, $8, 0, $9, tmp[1], tmp[2] }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6  }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> ${F_SEIS}eq.labels
@@ -11412,6 +11772,11 @@ for plot in ${plots[@]} ; do
       fi
       ;;
 
+    gridpoints)
+      [[ -s gridfile.txt ]] && gmt psxy gridfile.txt -Sc0.05i -Gblack $RJOK $VERBOSE >> map.ps
+      ;;
+
+
     gridcontour)
 
       # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
@@ -11543,6 +11908,10 @@ for plot in ${plots[@]} ; do
         else
           echo "@ auto auto auto auto ${ALIGNXY_FILE}" > sprof.control
         fi
+        if [[ $PROFILE_CUSTOMAXES_FLAG -eq 1 ]]; then
+          info_msg "Adding custom axes labels to sprof"
+          echo "L ${PROFILE_X_LABEL}|${PROFILE_Y_LABEL}|${PROFILE_Z_LABEL}" >> sprof.control
+        fi
         if [[ $plotcustomtopo -eq 1 ]]; then
           info_msg "Adding custom topo grid to sprof"
           echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
@@ -11550,6 +11919,7 @@ for plot in ${plots[@]} ; do
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
           echo "S ${F_TOPO}dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
           echo "G ${F_TOPO}dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
+          echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
         fi
         if [[ -e ${F_GRAV}grav.nc ]]; then
           info_msg "Adding gravity grid to sprof as swath"
@@ -11557,17 +11927,18 @@ for plot in ${plots[@]} ; do
         fi
         if [[ -e ${F_SEIS}eqs.txt ]]; then
           info_msg "Adding eqs to sprof as seis-xyz"
-          echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 -W0.2p,black -C$SEISDEPTH_CPT" >> sprof.control
+          echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 -W0.2p,black" >> sprof.control
         fi
         if [[ -e ${F_CMT}cmt.dat ]]; then
           info_msg "Adding cmt to sprof"
-          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1 -L0.25p,black -Z$SEISDEPTH_CPT" >> sprof.control
+          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1 -L0.25p,black" >> sprof.control
         fi
         if [[ -e ${F_VOLC}volcanoes.dat ]]; then
           # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
           info_msg "Adding volcanoes to sprof as xyz"
           echo "X ${F_VOLC}volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
         fi
+
         if [[ -e ${F_PROFILES}profile_labels.dat ]]; then
           info_msg "Adding profile labels to sprof as xyz [lon/lat/km]"
           echo "B ${F_PROFILES}profile_labels.dat ${SPROFWIDTH} 1 ${FONTSTR}"  >> sprof.control
@@ -12123,6 +12494,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         else
 # MIGHT BE BROKEN?
+echo banana
           [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
           gmt psxy ${F_SEIS}eqs.txt -C$SEIS_CPT ${EQWCOM} -S${SEISSYMBOL}${SEISSIZE} ${SEIS_INPUTORDER1} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         fi
@@ -12573,30 +12945,37 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # the color from land not bleed to the hinge elevation.
               # CPTHINGE=0
 
-              gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
-                if ($1 != "B" && $1 != "F" && $1 != "N" ) {
-                  if (count==1) {
-                    print $1+0.01, $2
-                    count=2
-                  } else {
-                    print $1, $2
-                  }
 
-                  if ($3 == hinge) {
-                    if (count==0) {
-                      print $3-0.0001, $4
-                      count=1
-                    }
-                  }
-                }
-              }' | tr '/' ' ' | gawk '{
-                if ($2==255) {$2=254.9}
-                if ($3==255) {$3=254.9}
-                if ($4==255) {$4=254.9}
-                print
-              }' > ${F_CPTS}topocolor.dat
+              replace_gmt_colornames_rgb ${TOPO_CPT} ${CPTHINGE} > ./cpttmp.cpt
+              cpt_to_gdalcolor ./cpttmp.cpt > ${F_CPTS}topocolor.dat
+              rm -f ./cpttmp.cpt
+
+              # gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
+              #   if ($1 != "B" && $1 != "F" && $1 != "N" ) {
+              #     if (count==1) {
+              #       print $1+0.01, $2
+              #       count=2
+              #     } else {
+              #       print $1, $2
+              #     }
+              #
+              #     if ($3 == hinge) {
+              #       if (count==0) {
+              #         print $3-0.0001, $4
+              #         count=1
+              #       }
+              #     }
+              #   }
+              # }' | tr '/' ' ' | gawk '{
+              #   if ($2==255) {$2=254.9}
+              #   if ($3==255) {$3=254.9}
+              #   if ($4==255) {$4=254.9}
+              #   print
+              # }' > ${F_CPTS}topocolor.dat
             else
-              gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
+              replace_gmt_colornames_rgb ${TOPO_CPT} > ./cpttmp.cpt
+              cpt_to_gdalcolor ./cpttmp.cpt > ${F_CPTS}topocolor.dat
+              # gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
             fi
           fi
           # ########################################################################
@@ -12841,8 +13220,17 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               else
                 gdalwarp -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
               fi
+              if [[ $(echo "${IMAGE_FACT} == 1" | bc) -ne 1 ]]; then
+                alpha_value ${F_TOPO}image.tif ${IMAGE_FACT} ${F_TOPO}image_alpha.tif
+  # values of 255 in image.tif are set to nodata in image_alpha.tif
+
+                multiply_combine ${F_TOPO}image_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+              else
               # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
-              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+
+                multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+echo              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+              fi
               INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
           fi
 
@@ -13545,6 +13933,8 @@ fi
 ##### MAKE KML OF MAP
 if [[ $kmlflag -eq 1 ]]; then
 
+  echo RJSTRING="${RJSTRING[@]}"
+
   echo "Creating tiled kml"
 
   gmt psconvert map.ps -Tt -A -E${KMLRES} ${VERBOSE}
@@ -13598,33 +13988,618 @@ fi
 #### Plot seismicty vs time
 
 if [[ $plotseistimeflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
-  epoch_and_mag_range=($(gawk < ${F_SEIS}eqs.txt '
+  date_and_mag_range=($(gawk < ${F_SEIS}eqs.txt '
     BEGIN {
       getline
-      maxepoch=$7
-      minepoch=$7
+      maxdate=$5
+      mindate=$5
       maxmag=$4
       minmag=$4
     }
     {
-      maxepoch=($7>maxepoch)?$7:maxepoch
-      minepoch=($7<minepoch)?$7:minepoch
-      maxmag=($7>maxmag)?$7:maxmag
-      minmag=($7<minmag)?$7:minmag
+      maxdate=($5>maxdate)?$5:maxdate
+      mindate=($5<mindate)?$5:mindate
+      if ($4>0) {
+        maxmag=($4>maxmag)?$4:maxmag
+        minmag=($4<minmag)?$4:minmag
+      }
     }
     END {
-      print minepoch, maxepoch, minmag, maxmag
+      print mindate, maxdate, minmag-0.1, maxmag+0.1
     }'))
 
-    epoch_and_mag_range[0]=0
-
     if [[ $zcclusterflag -eq 1 ]]; then
-      gmt psxy  ${F_SEIS}eqs.txt -i6,1,7 -R${epoch_and_mag_range[0]}/${epoch_and_mag_range[1]}/${MINLAT}/${MAXLAT} -Sc0.05i  -C${F_CPTS}"eqcluster.cpt" -JX10i -Bxaf -Byaf > seistime.ps
+      gmt psxy ${F_SEIS}eqs.txt -i4,3,7 -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf > seistime.ps
     else
-      gmt psxy  ${F_SEIS}eqs.txt -i6,1,2 -R${epoch_and_mag_range[0]}/${epoch_and_mag_range[1]}/${MINLAT}/${MAXLAT} -Sc0.05i  -C${SEISDEPTH_CPT} -JX10i -Bxaf -Byaf > seistime.ps
+      gmt psxy ${F_SEIS}eqs.txt -i4,3,2 -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf > seistime.ps
     fi
     gmt psconvert seistime.ps -Tf -A+m0.5i
 fi
+
+# Make a globe PLY file of colored seismicity
+
+# makeplydemmeshflag=0
+# makeplysurfptsflag
+
+#-s ${F_SEIS}eqs.txt
+
+
+# Print the global grid as white dots, Fibonacci, sampled every 200 km
+# If DEM exists, sample it; otherwise use constant Earth radius
+
+if [[ $makeplyflag -eq 1 && $makeplysurfptsflag -eq 1 ]]; then
+  ##### MAKE FIBONACCI GRID POINTS
+  # Surface area of Earth = 510,000,000 km^2
+#  echo  FIB_N=\$\(echo "510000000 / \( ${PLY_FIB_KM} * ${PLY_FIB_KM} - 1 \) / 2" \| bc\)
+
+  FIB_N=$(echo "510000000 / ( ${PLY_FIB_KM} * ${PLY_FIB_KM} ) / 2" | bc)
+    echo "" | gawk  -v n=${FIB_N}  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+    @include "tectoplot_functions.awk"
+    # function asin(x) { return atan2(x, sqrt(1-x*x)) }
+    BEGIN {
+      phi=1.618033988749895;
+      pi=3.14159265358979;
+      phi_inv=1/phi;
+      ga = 2 * phi_inv * pi;
+    } END {
+      for (i=-n; i<=n; i++) {
+        longitude = ((ga * i)*180/pi)%360;
+
+        latitude = asin((2 * i)/(2*n+1))*180/pi;
+        # LON EDIT TAG - TEST
+        if ( (latitude <= maxlat) && (latitude >= minlat)) {
+          if (test_lon(minlon, maxlon, longitude)==1) {
+            if (longitude < -180) {
+              longitude=longitude+360;
+            }
+            if (longitude > 180) {
+              longitude=longitude-360
+            }
+            print longitude, latitude
+          }
+        }
+        # if (((longitude <= maxlon && longitude >= minlon) || (longitude+360 <= maxlon && longitude+360 >= minlon)) && {
+        #   print longitude, latitude
+        # }
+      }
+    }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > ply_gridfile.txt
+
+numsurfpts=$(wc -l < ply_gridfile.txt | gawk '{print $1}')
+cat <<-EOF > tectoplot_surface.ply
+ply
+format ascii 1.0
+element vertex ${numsurfpts}
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+end_header
+EOF
+
+    if [[ -s ${F_TOPO}dem.nc ]]; then
+      gmt grdtrack ply_gridfile.txt -G${F_TOPO}dem.nc | gawk '
+        @include "tectoplot_functions.awk"
+        BEGIN {
+          r=6371/100
+        }
+        ($3>0) {
+          r=(6371+$3/1000)/100
+          phi=deg2rad($1)
+          theta=deg2rad(90-$2)
+          print r*sin(theta)*cos(phi), r*sin(theta)*sin(phi), r*cos(theta), 255, 255, 255
+        }' >> tectoplot_surface.ply
+    else
+      # If no DEM exists, instead use a constant elevation shell equal to Earth's radius
+      gawk < ply_gridfile.txt '
+      @include "tectoplot_functions.awk"
+      BEGIN {
+        r=6371/100
+      }
+      {
+        phi=deg2rad($1)
+        theta=deg2rad(90-$2)
+        print r*sin(theta)*cos(phi), r*sin(theta)*sin(phi), r*cos(theta), 255, 255, 255
+      }' >> tectoplot_surface.ply
+    fi
+fi
+
+# Now work on the seismicity data
+if [[ $makeplyflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
+        # gmt grdtrack using the existing DEM
+        numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
+cat <<-EOF > tectoplot_header.ply
+ply
+format ascii 1.0
+element vertex ${numeqs}
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+end_header
+EOF
+
+      replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
+      gawk -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
+      @include "tectoplot_functions.awk"
+        BEGIN {
+          colorind=0
+        }
+        (NR==FNR) {
+          if ($1+0==$1) {
+            minz[NR]=$1
+            split($2, arr, "/")
+            red[NR]=arr[1]
+            green[NR]=arr[2]
+            blue[NR]=arr[3]
+            colorind=NR
+          }
+        }
+        (NR!=FNR) {
+
+          # Earthquake data comes in the format lon lat depth mag etc.
+
+          phi=deg2rad($1)
+          theta=deg2rad(90-$2)
+          depth=(6371-$3*v_exag)/100
+
+          for(i=1; i<= colorind; i++) {
+            if (minz[i]<$3) {
+              curcolor_ind=i
+            } else {
+              break
+            }
+          }
+
+          if ($4 < eq_polymag) {
+            print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind]
+          } else {
+            print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), (eq_poly_scale*($4 ^ eq_poly_pow)), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind] >> "./eq_polypts.txt"
+          }
+        }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > tectoplot_vertex.ply
+
+        # Replicate the polyhedra
+        if [[ -s eq_polypts.txt ]]; then
+          ${REPLICATE_OBS} ${REPLICATE_POLY} eq_polypts.txt > eq_poly.obj
+        fi
+
+        cat tectoplot_header.ply tectoplot_vertex.ply > tectoplot.ply
+fi
+
+
+# If the grid is center-cell (pixel node) registered, we won't be able to make a complete
+# global mesh as there will be a gap between e.g. 179.5 and -179.5. If it is
+# gridline registered, we will have a gap between 179 and -180. How do I correctly
+# generate the vertices, faces, and texture coordinates for the grid? Answer: I
+# have to add a final column of vertices duplicating the first column, AND
+# calculate the texture coordinates in a way that works...
+
+
+if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; then
+  info_msg "[-makeply]: Using DEM to create a mesh"
+        # Now convert the DEM to an OBJ format surface at the same scaling factor
+        # Default format is scanline orientation of ASCII numbers: −ZTLa. Note that −Z only applies to 1-column output.
+
+        dem_orig_info=($(gmt grdinfo ${F_TOPO}dem.nc -C -Vn))
+        dem_orig_numx=${dem_orig_info[9]}
+        dem_orig_numy=${dem_orig_info[10]}
+
+        dem_orig_minlon=${dem_orig_info[1]}
+        dem_orig_maxlon=${dem_orig_info[2]}
+
+        if [[ $(echo "$dem_orig_minlon < -179 && $dem_orig_minlon > -181" | bc) -eq 1 ]]; then
+          if [[ $(echo "$dem_orig_maxlon > 179 && $dem_orig_maxlon < 181" | bc) -eq 1 ]]; then
+            echo "Let's close the globe!"
+            closeglobeflag=1
+          fi
+        fi
+
+        if [[ $plymaxsizeflag -eq 1 ]]; then
+          #PLY_MAXSIZE
+          if [[ $(echo "${dem_orig_numx} > ${PLY_MAXSIZE}" | bc) -eq 1 ]]; then
+            PERCENTRED=$(echo "${PLY_MAXSIZE} / $dem_orig_numx * 100" | bc -l)
+            info_msg "[-makeply]: Reducing DEM by ${PERCENTRED}"
+            gdal_translate -q -of "netCDF" -outsize ${PERCENTRED}"%" 0 ${F_TOPO}dem.nc ${F_TOPO}dem_plyrescale.nc
+            dem_info=($(gmt grdinfo ${F_TOPO}dem_plyrescale.nc -C -Vn))
+            dem_numx=${dem_info[9]}
+            dem_numy=${dem_info[10]}
+            info_msg "[-makeply]: New size is", $dem_numx, $dem_numy
+            PLY_DEM=${F_TOPO}dem_plyrescale.nc
+          else
+            PLY_DEM=${F_TOPO}dem.nc
+            dem_numx=${dem_orig_numx}
+            dem_numy=${dem_orig_numy}
+          fi
+        else
+          PLY_DEM=${F_TOPO}dem.nc
+          dem_numx=${dem_orig_numx}
+          dem_numy=${dem_orig_numy}
+        fi
+
+        gmt grd2xyz ${PLY_DEM} -C ${VERBOSE} > ${F_TOPO}dem_indices.txt
+        gmt grd2xyz ${PLY_DEM} ${VERBOSE} > ${F_TOPO}dem_values.txt
+
+        replace_gmt_colornames_rgb ${F_CPTS}topo.cpt > ${F_CPTS}topo_fixed.cpt
+
+        # We are currently only using the texturing approach even though we
+        # have retained the CPT face coloring approach. The texturing is actually
+        # nicer and faster as we can subsample the DEM to make the mesh now...
+
+        # The texture file will be the shaded relief which has the same dimensions
+        # as the DEM, so we can output vt coordinates easily.
+
+#-v closeglobe=${closeglobeflag}
+        gawk -v v_exag=${PLY_VEXAG_TOPO} -v width=${dem_numx} -v height=${dem_numy} -v closeglobe=${closeglobeflag} '
+        @include "tectoplot_functions.awk"
+           BEGIN {
+             colorind=0
+             vertexind=1
+             # Set up the material file
+             print "mtllib material.mtl"
+             minphi="none"
+             maxphi="none"
+             mintheta="none"
+             maxtheta="none"
+             maxdepth="none"
+           }
+
+           # Read the CPT file first
+
+           (NR==FNR) {
+             if ($1+0==$1) {
+               minz[NR]=$1
+               split($2, arr, "/")
+               red[NR]=arr[1]
+               green[NR]=arr[2]
+               blue[NR]=arr[3]
+               colorind=NR
+             }
+           }
+
+           # Read the vertices (DEM grid points) second
+         (NR!=FNR) {
+
+           if (maxdepth == "none") {
+             maxdepth=$3
+           } else if ($3 > maxdepth) {
+             maxdepth = $3
+           }
+
+           if (minphi == "none") {
+             minphi = $1
+           } else if (minphi > $1) {
+             minphi = $1
+           }
+           if (maxphi == "none") {
+             maxphi = $1
+           } else if (maxphi < $1) {
+             maxphi = $1
+           }
+
+           if (mintheta == "none") {
+             mintheta = $2
+           } else if (mintheta > $2) {
+             mintheta = $2
+           }
+           if (maxtheta == "none") {
+             maxtheta = $2
+           } else if (maxtheta < $2) {
+             maxtheta = $2
+           }
+
+
+           if (closeglobe == 1) {
+             if (vector_phi[i]==minphi) {
+               vector_phi[i]=-180
+             }
+             if (vector_phi[i]==maxphi) {
+               vector_phi[i]=180
+             }
+             if (vector_co_theta[i]==mintheta) {
+               vector_co_theta[i]=-90
+             }
+             if (vector_co_theta[i]==maxtheta) {
+               vector_co_theta[i]=90
+             }
+           }
+
+           # Calculating the color index takes a long time for many vertices
+           # and we are not currently using it... so comment out the following lines
+
+           # for(i=1; i<= colorind; i++) {
+           #   if (minz[i]<$3) {
+           #     vertexcolor[vertexind]=i
+           #   } else {
+           #     break
+           #   }
+           # }
+
+           phi=deg2rad($1)
+           theta=deg2rad(90-$2)
+           r=(6371+$3/1000*v_exag)/100
+
+           # Calculate the vector for each vertex (center of Earth to vertex point)
+           vectorx[vertexind]=r*sin(theta)*cos(phi)
+           vectory[vertexind]=r*sin(theta)*sin(phi)
+           vectorz[vertexind]=r*cos(theta)
+           phiarr[vertexind]=$1
+           thetaarr[vertexind]=$2
+           rarr[vertexind]=(6371+$3/1000*v_exag)/100
+           vertexind++
+         }
+         END {
+
+           print "After reading, minphi=" minphi, "maxphi=" maxphi, "mintheta=" mintheta, "maxtheta=" maxtheta > "/dev/stderr"
+
+
+           # Output two faces per vertex, except for the y=height and y=width
+           # vertices which define the lower and right edge.
+
+           # # (tl - tr) cross (bl - tr)
+           # v_subtract(vectorx[tl], vectory[tl], vectorz[tl], vectorx[tr], vectory[tr], vectorz[tr])
+           # res_1_x=w_sub_1
+           # res_1_y=w_sub_2
+           # res_1_z=w_sub_3
+           #
+           # # (tl - tr) cross (bl - tr)
+           # v_subtract(vectorx[tl], vectory[tl], vectorz[tl], vectorx[tr], vectory[tr], vectorz[tr])
+           # res_2_x=w_sub_1
+           # res_2_y=w_sub_2
+           # res_2_z=w_sub_3
+
+           # Calculate the vertex x and y positions. They are ordered from
+           # 0...width and 0...height.
+
+           num_vertices=width*height
+           for (i=0; i<=num_vertices; i++) {
+             x_arr[i] = i % width
+             y_arr[i] = int(i/width)
+             vertex_num[x_arr[i],y_arr[i]]=i
+
+
+            # Due to the grid being cell center registered, we need to adjust the
+            # edges to close a global grid at the antimeridan and poles
+             if (closeglobe==1) {
+               if (phiarr[i]==minphi) {
+                 # print "fixing phi=" phiarr[i] "at position", x_arr[i], y_arr[i] > "/dev/stderr"
+                 phi=deg2rad(-180)
+                 theta=deg2rad(90-thetaarr[i])
+                 vectorx[i]=rarr[i]*sin(theta)*cos(phi)
+                 vectory[i]=rarr[i]*sin(theta)*sin(phi)
+                 vectorz[i]=rarr[i]*cos(theta)
+               }
+               if (phiarr[i]==maxphi) {
+                 # print "fixing phi=" phiarr[i] "at position", x_arr[i], y_arr[i] > "/dev/stderr"
+                 phi=deg2rad(180)
+                 theta=deg2rad(90-thetaarr[i])
+                 vectorx[i]=rarr[i]*sin(theta)*cos(phi)
+                 vectory[i]=rarr[i]*sin(theta)*sin(phi)
+                 vectorz[i]=rarr[i]*cos(theta)
+               }
+             }
+
+           }
+
+
+           print "o TopoMesh"
+
+           for (i=1; i<=num_vertices; i++) {
+
+             # The following line places the color index for each vertex... comment out for now
+             # print "v", vectorx[i], vectory[i], vectorz[i], red[vertexcolor[i]], green[vertexcolor[i]], blue[vertexcolor[i]]
+             print "v", vectorx[i], vectory[i], vectorz[i]
+           }
+
+           # Calculate the vertex normals
+
+           for (i=1; i<=num_vertices; i++) {
+             num_normals=0
+
+             # Find the indices of the vertices surrounding each vertex
+             # If we are on an edge, vertex_num for some of these will be wrong!
+
+             tl = vertex_num[x_arr[i]-1,y_arr[i]-1]
+             tc = vertex_num[x_arr[i],y_arr[i]-1]
+             tr = vertex_num[x_arr[i]+1,y_arr[i]-1]
+             cr = vertex_num[x_arr[i]+1,y_arr[i]]
+             cl = vertex_num[x_arr[i]-1,y_arr[i]]
+             bl = vertex_num[x_arr[i]-1,y_arr[i]+1]
+             bc = vertex_num[x_arr[i],y_arr[i]+1]
+             br = vertex_num[x_arr[i]+1,y_arr[i]+1]
+
+             # if we are not along the lower or right edge
+
+             if (x_arr[i] > 0 && y_arr[i] > 0 && x_arr[i] < width-1 && y_arr[i] < height-1) {
+               # print width, height, x_arr[i], y_arr[i], cr, i, ":", vectorx[cr],vectory[cr],vectorz[cr], "cross", vectorx[i],vectory[i],vectorz[i] > "/dev/stderr"
+
+ # Note: we currently are only using one arbitrarily chosen normal direction for
+ # each interior point, and the normal to the sphere for edge points.
+
+                 # Normal is (cr-i) x (bc-i)
+                 # cr - i
+                 v_subtract(vectorx[cr],vectory[cr],vectorz[cr],vectorx[i],vectory[i],vectorz[i])
+                 r_tmp_1=w_sub_1
+                 r_tmp_2=w_sub_2
+                 r_tmp_3=w_sub_3
+                 # cr - i
+                 v_subtract(vectorx[bc],vectory[bc],vectorz[bc],vectorx[i],vectory[i],vectorz[i])
+                 v_cross(r_tmp_1,r_tmp_2,r_tmp_3,w_sub_1,w_sub_2,w_sub_3)
+                 # w_cross_1, w_cross_2, w_cross_3 = w_cross_3 / v_cross_l
+                 print "vn", w_cross_1, w_cross_2, w_cross_3
+             } else {
+                # print "vector (" i "):", vectorx[i], vectory[i], vectorz[i] > "/dev/stderr"
+
+                 vectorlen=sqrt(vectorx[i]*vectorx[i]+vectory[i]*vectory[i]+vectorz[i]*vectorz[i])
+                 print "vn", -vectorx[i]/vectorlen, -vectory[i]/vectorlen, -vectorz[i]/vectorlen
+             }
+
+           }
+
+           # Print out the texture coordinates
+           # We have to use a UV mapping approach where switch X,Y and multiply
+           # Y by -1 in order to rotate the texture 90 degrees; this is to match
+           # the 90 degree rotation done to align the PLY data and OBJ mesh
+
+          texturecount=0
+           for (y_ind=0; y_ind<height; y_ind++) {
+             for (x_ind=0; x_ind<width; x_ind++) {
+               print "vt", width/(width-1)*(x_ind / width),  height/(height-1)*(-1 * y_ind / height)
+               texturecount++
+             }
+           }
+           print "Output", num_vertices, "vertex points" > "/dev/stderr"
+
+           ind_ul=1
+           ind_ur=width*(height-1)+1
+           ind_ll=width
+           ind_lr=num_vertices
+
+           print "Pts", ind_ul, ind_ur, ind_ll, ind_lr >> "/dev/stderr"
+
+           print "o Line1" > "./line.obj"
+           print "v", vectorx[ind_ul], vectory[ind_ul], vectorz[ind_ul] >> "./line.obj"
+           print "v", vectorx[ind_ur], vectory[ind_ur], vectorz[ind_ur] >> "./line.obj"
+           print "v", vectorx[ind_ll], vectory[ind_ll], vectorz[ind_ll] >> "./line.obj"
+           print "v", vectorx[ind_lr], vectory[ind_lr], vectorz[ind_lr] >> "./line.obj"
+           print "l 1 2" >> "./line.obj"
+           print "l 2 3" >> "./line.obj"
+           print "l 3 4" >> "./line.obj"
+           print "l 4 1" >> "./line.obj"
+
+
+           print "Output", texturecount, "texture points" > "/dev/stderr"
+
+           print "usemtl ColoredIntensity"
+
+           # Output two faces per vertex, except for the y=height and y=width
+           # vertices which define the lower and right edge.
+           facecount=0
+           for (y_ind=0; y_ind<height-1; y_ind++) {
+             for (x_ind=0; x_ind<width-1; x_ind++) {
+             # for (x_ind=0; x_ind<width; x_ind++) {
+               # if (x_ind==width-2 && y_ind==height-2) {
+               #   break
+               # }
+               tl = 1 + (width*y_ind)+x_ind
+               tr = tl + 1
+               bl = tl + width
+               br = bl + 1
+               # Clockwise order for faces
+               print "f", tl "/" tl "/" tl, tr "/" tr "/" tr, bl "/" bl "/" bl
+               print "f", tr "/" tr "/" tr, br "/" br "/" br, bl "/" bl "/" bl
+               facecount+=2
+             }
+           }
+           print "Faces output:", facecount > "/dev/stderr"
+
+           print maxdepth > "./eq_maxdepth.txt"
+
+          }' ${F_CPTS}topo_fixed.cpt ${F_TOPO}dem_values.txt > dem.obj
+
+cat <<-EOF > material.mtl
+newmtl ColoredIntensity
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 0.6000000
+illum 1
+Ns 0.000000
+map_Ka colored_intensity.jpg
+map_Kd colored_intensity.jpg
+map_Ks colored_intensity.jpg
+EOF
+
+# This adds the seismicity point cloud to the end of the OBJ
+    # if [[ -s tectoplot_vertex.ply ]]; then
+    #   gawk < tectoplot_vertex.ply '{print "v", $0; print "p -1"; }' >> dem.obj
+    # fi
+
+    # Export the texture as JPG in case TIF doesn't work...
+
+    if [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
+      if [[ -s ${F_TOPO}colored_relief.tif ]]; then
+        gdal_translate -q -of "JPEG" ${F_TOPO}colored_relief.tif ./colored_intensity.jpg
+      fi
+    else
+      gdal_translate -q -of "JPEG" ${F_TOPO}colored_intensity.tif ./colored_intensity.jpg
+    fi
+fi
+
+
+
+if [[ $makeplyflag -eq 1 ]]; then
+  # This creates a timeframe combining the ply seismicity and the OBJ mesh
+  #0.5 model.obj@t=tx,ty,tz@r=rx,ry,rz@s=sx,sy,sz (translation, rotation, scaling)
+
+  # Create a black sphere 660 km deep inside the Earth, or deeper than the deepest
+  # earthquake, to stop the transparency problem
+
+  if [[ -s eq_maxdepth.txt ]]; then
+    sphere_rad=$(head -n 1 eq_maxdepth.txt | gawk 'function min(u,v) { return (u<v)?u:v} {print 63.71-min($1/100,660/100)-0.05}' )
+  else
+    sphere_rad=$(gawk 'END{print 63.71-660/100}' )
+  fi
+
+  if [[ $closeglobeflag -eq 1 ]]; then
+    echo "Making a sphere with radius ${sphere_rad} to go under the earthquakes"
+cat <<-EOF > insidearth.txt
+0 0 0 ${sphere_rad} 0 0 0
+EOF
+    ${REPLICATE_OBS} ${REPLICATE_SPHERE4} insidearth.txt > inside_earth.obj
+  else
+    echo "Making a box from the map corners to the maximum earthquake depth"
+    echo "o Box1" > box.obj
+  fi
+
+      printf "1 " > sketchfab.timeframe
+      firstfileflag=""
+
+      if [[ -s tectoplot.ply ]]; then
+        printf "tectoplot.ply" >> sketchfab.timeframe
+        firstfileflag="+"
+      fi
+      if [[ -s inside_earth.obj ]]; then
+          printf "%sinside_earth.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+          firstfileflag="+"
+      fi
+      if [[ -s line.obj ]]; then
+          printf "%sline.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+          firstfileflag="+"
+      fi
+      if [[ -s dem.obj ]]; then
+          printf "%sdem.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+          firstfileflag="+"
+      else
+        if [[ -s tectoplot_surface.ply ]]; then
+          printf "%stectoplot_surface.ply" $firstfileflag >> sketchfab.timeframe
+          firstfileflag="+"
+        fi
+      fi
+      if [[ -s eq_poly.obj ]]; then
+        printf "%seq_poly.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      fi
+      printf "\n" >> sketchfab.timeframe
+
+      # if [[ -s tectoplot.ply && -s dem.obj && -s eq_poly.obj ]]; then
+      #   echo "1 tectoplot.ply+dem.obj@r=-90,0,0+eq_poly.obj@r=-90,0,0" > sketchfab.timeframe
+      # elif [[ -s tectoplot.ply && -s dem.obj ]]; then
+      #     echo "1 tectoplot.ply+dem.obj@r=-90,0,0" > sketchfab.timeframe
+      # elif [[ -s dem.obj ]]; then
+      #   echo "1 dem.obj" > sketchfab.timeframe
+      # elif [[ -s tectoplot.ply ]]; then
+      #   echo "1 tectoplot.ply" > sketchfab.timeframe
+      # fi
+
+
+
+
+      zip tectoplot_sketchfab.zip line.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply material.mtl colored_intensity.jpg > /dev/null 2>&1
+fi
+
+
 
 # Create header / metadata information for all files, using a control file in $DEFDIR
 

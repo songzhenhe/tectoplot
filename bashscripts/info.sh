@@ -514,7 +514,7 @@ cat <<-EOF
 Install tectoplot and dependencies (via homebrew or miniconda) using the following
 command:
 
-/usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
+/usr/bin/env bash -c "\$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
 
 SETUP: Installing and configuring tectoplot and its dependencies
 

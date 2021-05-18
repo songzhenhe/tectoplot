@@ -10,6 +10,11 @@
 set -o errexit
 set -o pipefail
 
+if [ ! -w $(pwd) ]; then
+  echo "Current directory $(pwd) is not writeable. Exiting."
+  exit
+fi
+
 tectoplot_folder_dir=$HOME
 miniconda_folder_dir=$HOME
 
@@ -18,11 +23,17 @@ function script_info() {
     cat <<EOF
 
 Name:           install_tectoplot.sh
-Description:    Automate installation of tectoplot + dependencies using Homebrew
+Description:    Automated installation of tectoplot + tectoplot-examples, +
+                installation of dependencies using Homebrew or miniconda
 Author:         Kyle Bradley
-Tested:         MacOS Catalina
-Usage:          bash install_tectoplot.sh
-Requirements:   Command Line Tools (CLT) for Xcode  (OSX)
+Tested:         MacOS Catalina, Mojave, Big Sur, Ubuntu Linux
+Usage:          /usr/bin/env bash install_tectoplot.sh
+
+1. Choose whether to install tectoplot and tectoplot-examples from Github
+2.   If yes, select the directory to hold tectoplot/ and tectoplot-examples/
+3.   After installation, choose to add tectoplot/ to your ~/.profile
+4. Choose whether to install dependencies (homebrew, miniconda)
+5.   If installing miniconda, choose the directory to hold miniconda/
 
 EOF
 }
@@ -39,72 +50,78 @@ function report_storage() {
   echo
 }
 
-function set_tectoplot_folder() {
+function check_tectoplot() {
   print_msg "\n"
-  print_msg "Default installation directory for tectoplot: ${tectoplot_folder_dir}/tectoplot/"
-  print_msg "Default installation directory for tectoplot examples: ${tectoplot_folder_dir}/tectoplot-examples/"
+
 
   while true; do
-    read -r -p "Enter alternative base installation directory (e.g. ${tectoplot_folder_dir}/): [enter for default | none]   " response
+    read -r -p "What tectoplot components should be installed [ tectoplot | examples | both | default=none ]   " response
     case $response in
-      "")
-        echo
-        if [[ ! -d $tectoplot_folder_dir ]]; then
-          print_msg "Directory $tectoplot_folder_dir does not exist. Not installing tectoplot."
-          INSTALL_TECTOPLOT="false"
-        else
-          if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
-            print_msg "WARNING: tectoplot folder ${tectoplot_folder_dir}/tectoplot/ already exists!"
-            print_msg "Not installing over existing folder."
-            INSTALL_TECTOPLOT="false"
-          fi
-          print_msg "Installing tectoplot into default directory ${tectoplot_folder_dir}/tectoplot/"
-          INSTALL_TECTOPLOT="true"
-        fi
+      tectoplot)
+        INSTALL_TECTOPLOT_REPO="true"
+        INSTALL_TECTOPLOT_EXAMPLES="false"
         break
       ;;
-      none)
-        echo
-        print_msg "Not installing tectoplot!"
-        INSTALL_TECTOPLOT="false"
+      examples)
+        INSTALL_TECTOPLOT_REPO="false"
+        INSTALL_TECTOPLOT_EXAMPLES="true"
         break
       ;;
-      *)
-        echo
-        if [[ ! -d $response ]]; then
-          print_msg "Installation directory $response does not exist. Not installing tectoplot."
-          INSTALL_TECTOPLOT="false"
-        else
-          if [[ -d ${response}/tectoplot/ ]]; then
-            print_msg "WARNING: tectoplot folder ${response}/tectoplot/ already exists!"
-            print_msg "Not installing over existing folder."
-            INSTALL_TECTOPLOT="false"
-          fi
-          tectoplot_folder_dir=$response
-          INSTALL_TECTOPLOT="true"
-        fi
+      both)
+        INSTALL_TECTOPLOT_REPO="true"
+        INSTALL_TECTOPLOT_EXAMPLES="true"
+        break
+      ;;
+      none|"")
         break
       ;;
     esac
   done
 
-  if [[ $INSTALL_TECTOPLOT =~ "true" ]]; then
+  if [[ ${INSTALL_TECTOPLOT_REPO} =~ "true" || ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" ]]; then
+
     while true; do
-      read -r -p "What tectoplot components should be installed [ tectoplot | examples | default=both ]   " response
+      print_msg "\n"
+      read -r -p "Enter installation directory for repositories: [ default=${tectoplot_folder_dir} | path | none ]   " response
       case $response in
-        tectoplot)
-          INSTALL_TECTOPLOT_REPO="true"
-          INSTALL_TECTOPLOT_EXAMPLES="false"
+        "")
+          echo
+          if [[ ! -d $tectoplot_folder_dir ]]; then
+            print_msg "Directory $tectoplot_folder_dir does not exist. Not installing tectoplot."
+            INSTALL_TECTOPLOT="false"
+          else
+            if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
+              print_msg "WARNING: tectoplot folder ${tectoplot_folder_dir}/tectoplot/ already exists!"
+              print_msg "Not installing over existing folder."
+              INSTALL_TECTOPLOT="false"
+            fi
+            print_msg "Installing tectoplot into default directory ${tectoplot_folder_dir}/tectoplot/"
+            INSTALL_TECTOPLOT="true"
+          fi
           break
         ;;
-        examples)
-          INSTALL_TECTOPLOT_REPO="false"
-          INSTALL_TECTOPLOT_EXAMPLES="true"
+        none)
+          echo
+          print_msg "Not installing tectoplot!"
+          INSTALL_TECTOPLOT="false"
           break
         ;;
-        both|"")
-          INSTALL_TECTOPLOT_REPO="true"
-          INSTALL_TECTOPLOT_EXAMPLES="true"
+        *)
+          echo
+          if [[ ! -d $response ]]; then
+            print_msg "Installation directory $response does not exist. Creating folder."
+            mkdir -p "$response"
+            tectoplot_folder_dir=$response
+            INSTALL_TECTOPLOT=true
+          else
+            if [[ -d ${response}/tectoplot/ ]]; then
+              print_msg "WARNING: tectoplot folder ${response}/tectoplot/ already exists!"
+              print_msg "Not installing over existing folder."
+              INSTALL_TECTOPLOT="false"
+            fi
+            tectoplot_folder_dir=$response
+            INSTALL_TECTOPLOT="true"
+          fi
           break
         ;;
       esac
@@ -139,10 +156,11 @@ function set_miniconda_folder() {
 }
 
 # Function to pause script and check if the user wishes to continue.
-function check_continue() {
+function check_dependencies() {
   local response
+  print_msg "\n"
   while true; do
-    read -r -p "How do you want to install tectoplot's dependencies? [ homebrew | miniconda | none ]   " response
+    read -r -p "How do you want to install tectoplot's dependencies? [ homebrew | miniconda | default=none ]   " response
     case "${response}" in
     homebrew)
       echo
@@ -156,7 +174,7 @@ function check_continue() {
       INSTALLTYPE="miniconda"
       break
       ;;
-    none)
+    none|"")
       echo
       break
       ;;
@@ -171,8 +189,9 @@ function check_continue() {
 
 function query_setup_tectoplot() {
   local response
+  print_msg "\n"
   while true; do
-    read -r -p "Setup tectoplot's path and compiler info? [Yy]/n  " response
+    read -r -p "Add tectoplot's path to your ~/.profile? [Yy]/n  " response
     case "${response}" in
     Y|y|"")
       echo
@@ -386,13 +405,15 @@ function miniconda_deps() {
 }
 
 function clone_tectoplot() {
-  if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
-    print_msg "Folder ./tectoplot already exists... not cloning repository"
-  else
-    if git clone https://github.com/kyleedwardbradley/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
-      print_msg "tectoplot git repository cloned to ${tectoplot_folder_dir}/tectoplot"
+  if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
+    if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
+      print_msg "Folder ./tectoplot already exists... not cloning"
     else
-      print_msg "Could not clone tectoplot repository to ${tectoplot_folder_dir}/tectoplot"
+      if git clone https://github.com/kyleedwardbradley/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
+        print_msg "tectoplot git repository cloned to ${tectoplot_folder_dir}/tectoplot"
+      else
+        print_msg "Could not clone tectoplot repository to ${tectoplot_folder_dir}/tectoplot"
+      fi
     fi
   fi
 }
@@ -414,10 +435,47 @@ main() {
   clear
   script_info
 
-  set_tectoplot_folder
+  check_tectoplot
+
+  DO_INSTALL_TECTOPLOT="false"
   report_storage $tectoplot_folder_dir
 
-  check_continue
+  while true; do
+    read -r -p "Install selected repositories? [ default=y | n ]  " response
+    case "${response}" in
+    Y|y|"")
+      echo
+      DO_INSTALL_TECTOPLOT="true"
+      break
+      ;;
+    n)
+      echo
+      DO_INSTALL_TECTOPLOT="false"
+      break
+      ;;
+    *)
+      echo
+      print_msg "Unrecognized input ${response}. Not installing."
+      DO_INSTALL_TECTOPLOT="false"
+      break
+      ;;
+    esac
+  done
+
+  if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
+
+    if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
+      clone_tectoplot
+      query_setup_tectoplot
+    fi
+
+    if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
+      clone_tectoplot_examples
+    fi
+  fi
+
+  check_dependencies
+
 
   case $INSTALLTYPE in
     homebrew)
@@ -433,17 +491,6 @@ main() {
     ;;
   esac
 
-  if [[ $INSTALL_TECTOPLOT =~ "true" ]]; then
-
-    if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
-      clone_tectoplot
-      query_setup_tectoplot
-    fi
-
-    if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
-      clone_tectoplot_examples
-    fi
-  fi
 
   if [[ $INSTALL_TECTOPLOT_REPO =~ "true" && $SETUP_TECTOPLOT =~ "true" ]]; then
     if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
@@ -457,17 +504,29 @@ main() {
       source ~/.profile
       cd -
 
-      # if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
-      #   print_msg "Setting up tectoplot.compilers for conda environment tectoplot"
-      #
-      #   # echo "if [[ ! -z \$CONDA_DEFAULT_ENV ]]; then " > ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      #   # [[ -z ${CC} ]] || echo "  CCOMPILER=\$(which \${CC})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      #   # [[ -z ${CXX} ]] || echo "  CXXCOMPILER=\$(which \${CXX})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      #   # [[ -z ${F90} ]] || echo "  F90COMPILER=\$(which \${F90})" >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      #   # echo "fi " >> ${tectoplot_folder_dir}/tectoplot/tectoplot_defs/tectoplot.compilers
-      # fi
+      while true; do
+        read -r -p "Path to tectoplot data folder: [ default=${HOME}TectoplotData/ | path | none ] " response
+        case "${response}" in
+        "")
+          echo
+          ${tectoplot_folder_dir}tectoplot -setdatadir "${HOME}TectoplotData/"
+          break
+          ;;
+        none)
+          echo
+          break
+          ;;
+        *)
+          echo
+          ${tectoplot_folder_dir}tectoplot -setdatadir "${response}"
+          break
+          ;;
+        esac
+      done
+
     fi
   fi
+
   print_msg "Script completed.\n"
 }
 
