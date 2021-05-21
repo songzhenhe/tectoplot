@@ -796,3 +796,74 @@ function iso8601_to_epoch(timestring) {
   the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
   return mktime(the_time);
 }
+
+# Functions for 3D focal mechanisms (rotations)
+
+function calc_rotation_matrix(yaw_deg, pitch_deg, roll_deg)
+{
+  alpha=deg2rad(yaw_deg)
+  beta=deg2rad(pitch_deg)
+  gamma=deg2rad(roll_deg)
+
+  if (havematrix == 0) {
+    R_ypr[0][0]=cos(alpha)*cos(beta)
+    R_ypr[0][1]=cos(alpha)*sin(beta)*sin(gamma)-sin(alpha)*cos(gamma)
+    R_ypr[0][2]=cos(alpha)*sin(beta)*cos(gamma)+sin(alpha)*sin(gamma)
+    R_ypr[1][0]=sin(alpha)*cos(beta)
+    R_ypr[1][1]=sin(alpha)*sin(beta)*sin(gamma)+cos(alpha)*cos(gamma)
+    R_ypr[1][2]=sin(alpha)*sin(beta)*cos(gamma)-cos(alpha)*sin(gamma)
+    R_ypr[2][0]=-sin(beta)
+    R_ypr[2][1]=cos(beta)*sin(gamma)
+    R_ypr[2][2]=cos(beta)*cos(gamma)
+
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[0][0], R_ypr[0][1], R_ypr[0][2]) > "/dev/stderr"
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[1][0], R_ypr[1][1], R_ypr[1][2]) > "/dev/stderr"
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[2][0], R_ypr[2][1], R_ypr[2][2]) > "/dev/stderr"
+  }
+}
+
+function calc_ecef_to_enu_matrix(lon_deg, lat_deg) {
+
+  lambda=deg2rad(lon_deg)
+  phi=deg2rad(lat_deg)
+
+  R_ecef[0][0]=-sin(lambda)
+  R_ecef[0][1]=-cos(lambda)*sin(phi)
+  R_ecef[0][2]=cos(lambda)*cos(phi)
+  R_ecef[1][0]=cos(lambda)
+  R_ecef[1][1]=-sin(lambda)*sin(phi)
+  R_ecef[1][2]=sin(lambda)*cos(phi)
+  R_ecef[2][0]=0
+  R_ecef[2][1]=cos(phi)
+  R_ecef[2][2]=sin(phi)
+}
+
+function sdr_rotation_matrix(strike_deg, dip_deg, rake_deg) {
+  calc_rotation_matrix(0-strike_deg, dip_deg-90, 90-rake_deg)
+}
+
+
+
+function multiply_rotation_matrix(x, y, z,    i,j) {
+  u[0]=x
+  u[1]=y
+  u[2]=z
+  for(i=0; i<3; i++) {
+      v[i] = 0.0;
+      for(j=0; j<3; j++) {
+          v[i] += (R_ypr[i][j] * u[j]);
+      }
+  }
+}
+
+function multiply_ecef_matrix(x, y, z,    i,j) {
+  u[0]=x
+  u[1]=y
+  u[2]=z
+  for(i=0; i<3; i++) {
+      w[i] = 0.0;
+      for(j=0; j<3; j++) {
+          w[i] += (R_ecef[i][j] * u[j]);
+      }
+  }
+}

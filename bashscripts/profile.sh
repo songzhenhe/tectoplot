@@ -503,6 +503,8 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
       gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
     fi
 
+    echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} " > ${F_PROFILES}data_id.txt
+
   # X is an xyz dataset; E is an earthquake dataset
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
@@ -828,6 +830,9 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
     for i in ${!ptgridfilelist[@]}; do
       gridfileflag=1
 
+      echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
+
+
       if [[ -e ${F_PROFILES}${ptgridfilesellist[$i]} ]]; then
 
         # Resample the track at the specified X increment.
@@ -852,6 +857,8 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
         sed 1d < ${F_PROFILES}dat.txt > ${F_PROFILES}dat1.txt
       	paste ${F_PROFILES}dat.txt ${F_PROFILES}dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt
 
+        echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
+
         # PLOT ON THE MAP PS
         echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
 
@@ -862,6 +869,8 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
         grep "^[-*0-9]" ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt >> ${F_PROFILES}${LINEID}_all_data.txt
+      else
+        echo "Can't find source ptgrid file: ${F_PROFILES}${ptgridfilesellist[$i]}"
       fi
     done
 

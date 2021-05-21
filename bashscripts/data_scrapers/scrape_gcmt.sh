@@ -65,6 +65,25 @@ for ndkfile in *.ndk; do
     rm -f $ndkfile
   else
     echo "Extracting $ndkfile"
-    ${CMTTOOLS} $ndkfile K G >> gcmt_extract.cat
+    ${CMTTOOLS} $ndkfile K G >> gcmt_extract_pre.cat
   fi
 done
+
+# Go through the catalog and remove Quick CMTs (PDEQ) that have a PDEW equivalent
+
+gawk < gcmt_extract_pre.cat '
+ {
+   seen[$2]++
+   id[NR]=$2
+   catalog[NR]=$12
+   data[NR]=$0
+ }
+ END {
+   for(i=1;i<=NR;i++) {
+     if (seen[id[i]] > 1 && catalog[i]=="PDEQ") {
+       print data[i] > "./gcmt_pdeq_removed.cat"
+     } else {
+       print data[i]
+     }
+   }
+ }' > gcmt_extract.cat

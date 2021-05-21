@@ -76,7 +76,9 @@ REPLICATE_OBS=$AWKSCRIPTDIR"replicate_obj.sh"
 REPLICATE_POLY=$AWKSCRIPTDIR"icosahedron.obj"
 REPLICATE_SPHERE=$AWKSCRIPTDIR"sphere.obj"
 REPLICATE_SPHERE4=$AWKSCRIPTDIR"sphere_4.obj"
-
+FOCAL_SPHERE=$AWKSCRIPTDIR"focsphere.obj"
+FOCAL_MATERIAL=$AWKSCRIPTDIR"focsphere.mtl"
+FOCAL_TEXTURE=$AWKSCRIPTDIR"focaltexture.jpg"
 
 ##### FORTRAN code and executable path for Reasenberg declustering
 

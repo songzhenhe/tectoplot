@@ -6111,7 +6111,7 @@ fi
         ;;
     esac
 
-    # Read any topo arguments we might want to specify... not sure which would be used?
+    # Read any topo arguments we might want to specify... not sure g would be used?
     if [[ ${2:0:1} == [{] ]]; then
       info_msg "[-t]: Topo args detected... slurping"
       shift
@@ -6859,7 +6859,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -makeply:      Make a 3D (X,Y,Z) ply file for Sketchfab using seismicity
--makeply [[movie]] [[landkm ${PLY_FIB_KM}]] [[vexag ${PLY_VEXAG}]]
+-makeply [[options]]
+
+    Options specified in order are:
+
+    [[landkm ${PLY_FIB_KM}]]          Spacing of surface grid pts if no DEM given
+    [[vexag ${PLY_VEXAG}]]            Vertical exaggeration of data
+    [[topoexag ${PLY_VEXAG_TOPO}]]    Vertical exaggeration of DEM
+    [[maxsize ${PLY_MAXSIZE}]]        Resample DEM to given maximum width (cells)
+
 
 Example: None
 --------------------------------------------------------------------------------
@@ -6869,16 +6877,7 @@ fi
   makeplyflag=1
   makeplydemmeshflag=1
   makeplysurfptsflag=0
-  # if [[ "${2}" =~ "movie" ]]; then
-  #   shift
-  #   if arg_is_positive_float "${2}"; then
-  #     PLY_MOVIESTEP="${2}"
-  #     shift
-  #   else
-  #     info_msg "[-makeply]: movie flag requires positive number of days per step"
-  #     exit 1
-  #   fi
-  # fi
+
   if [[ "${2}" =~ "landkm" ]]; then
     shift
     if arg_is_positive_float "${2}"; then
@@ -6907,7 +6906,7 @@ fi
       PLY_VEXAG_TOPO="${2}"
       shift
     else
-      info_msg "[-makeply]: vexag option requires positive float argument"
+      info_msg "[-makeply]: vexag topo option requires positive float argument"
       exit 1
     fi
   fi
@@ -14105,6 +14104,115 @@ EOF
     fi
 fi
 
+  # Now treat the focal mechanisms
+if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
+
+  gawk -v cmttype=${CMTTYPE} -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
+  @include "tectoplot_functions.awk"
+
+  BEGIN {
+    havematrix=0
+    itemind=0
+    sphereind=1
+    vertexind=0
+    print "mtllib focsphere.mtl"
+
+  }
+
+    # First input file is a template focal mechanism OBJ
+
+    (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
+      itemind++
+      full[itemind]=$0
+      for(ind=1;$(ind)!="";ind++) {
+        obj[itemind][ind]=$(ind)
+      }
+      len[itemind]=ind-1
+    }
+
+    # Second input file is CMT points in the format
+    # lon lat depth mag strike dip rake
+
+    (NR!=FNR) {
+
+      if (cmttype=="CENTROID") {
+        lon=$5; lat=$6; rawdepth=$7;
+      } else {
+        lon=$8; lat=$9; rawdepth=$10;
+      }
+
+      mag=$13
+      strike=$16
+      dip=$17
+      rake=$18
+
+      depth=(6371-rawdepth*v_exag)/100
+
+
+
+      phi=deg2rad(lon)
+      theta=deg2rad(90-lat)
+
+      xoff=depth*sin(theta)*cos(phi)
+      yoff=depth*sin(theta)*sin(phi)
+      zoff=depth*cos(theta)
+      scale=(eq_poly_scale*(mag ^ eq_poly_pow))
+
+      calc_ecef_to_enu_matrix(lon, lat)
+      sdr_rotation_matrix(strike, dip, rake)
+
+      usedmtl=0
+      print "o Focal_" sphereind++
+      vertexind=0
+      for (this_ind in len) {
+        if (obj[this_ind][1] == "v" || obj[this_ind][1] == "vn") {
+
+            $ Orient FMS
+            multiply_rotation_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+
+            # Reorient the FMS from geocentric to E/N/U coordinates
+            multiply_ecef_matrix(v[0], v[1], v[2])
+
+            if (obj[this_ind][1]=="v") {
+              print "v", w[0]*scale+xoff, w[1]*scale+yoff, w[2]*scale+zoff
+              vertexind++
+            }
+            if (obj[this_ind][1]=="vn") {
+              print "vn", w[0], w[1], w[2]
+            }
+
+        } else if (obj[this_ind][1]=="f") {
+          if (usedmtl==0) {
+            print "usemtl FocalTexture"
+            usedmtl=1
+          }
+          # Face vertices have to be incremented to account for prior spheres
+          printf("f ")
+          for (k=2; k<=len[this_ind]; k++) {
+            printf("%d/%d/%d ", obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind)
+          }
+          printf("\n")
+        } else if (obj[this_ind][1]=="vt") {
+
+          printf("vt ")
+          for (k=2; k<=len[this_ind]; k++) {
+            printf("%s ", obj[this_ind][k])
+          }
+          printf("\n")
+        }
+      }
+      print lastvertexind, vertexind > "/dev/stderr"
+      lastvertexind+=vertexind
+    }
+  ' ${FOCAL_SPHERE} ${CMTFILE} > ./focal_mechanisms.obj
+
+  if [[ -s ./focal_mechanisms.obj ]]; then
+    cp ${FOCAL_MATERIAL} .
+    cp ${FOCAL_TEXTURE} .
+  fi
+
+fi
+
 # Now work on the seismicity data
 if [[ $makeplyflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
         # gmt grdtrack using the existing DEM
@@ -14127,6 +14235,7 @@ EOF
       @include "tectoplot_functions.awk"
         BEGIN {
           colorind=0
+          maxdepth="none"
         }
         (NR==FNR) {
           if ($1+0==$1) {
@@ -14139,6 +14248,11 @@ EOF
           }
         }
         (NR!=FNR) {
+          if (maxdepth == "none") {
+            maxdepth=$3
+          } else if ($3 > maxdepth) {
+            maxdepth = $3
+          }
 
           # Earthquake data comes in the format lon lat depth mag etc.
 
@@ -14159,6 +14273,9 @@ EOF
           } else {
             print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), (eq_poly_scale*($4 ^ eq_poly_pow)), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind] >> "./eq_polypts.txt"
           }
+        }
+        END {
+          print maxdepth > "./eq_maxdepth.txt"
         }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > tectoplot_vertex.ply
 
         # Replicate the polyhedra
@@ -14243,7 +14360,6 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
              maxphi="none"
              mintheta="none"
              maxtheta="none"
-             maxdepth="none"
            }
 
            # Read the CPT file first
@@ -14261,13 +14377,6 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
 
            # Read the vertices (DEM grid points) second
          (NR!=FNR) {
-
-           if (maxdepth == "none") {
-             maxdepth=$3
-           } else if ($3 > maxdepth) {
-             maxdepth = $3
-           }
-
            if (minphi == "none") {
              minphi = $1
            } else if (minphi > $1) {
@@ -14332,7 +14441,7 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
          }
          END {
 
-           print "After reading, minphi=" minphi, "maxphi=" maxphi, "mintheta=" mintheta, "maxtheta=" maxtheta > "/dev/stderr"
+           # print "After reading, minphi=" minphi, "maxphi=" maxphi, "mintheta=" mintheta, "maxtheta=" maxtheta > "/dev/stderr"
 
 
            # Output two faces per vertex, except for the y=height and y=width
@@ -14450,28 +14559,46 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
                texturecount++
              }
            }
-           print "Output", num_vertices, "vertex points" > "/dev/stderr"
+           # print "Output", num_vertices, "vertex/normal/texture points" > "/dev/stderr"
+           # print "Width:", width, "  Height:", height > "/dev/stderr"
 
+           # I can see that the definitions here are weird... ur/ll are switched?
            ind_ul=1
-           ind_ur=width*(height-1)+1
-           ind_ll=width
+           ind_ur=width
+           ind_ll=width*(height-1)+1
            ind_lr=num_vertices
 
-           print "Pts", ind_ul, ind_ur, ind_ll, ind_lr >> "/dev/stderr"
+           # Write the corners
+           print "# Corners: UL, LL, LR, UR"  >> "./dem_corners.txt"
 
-           print "o Line1" > "./line.obj"
-           print "v", vectorx[ind_ul], vectory[ind_ul], vectorz[ind_ul] >> "./line.obj"
-           print "v", vectorx[ind_ur], vectory[ind_ur], vectorz[ind_ur] >> "./line.obj"
-           print "v", vectorx[ind_ll], vectory[ind_ll], vectorz[ind_ll] >> "./line.obj"
-           print "v", vectorx[ind_lr], vectory[ind_lr], vectorz[ind_lr] >> "./line.obj"
-           print "l 1 2" >> "./line.obj"
-           print "l 2 3" >> "./line.obj"
-           print "l 3 4" >> "./line.obj"
-           print "l 4 1" >> "./line.obj"
+           print phiarr[ind_ul], thetaarr[ind_ul], rarr[ind_ul] >> "./dem_corners.txt"
+           print phiarr[ind_ll], thetaarr[ind_ll], rarr[ind_ll] >> "./dem_corners.txt"
+           print phiarr[ind_lr], thetaarr[ind_lr], rarr[ind_lr] >> "./dem_corners.txt"
+           print phiarr[ind_ur], thetaarr[ind_ur], rarr[ind_ur] >> "./dem_corners.txt"
 
+           # write the top row in normal order
 
-           print "Output", texturecount, "texture points" > "/dev/stderr"
+           print "# Upper row"  >> "./dem_corners.txt"
+           for(i=ind_ul;i<=ind_ur;i++) {
+             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           }
 
+           print "# Lower row"  >> "./dem_corners.txt"
+           for (i=ind_ll;i<=ind_lr;i+=1) {
+             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           }
+
+           print "# Left column, upper to lower"  >> "./dem_corners.txt"
+           for (i=ind_ul;i<=ind_ll;i+=width) {
+             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           }
+
+           print "# Right column, lower to upper"  >> "./dem_corners.txt"
+           for (i=ind_lr;i>=ind_ur;i-=width) {
+             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           }
+
+           #
            print "usemtl ColoredIntensity"
 
            # Output two faces per vertex, except for the y=height and y=width
@@ -14493,11 +14620,85 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
                facecount+=2
              }
            }
-           print "Faces output:", facecount > "/dev/stderr"
-
-           print maxdepth > "./eq_maxdepth.txt"
+           # print "Faces output:", facecount > "/dev/stderr"
 
           }' ${F_CPTS}topo_fixed.cpt ${F_TOPO}dem_values.txt > dem.obj
+
+          # Make a box from the corners of the DEM to the earthquake max depth
+          # Only if the maxdepth and corner coords exist AND not a global model
+
+          # eq_maxdepth.txt has one line with one value
+          # dem_corners.txt is in lon lat format in order UL,UR,LL,LR
+
+
+          if [[ -s eq_maxdepth.txt ]]; then
+            sphere_rad=$(head -n 1 eq_maxdepth.txt | gawk 'function min(u,v) { return (u<v)?u:v} {print 63.71-min($1/100,660/100)-0.05}' )
+          else
+            sphere_rad=$(gawk 'BEGIN{print 63.71-660/100}' )
+          fi
+
+          if [[ -s ./eq_maxdepth.txt && -s ./dem_corners.txt && $closeglobeflag -ne 1 ]]; then
+            echo "o Box1" > ./box.obj
+
+            # The first four lines of dem_corners.txt are the corner points,
+            # the remaining lines are the outline of the DEM
+
+            gawk < dem_corners.txt -v boxdepth=${sphere_rad} '
+            @include "tectoplot_functions.awk"
+            BEGIN {
+              startlower="none"
+              lowerboxnum=0
+              noncomline=1
+              boundarynum=1
+              print "# Corner vertices"
+            }
+
+            {
+              if ($1=="") {
+                # Do nothing
+              } else if (substr($0,0,1)=="#") {
+                if (noncomline >= 4) {
+                  boundary[boundarynum++]=noncomline
+                }
+              } else {
+                if(noncomline <= 4) {
+                  phi=deg2rad($1)
+                  theta=deg2rad(90-$2)
+                  print "v", $3*sin(theta)*cos(phi), $3*sin(theta)*sin(phi), $3*cos(theta)
+                  print "v", (boxdepth)*sin(theta)*cos(phi), (boxdepth)*sin(theta)*sin(phi), (boxdepth)*cos(theta)
+                }
+                if (noncomline > 4) {
+                  if (startlower == "none") {
+                    print "# DEM boundary"
+                    startlower=0
+                  }
+                  phi=deg2rad($1)
+                  theta=deg2rad(90-$2)
+                  print "v", (boxdepth)*sin(theta)*cos(phi), (boxdepth)*sin(theta)*sin(phi), (boxdepth)*cos(theta)
+                  lowerboxnum++
+                }
+                noncomline++
+
+              }
+            }
+            END {
+              print "l 1 2"
+              print "l 3 4"
+              print "l 5 6"
+              print "l 7 8"
+              print "o BoxSeg1"
+              thisboundary=2
+              printf "l "
+              for(i=1;i<=lowerboxnum;i++) {
+                printf("%d ", i)
+                if (i == boundary[thisboundary]) {
+                  printf("\no BoxSeg%d \nl ", thisboundary++)
+                }
+              }
+              printf("\n")
+            }' >> ./box.obj
+
+          fi
 
 cat <<-EOF > material.mtl
 newmtl ColoredIntensity
@@ -14537,11 +14738,6 @@ if [[ $makeplyflag -eq 1 ]]; then
   # Create a black sphere 660 km deep inside the Earth, or deeper than the deepest
   # earthquake, to stop the transparency problem
 
-  if [[ -s eq_maxdepth.txt ]]; then
-    sphere_rad=$(head -n 1 eq_maxdepth.txt | gawk 'function min(u,v) { return (u<v)?u:v} {print 63.71-min($1/100,660/100)-0.05}' )
-  else
-    sphere_rad=$(gawk 'END{print 63.71-660/100}' )
-  fi
 
   if [[ $closeglobeflag -eq 1 ]]; then
     echo "Making a sphere with radius ${sphere_rad} to go under the earthquakes"
@@ -14549,9 +14745,6 @@ cat <<-EOF > insidearth.txt
 0 0 0 ${sphere_rad} 0 0 0
 EOF
     ${REPLICATE_OBS} ${REPLICATE_SPHERE4} insidearth.txt > inside_earth.obj
-  else
-    echo "Making a box from the map corners to the maximum earthquake depth"
-    echo "o Box1" > box.obj
   fi
 
       printf "1 " > sketchfab.timeframe
@@ -14565,8 +14758,12 @@ EOF
           printf "%sinside_earth.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
           firstfileflag="+"
       fi
-      if [[ -s line.obj ]]; then
-          printf "%sline.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -s box.obj ]]; then
+          printf "%sbox.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+          firstfileflag="+"
+      fi
+      if [[ -s focal_mechanisms.obj ]]; then
+          printf "%sfocal_mechanisms.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
           firstfileflag="+"
       fi
       if [[ -s dem.obj ]]; then
@@ -14583,20 +14780,7 @@ EOF
       fi
       printf "\n" >> sketchfab.timeframe
 
-      # if [[ -s tectoplot.ply && -s dem.obj && -s eq_poly.obj ]]; then
-      #   echo "1 tectoplot.ply+dem.obj@r=-90,0,0+eq_poly.obj@r=-90,0,0" > sketchfab.timeframe
-      # elif [[ -s tectoplot.ply && -s dem.obj ]]; then
-      #     echo "1 tectoplot.ply+dem.obj@r=-90,0,0" > sketchfab.timeframe
-      # elif [[ -s dem.obj ]]; then
-      #   echo "1 dem.obj" > sketchfab.timeframe
-      # elif [[ -s tectoplot.ply ]]; then
-      #   echo "1 tectoplot.ply" > sketchfab.timeframe
-      # fi
-
-
-
-
-      zip tectoplot_sketchfab.zip line.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply material.mtl colored_intensity.jpg > /dev/null 2>&1
+      zip tectoplot_sketchfab.zip focal_mechanisms.obj focsphere.mtl focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply material.mtl colored_intensity.jpg > /dev/null 2>&1
 fi
 
 
