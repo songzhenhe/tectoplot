@@ -839,7 +839,7 @@ function calc_ecef_to_enu_matrix(lon_deg, lat_deg) {
 }
 
 function sdr_rotation_matrix(strike_deg, dip_deg, rake_deg) {
-  calc_rotation_matrix(0-strike_deg, dip_deg-90, 90-rake_deg)
+  calc_rotation_matrix(0-strike_deg, dip_deg-90, -90-rake_deg)
 }
 
 

@@ -14201,7 +14201,7 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
           printf("\n")
         }
       }
-      print lastvertexind, vertexind > "/dev/stderr"
+      # print lastvertexind, vertexind > "/dev/stderr"
       lastvertexind+=vertexind
     }
   ' ${FOCAL_SPHERE} ${CMTFILE} > ./focal_mechanisms.obj
