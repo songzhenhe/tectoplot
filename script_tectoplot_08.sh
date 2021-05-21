@@ -14689,7 +14689,7 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
               print "o BoxSeg1"
               thisboundary=2
               printf "l "
-              for(i=1;i<=lowerboxnum;i++) {
+              for(i=9;i<=lowerboxnum;i++) {
                 printf("%d ", i)
                 if (i == boundary[thisboundary]) {
                   printf("\no BoxSeg%d \nl ", thisboundary++)
