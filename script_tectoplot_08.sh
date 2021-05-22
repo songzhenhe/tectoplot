@@ -14280,7 +14280,7 @@ EOF
 
         # Replicate the polyhedra
         if [[ -s eq_polypts.txt ]]; then
-          ${REPLICATE_OBS} ${REPLICATE_POLY} eq_polypts.txt > eq_poly.obj
+          ${REPLICATE_OBS} ${REPLICATE_SPHERE4} eq_polypts.txt > eq_poly.obj
         fi
 
         cat tectoplot_header.ply tectoplot_vertex.ply > tectoplot.ply
@@ -14691,9 +14691,9 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
               printf "l "
               for(i=9;i<=lowerboxnum;i++) {
                 printf("%d ", i)
-                if (i == boundary[thisboundary]) {
-                  printf("\no BoxSeg%d \nl ", thisboundary++)
-                }
+                # if (i == boundary[thisboundary]) {
+                #   printf("\no BoxSeg%d %d \nl ", thisboundary-1, thisboundary++)
+                # }
               }
               printf("\n")
             }' >> ./box.obj

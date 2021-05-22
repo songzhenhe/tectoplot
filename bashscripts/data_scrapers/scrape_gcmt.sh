@@ -55,7 +55,7 @@ echo "Downloading Quick CMTs"
 
 curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk
 
-rm -f gcmt_extract.cat
+rm -f gcmt_extract_pre.cat
 echo "Extracting GCMT focal mechanisms from NDK to tectoplot format"
 
 for ndkfile in *.ndk; do
