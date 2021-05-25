@@ -1120,6 +1120,10 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt
 
         # We have created a da-dt dataset that needs to be turned into a DEM.
         # We use some gdal tricks to construct a raster
+        echo "In"
+        ls -l profilerange.txt
+        cat profilerange.txt
+        echo "Out"
 
         mv profilerange.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt
 
