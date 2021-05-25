@@ -75,9 +75,9 @@
 # Point labels
 # B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 
-function tac() {
-  tail -r -- "$@";
-}
+# function tac() {
+#   tail -r -- "$@";
+# }
 
 # project_xyz_pts_onto_track $1 $2 $3 $4 $5 $6
 #
@@ -1321,11 +1321,11 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt ${F_PROFILES}
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt
 
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamax.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
-        tail -r ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
+        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt
 
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
-        tail -r ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
+        tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 
         # PLOT ON THE COMBINED PS
