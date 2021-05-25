@@ -988,6 +988,7 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
   mkdir -p "${TMP}${F_KIN}"
   mkdir -p "${TMP}${F_CMT}"
   mkdir -p "${TMP}${F_PLATES}"
+  mkdir -p "${TMP}${F_3D}"
   mkdir -p "${TMP}rasters/"
 fi
 
@@ -6858,7 +6859,7 @@ fi
   -makeply)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--makeply:      Make a 3D (X,Y,Z) ply file for Sketchfab using seismicity
+-makeply:      Make a 3D Sketchfab model including topo, FMS, seismicity
 -makeply [[options]]
 
     Options specified in order are:
@@ -14061,10 +14062,10 @@ if [[ $makeplyflag -eq 1 && $makeplysurfptsflag -eq 1 ]]; then
         #   print longitude, latitude
         # }
       }
-    }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > ply_gridfile.txt
+    }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > ${F_3D}ply_gridfile.txt
 
-numsurfpts=$(wc -l < ply_gridfile.txt | gawk '{print $1}')
-cat <<-EOF > tectoplot_surface.ply
+numsurfpts=$(wc -l < ${F_3D}ply_gridfile.txt | gawk '{print $1}')
+cat <<-EOF > ${F_3D}tectoplot_surface.ply
 ply
 format ascii 1.0
 element vertex ${numsurfpts}
@@ -14078,7 +14079,7 @@ end_header
 EOF
 
     if [[ -s ${F_TOPO}dem.nc ]]; then
-      gmt grdtrack ply_gridfile.txt -G${F_TOPO}dem.nc | gawk '
+      gmt grdtrack ${F_3D}ply_gridfile.txt -G${F_TOPO}dem.nc | gawk '
         @include "tectoplot_functions.awk"
         BEGIN {
           r=6371/100
@@ -14088,10 +14089,10 @@ EOF
           phi=deg2rad($1)
           theta=deg2rad(90-$2)
           print r*sin(theta)*cos(phi), r*sin(theta)*sin(phi), r*cos(theta), 255, 255, 255
-        }' >> tectoplot_surface.ply
+        }' >> ${F_3D}tectoplot_surface.ply
     else
       # If no DEM exists, instead use a constant elevation shell equal to Earth's radius
-      gawk < ply_gridfile.txt '
+      gawk < ${F_3D}ply_gridfile.txt '
       @include "tectoplot_functions.awk"
       BEGIN {
         r=6371/100
@@ -14100,7 +14101,7 @@ EOF
         phi=deg2rad($1)
         theta=deg2rad(90-$2)
         print r*sin(theta)*cos(phi), r*sin(theta)*sin(phi), r*cos(theta), 255, 255, 255
-      }' >> tectoplot_surface.ply
+      }' >> ${F_3D}tectoplot_surface.ply
     fi
 fi
 
@@ -14115,7 +14116,7 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
     itemind=0
     sphereind=1
     vertexind=0
-    print "mtllib focsphere.mtl"
+    print "mtllib materials.mtl"
 
   }
 
@@ -14147,9 +14148,6 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
       rake=$18
 
       depth=(6371-rawdepth*v_exag)/100
-
-
-
       phi=deg2rad(lon)
       theta=deg2rad(90-lat)
 
@@ -14204,11 +14202,26 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
       # print lastvertexind, vertexind > "/dev/stderr"
       lastvertexind+=vertexind
     }
-  ' ${FOCAL_SPHERE} ${CMTFILE} > ./focal_mechanisms.obj
+  ' ${FOCAL_NCUBE} ${CMTFILE} > ${F_3D}focal_mechanisms.obj
 
-  if [[ -s ./focal_mechanisms.obj ]]; then
-    cp ${FOCAL_MATERIAL} .
-    cp ${FOCAL_TEXTURE} .
+#${FOCAL_SPHERE}
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl FocalTexture
+Ka 0.200000 0.200000 0.200000
+Kd 1.000000 1.000000 1.000000
+Ks 1.000000 1.000000 1.000000
+Tr 1.000000
+illum 2
+Ns 0.000000
+map_Ka Textures/focaltexture.jpg
+map_Kd Textures/focaltexture.jpg
+map_Ks Textures/focaltexture.jpg
+EOF
+
+  if [[ -s ${F_3D}focal_mechanisms.obj ]]; then
+    # cp ${FOCAL_MATERIAL} ${F_3D}
+    mkdir -p  ${F_3D}/Textures/
+    cp ${FOCAL_TEXTURE} ${F_3D}/Textures/
   fi
 
 fi
@@ -14217,7 +14230,7 @@ fi
 if [[ $makeplyflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
         # gmt grdtrack using the existing DEM
         numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
-cat <<-EOF > tectoplot_header.ply
+cat <<-EOF > ${F_3D}tectoplot_header.ply
 ply
 format ascii 1.0
 element vertex ${numeqs}
@@ -14276,16 +14289,30 @@ EOF
         }
         END {
           print maxdepth > "./eq_maxdepth.txt"
-        }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > tectoplot_vertex.ply
+        }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > ${F_3D}tectoplot_vertex.ply
+
+        [[ -s eq_polypts.txt ]] && mv eq_polypts.txt ${F_3D}eq_polypts.txt
 
         # Replicate the polyhedra
-        if [[ -s eq_polypts.txt ]]; then
-          ${REPLICATE_OBS} ${REPLICATE_SPHERE4} eq_polypts.txt > eq_poly.obj
+        if [[ -s ${F_3D}eq_polypts.txt ]]; then
+          echo "mtllib materials.mtl" > ${F_3D}eq_poly.obj
+          ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}eq_polypts.txt "SphereColor" >> ${F_3D}eq_poly.obj
         fi
 
-        cat tectoplot_header.ply tectoplot_vertex.ply > tectoplot.ply
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SphereColor
+Ka 0.999995 0.999995 0.999995
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 0.6000000
+illum 1
+Ns 0.000000
+EOF
+
+        cat ${F_3D}tectoplot_header.ply ${F_3D}tectoplot_vertex.ply > ${F_3D}tectoplot.ply
 fi
 
+# Make the 3D mesh from topography
 
 # If the grid is center-cell (pixel node) registered, we won't be able to make a complete
 # global mesh as there will be a gap between e.g. 179.5 and -179.5. If it is
@@ -14343,19 +14370,18 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
 
         # We are currently only using the texturing approach even though we
         # have retained the CPT face coloring approach. The texturing is actually
-        # nicer and faster as we can subsample the DEM to make the mesh now...
+        # nicer and faster as we can subsample the DEM to make a coarse mesh now.
 
         # The texture file will be the shaded relief which has the same dimensions
         # as the DEM, so we can output vt coordinates easily.
 
-#-v closeglobe=${closeglobeflag}
         gawk -v v_exag=${PLY_VEXAG_TOPO} -v width=${dem_numx} -v height=${dem_numy} -v closeglobe=${closeglobeflag} '
         @include "tectoplot_functions.awk"
            BEGIN {
              colorind=0
              vertexind=1
              # Set up the material file
-             print "mtllib material.mtl"
+             print "mtllib materials.mtl"
              minphi="none"
              maxphi="none"
              mintheta="none"
@@ -14441,24 +14467,6 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
          }
          END {
 
-           # print "After reading, minphi=" minphi, "maxphi=" maxphi, "mintheta=" mintheta, "maxtheta=" maxtheta > "/dev/stderr"
-
-
-           # Output two faces per vertex, except for the y=height and y=width
-           # vertices which define the lower and right edge.
-
-           # # (tl - tr) cross (bl - tr)
-           # v_subtract(vectorx[tl], vectory[tl], vectorz[tl], vectorx[tr], vectory[tr], vectorz[tr])
-           # res_1_x=w_sub_1
-           # res_1_y=w_sub_2
-           # res_1_z=w_sub_3
-           #
-           # # (tl - tr) cross (bl - tr)
-           # v_subtract(vectorx[tl], vectory[tl], vectorz[tl], vectorx[tr], vectory[tr], vectorz[tr])
-           # res_2_x=w_sub_1
-           # res_2_y=w_sub_2
-           # res_2_z=w_sub_3
-
            # Calculate the vertex x and y positions. They are ordered from
            # 0...width and 0...height.
 
@@ -14468,9 +14476,9 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
              y_arr[i] = int(i/width)
              vertex_num[x_arr[i],y_arr[i]]=i
 
-
             # Due to the grid being cell center registered, we need to adjust the
             # edges to close a global grid at the antimeridan and poles
+
              if (closeglobe==1) {
                if (phiarr[i]==minphi) {
                  # print "fixing phi=" phiarr[i] "at position", x_arr[i], y_arr[i] > "/dev/stderr"
@@ -14491,7 +14499,6 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
              }
 
            }
-
 
            print "o TopoMesh"
 
@@ -14524,22 +14531,23 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
              if (x_arr[i] > 0 && y_arr[i] > 0 && x_arr[i] < width-1 && y_arr[i] < height-1) {
                # print width, height, x_arr[i], y_arr[i], cr, i, ":", vectorx[cr],vectory[cr],vectorz[cr], "cross", vectorx[i],vectory[i],vectorz[i] > "/dev/stderr"
 
- # Note: we currently are only using one arbitrarily chosen normal direction for
- # each interior point, and the normal to the sphere for edge points.
+               # Note: we currently are only using one arbitrarily chosen normal direction for
+               # each interior point, and the normal to the sphere for edge points.
+
+               # This should be extended to be an average normal of surrounding faces
 
                  # Normal is (cr-i) x (bc-i)
-                 # cr - i
+                 # (cr - i)
                  v_subtract(vectorx[cr],vectory[cr],vectorz[cr],vectorx[i],vectory[i],vectorz[i])
-                 r_tmp_1=w_sub_1
-                 r_tmp_2=w_sub_2
-                 r_tmp_3=w_sub_3
-                 # cr - i
+                 r_tmp_1=w_sub_1; r_tmp_2=w_sub_2; r_tmp_3=w_sub_3
+                 # (br - i)
                  v_subtract(vectorx[bc],vectory[bc],vectorz[bc],vectorx[i],vectory[i],vectorz[i])
+                 # (cr - i) x (br - i)
                  v_cross(r_tmp_1,r_tmp_2,r_tmp_3,w_sub_1,w_sub_2,w_sub_3)
-                 # w_cross_1, w_cross_2, w_cross_3 = w_cross_3 / v_cross_l
                  print "vn", w_cross_1, w_cross_2, w_cross_3
+
              } else {
-                # print "vector (" i "):", vectorx[i], vectory[i], vectorz[i] > "/dev/stderr"
+                 # print "vector (" i "):", vectorx[i], vectory[i], vectorz[i] > "/dev/stderr"
 
                  vectorlen=sqrt(vectorx[i]*vectorx[i]+vectory[i]*vectory[i]+vectorz[i]*vectorz[i])
                  print "vn", -vectorx[i]/vectorlen, -vectory[i]/vectorlen, -vectorz[i]/vectorlen
@@ -14562,7 +14570,9 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
            # print "Output", num_vertices, "vertex/normal/texture points" > "/dev/stderr"
            # print "Width:", width, "  Height:", height > "/dev/stderr"
 
-           # I can see that the definitions here are weird... ur/ll are switched?
+
+           # Output the corners and boundary of the DEM for the AOI box
+
            ind_ul=1
            ind_ur=width
            ind_ll=width*(height-1)+1
@@ -14578,25 +14588,42 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
 
            # write the top row in normal order
 
-           print "# Upper row"  >> "./dem_corners.txt"
+           wstep=int(width/10)
+           hstep=int(height/10)
+
+           print "# Upper row, left to right"  >> "./dem_corners.txt"
+           print phiarr[ind_ul], thetaarr[ind_ul], rarr[ind_ul] >> "./dem_corners.txt"
            for(i=ind_ul;i<=ind_ur;i++) {
-             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             if (i%wstep==0) {
+               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             }
            }
+           print phiarr[ind_ur], thetaarr[ind_ur], rarr[ind_ur] >> "./dem_corners.txt"
 
-           print "# Lower row"  >> "./dem_corners.txt"
-           for (i=ind_ll;i<=ind_lr;i+=1) {
-             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           print "# Right column, upper to lower"  >> "./dem_corners.txt"
+           for (i=ind_ur;i<=ind_lr;i+=width) {
+             if (i%hstep==0) {
+               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             }
            }
+           print phiarr[ind_lr], thetaarr[ind_lr], rarr[ind_lr] >> "./dem_corners.txt"
 
-           print "# Left column, upper to lower"  >> "./dem_corners.txt"
-           for (i=ind_ul;i<=ind_ll;i+=width) {
-             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           print "# Lower row, right to left"  >> "./dem_corners.txt"
+           for (i=ind_lr;i>=ind_ll;i-=1) {
+             if (i%wstep==0) {
+               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             }
            }
+           print phiarr[ind_ll], thetaarr[ind_ll], rarr[ind_ll] >> "./dem_corners.txt"
 
-           print "# Right column, lower to upper"  >> "./dem_corners.txt"
-           for (i=ind_lr;i>=ind_ur;i-=width) {
-             print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+           print "# Left column, lower to upper"  >> "./dem_corners.txt"
+           for (i=ind_ll;i>=ind_ul;i-=width) {
+             if (i%hstep==0) {
+               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             }
            }
+           print phiarr[ind_ul], thetaarr[ind_ul], rarr[ind_ul] >> "./dem_corners.txt"
+
 
            #
            print "usemtl ColoredIntensity"
@@ -14606,10 +14633,6 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
            facecount=0
            for (y_ind=0; y_ind<height-1; y_ind++) {
              for (x_ind=0; x_ind<width-1; x_ind++) {
-             # for (x_ind=0; x_ind<width; x_ind++) {
-               # if (x_ind==width-2 && y_ind==height-2) {
-               #   break
-               # }
                tl = 1 + (width*y_ind)+x_ind
                tr = tl + 1
                bl = tl + width
@@ -14622,7 +14645,10 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
            }
            # print "Faces output:", facecount > "/dev/stderr"
 
-          }' ${F_CPTS}topo_fixed.cpt ${F_TOPO}dem_values.txt > dem.obj
+          }' ${F_CPTS}topo_fixed.cpt ${F_TOPO}dem_values.txt > ${F_3D}dem.obj
+
+          [[ -s ./dem_corners.txt ]] && mv ./dem_corners.txt ${F_3D}dem_corners.txt
+          [[ -s ./eq_maxdepth.txt ]] && mv ./eq_maxdepth.txt ${F_3D}eq_maxdepth.txt
 
           # Make a box from the corners of the DEM to the earthquake max depth
           # Only if the maxdepth and corner coords exist AND not a global model
@@ -14631,19 +14657,20 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
           # dem_corners.txt is in lon lat format in order UL,UR,LL,LR
 
 
-          if [[ -s eq_maxdepth.txt ]]; then
-            sphere_rad=$(head -n 1 eq_maxdepth.txt | gawk 'function min(u,v) { return (u<v)?u:v} {print 63.71-min($1/100,660/100)-0.05}' )
+          if [[ -s ${F_3D}eq_maxdepth.txt ]]; then
+            sphere_rad=$(head -n 1 ${F_3D}eq_maxdepth.txt | gawk 'function min(u,v) { return (u<v)?u:v} {print 63.71-min($1/100,660/100)-0.05}' )
           else
             sphere_rad=$(gawk 'BEGIN{print 63.71-660/100}' )
           fi
 
-          if [[ -s ./eq_maxdepth.txt && -s ./dem_corners.txt && $closeglobeflag -ne 1 ]]; then
-            echo "o Box1" > ./box.obj
+          if [[ -s ${F_3D}eq_maxdepth.txt && -s ${F_3D}dem_corners.txt && $closeglobeflag -ne 1 ]]; then
+            echo "mtllib materials.mtl" > ${F_3D}box.obj
+            echo "o Box1" >> ${F_3D}box.obj
 
             # The first four lines of dem_corners.txt are the corner points,
             # the remaining lines are the outline of the DEM
 
-            gawk < dem_corners.txt -v boxdepth=${sphere_rad} '
+            gawk < ${F_3D}dem_corners.txt -v boxdepth=${sphere_rad} '
             @include "tectoplot_functions.awk"
             BEGIN {
               startlower="none"
@@ -14669,7 +14696,14 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
                 }
                 if (noncomline > 4) {
                   if (startlower == "none") {
+                    echo "usemtl BoxLine"
+
+                    print "l 1 2"
+                    print "l 3 4"
+                    print "l 5 6"
+                    print "l 7 8"
                     print "# DEM boundary"
+                    print "o BoxSeg1"
                     startlower=0
                   }
                   phi=deg2rad($1)
@@ -14682,38 +14716,42 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
               }
             }
             END {
-              print "l 1 2"
-              print "l 3 4"
-              print "l 5 6"
-              print "l 7 8"
-              print "o BoxSeg1"
               thisboundary=2
-              printf "l "
-              for(i=9;i<=lowerboxnum;i++) {
-                printf("%d ", i)
+              print "Printing vertices through number", lowerboxnum > "/dev/stderr"
+              for(i=9;i<lowerboxnum+8;i++) {
+                printf("l %d %d\n", i, i+1)
                 # if (i == boundary[thisboundary]) {
-                #   printf("\no BoxSeg%d %d \nl ", thisboundary-1, thisboundary++)
+                #   printf("\no BoxSeg%d\n ", thisboundary++)
                 # }
               }
-              printf("\n")
-            }' >> ./box.obj
+            }' >> ${F_3D}box.obj
 
-          fi
-
-cat <<-EOF > material.mtl
-newmtl ColoredIntensity
-Ka 1.000000 1.000000 1.000000
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl BoxLine
+Ka 0.999998 0.999998 0.999998
 Kd 1.000000 1.000000 1.000000
 Ks 0.000000 0.000000 0.000000
 Tr 0.6000000
 illum 1
 Ns 0.000000
-map_Ka colored_intensity.jpg
-map_Kd colored_intensity.jpg
-map_Ks colored_intensity.jpg
 EOF
 
-# This adds the seismicity point cloud to the end of the OBJ
+          fi
+
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl ColoredIntensity
+Ka 0.999999 0.999999 0.999999
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 0.6000000
+illum 1
+Ns 0.000000
+map_Ka Textures/ColoredIntensity_texture.jpg
+map_Kd Textures/ColoredIntensity_texture.jpg
+map_Ks Textures/ColoredIntensity_texture.jpg
+EOF
+
+    # This adds the seismicity point cloud to the end of the OBJ
     # if [[ -s tectoplot_vertex.ply ]]; then
     #   gawk < tectoplot_vertex.ply '{print "v", $0; print "p -1"; }' >> dem.obj
     # fi
@@ -14721,14 +14759,408 @@ EOF
     # Export the texture as JPG in case TIF doesn't work...
 
     if [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
+      mkdir -p ${F_3D}Textures/
       if [[ -s ${F_TOPO}colored_relief.tif ]]; then
-        gdal_translate -q -of "JPEG" ${F_TOPO}colored_relief.tif ./colored_intensity.jpg
+        gdal_translate -q -of "JPEG" ${F_TOPO}colored_relief.tif ${F_3D}Textures/ColoredIntensity_texture.jpg
       fi
     else
-      gdal_translate -q -of "JPEG" ${F_TOPO}colored_intensity.tif ./colored_intensity.jpg
+      gdal_translate -q -of "JPEG" ${F_TOPO}colored_intensity.tif ${F_3D}Textures/ColoredIntensity_texture.jpg
     fi
 fi
 
+makeplyslab2meshflag=1
+downsampleslabflag=1
+
+if [[ $makeplyflag -eq 1 && $makeplyslab2meshflag -eq 1 ]]; then
+
+  # SLABDEPFILE="/Users/kylebradley/Dropbox/TectoplotData/SLAB2/Slab2Distribute_Mar2018/cam_slab2_dep_02.24.18.grd"
+  [[ ! -s ${F_CPTS}seisdepth_fixed.cpt ]] && replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
+
+  info_msg "[-makeply]: Making mesh surfaces of Slab2 interface"
+        # Now convert the DEM to an OBJ format surface at the same scaling factor
+        # Default format is scanline orientation of ASCII numbers: −ZTLa. Note that −Z only applies to 1-column output.
+
+  for i in $(seq 1 $numslab2inregion); do
+
+        gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+        info_msg "Creating OBJ file for slab ${i} : ${gridfile}"
+
+        if [[ -e $gridfile ]]; then
+
+          if [[ $downsampleslabflag -eq 1 ]]; then
+              gmt grdsample ${gridfile} -I0.1d -G${F_SLAB}slab_${i}_downsample.grd ${VERBOSE}
+              gridfile="${F_SLAB}slab_${i}_downsample.grd"
+          fi
+
+          gmt grd2xyz ${gridfile} ${VERBOSE} > ${F_SLAB}slab_values_${i}.txt
+          # gmt grdcut ${gridfile} -R${F_TOPO}dem.nc -G${F_SLAB}slabcut_${i}.grd
+        else
+          echo "Slab file $gridfile does not exist"
+          continue
+        fi
+
+        # SLAB_DEP=${F_SLAB}slabcut_${i}.grd
+
+        dem_orig_info=($(gmt grdinfo ${gridfile} -C -Vn))
+        dem_numx=${dem_orig_info[9]}
+        dem_numy=${dem_orig_info[10]}
+
+        # # gmt grd2xyz ${SLAB_DEP} -C ${VERBOSE} > ${F_SLAB}slab_indices_${i}.txt
+        # gmt grd2xyz ${SLAB_DEP} ${VERBOSE} > ${F_SLAB}slab_values_${i}.txt
+
+        gawk -v width=${dem_numx} -v height=${dem_numy} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+        @include "tectoplot_functions.awk"
+           BEGIN {
+             # colorind=0
+             vertexind=1
+             # Set up the material file
+             print "mtllib materials.mtl"
+             minphi="none"
+             maxphi="none"
+             mintheta="none"
+             maxtheta="none"
+           }
+
+           # Read the CPT file first
+
+           (NR==FNR) {
+             if ($1+0==$1) {
+               # Slab2 depths are z getting more negative downward
+               minz[NR]=$1
+               split($2, arr, "/")
+               red[NR]=arr[1]
+               green[NR]=arr[2]
+               blue[NR]=arr[3]
+               colorind=NR
+             }
+           }
+
+           # Read the vertices (Slab grid points) second
+         (NR!=FNR) {
+
+           # Calculating the color index takes a long time for many vertices
+           # and we are not currently using it... so comment out the following lines
+
+           for(i=1; i<= colorind; i++) {
+             if (minz[i]<0-$3) {
+               vertexcolor[vertexind]=i
+             } else {
+               break
+             }
+           }
+
+           phi=deg2rad($1)
+           theta=deg2rad(90-$2)
+
+           if (tolower($3) == "nan") {
+             $3=-6000
+             cell_nan[vertexind]=1
+           }
+
+           if ($2 < minlat || $2 > maxlat || test_lon(minlon, maxlon, $1) == 0) {
+             cell_nan[vertexind]=1
+           }
+
+           r=(6371+$3)/100
+
+           # r = 6371/100 (Earth radius) for grid cells with values of NaN
+
+           # Calculate the vector for each vertex (center of Earth to vertex point)
+           vectorx[vertexind]=r*sin(theta)*cos(phi)
+           vectory[vertexind]=r*sin(theta)*sin(phi)
+           vectorz[vertexind]=r*cos(theta)
+           phiarr[vertexind]=$1
+           thetaarr[vertexind]=$2
+           rarr[vertexind]=r
+           vertexind++
+         }
+         END {
+
+           # Calculate the vertex x and y positions. They are ordered from
+           # 0...width and 0...height.
+
+           num_vertices=width*height
+           for (i=0; i<=num_vertices; i++) {
+             x_arr[i] = i % width
+             y_arr[i] = int(i/width)
+             vertex_num[x_arr[i],y_arr[i]]=i
+
+            # Due to the grid being cell center registered, we need to adjust the
+            # edges to close a global grid at the antimeridan and poles
+
+           }
+
+           print "o SlabMesh"
+
+           for (i=1; i<=num_vertices; i++) {
+             # The following line places the color index for each vertex... comment out for now
+             print "v", vectorx[i], vectory[i], vectorz[i], red[vertexcolor[i]], green[vertexcolor[i]], blue[vertexcolor[i]]
+             # print "v", vectorx[i], vectory[i], vectorz[i], 255, 255, 255
+           }
+
+           # Calculate the vertex normals
+
+           for (i=1; i<=num_vertices; i++) {
+             num_normals=0
+
+             # Find the indices of the vertices surrounding each vertex
+             # If we are on an edge, vertex_num for some of these will be wrong!
+
+             tl = vertex_num[x_arr[i]-1,y_arr[i]-1]
+             tc = vertex_num[x_arr[i],y_arr[i]-1]
+             tr = vertex_num[x_arr[i]+1,y_arr[i]-1]
+             cr = vertex_num[x_arr[i]+1,y_arr[i]]
+             cl = vertex_num[x_arr[i]-1,y_arr[i]]
+             bl = vertex_num[x_arr[i]-1,y_arr[i]+1]
+             bc = vertex_num[x_arr[i],y_arr[i]+1]
+             br = vertex_num[x_arr[i]+1,y_arr[i]+1]
+
+             # if we are not along the lower or right edge
+
+             if (x_arr[i] > 0 && y_arr[i] > 0 && x_arr[i] < width-1 && y_arr[i] < height-1) {
+               # print width, height, x_arr[i], y_arr[i], cr, i, ":", vectorx[cr],vectory[cr],vectorz[cr], "cross", vectorx[i],vectory[i],vectorz[i] > "/dev/stderr"
+
+               # Note: we currently are only using one arbitrarily chosen normal direction for
+               # each interior point, and the normal to the sphere for edge points.
+
+               # This should be extended to be an average normal of surrounding faces
+
+                 # Normal is (cr-i) x (bc-i)
+                 # (cr - i)
+                 v_subtract(vectorx[cr],vectory[cr],vectorz[cr],vectorx[i],vectory[i],vectorz[i])
+                 r_tmp_1=w_sub_1; r_tmp_2=w_sub_2; r_tmp_3=w_sub_3
+                 # (br - i)
+                 v_subtract(vectorx[bc],vectory[bc],vectorz[bc],vectorx[i],vectory[i],vectorz[i])
+                 # (cr - i) x (br - i)
+                 v_cross(r_tmp_1,r_tmp_2,r_tmp_3,w_sub_1,w_sub_2,w_sub_3)
+                 print "vn", w_cross_1, w_cross_2, w_cross_3
+
+             } else {
+                 # print "vector (" i "):", vectorx[i], vectory[i], vectorz[i] > "/dev/stderr"
+
+                 vectorlen=sqrt(vectorx[i]*vectorx[i]+vectory[i]*vectory[i]+vectorz[i]*vectorz[i])
+                 print "vn", -vectorx[i]/vectorlen, -vectory[i]/vectorlen, -vectorz[i]/vectorlen
+             }
+
+           }
+
+           print "usemtl SlabColor"
+
+           # Output two faces per vertex, except for the y=height and y=width
+           # vertices which define the lower and right edge, and only if all
+           # surrounding vertices are not NaN
+
+           facecount=0
+           for (y_ind=0; y_ind<height-1; y_ind++) {
+             for (x_ind=0; x_ind<width-1; x_ind++) {
+               tl = 1 + (width*y_ind)+x_ind
+               tr = tl + 1
+               bl = tl + width
+               br = bl + 1
+
+               if ((cell_nan[tl]+cell_nan[tr]+cell_nan[bl])==0) {
+                 # Clockwise order for faces
+                 print "f", tl "/" tl "/" tl, tr "/" tr "/" tr, bl "/" bl "/" bl
+                 facecount+=1
+               }
+               if ((cell_nan[tr]+cell_nan[br]+cell_nan[bl])==0) {
+                 print "f", tr "/" tr "/" tr, br "/" br "/" br, bl "/" bl "/" bl
+                 facecount+=1
+               }
+             }
+           }
+           # print "Faces output:", facecount > "/dev/stderr"
+
+         }' ${F_CPTS}seisdepth_fixed.cpt ${F_SLAB}slab_values_${i}.txt > ${F_3D}slab_${i}_presimplified.obj
+
+         # Our approach leaves MANY unused vertices, so remove and update faces
+
+         gawk < ${F_3D}slab_${i}_presimplified.obj '
+         BEGIN {
+           vertexind=1
+           normalind=1
+           textureind=1
+           faceind=1
+         }
+         {
+           if ($1=="v") {
+             vertexdata[vertexind++]=$0
+           } else if ($1=="vn") {
+             normaldata[normalind++]=$0
+           } else if ($1=="vt") {
+             texturedata[textureind++]=$0
+           } else if ($1=="f") {
+             facedata[faceind]=$0
+             i=1
+             while($(i+1)!="") {
+               split($(i+1), splitstr, "/")
+               # Mark the vertex index as being seen
+               # print "seeing vertex", splitstr[1]
+               seenindex[splitstr[1]]=1
+               faceindex[faceind][i]=splitstr[1]
+               facecount[faceind]++
+               i++
+             }
+             faceind++
+           } else {
+             print
+           }
+         }
+         END {
+           unseencount=0
+           for (i=1; i<vertexind; i++) {
+             if (seenindex[i]==0) {
+               addme=1
+             } else {
+               addme=0
+             }
+             unseencount+=addme
+             unseenbefore[i]=unseencount
+             # print "Seen:", i, seenindex[i]
+           }
+           for (i=1; i<vertexind; i++) {
+             if (seenindex[i]==1) {
+               print vertexdata[i]
+             }
+           }
+           for (i=1; i<normalind; i++) {
+             if (seenindex[i]==1) {
+               print normaldata[i]
+             }
+           }
+           for (i=1; i<textureind; i++) {
+             if (seenindex[i]==1) {
+               print texturedata[i]
+             }
+           }
+
+           for(i=1; i<faceind; i++) {
+             # print facedata[i]
+             printf("f ")
+             for(j=1; j<= facecount[i]; j++) {
+               vertbefore=faceindex[i][j]
+               vertafter=vertbefore-unseenbefore[vertbefore]
+               printf("%d/%d/%d ", vertafter, vertafter, vertafter)
+             }
+             printf("\n")
+           }
+         }
+         ' > ${F_3D}slab_${i}.obj
+
+         touch ${F_3D}slabdone
+   done
+
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SlabColor
+Ka 0.999997 0.999997 0.999997
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 0.6000000
+illum 1
+Ns 0.000000
+EOF
+
+fi
+
+if [[ $makeplyflag -eq 1 && -s ${F_VOLC}volcanoes.dat ]]; then
+  # volcanoes.dat contains lon lat elevation
+
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl VolcanoesColor
+Ka 0.999996 0.999996 0.999996
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 0.6000000
+illum 1
+Ns 0.000000
+EOF
+
+
+
+  gawk -v cmttype=${CMTTYPE} -v v_exag=${PLY_VEXAG} -v v_scale=${PLY_VOLCSCALE} '
+  @include "tectoplot_functions.awk"
+
+  BEGIN {
+    havematrix=0
+    itemind=0
+    sphereind=1
+    vertexind=0
+    print "mtllib materials.mtl"
+  }
+
+    # First input file is a template focal mechanism OBJ
+
+    (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
+      itemind++
+      full[itemind]=$0
+      for(ind=1;$(ind)!="";ind++) {
+        obj[itemind][ind]=$(ind)
+      }
+      len[itemind]=ind-1
+    }
+
+    # Second input file is volcano points in the format
+    # lon lat elev(m)
+
+    (NR!=FNR) {
+
+      depth=(6371+$3/1000*v_exag)/100
+      lon=$1
+      lat=$2
+      phi=deg2rad(lon)
+      theta=deg2rad(90-lat)
+
+      xoff=depth*sin(theta)*cos(phi)
+      yoff=depth*sin(theta)*sin(phi)
+      zoff=depth*cos(theta)
+
+      calc_ecef_to_enu_matrix(lon, lat)
+
+      usedmtl=0
+      print "o Volcanoes_" sphereind++
+      vertexind=0
+      for (this_ind in len) {
+        if (obj[this_ind][1] == "v" || obj[this_ind][1] == "vn") {
+
+            # Reorient the volcano OBJ from geocentric to E/N/U coordinates
+            multiply_ecef_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+
+            if (obj[this_ind][1]=="v") {
+              # Vertex color is pure red
+              print "v", w[0]*v_scale+xoff, w[1]*v_scale+yoff, w[2]*v_scale+zoff, 255, 0, 0
+              vertexind++
+            }
+            if (obj[this_ind][1]=="vn") {
+              print "vn", w[0], w[1], w[2]
+            }
+
+        } else if (obj[this_ind][1]=="f") {
+          if (usedmtl==0) {
+            print "usemtl VolcanoesColor"
+            usedmtl=1
+          }
+          # Face vertices have to be incremented to account for prior volcanoes
+          printf("f ")
+          for (k=2; k<=len[this_ind]; k++) {
+            printf("%d/%d/%d ", obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind)
+          }
+          printf("\n")
+        } else if (obj[this_ind][1]=="vt") {
+
+          printf("vt ")
+          for (k=2; k<=len[this_ind]; k++) {
+            printf("%s ", obj[this_ind][k])
+          }
+          printf("\n")
+        }
+      }
+      # print lastvertexind, vertexind > "/dev/stderr"
+      lastvertexind+=vertexind
+    }
+  ' ${VOLCANO_OBJ} ${F_VOLC}volcanoes.dat > ${F_3D}volcanoes.obj
+
+
+fi
 
 
 if [[ $makeplyflag -eq 1 ]]; then
@@ -14736,56 +15168,65 @@ if [[ $makeplyflag -eq 1 ]]; then
   #0.5 model.obj@t=tx,ty,tz@r=rx,ry,rz@s=sx,sy,sz (translation, rotation, scaling)
 
   # Create a black sphere 660 km deep inside the Earth, or deeper than the deepest
-  # earthquake, to stop the transparency problem
+  # earthquake, to stop the transparency problem (if it is a global Earth)
 
 
   if [[ $closeglobeflag -eq 1 ]]; then
     echo "Making a sphere with radius ${sphere_rad} to go under the earthquakes"
-cat <<-EOF > insidearth.txt
+cat <<-EOF > ${F_3D}insidearth.txt
 0 0 0 ${sphere_rad} 0 0 0
 EOF
-    ${REPLICATE_OBS} ${REPLICATE_SPHERE4} insidearth.txt > inside_earth.obj
+    ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}insidearth.txt > ${F_3D}inside_earth.obj
   fi
 
-      printf "1 " > sketchfab.timeframe
+      printf "1 " > ${F_3D}sketchfab.timeframe
       firstfileflag=""
 
-      if [[ -s tectoplot.ply ]]; then
-        printf "tectoplot.ply" >> sketchfab.timeframe
+      if [[ -s ${F_3D}tectoplot.ply ]]; then
+        printf "tectoplot.ply" >> ${F_3D}sketchfab.timeframe
         firstfileflag="+"
       fi
-      if [[ -s inside_earth.obj ]]; then
-          printf "%sinside_earth.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -s ${F_3D}inside_earth.obj ]]; then
+          printf "%sinside_earth.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
       fi
-      if [[ -s box.obj ]]; then
-          printf "%sbox.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -s ${F_3D}box.obj ]]; then
+          printf "%sbox.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
       fi
-      if [[ -s focal_mechanisms.obj ]]; then
-          printf "%sfocal_mechanisms.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -s ${F_3D}focal_mechanisms.obj ]]; then
+          printf "%sfocal_mechanisms.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
       fi
-      if [[ -s dem.obj ]]; then
-          printf "%sdem.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -s ${F_3D}volcanoes.obj ]]; then
+          printf "%svolcanoes.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+          firstfileflag="+"
+      fi
+      if [[ -s ${F_3D}dem.obj ]]; then
+          printf "%sdem.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
       else
-        if [[ -s tectoplot_surface.ply ]]; then
-          printf "%stectoplot_surface.ply" $firstfileflag >> sketchfab.timeframe
+        if [[ -s ${F_3D}tectoplot_surface.ply ]]; then
+          printf "%stectoplot_surface.ply" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
         fi
       fi
-      if [[ -s eq_poly.obj ]]; then
-        printf "%seq_poly.obj@r=-90,0,0" $firstfileflag >> sketchfab.timeframe
+      if [[ -e ${F_3D}slabdone ]]; then
+        for slabf in ${F_3D}slab_*.obj; do
+          printf "%s${slabf}@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+          firstfileflag="+"
+        done
       fi
-      printf "\n" >> sketchfab.timeframe
-
-      zip tectoplot_sketchfab.zip focal_mechanisms.obj focsphere.mtl focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply material.mtl colored_intensity.jpg > /dev/null 2>&1
+      if [[ -s ${F_3D}eq_poly.obj ]]; then
+        printf "%seq_poly.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+        firstfileflag="+"
+      fi
+      printf "\n" >> ${F_3D}sketchfab.timeframe
+#slab_material.mtl volcanoes.mtl focsphere.mtl sphere.mtl
+      cd ${F_3D}
+      zip tectoplot_sketchfab.zip volcanoes.obj slab_*.obj focal_mechanisms.obj Textures/focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply materials.mtl Textures/ColoredIntensity_texture.jpg > /dev/null 2>&1
+      cd ..
 fi
-
-
-
-# Create header / metadata information for all files, using a control file in $DEFDIR
 
 # Open all PDF files created
 

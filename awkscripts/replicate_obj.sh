@@ -5,7 +5,7 @@
 # Data file format:
 # xoffset yoffset zoffset scale Red Green Blue
 
-gawk '
+gawk -v material="$3" '
   BEGIN {
     itemind=0
     sphereind=1
@@ -18,7 +18,7 @@ gawk '
   # Read in the template obj file
   # obj format lines such as v x y z etc, whitespace separated, empty lines ignored
   # vertex normal are not adjusted
-  
+
   (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
     itemind++
     full[itemind]=$0
@@ -37,6 +37,9 @@ gawk '
     green=$6
     blue=$7
     print "o Sphere_" sphereind++
+    if (material != "") {
+      print "usemtl", material
+    }
     vertexind=0
     for (i in len) {
       if (obj[i][1]=="v") {

@@ -393,6 +393,7 @@ function rd(n, multipleOf)
 
 ################################################################################
 # Data selection by longitude range potentially spanning dateline
+# Returns 1 if longitude is within AOI of minlon/maxlon, 0 otherwise
 
 function test_lon(minlon, maxlon, lon) {
   while (lon>180) {lon=lon-360}
@@ -413,10 +414,8 @@ function test_lon(minlon, maxlon, lon) {
     } else {  # (minlon >= 180)
       return (lon+360 >= minlon && lon+360 <= maxlon)?1:0
     }
-
   }
 }
-
 
 ################################################################################
 # Focal mechanism functions
@@ -656,8 +655,6 @@ function aux_sdr(strike_d, dip_d, rake_d, SDR) {
   SDR[3]=aux_rake
 }
 
-
-
 # rake_from_twosd_im()
 # Calculate rake of a nodal plane from two nodal plane strike/dips and a sign
 # factor that defines the slip direction. Modified from GMT psmeca (G. Patau, IPGP)
@@ -841,8 +838,6 @@ function calc_ecef_to_enu_matrix(lon_deg, lat_deg) {
 function sdr_rotation_matrix(strike_deg, dip_deg, rake_deg) {
   calc_rotation_matrix(0-strike_deg, dip_deg-90, 90+rake_deg)
 }
-
-
 
 function multiply_rotation_matrix(x, y, z,    i,j) {
   u[0]=x

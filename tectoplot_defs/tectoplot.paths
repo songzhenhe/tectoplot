@@ -70,15 +70,29 @@ EULERVEC_AWK=$AWKSCRIPTDIR"eulervec_2pole_cart.awk"
 EULERVECLIST_AWK=$AWKSCRIPTDIR"eulervec_2pole_cart_list.awk"
 EULERADD_AWK=$AWKSCRIPTDIR"euleradd.awk"
 
-##### AWK 3D scripts and polyhedra files
+##### AWK 3D scripts
 
 REPLICATE_OBS=$AWKSCRIPTDIR"replicate_obj.sh"
-REPLICATE_POLY=$AWKSCRIPTDIR"icosahedron.obj"
-REPLICATE_SPHERE=$AWKSCRIPTDIR"sphere.obj"
-REPLICATE_SPHERE4=$AWKSCRIPTDIR"sphere_4_norm.obj"
-FOCAL_SPHERE=$AWKSCRIPTDIR"focsphere.obj"
-FOCAL_MATERIAL=$AWKSCRIPTDIR"focsphere.mtl"
-FOCAL_TEXTURE=$AWKSCRIPTDIR"focaltexture.jpg"
+
+##### 3D assets
+
+THREEDDIR=${TECTOPLOTDIR}"3d/"
+
+REPLICATE_POLY=$THREEDDIR"icosahedron.obj"
+REPLICATE_SPHERE=$THREEDDIR"sphere.obj"
+REPLICATE_SPHERE4=$THREEDDIR"sphere4.obj"
+# Sphere - many many faces
+FOCAL_SPHERE=$THREEDDIR"focsphere.obj"
+# Spherified cube - smaller
+FOCAL_SCUBE=$THREEDDIR"scube.obj"
+# Normalized cube - smallest
+FOCAL_NCUBE=$THREEDDIR"ncube.obj"
+
+FOCAL_MATERIAL=$THREEDDIR"focsphere.mtl"
+FOCAL_TEXTURE=$THREEDDIR"focaltexture.jpg"
+VOLCANO_OBJ=$THREEDDIR"cone_normalized_rot2.obj"
+VOLCANO_MATERIAL=$THREEDDIR"volcanoes.mtl"
+
 
 ##### FORTRAN code and executable path for Reasenberg declustering
 
@@ -113,6 +127,7 @@ F_VOLC="volcanoes/"                   # Focal mechanisms
 F_GRAV="grav/"                        # Focal mechanisms
 F_SLAB="slab/"                        # Slab data
 F_GPS="gps/"                          # GPS velocity data
+F_3D="3d/"                            # 3D model data
 
 ##### DATAROOT is the directory that contains all downloaded data directories.
 
