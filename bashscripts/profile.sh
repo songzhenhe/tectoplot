@@ -901,8 +901,6 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
       gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
-echo Value is : ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
-
       if [[ ${istopgrid[$i]} -eq 1 ]]; then
         if [[ $USE_SHADED_RELIEF_TOPTILE -eq 1 ]]; then
           COLOR_SOURCE=${COLORED_RELIEF}
@@ -937,7 +935,6 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 
       # Extract the profile ID numbers.
       # !!!!! This could easily be simplified to be a list of numbers starting with 0 and incrementing by 1!
-      echo Value2  is : ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
       grep ">" ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | gawk -F- '{print $3}' | gawk -F" " '{print $1}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
@@ -1120,11 +1117,6 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt
 
         # We have created a da-dt dataset that needs to be turned into a DEM.
         # We use some gdal tricks to construct a raster
-        echo "In"
-        ls -l profilerange.txt
-        cat profilerange.txt
-        echo "Out"
-
         mv profilerange.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt
 
 # We use a random UTM Zone as the projected coordinate system for the da-dt data.
@@ -1176,9 +1168,6 @@ cat << EOF > ${F_PROFILES}blue.vrt
 </OGRVRTDataSource>
 EOF
         fi
-
-        echo Value3 is : ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
-
 
         # dem_minx,y are in units of km
         dem_minx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
