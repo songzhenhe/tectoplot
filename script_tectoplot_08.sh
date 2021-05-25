@@ -2552,7 +2552,7 @@ fi
 -cslab2)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cslab2:       select thrust CMTs within vertical range of slab2 surface
+-cslab2:       select thrust CMTs consistent with rupture of slab2.0 surface
 -cslab2 [[distance]] [[strike_diff]] [[dip_diff]]
 
   From CMT catalog, for already selected thrust mechanisms, retain only those
