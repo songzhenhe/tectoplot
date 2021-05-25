@@ -10010,7 +10010,7 @@ fi
       info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
 
       info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
-      echo CMTFILE is ${CMTFILE}
+      echo "sed -f eq_idcull.sed -i '' ${CMTFILE}"
       [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed -i '' ${CMTFILE}
 
       info_msg "Merging cluster IDs with CMT catalog"
