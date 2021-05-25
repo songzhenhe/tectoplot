@@ -1010,7 +1010,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
             }
             END {
               printf "%f %f %f %f %f %f", minX, maxX, minY, maxY, minZ, maxZ > "./profilerange.txt"
-            }' < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.csv
+            }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.csv
 
             # If we are plotting the colored relief image, make the XYR, XYG, XYB text files
             if [[ $topgridcoloredreliefflag -eq 1 ]]; then
@@ -1043,12 +1043,12 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
           # Turn the gridded profile data into dt, da, Z data, shifted by X offset
 
           # Output the lon, lat, Z, and the sign of the cross-profile distance (left vs right)
-          gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_profiletable.txt '{
+          gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt '{
             if ($1 != ">") {
               print $1, $2, $5, ($3>0)?-1:1
             }
-          }' > ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt
-cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt
+          }' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_prepdata.txt
+cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_prepdata.txt
 
           # I need a file with LON, LAT, Z
           # Interpolate at a spacing of ${gridspacinglist[$i]} (spacing between cross track profiles)
@@ -1057,14 +1057,14 @@ cleanup ${F_PROFILES}line_trackinterp.txt
 
           # If this function can be sped up that would be great.
           info_msg "Doing signed distance calculation... (takes some time!)"
-          gmt mapproject ${F_PROFILES}${LINEID}_${grididnum[$i]]}_prepdata.txt -L${F_PROFILES}line_trackinterp.txt+p -fg -Vn > ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt
-cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt
+          gmt mapproject ${F_PROFILES}${LINEID}_${grididnum[$i]}_prepdata.txt -L${F_PROFILES}line_trackinterp.txt+p -fg -Vn > ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt
+cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt
           # Output is Lon, Lat, Z, DistSign, DistX, ?, DecimalID
           # DecimalID * ${gridspacinglist[$i]} = distance along track
 
           # Generate the X,Y,Z data file AND a file containing the range for X,Y,Z (min/max)
 
-          gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]]}_dadtpre.txt -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '
+          gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '
               BEGIN{
                 offset=0;minX=99999999;maxX=-99999999; minY=99999999; maxY=-99999999; minZ=99999999; maxZ=-99999999
               }
