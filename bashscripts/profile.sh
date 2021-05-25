@@ -75,9 +75,24 @@
 # Point labels
 # B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 
-# function tac() {
-#   tail -r -- "$@";
-# }
+function tac() {
+  # if [[ -e tac ]]; then
+  #   echo "using tac"
+  #   tac "$@"
+  # else
+  #   echo "using tail -r"
+  #   tail -r -- "$@";
+  # fi
+  gawk '{
+    data[NR]=$0
+  }
+  END {
+    num=NR
+    for(i=num;i>=1;i--) {
+      print data[i]
+    }
+  }' "$@"
+}
 
 # project_xyz_pts_onto_track $1 $2 $3 $4 $5 $6
 #

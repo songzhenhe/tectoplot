@@ -9910,6 +9910,7 @@ fi
 
   # This section is very sensitive to file formats and any change will break it.
 
+  echo CMTFILE is ${CMTFILE}
 
 
   # I want a new algorithm that fuses CMT and EQ formats more easily, sorts them
@@ -10009,6 +10010,7 @@ fi
       info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
 
       info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
+      echo CMTFILE is ${CMTFILE}
       [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed -i '' ${CMTFILE}
 
       info_msg "Merging cluster IDs with CMT catalog"
