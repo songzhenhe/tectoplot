@@ -11949,7 +11949,7 @@ for plot in ${plots[@]} ; do
         if [[ $plotslab2 -eq 1 ]]; then
           if [[ ! $numslab2inregion -eq 0 ]]; then
             for i in $(seq 1 $numslab2inregion); do
-              info_msg "Adding slab grid ${slab2inregion[$i] to sprof}"
+              info_msg "Adding slab grid ${slab2inregion[$i]} to sprof"
               gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
               echo "T $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
             done
