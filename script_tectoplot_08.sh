@@ -5382,7 +5382,9 @@ fi
           calcutmzonelaterflag=1
         fi
         setutmrjstringfromarrayflag=1
-        recalcregionflag_lonlat=1
+
+# NOTE: the following line was commented out to avoid gray collars around UTM maps
+        # recalcregionflag_lonlat=1
         DEM_LATBUFFER=0.5 # As the map can extend to the north or south due to curve
       ;;
 

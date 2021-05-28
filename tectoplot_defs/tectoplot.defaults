@@ -401,7 +401,7 @@ TOPOCONTOURMINPTS="500"
 ##### Seismicity
 ZSFILLCOLOR="white"          # Default fill color for solid fill hypocenters
 EQ_MINMAG=0
-EQ_MAXMAG=100
+EQ_MAXMAG=10
 EQLINEWIDTH="0.25p"
 EQLINECOLOR="black"
 EQREMOVEFILL="white"
