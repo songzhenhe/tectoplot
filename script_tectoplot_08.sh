@@ -434,6 +434,7 @@ declare -a on_exit_items
   usecustombflag=0
   usecustomgmtvars=0
   usecustomrjflag=0
+  closeglobeflag=0
 
   # Flags that start with a value of 1
 
@@ -1923,6 +1924,7 @@ fi
     plotslab2=1
 		plots+=("slab2")
     cpts+=("seisdepth")
+    makeplyslab2meshflag=1
     echo $SLAB2_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $SLAB2_SOURCESTRING >> ${LONGSOURCES}
 		;;
@@ -4973,6 +4975,7 @@ fi
         MINLAT=-90
         MAXLAT=90
         globalextentflag=1
+        downsampleslabflag=1   # Global AOI requires downsampled slab2.0 for makeply
         shift
 
 # Option 2: Centered on an earthquake event from CMT(preferred) or seismicity(second choice) catalogs.
@@ -5129,9 +5132,6 @@ fi
             info_msg "[-r]: MinLon is malformed: $3"
             exit 1
           fi
-
-          echo CUSTOMREGIONRJSTRING=${CUSTOMREGIONRJSTRING}
-
         fi
       fi
 # Option X: Four numbers in lonmin lonmax latmin latmax order
@@ -6010,7 +6010,7 @@ cat <<-EOF
   DATA SOURCE:
 
   Custom DEM file:
-  -t [demfile]
+  -t [demfile] [[reproject]]
 
   Local large datasets downloaded using -getdata:
   -t SRTM30 | GEBCO20 | GEBCO1
@@ -6125,7 +6125,10 @@ fi
       info_msg "[-t]: Found topo args ${imageargs[@]}"
       TOPOARGS="${imageargs[@]}"
     fi
-
+    if [[ "${2}" =~ "reproject" ]]; then
+      reprojecttopoflag=1
+      shift
+    fi
     # Specify a CPT file
     if arg_is_flag $2; then
       info_msg "[-t]: No topo CPT specified. Using default."
@@ -6145,6 +6148,7 @@ fi
         fi
       fi
     fi
+
     cpts+=("topo")
     fasttopoflag=1
 
@@ -6791,6 +6795,10 @@ cat <<-EOF
 -tsent:        color terrain using downloaded sentinel cloud-free image
 -tsent [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
 
+  Options
+  notopo        : Plot only the imagery, don't plot topo. Still needs -t option
+
+
   If using -r RegionID, load a saved rendered terrain image.
   Requires -radd RegionID prior to calling tectoplot with -tsave or -tload
 
@@ -6814,6 +6822,11 @@ fi
     if arg_is_positive_float $2; then
       info_msg "[-tsent]: Sentinel image gamma correction set to $2"
       SENTINEL_GAMMA=${2}
+      shift
+    fi
+    if [[ $2 =~ "notopo" ]]; then
+      info_msg "[-tsent]: No topo plotted with Sentinel data"
+      sentinelnotopoflag=1
       shift
     fi
     touch ./sentinel.tif
@@ -6862,13 +6875,14 @@ cat <<-EOF
 -makeply:      Make a 3D Sketchfab model including topo, FMS, seismicity
 -makeply [[options]]
 
-    Options specified in order are:
+    Options:
 
     [[landkm ${PLY_FIB_KM}]]          Spacing of surface grid pts if no DEM given
     [[vexag ${PLY_VEXAG}]]            Vertical exaggeration of data
     [[topoexag ${PLY_VEXAG_TOPO}]]    Vertical exaggeration of DEM
     [[maxsize ${PLY_MAXSIZE}]]        Resample DEM to given maximum width (cells)
-
+    [[sidebox ${PLY_SIDEBOXDEPTH} ${PLY_SIDEBOXCOLOR}]]   Make sides and bottom of box under topo
+    [[maptiff]]  Use the map TIFF as the texture for the DEM
 
 Example: None
 --------------------------------------------------------------------------------
@@ -6879,50 +6893,83 @@ fi
   makeplydemmeshflag=1
   makeplysurfptsflag=0
 
-  if [[ "${2}" =~ "landkm" ]]; then
-    shift
-    if arg_is_positive_float "${2}"; then
-      PLY_FIB_KM="${2}"
+  while ! arg_is_flag "${2}"; do
+    if [[ "${2}" =~ "landkm" ]]; then
       shift
-      makeplydemmeshflag=0
-      makeplysurfptsflag=1
-    else
-      info_msg "[-makeply]: landkm option requires positive float argument"
-      exit 1
+      if arg_is_positive_float "${2}"; then
+        PLY_FIB_KM="${2}"
+        shift
+        makeplydemmeshflag=0
+        makeplysurfptsflag=1
+      else
+        info_msg "[-makeply]: landkm option requires positive float argument"
+        exit 1
+      fi
     fi
-  fi
-  if [[ "${2}" =~ "vexag" ]]; then
-    shift
-    if arg_is_positive_float "${2}"; then
-      PLY_VEXAG="${2}"
+    if [[ "${2}" =~ "vexag" ]]; then
       shift
-    else
-      info_msg "[-makeply]: vexag option requires positive float argument"
-      exit 1
+      if arg_is_positive_float "${2}"; then
+        PLY_VEXAG="${2}"
+        shift
+      else
+        info_msg "[-makeply]: vexag option requires positive float argument"
+        exit 1
+      fi
     fi
-  fi
-  if [[ "${2}" =~ "topoexag" ]]; then
-    shift
-    if arg_is_positive_float "${2}"; then
-      PLY_VEXAG_TOPO="${2}"
+    if [[ "${2}" =~ "topoexag" ]]; then
       shift
-    else
-      info_msg "[-makeply]: vexag topo option requires positive float argument"
-      exit 1
+      if arg_is_positive_float "${2}"; then
+        PLY_VEXAG_TOPO="${2}"
+        shift
+      else
+        info_msg "[-makeply]: vexag topo option requires positive float argument"
+        exit 1
+      fi
     fi
-  fi
-  if [[ "${2}" =~ "maxsize" ]]; then
-    shift
-    if arg_is_positive_float "${2}"; then
-      PLY_MAXSIZE="${2}"
-      plymaxsizeflag=1
+    if [[ "${2}" =~ "maxsize" ]]; then
       shift
-    else
-      info_msg "[-makeply]: maxsize option requires positive integer argument"
-      exit 1
+      if arg_is_positive_float "${2}"; then
+        PLY_MAXSIZE="${2}"
+        plymaxsizeflag=1
+        shift
+      else
+        info_msg "[-makeply]: maxsize option requires positive integer argument"
+        exit 1
+      fi
     fi
-  fi
+    if [[ "${2}" =~ "maptiff" ]]; then
+      plymaptiffflag=1
+      shift
+    fi
+    if [[ "${2}" =~ "sidebox" ]]; then
+      shift
+      plysideboxflag=1
+
+      if arg_is_positive_float "${2}"; then
+        PLY_SIDEBOXDEPTH="${2}"
+        shift
+      else
+        info_msg "[-makeply]: sidebox option requires positive integer argument"
+        exit 1
+      fi
+      if ! arg_is_flag "${2}"; then
+        if [[ "${2}" =~ ([0-9]*\/[0-9]*\/[0-9]*) ]]; then
+          PLY_SIDEBOXCOLOR=${2}
+        else
+          THISCOLOR=$(gmt_colorname_to_rgb "${2}")
+          if [[ -z $THISCOLOR ]]; then
+            info_msg "[-makeply]: Color ${2} not recognized. Using default ${PLY_SIDEBOXCOLOR}"
+            PLY_SIDEBOXCOLOR="255/255/255"
+          else
+            PLY_SIDEBOXCOLOR=${THISCOLOR}
+          fi
+        fi
+        shift
+      fi
+    fi
+  done
   ;;
+
 
   -tsl)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -6982,7 +7029,11 @@ fi
     else
       P_IMAGE=$(abs_path ${2})
       shift
-      topoctrlstring=${topoctrlstring}"p"
+      if [[ $sentinelnotopoflag -eq 1 ]]; then
+        topoctrlstring="p"
+      else
+        topoctrlstring=${topoctrlstring}"p"
+      fi
       useowntopoctrlflag=1
     fi
     if arg_is_positive_float $2; then
@@ -8822,11 +8873,16 @@ if [[ $plottopo -eq 1 ]]; then
 
     if [[ $plotcustomtopo -eq 1 ]]; then
       name="${F_TOPO}dem.nc"
-      info_msg "Custom topo: NOT filling NaNs"
+      info_msg "[-t]: Using custom topography file ${GRIDFILE}"
+      if [[ $reprojecttopoflag -eq 1 ]]; then
+        info_msg "[-t]: reprojecting source file to WGS1984"
+        gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.nc -q -of "NetCDF" -t_srs "+proj=longlat +ellps=WGS84"
+        GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.nc)
+      fi
       gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       BATHY=$name
     else
-      info_msg "Using grid $GRIDFILE"
+      info_msg "[-t]: Using grid file $GRIDFILE"
 
       # Output is a NetCDF format grid
     	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
@@ -9076,26 +9132,40 @@ if [[ $plotseis -eq 1 ]]; then
     @include "tectoplot_functions.awk"
     {
       type=tolower(substr($10,1,2))
-      if (tolower(type) == "mb" && $11 >= 3.5 && $11 <=7.0) {
-        oldval=$11
-        $11 = 1.048 * $11 - 0.142
+      mag=$11
+      typeindex=10
+      magindex=11
+      while($(typeindex)!="") {
+        newtype=tolower(substr($(typeindex),1,2))
+        newmag=$(magindex)
+        if (newmag > mag) {
+          print "Selecting largest reported magnitude of event", $1, ":", newtype, newmag > "./mag_selections.dat"
+          type=newtype
+          mag=newmag
+        }
+        typeindex+=3
+        magindex+=3
+      }
+      if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+        oldval=mag
+        $11 = 1.048 * mag - 0.142
         print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
       }
       else if (tolower(type) == "ms") {  # Weatherill, 2016, ISC
-        oldval=$11
-        if ($11 >= 3.5 && $11 <= 6.0) {
-            $11 = 0.616 * $11 + 2.369
+        oldval=mag
+        if (mag >= 3.5 && mag <= 6.0) {
+            $11 = 0.616 * mag + 2.369
             print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
 
         }
-        if ($11 > 6.0 && $11 <= 8.0) { # Weatherill, 2016, ISC
-          $11 = 0.994 * $11 + 0.1
+        if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+          $11 = 0.994 * mag + 0.1
         }
         print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
       }
       else if (tolower(type) == "ml") { # Mereu, 2019
-        oldval=$11
-        $11 = 0.62 * $11 + 1.09
+        oldval=mag
+        $11 = 0.62 * mag + 1.09
         print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
       }
       timestring=sprintf("%sT%s", $3, substr($4, 1, 8))
@@ -9106,7 +9176,8 @@ if [[ $plotseis -eq 1 ]]; then
     touch ${F_SEIS}eqs.txt
   fi
 
-  [[ -e ./mag_conversions.dat ]] && mv ./mag_conversions.dat ${F_SEIS}
+  [[ -s ./mag_conversions.dat ]] && mv ./mag_conversions.dat ${F_SEIS}
+  [[ -s ./mag_selections.dat ]] && mv ./mag_selections.dat ${F_SEIS}
 
   if [[ -s ${F_SEIS}eqs.txt && $recenteqprintandexitflag -eq 1 ]]; then
     case ${LATESTEQSORTTYPE} in
@@ -9910,8 +9981,6 @@ fi
 
   # This section is very sensitive to file formats and any change will break it.
 
-  echo CMTFILE is ${CMTFILE}
-
 
   # I want a new algorithm that fuses CMT and EQ formats more easily, sorts them
   # by time, and then runs a window comparison to ID equivalent events.
@@ -10010,7 +10079,7 @@ fi
       info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
 
       info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
-      echo "sed -f eq_idcull.sed -i'' ${CMTFILE}"
+
       [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed ${CMTFILE} > newids.txt && CMTFILE=$(abs_path newids.txt)
 
       info_msg "Merging cluster IDs with CMT catalog"
@@ -12914,12 +12983,25 @@ echo banana
                 sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
                 sent_dimx=${sentinel_dim[9]}
                 sent_dimy=${sentinel_dim[10]}
-                info_msg "Resampling DEM to match downloaded Sentinel image size"
-                gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
 
-                # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
-                cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
-                gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+                dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
+                dem_dimx=${dem_dim[9]}
+                dem_dimy=${dem_dim[10]}
+
+                if [[ $SENTINEL_DOWNSAMPLE -eq 1 ]]; then
+                  echo "Resampling DEM to match downloaded Sentinel image size"
+                  gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
+                  # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
+                  cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
+                  gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+                else
+                  echo "Resampling Sentinel image to match DEM resolution"
+                  gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel.tif ./sentinel_warp.tif
+                  # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
+                  cp ./sentinel_warp.tif ./sentinel.tif
+                  # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+                fi
+
 
                 # If we have set a specific flag, then calculate the average color of areas at or below zero
                 # elevation and set all cells in sentinel.tif to that color (to make a uniform ocean color?)
@@ -14026,8 +14108,8 @@ fi
 #-s ${F_SEIS}eqs.txt
 
 
-# Print the global grid as white dots, Fibonacci, sampled every 200 km
-# If DEM exists, sample it; otherwise use constant Earth radius
+# Create a global Fibonacci grid of white dots sampled every PLY_FIB_KM km
+# If DEM exists, sample it to set elevations; otherwise use the Earth radius
 
 if [[ $makeplyflag -eq 1 && $makeplysurfptsflag -eq 1 ]]; then
   ##### MAKE FIBONACCI GRID POINTS
@@ -14110,7 +14192,16 @@ fi
   # Now treat the focal mechanisms
 if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
 
-  gawk -v cmttype=${CMTTYPE} -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
+  # This function takes a normalized focal mechanism OBJ file and a tectoplot
+  # format CMT file as arguments
+
+  # Parameters set by -v:
+  # cmttype           CENTROID or ORIGIN; determines position of FMS
+  # v_exag            vertical exaggeration of seismicity (not topography)
+  # eq_poly_scale     linear term for scaling focal mechanisms
+  # eq_poly_pow       exponential term for scaling focal mechanisms
+
+  gawk -v cmttype=${CMTTYPE} -v v_exag=${PLY_VEXAG} -v eq_poly_scale=${PLY_POLYSCALE} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
   @include "tectoplot_functions.awk"
 
   BEGIN {
@@ -14119,7 +14210,6 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
     sphereind=1
     vertexind=0
     print "mtllib materials.mtl"
-
   }
 
     # First input file is a template focal mechanism OBJ
@@ -14206,7 +14296,6 @@ if [[ $makeplyflag -eq 1 && -s ${CMTFILE} ]]; then
     }
   ' ${FOCAL_NCUBE} ${CMTFILE} > ${F_3D}focal_mechanisms.obj
 
-#${FOCAL_SPHERE}
 cat <<-EOF >> ${F_3D}materials.mtl
 newmtl FocalTexture
 Ka 0.200000 0.200000 0.200000
@@ -14323,7 +14412,6 @@ fi
 # have to add a final column of vertices duplicating the first column, AND
 # calculate the texture coordinates in a way that works...
 
-
 if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; then
   info_msg "[-makeply]: Using DEM to create a mesh"
         # Now convert the DEM to an OBJ format surface at the same scaling factor
@@ -14348,7 +14436,7 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
           if [[ $(echo "${dem_orig_numx} > ${PLY_MAXSIZE}" | bc) -eq 1 ]]; then
             PERCENTRED=$(echo "${PLY_MAXSIZE} / $dem_orig_numx * 100" | bc -l)
             info_msg "[-makeply]: Reducing DEM by ${PERCENTRED}"
-            gdal_translate -q -of "netCDF" -outsize ${PERCENTRED}"%" 0 ${F_TOPO}dem.nc ${F_TOPO}dem_plyrescale.nc
+            gdal_translate -q -of "netCDF" -r bilinear -outsize ${PERCENTRED}"%" 0 ${F_TOPO}dem.nc ${F_TOPO}dem_plyrescale.nc
             dem_info=($(gmt grdinfo ${F_TOPO}dem_plyrescale.nc -C -Vn))
             dem_numx=${dem_info[9]}
             dem_numy=${dem_info[10]}
@@ -14377,7 +14465,7 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
         # The texture file will be the shaded relief which has the same dimensions
         # as the DEM, so we can output vt coordinates easily.
 
-        gawk -v v_exag=${PLY_VEXAG_TOPO} -v width=${dem_numx} -v height=${dem_numy} -v closeglobe=${closeglobeflag} '
+        gawk -v v_exag=${PLY_VEXAG_TOPO} -v width=${dem_numx} -v height=${dem_numy} -v closeglobe=${closeglobeflag} -v makebox=${plysideboxflag} -v boxdepth=${PLY_SIDEBOXDEPTH} -v boxcolor=${PLY_SIDEBOXCOLOR} '
         @include "tectoplot_functions.awk"
            BEGIN {
              colorind=0
@@ -14502,7 +14590,17 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
 
            }
 
+           if (makebox==1) {
+             # This could be made more efficient
+             for (i=1; i<=num_vertices; i++) {
+                bottomx[i]=(6371-boxdepth)/100*sin(deg2rad(90-thetaarr[i]))*cos(deg2rad(phiarr[i]))
+                bottomy[i]=(6371-boxdepth)/100*sin(deg2rad(90-thetaarr[i]))*sin(deg2rad(phiarr[i]))
+                bottomz[i]=(6371-boxdepth)/100*cos(deg2rad(90-thetaarr[i]))
+             }
+           }
+
            print "o TopoMesh"
+
 
            for (i=1; i<=num_vertices; i++) {
 
@@ -14590,42 +14688,66 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
 
            # write the top row in normal order
 
+           # For subsampling
+
+           subsampleflag=0
+
            wstep=int(width/10)
            hstep=int(height/10)
 
            print "# Upper row, left to right"  >> "./dem_corners.txt"
            print phiarr[ind_ul], thetaarr[ind_ul], rarr[ind_ul] >> "./dem_corners.txt"
            for(i=ind_ul;i<=ind_ur;i++) {
-             if (i%wstep==0) {
-               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             if (subsampleflag==1) {
+               if (i%wstep==0) {
+                 print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+               }
+             }
+             else {
+                print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
              }
            }
            print phiarr[ind_ur], thetaarr[ind_ur], rarr[ind_ur] >> "./dem_corners.txt"
 
            print "# Right column, upper to lower"  >> "./dem_corners.txt"
            for (i=ind_ur;i<=ind_lr;i+=width) {
-             if (i%hstep==0) {
-               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             if (subsampleflag==1) {
+               if (i%hstep==0) {
+                 print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+               }
+             }
+             else {
+                print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
              }
            }
            print phiarr[ind_lr], thetaarr[ind_lr], rarr[ind_lr] >> "./dem_corners.txt"
 
            print "# Lower row, right to left"  >> "./dem_corners.txt"
            for (i=ind_lr;i>=ind_ll;i-=1) {
-             if (i%wstep==0) {
-               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             if (subsampleflag==1) {
+               if (i%wstep==0) {
+                 print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+               }
              }
+             else {
+                print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             }
+
            }
            print phiarr[ind_ll], thetaarr[ind_ll], rarr[ind_ll] >> "./dem_corners.txt"
 
            print "# Left column, lower to upper"  >> "./dem_corners.txt"
            for (i=ind_ll;i>=ind_ul;i-=width) {
-             if (i%hstep==0) {
-               print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+             if (subsampleflag==1) {
+               if (i%hstep==0) {
+                 print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
+               }
+             }
+             else {
+                print phiarr[i], thetaarr[i], rarr[i] >> "./dem_corners.txt"
              }
            }
            print phiarr[ind_ul], thetaarr[ind_ul], rarr[ind_ul] >> "./dem_corners.txt"
-
 
            #
            print "usemtl ColoredIntensity"
@@ -14647,7 +14769,173 @@ if [[ $makeplyflag -eq 1 && $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; 
            }
            # print "Faces output:", facecount > "/dev/stderr"
 
+           # Optionally, write an OBJ file for the sides of the box
+
+           if (makebox==1) {
+
+             calc_ecef_to_enu_matrix(phiarr[1], thetaarr[1])
+             multiply_ecef_matrix(-1, 0, 0)
+             eastnormal=sprintf("vn %f %f %f", w[1], w[2], w[3])
+             multiply_ecef_matrix(1, 0, 0)
+             westnormal=sprintf("vn %f %f %f", w[1], w[2], w[3])
+             multiply_ecef_matrix(0, -1, 0)
+             northnormal=sprintf("vn %f %f %f", w[1], w[2], w[3])
+             multiply_ecef_matrix(0, 1, 0)
+             southnormal=sprintf("vn %f %f %f", w[1], w[2], w[3])
+
+             # boxcolor comes in as an R/G/B string
+             split(boxcolor, boxc, "/")
+             colorrgb=sprintf("%d %d %d", boxc[1], boxc[2], boxc[3])
+
+             print "mtllib materials.mtl" > "./sideboxnorth.obj"
+             print "o SideBoxNorth" >> "./sideboxnorth.obj"
+             print "usemtl SideBoxNorth" >> "./sideboxnorth.obj"
+
+             cur_vertex=1
+
+             for(i=ind_ul;i<=ind_ur;i++) {
+                northedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", vectorx[i], vectory[i], vectorz[i], colorrgb >> "./sideboxnorth.obj"
+                print northnormal >> "./sideboxnorth.obj"
+             }
+             half_vertex=cur_vertex-1
+             for(i=ind_ur;i>=ind_ul;i--) {
+                northedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", bottomx[i], bottomy[i], bottomz[i], colorrgb >> "./sideboxnorth.obj"
+                print northnormal >> "./sideboxnorth.obj"
+             }
+             for(i=1;i<half_vertex;i++) {
+               j=cur_vertex-i
+               printf("f %d %d %d %d\n", northedgeind[i],  northedgeind[i+1],  northedgeind[j-1],  northedgeind[j]) >> "./sideboxnorth.obj"
+             }
+
+
+             print "mtllib materials.mtl" > "./sideboxeast.obj"
+             print "o SideBoxEast" >> "./sideboxeast.obj"
+             print "usemtl SideBoxEast" >> "./sideboxeast.obj"
+
+             cur_vertex=1
+
+             for(i=ind_ur;i<=ind_lr;i+=width) {
+                eastedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", vectorx[i], vectory[i], vectorz[i], colorrgb >> "./sideboxeast.obj"
+                print eastnormal >> "./sideboxeast.obj"
+             }
+             half_vertex=cur_vertex-1
+             for(i=ind_lr;i>=ind_ur;i-=width) {
+                eastedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", bottomx[i], bottomy[i], bottomz[i], colorrgb >> "./sideboxeast.obj"
+                print eastnormal >> "./sideboxeast.obj"
+             }
+             for(i=1;i<half_vertex;i++) {
+               j=cur_vertex-i
+               printf("f %d %d %d %d\n", eastedgeind[i],  eastedgeind[i+1],  eastedgeind[j-1],  eastedgeind[j]) >> "./sideboxeast.obj"
+             }
+
+             print "mtllib materials.mtl" > "./sideboxsouth.obj"
+             print "o SideBoxSouth" >> "./sideboxsouth.obj"
+             print "usemtl SideBoxSouth" >> "./sideboxsouth.obj"
+
+             cur_vertex=1
+
+             for(i=ind_lr;i>=ind_ll;i-=1) {
+                southedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", vectorx[i], vectory[i], vectorz[i], colorrgb >> "./sideboxsouth.obj"
+                print southnormal >> "./sideboxsouth.obj"
+             }
+             half_vertex=cur_vertex-1
+             for(i=ind_ll;i<=ind_lr;i+=1) {
+                southedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", bottomx[i], bottomy[i], bottomz[i], colorrgb >> "./sideboxsouth.obj"
+                print southnormal >> "./sideboxsouth.obj"
+             }
+             for(i=1;i<half_vertex;i++) {
+               j=cur_vertex-i
+               printf("f %d %d %d %d\n", southedgeind[i],  southedgeind[i+1],  southedgeind[j-1],  southedgeind[j]) >> "./sideboxsouth.obj"
+             }
+
+             print "mtllib materials.mtl" > "./sideboxwest.obj"
+             print "o SideBoxWest" >> "./sideboxwest.obj"
+             print "usemtl SideBoxWest" >> "./sideboxwest.obj"
+
+             cur_vertex=1
+
+             for(i=ind_ll;i>=ind_ul;i-=width) {
+                westedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", vectorx[i], vectory[i], vectorz[i], colorrgb >> "./sideboxwest.obj"
+                print westnormal >> "./sideboxwest.obj"
+             }
+             half_vertex=cur_vertex-1
+             for(i=ind_ul;i<=ind_ll;i+=width) {
+                westedgeind[cur_vertex]=cur_vertex
+                cur_vertex++
+                print "v", bottomx[i], bottomy[i], bottomz[i], colorrgb >> "./sideboxwest.obj"
+                print westnormal >> "./sideboxwest.obj"
+             }
+             for(i=1;i<half_vertex;i++) {
+               j=cur_vertex-i
+               printf("f %d %d %d %d\n", westedgeind[i],  westedgeind[i+1],  westedgeind[j-1],  westedgeind[j]) >> "./sideboxwest.obj"
+             }
+
+           }
+
           }' ${F_CPTS}topo_fixed.cpt ${F_TOPO}dem_values.txt > ${F_3D}dem.obj
+
+if [[ -s ./sideboxwest.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SideBoxWest
+Ka 0.999992 0.999992 0.999992
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+mv ./sideboxwest.obj ${F_3D}
+fi
+if [[ -s ./sideboxnorth.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SideBoxNorth
+Ka 0.999991 0.999991 0.999991
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+mv ./sideboxnorth.obj ${F_3D}
+fi
+if [[ -s ./sideboxeast.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SideBoxEast
+Ka 0.999990 0.999990 0.999990
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+mv ./sideboxeast.obj ${F_3D}
+fi
+if [[ -s ./sideboxsouth.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl SideBoxSouth
+Ka 0.999989 0.999989 0.999989
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+mv ./sideboxsouth.obj ${F_3D}
+fi
 
           [[ -s ./dem_corners.txt ]] && mv ./dem_corners.txt ${F_3D}dem_corners.txt
           [[ -s ./eq_maxdepth.txt ]] && mv ./eq_maxdepth.txt ${F_3D}eq_maxdepth.txt
@@ -14753,30 +15041,38 @@ map_Kd Textures/ColoredIntensity_texture.jpg
 map_Ks Textures/ColoredIntensity_texture.jpg
 EOF
 
-    # This adds the seismicity point cloud to the end of the OBJ
+    # This adds the seismicity point cloud to the end of an OBJ. Currently we
+    # use a PLY file instead as Sketchfab plots that format with round points
     # if [[ -s tectoplot_vertex.ply ]]; then
     #   gawk < tectoplot_vertex.ply '{print "v", $0; print "p -1"; }' >> dem.obj
     # fi
 
-    # Export the texture as JPG in case TIF doesn't work...
+    # Export the texture as JPG
 
-    if [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
+    if [[ $plymaptiffflag -eq 1 && -s ./map.tiff ]]; then
+      echo "Using map.tiff"
+      mkdir -p ${F_3D}Textures/
+      gdal_translate -q -of "JPEG" map.tiff ${F_3D}Textures/ColoredIntensity_texture.jpg
+    elif [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
       mkdir -p ${F_3D}Textures/
       if [[ -s ${F_TOPO}colored_relief.tif ]]; then
+        echo "Using colored_relief.tif"
+
         gdal_translate -q -of "JPEG" ${F_TOPO}colored_relief.tif ${F_3D}Textures/ColoredIntensity_texture.jpg
       fi
     else
+      echo "Using colored_intensity.tif"
+      mkdir -p ${F_3D}Textures/
       gdal_translate -q -of "JPEG" ${F_TOPO}colored_intensity.tif ${F_3D}Textures/ColoredIntensity_texture.jpg
     fi
 fi
 
-makeplyslab2meshflag=1
-downsampleslabflag=1
+
 
 if [[ $makeplyflag -eq 1 && $makeplyslab2meshflag -eq 1 ]]; then
 
   # SLABDEPFILE="/Users/kylebradley/Dropbox/TectoplotData/SLAB2/Slab2Distribute_Mar2018/cam_slab2_dep_02.24.18.grd"
-  [[ ! -s ${F_CPTS}seisdepth_fixed.cpt ]] && replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
+  [[ ! -s ${F_CPTS}seisdepth_fixed.cpt && -s ${F_CPTS}seisdepth.cpt ]] && replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
 
   info_msg "[-makeply]: Making mesh surfaces of Slab2 interface"
         # Now convert the DEM to an OBJ format surface at the same scaling factor
@@ -15077,8 +15373,6 @@ illum 1
 Ns 0.000000
 EOF
 
-
-
   gawk -v cmttype=${CMTTYPE} -v v_exag=${PLY_VEXAG} -v v_scale=${PLY_VOLCSCALE} '
   @include "tectoplot_functions.awk"
 
@@ -15200,6 +15494,22 @@ EOF
           printf "%sfocal_mechanisms.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
       fi
+      if [[ -s ${F_3D}sideboxnorth.obj ]]; then
+        printf "%ssideboxnorth.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+        firstfileflag="+"
+      fi
+      if [[ -s ${F_3D}sideboxeast.obj ]]; then
+        printf "%ssideboxeast.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+        firstfileflag="+"
+      fi
+      if [[ -s ${F_3D}sideboxsouth.obj ]]; then
+        printf "%ssideboxsouth.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+        firstfileflag="+"
+      fi
+      if [[ -s ${F_3D}sideboxwest.obj ]]; then
+        printf "%ssideboxwest.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+        firstfileflag="+"
+      fi
       if [[ -s ${F_3D}volcanoes.obj ]]; then
           printf "%svolcanoes.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
           firstfileflag="+"
@@ -15226,7 +15536,7 @@ EOF
       printf "\n" >> ${F_3D}sketchfab.timeframe
 #slab_material.mtl volcanoes.mtl focsphere.mtl sphere.mtl
       cd ${F_3D}
-      zip tectoplot_sketchfab.zip volcanoes.obj slab_*.obj focal_mechanisms.obj Textures/focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply materials.mtl Textures/ColoredIntensity_texture.jpg > /dev/null 2>&1
+      zip tectoplot_sketchfab.zip volcanoes.obj slab_*.obj focal_mechanisms.obj sideboxnorth.obj sideboxwest.obj sideboxeast.obj sideboxsouth.obj Textures/focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe dem.obj tectoplot.ply tectoplot_surface.ply materials.mtl Textures/ColoredIntensity_texture.jpg > /dev/null 2>&1
       cd ..
 fi
 

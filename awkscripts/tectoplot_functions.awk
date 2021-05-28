@@ -833,6 +833,11 @@ function calc_ecef_to_enu_matrix(lon_deg, lat_deg) {
   R_ecef[2][0]=0
   R_ecef[2][1]=cos(phi)
   R_ecef[2][2]=sin(phi)
+
+#  printf("| %.02f %.02f %.02f |\n", R_ecef[0][0], R_ecef[0][1], R_ecef[0][2]) > "/dev/stderr"
+#  printf("| %.02f %.02f %.02f |\n", R_ecef[1][0], R_ecef[1][1], R_ecef[1][2]) > "/dev/stderr"
+#  printf("| %.02f %.02f %.02f |\n", R_ecef[2][0], R_ecef[2][1], R_ecef[2][2]) > "/dev/stderr"
+
 }
 
 function sdr_rotation_matrix(strike_deg, dip_deg, rake_deg) {
@@ -860,5 +865,6 @@ function multiply_ecef_matrix(x, y, z,    i,j) {
       for(j=0; j<3; j++) {
           w[i] += (R_ecef[i][j] * u[j]);
       }
+  #    print "w[" i "]=" w[i] > "/dev/stderr"
   }
 }

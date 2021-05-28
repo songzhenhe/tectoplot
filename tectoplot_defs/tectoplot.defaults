@@ -36,7 +36,9 @@ PLY_VEXAG_TOPO=1        # Vertical exaggeration of topography
 PLY_POLYMAG=6         # Minimum magnitude of earthquakes drawn as polygons instead of points
 PLY_POLYMAG_POWER=2     # Radius of polymag eqs is multiplied by magnitude to this power
 PLY_POLYSCALE=0.001     # Scale factor (radius of M=1) for earthquake polygons 1 = 100km
-PLY_VOLCSCALE=0.05
+PLY_VOLCSCALE=0.05      # Scale factor for volcano objects
+PLY_SIDEBOXDEPTH=10     # Depth of PLY sidebox, in km positive down
+PLY_SIDEBOXCOLOR="155/155/155"    # RGB of sidebox color, or GMT color?
 
 # Default labels for profile axes
 
@@ -70,6 +72,8 @@ COUNTRIESCPT=wysiwyg
 SLAB2STR="c"
 
 LASTDAYNUM=7
+
+SENTINEL_DOWNSAMPLE=1   # If 1, downsample DEM to match Sentinel; else, upsample Sentinel to match DEM
 
 SENTINEL_RECOLOR_R=24
 SENTINEL_RECOLOR_G=44

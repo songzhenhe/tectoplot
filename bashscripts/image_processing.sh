@@ -283,6 +283,10 @@ function replace_gmt_colornames_rgb() {
   }' ${GMTCOLORS} "$1"
 }
 
+function gmt_colorname_to_rgb() {
+  grep ^"${1} " $GMTCOLORS | head -n 1 | gawk '{print $2}'
+}
+
 # This function takes a GMT CPT file in R/G/B format and prints a gdal color
 # interval file, respecting the input hinge value. Comments and BFN are removed.
 
