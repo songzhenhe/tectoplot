@@ -51,6 +51,12 @@ function ceil(x)       { return int(x)+(x>int(x))       }
 function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
 
+# Some string functions
+
+function ltrim(s)       { sub(/^[ \t\r\n]+/, "", s); return s }
+function rtrim(s)       { sub(/[ \t\r\n]+$/, "", s); return s }
+function trim(s)        { return rtrim(ltrim(s)); }
+
 # 3 vector math operations
 
 # Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v

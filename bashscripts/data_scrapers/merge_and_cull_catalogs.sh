@@ -53,8 +53,10 @@ if [[ ! -d $FOCALDIR ]]; then
   mkdir -p $FOCALDIR
 fi
 
-# Clean up ISC catalog to yield unique events per EQ. Match CMT+ORIGIN for some
-# non-GCMT events. Keep only the last event out of a group.
+# Clean up ISC catalog to yield unique events per EQ. 
+# Select the largest magnitude from the alternative magnitudes
+# Match CENTROID+ORIGIN for some non-GCMT events.
+# Keep only the last event out of a group.
 
 gawk < $ISCCATALOG 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind=1; groupnum=1}
 {

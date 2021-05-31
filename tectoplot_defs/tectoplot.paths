@@ -167,6 +167,8 @@ GMTCPTS=${DEFDIR}"tectoplot.gmtcpts"
 ##### Scraper scripts
 SCRAPERDIR=${BASHSCRIPTDIR}"data_scrapers/"
 
+SCRAPE_ISCEHB=$SCRAPERDIR"scrape_isc-ehb.sh"
+
 SCRAPE_GFZ=$SCRAPERDIR"scrape_gfz.sh"
 SCRAPE_GCMT=$SCRAPERDIR"scrape_gcmt.sh"
 SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
@@ -523,6 +525,11 @@ ISCTILEDIR=${ISC_EQS_DIR}"Tiles"
 ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
 ISC_EQ_SHORT_SOURCESTRING="ISC"
+
+ISCEHBDIR=$DATAROOT"ISC-EHB/"
+ISCEHB_DATA=${ISCEHBDIR}ehb_events.cat
+ISCEHB_EQ_SOURCESTRING="ISC-EHB earthquake catalog, http://www.isc.ac.uk/isc-ehb/"
+ISCEHB_EQ_SHORT_SOURCESTRING="ISC-EHB"
 
 ################################################################################
 # Earthquake catalog

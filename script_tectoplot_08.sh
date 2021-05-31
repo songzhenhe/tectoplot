@@ -4985,12 +4985,12 @@ fi
         REGION_EQ=${3}
         shift
         shift
-        if arg_is_flag "{$2}"; then
-          info_msg "[-r]: EQ region width is default"
-        else
+        if arg_is_positive_float "{$2}"; then
           info_msg "[-r]: EQ region width is ${2}"
           EQ_REGION_WIDTH="${2}"
           shift
+        else
+          info_msg "[-r]: EQ region width is default ${EQ_REGION_WIDTH}"
         fi
         info_msg "[-r]: Region will be centered on EQ $REGION_EQ with width $EQ_REGION_WIDTH degrees"
 # Option 3: Set region to be the same as an input lat lon point plus width
@@ -5759,6 +5759,7 @@ cat <<-EOF
   m = merge focal mechanism catalogs to avoid duplications
   a = ANSS (Comcat) seismicity
   c = ISC seismicity catalog
+  e = ISC-EHB seismicity catalog
 
   Focal mechanism catalog merging is done by priority of source institution
 
@@ -5769,8 +5770,8 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      info_msg "[-scrapedata]: No datasets specified. Scraping GCMT/ISC/ANSS"
-      SCRAPESTRING="giaczm"
+      info_msg "[-scrapedata]: No datasets specified. Scraping all catalogs."
+      SCRAPESTRING="gizmace"
     else
       SCRAPESTRING="${2}"
       shift
@@ -5787,6 +5788,10 @@ fi
     if [[ ${SCRAPESTRING} =~ .*g.* ]]; then
       info_msg "Scraping GCMT focal mechanisms"
       source $SCRAPE_GCMT
+    fi
+    if [[ ${SCRAPESTRING} =~ .*e.* ]]; then
+      info_msg "Scraping ISC-EHB seismic data"
+      source $SCRAPE_ISCEHB
     fi
     if [[ ${SCRAPESTRING} =~ .*i.* ]]; then
       info_msg "Scraping ISC focal mechanisms"
@@ -6007,7 +6012,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography (~wgs1984 only)
--t [datasource] [[ { gmt topo args } ]] [[cpt_file]]
+-t [[datasource=SRTM30]] [[ { gmt topo args } ]] [[cpt_file]]
 
   DATA SOURCE:
 
@@ -7556,60 +7561,60 @@ fi
 
     ;;
 
-  -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--zadd:         include local seismicity catalog in seismicity
--zadd [filename] [[replace]] [[cull]]
-
-  If "replace" option is given, do not plot global catalog data.
-  If "cull" option is given, attempt to remove duplicate events between the added
-    and original catalog, preferring the added catalog over the original.
-
-  Input format is tectoplot seismicity format:
-  longitude[degrees] latitude[degrees] depth[km] magnitude[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    eqcatalogreplaceflag=0
-
-    seisfilenumber=$(echo "$seisfilenumber+1" | bc)
-    if arg_is_flag $2; then
-      info_msg "[-zadd]: Seismicity file must be specified"
-    else
-      SEISADDFILE[$seisfilenumber]=$(abs_path $2)
-      if [[ ! -e "${SEISADDFILE[$seisfilenumber]}" ]]; then
-        info_msg "Seismicity file ${SEISADDFILE[$seisfilenumber]} does not exist"
-      else
-        suppseisflag=1
-      fi
-      shift
-    fi
-
-    if [[ "${2}" == "cull" ]]; then
-      info_msg "[-zadd]: Culling catalog to remove equivalent events."
-      eqcatalogcullflag=1
-      shift
-    else
-      eqcatalogcullflag=0
-    fi
-
-    if [[ "${2}" == "replace" ]]; then
-      info_msg "[-zadd]: Seis replace flag specified. Replacing catalog hypocenters."
-      eqcatalogreplaceflag=1
-      ADD_EQ_SOURCESTRING=2
-      shift
-    else
-      eqcatalogreplaceflag=0
-    fi
-
-    echo "CustomEQs" >> ${SHORTSOURCES}
-    echo "Seismicity from custom file ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
-
-    ;;
+#   -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -zadd:         include local seismicity catalog in seismicity
+# -zadd [filename] [[replace]] [[cull]]
+#
+#   If "replace" option is given, do not plot global catalog data.
+#   If "cull" option is given, attempt to remove duplicate events between the added
+#     and original catalog, preferring the added catalog over the original.
+#
+#   Input format is tectoplot seismicity format:
+#   longitude[degrees] latitude[degrees] depth[km] magnitude[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
+#
+# Example: None
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     eqcatalogreplaceflag=0
+#
+#     seisfilenumber=$(echo "$seisfilenumber+1" | bc)
+#     if arg_is_flag $2; then
+#       info_msg "[-zadd]: Seismicity file must be specified"
+#     else
+#       SEISADDFILE[$seisfilenumber]=$(abs_path $2)
+#       if [[ ! -e "${SEISADDFILE[$seisfilenumber]}" ]]; then
+#         info_msg "Seismicity file ${SEISADDFILE[$seisfilenumber]} does not exist"
+#       else
+#         suppseisflag=1
+#       fi
+#       shift
+#     fi
+#
+#     if [[ "${2}" == "nocull" ]]; then
+#       info_msg "[-zadd]: Culling catalog to remove equivalent events."
+#       CULL_EQ_CATALOGS=0
+#       shift
+#     else
+#       CULL_EQ_CATALOGS=1
+#     fi
+#
+#     if [[ "${2}" == "replace" ]]; then
+#       info_msg "[-zadd]: Seis replace flag specified. Replacing catalog hypocenters."
+#       eqcatalogreplaceflag=1
+#       ADD_EQ_SOURCESTRING=2
+#       shift
+#     else
+#       eqcatalogreplaceflag=0
+#     fi
+#
+#     echo "CustomEQs" >> ${SHORTSOURCES}
+#     echo "Seismicity from custom file ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
+#
+#     ;;
 
   -zcnoscale)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -7841,13 +7846,21 @@ fi
     fi
     ;;
 
-  -zcat) #            [ANSS or ISC]
+  -zcat) #            [ANSS or ISC OR custom seismicity files]
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zcat:         select seismicity catalog
--zcat [catalogID]
+-zcat:         select seismicity catalog(s) and add custom seismicity files
+-zcat [catalogID1] [[catalogid2...]] [[catalogfile1...]] [[catalogfile2...]]
+      [[nocull]]
 
-  catalogID is ANSS or ISC
+  catalogID: ANSS | ISC
+  catalogfile: Any file in the format lon lat depth mag [[timecode]] [[ID]] [[epoch]]
+
+  By default, if multiple catalogs are specified, then the seismicity will be
+  culled to remove likely duplicate events, with the event from the earlier
+  specified catalog, or the earlier event from the same catalog, being
+  retained. [[nocull]] turns off this behavior. Culled events are stored in
+  ${F_SEIS}culled_seismicity.txt
 
 Example: Plot ISC seismicity in Idaho
   tectoplot -r US.ID -t -z -zcat ISC
@@ -7856,26 +7869,50 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      info_msg "[-zcat]: No catalog specified. Using default."
+      info_msg "[-zcat]: No catalog specified. Using default $EQ_CATALOG_TYPE."
     else
-      EQCATNAME="${2}"
-      shift
-      info_msg "[-z]: Seismicity scale updated to $SEIZSIZE * $SEISSCALE"
-      case $EQCATNAME in
-        ISC)
-          EQ_CATALOG_TYPE="ISC"
-          EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
-          EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
-        ;;
-        ANSS)
-          EQ_CATALOG_TYPE="ANSS"
-          EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
-          EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
-        ;;
-        NONE)
-          EQ_CATALOG_TYPE="NONE"
-        ;;
-      esac
+      unset EQ_CATALOG_TYPE
+      while ! arg_is_flag ${2}; do
+        ZCATARG="${2}"
+        shift
+        case $ZCATARG in
+          ISC)
+            EQ_CATALOG_TYPE+=("ISC")
+            EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
+            EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
+          ;;
+          EHB)
+            EQ_CATALOG_TYPE+=("EHB")
+            EQ_SOURCESTRING=$ISCEHB_EQ_SOURCESTRING
+            EQ_SHORT_SOURCESTRING=$ISCEHB_EQ_SHORT_SOURCESTRING
+          ;;
+          ANSS)
+            EQ_CATALOG_TYPE+=("ANSS")
+            EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+            EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+          ;;
+          nocull)
+            CULL_EQ_CATALOGS=0
+          ;;
+          cull)
+            forceeqcullflag=1
+            CULL_EQ_CATALOGS=1
+          ;;
+          replace)
+            eqcatalogreplaceflag=1
+            ADD_EQ_SOURCESTRING=2
+          ;;
+          *)
+            if [[ -s "${ZCATARG}" ]]; then
+              seisfilenumber=$(echo "$seisfilenumber+1" | bc)
+              SEISADDFILE[$seisfilenumber]=$(abs_path $ZCATARG)
+              EQ_CATALOG_TYPE+=("custom")
+            else
+              info_msg "Seismicity file ${SEISADDFILE[$seisfilenumber]} does not exist"
+            fi
+          ;;
+        esac
+      done
     fi
     ;;
 
@@ -8049,7 +8086,7 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
         ;;
     esac
   else
-    if [[ $EQ_CATALOG_TYPE =~ "ANSS" ]]; then
+    if [[ $EQ_CATALOG_TYPE[1] =~ "ANSS" ]]; then
       info_msg "Looking for event ${REGION_EQ}"
       LOOK2=$(grep $REGION_EQ ${ANSSDIR}"Tiles/"*)
       echo $LOOK2
@@ -8063,9 +8100,9 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
         info_msg "[-r]: EQ mode: No event found"
         exit
       fi
-    elif [[ $EQ_CATALOG_TYPE =~ "ISC" ]]; then
+    elif [[ $EQ_CATALOG_TYPE[1] =~ "ISC" ]]; then
       echo "ISC grep for event"
-    elif [[ $EQ_CATALOG_TYPE =~ "NONE" ]]; then
+    elif [[ $EQ_CATALOG_TYPE[1] =~ "NONE" ]]; then
       echo "No EQ catalog"
     fi
   fi
@@ -9060,123 +9097,177 @@ fi
 ################################################################################
 
 if [[ $plotseis -eq 1 ]]; then
-
+  touch ${F_SEIS}eqs.txt
+  NUMEQCATS=0
   ##############################################################################
   # Initial select of seismicity based on geographic coords, mag, and depth
   # Takes into account crossing of antimeridian (e.g lon in range [120 220])
 
   # Data are selected from either ANSS or ISC tiles generated be -scrapedata
 
+# COMEBACK
   # This is for the ANSS catalog
-  if [[ $EQ_CATALOG_TYPE =~ "ANSS" ]]; then
-    F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-    info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
-    $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
+  customseisindex=1
 
-    # ANSS CSV format is:
-    # 1    2        3         4     5   6       7   8   9    10  11  12 13      14    15   16              17         18       19     20     21             22
-    # time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+  for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
+    if [[ $eqcattype =~ "ANSS" ]]; then
+      F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+      info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
+      $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
 
-    # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
-    TZ=UTC
-    gawk -F, < ${F_SEIS}anss_extract_tiles.cat '
-    @include "tectoplot_functions.awk"
-    {
-      type=tolower(substr($6,1,2))
-      if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
-        oldval=$5
-        $5 = 1.159 * $5 - 0.659
-        print $12, type "=", oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-      }
-      else if (tolower(type) == "ms") {
-        oldval=$5
-        if (tolower(substr($6,1,3))=="msz") {
-          if ($5 >= 3.5 && $5 <= 6.47) {
-              $5 = 0.707 * $5 + 19.33
-              print $12, "Msz=", oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-          }
-          if ($5 > 6.47 && $5 <= 8.0) { # Msz > Mw Weatherill, 2016, NEIC
-            $5 = 0.950 * $5 + 0.359
-            print $12, "Msz=", oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-          }
-          print $1, tolower(substr($6,1,3)) "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-        } else {  # Ms > Mw Weatherill, 2016, NEIC
-          if ($5 >= 3.5 && $5 <= 6.47) {
-              $5 = 0.723 * $5 + 1.798
-              print $12, type "=", oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-          }
-          if ($5 > 6.47 && $5 <= 8.0) { # Weatherill, 2016, NEIC
-            $5 = 1.005 * $5 - 0.026
-            print $12, type "=", oldval, "to Mw=", $5 >> "./mag_conversions.dat"
+      # ANSS CSV format is:
+      # 1    2        3         4     5   6       7   8   9    10  11  12 13      14    15   16              17         18       19     20     21             22
+      # time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+
+      # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
+      TZ=UTC
+      gawk -F, < ${F_SEIS}anss_extract_tiles.cat '
+      @include "tectoplot_functions.awk"
+      {
+        type=tolower(substr($6,1,2))
+        if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
+          # NEIC mb > Mw Weatherill, 2016
+          oldval=$5
+          $5 = 1.159 * $5 - 0.659
+          print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+        } else if (tolower(type) == "mw") {
+          # NEIC Mw > Mw(GCMT) Weatherill, 2016
+          oldval=mag
+          $11 = 1.021 * mag - 0.091
+          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+        } else if (tolower(type) == "ms") {
+          oldval=$5
+          if (tolower(substr($6,1,3))=="msz") {
+            # NEIC Msz > Mw Weatherill, 2016
+            if ($5 >= 3.5 && $5 <= 6.47) {
+                $5 = 0.707 * $5 + 19.33
+                print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+            }
+            if ($5 > 6.47 && $5 <= 8.0) {
+              $5 = 0.950 * $5 + 0.359
+              print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+            }
+            print $1, tolower(substr($6,1,3)) "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
+          } else {
+            # NEIC Ms > Mw(GCMT) Weatherill, 2016
+            if ($5 >= 3.5 && $5 <= 6.47) {
+                $5 = 0.723 * $5 + 1.798
+                print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+            }
+            if ($5 > 6.47 && $5 <= 8.0) {
+              $5 = 1.005 * $5 - 0.026
+              print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+            }
           }
         }
-      }
-      else if (tolower(type) == "ml") { # Mereu, 2019
-        oldval=$5
-        $5 = 0.62 * $5 + 1.09
-        print $12, type "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-      }
-      epoch=iso8601_to_epoch(substr($1,1,19))
-      print $3, $2, $4, $5, substr($1,1,19), $12, epoch
-    }' > ${F_SEIS}eqs.txt
-  elif [[ $EQ_CATALOG_TYPE =~ "ISC" ]]; then
-    F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-    info_msg "[-z]: $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat"
-    $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat
-
-    # 1       2         3           4          5        6         7     8      9         10     11   12+
-    # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
-    #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
-
-    # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
-
-    gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
-    @include "tectoplot_functions.awk"
-    {
-      type=tolower(substr($10,1,2))
-      mag=$11
-      typeindex=10
-      magindex=11
-      while($(typeindex)!="") {
-        newtype=tolower(substr($(typeindex),1,2))
-        newmag=$(magindex)
-        if (newmag > mag) {
-          print "Selecting largest reported magnitude of event", $1, ":", newtype, newmag > "./mag_selections.dat"
-          type=newtype
-          mag=newmag
+        else if (tolower(type) == "ml") { # Mereu, 2019
+          oldval=$5
+          $5 = 0.62 * $5 + 1.09
+          print $12, type "=" oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
         }
-        typeindex+=3
-        magindex+=3
-      }
-      if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
-        oldval=mag
-        $11 = 1.048 * mag - 0.142
-        print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
-      }
-      else if (tolower(type) == "ms") {  # Weatherill, 2016, ISC
-        oldval=mag
-        if (mag >= 3.5 && mag <= 6.0) {
-            $11 = 0.616 * mag + 2.369
-            print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
+        epoch=iso8601_to_epoch(substr($1,1,19))
+        print $3, $2, $4, $5, substr($1,1,19), $12, epoch
+      }' >> ${F_SEIS}eqs.txt
+      ((NUMEQCATS+=1))
+    fi
+    if [[ $eqcattype =~ "ISC" ]]; then
+      F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+      info_msg "[-z]: $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat"
+      $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat
 
+      # 1       2         3           4          5        6         7     8      9         10     11   12+
+      # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
+      #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
+
+      # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
+
+      gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
+      @include "tectoplot_functions.awk"
+      {
+        type=tolower(substr($10,1,2))
+        mag=$11
+        typeindex=10
+        magindex=11
+        while($(typeindex)!="") {
+          newtype=tolower(substr($(typeindex),1,2))
+          newmag=$(magindex)
+          if (newmag > mag) {
+            print "Selecting largest reported magnitude of event", $1, ":", newtype, newmag > "./mag_selections.dat"
+            type=newtype
+            mag=newmag
+          }
+          typeindex+=3
+          magindex+=3
         }
-        if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
-          $11 = 0.994 * mag + 0.1
+        if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+          # ISC mb > Mw(GCMT) Weatherill, 2016
+          oldval=mag
+          $11 = 1.084 * mag - 0.142
+          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+        } else if (tolower(type) == "ms") {
+          # ISC Ms > Mw(GCMT) Weatherill, 2016
+          oldval=mag
+          if (mag >= 3.5 && mag <= 6.0) {
+              $11 = 0.616 * mag + 2.369
+              print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+
+          }
+          if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+            $11 = 0.994 * mag + 0.1
+          }
+          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+        } else if (tolower(type) == "ml") {
+          # Mereu, 2019
+          oldval=mag
+          $11 = 0.62 * mag + 1.09
+          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
         }
-        print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
-      }
-      else if (tolower(type) == "ml") { # Mereu, 2019
-        oldval=mag
-        $11 = 0.62 * mag + 1.09
-        print $1, type "=" oldval, "to Mw=", $11 >> "./mag_conversions.dat"
-      }
-      timestring=sprintf("%sT%s", $3, substr($4, 1, 8))
-      epoch=iso8601_to_epoch(timestring)
-      print $6, $5, $7, $11, timestring, $1, epoch
-    }' > ${F_SEIS}eqs.txt
-  elif [[ $EQ_CATALOG_TYPE =~ "NONE" ]]; then
-    touch ${F_SEIS}eqs.txt
-  fi
+        timestring=sprintf("%sT%s", $3, substr($4, 1, 8))
+        epoch=iso8601_to_epoch(timestring)
+        print $6, $5, $7, $11, timestring, $1, epoch
+      }' >> ${F_SEIS}eqs.txt
+      ((NUMEQCATS+=1))
+    fi
+    if [[ $eqcattype =~ "EHB" ]]; then
+        gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME '
+          @include "tectoplot_functions.awk"
+          {
+            lon=$1
+            lat=$2
+            depth=$3
+            mag=$4
+            datestring=$5
+            id=$6
+            epoch=$7
+            if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+              if (test_lon(minlon, maxlon, lon) == 1) {
+                print
+              }
+            }
+          }
+        ' >> ${F_SEIS}eqs.txt
+        ((NUMEQCATS+=1))
+        ((customseisindex+=1))
+        echo "${ISCEHB_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+        echo "${ISCEHB_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+    fi
+    if [[ $eqcattype =~ "custom" ]]; then
+        gawk < ${SEISADDFILE[$customseisindex]} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
+          (NF==7) { print }                                 # Full record exists
+          ((NF < 7) && (NF >=4)) {
+            if ($5=="") { $5=0 }                            # Patch entries to ensure same column number
+            if ($6=="") { $6=0 }
+            if ($7=="") { $7="none" }
+            if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag)
+              print $1, $2, $3, $4, $5, $6, $7
+            }
+        ' >> ${F_SEIS}eqs.txt
+        ((NUMEQCATS+=1))
+        ((customseisindex+=1))
+        echo "CustomEQ" >> ${SHORTSOURCES}
+        echo "Seismicity from ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
+    fi
+  done
 
   [[ -s ./mag_conversions.dat ]] && mv ./mag_conversions.dat ${F_SEIS}
   [[ -s ./mag_selections.dat ]] && mv ./mag_selections.dat ${F_SEIS}
@@ -9197,97 +9288,84 @@ if [[ $plotseis -eq 1 ]]; then
   # to import from various common formats. Currently needs tectoplot format data
   # and only ingests lines with exactly 7 fields.
 
-  # Format needed is lon
-
-  if [[ $suppseisflag -eq 1 ]]; then
-    info_msg "Concatenating supplementary earthquake file $SUPSEISFILE"
-    if [[ $eqcatalogreplaceflag -eq 1 ]]; then
-      mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_replaced.txt
-    fi
-    # [[ -e ${F_SEIS}eqs.txt ]] && info_msg "First selection: $(wc -l < ${F_SEIS}eqs.txt)"
-    # Do the selection using the mag and depth criteria to be consistent with catalogs.
-    # EQs outside the map AOI will be removed subsequently.
-    for i in $(seq 1 $seisfilenumber); do
-      gawk < ${SEISADDFILE[$i]} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
-        (NF==7) { print }                                 # Full record exists
-        ((NF < 7) && (NF >=4)) {
-          if ($5=="") { $5=0 }                            # Patch entries to ensure same column number
-          if ($6=="") { $6=0 }
-          if ($7=="") { $7="none" }
-          if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag)
-            print $1, $2, $3, $4, $5, $6, $7
-          }
-      ' >> ${F_SEIS}eqs_imported.txt
-    done
-
     # Cull the combined catalogs by removing global events that fall within a
     # specified space-time-magnitude window of an event in the custom catalog
+[[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
+[[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
 
-    if [[ $eqcatalogcullflag -eq 1 && $eqcatalogreplaceflag -eq 0 ]]; then
-      info_msg "Culling input and global catalogs"
-      cat ${F_SEIS}eqs_imported.txt ${F_SEIS}eqs.txt > ${F_SEIS}combined_precull.txt
-      num_imported=$(wc -l < ${F_SEIS}eqs_imported.txt | tr -d ' ')
-      cat ${F_SEIS}combined_precull.txt | gawk -v n=${num_imported} '
-      @include "tectoplot_functions.awk"
-      BEGIN {
-        epoch_cutoff=30  # Seconds between events
-        mag_cutoff=0.3   # Magnitude difference
-        lon_cutoff=0.2   # Longitude difference
-        lat_cutoff=0.2   # Latitude difference
-        depth_cutoff=20  # depth difference
-      }
-      (NR <= n) {
-        data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)
-      }
-      (NR > n) {
-        data[NR]=$5"\x99"$0"\x99"0"\x99"iso8601_to_epoch($5)
-      }
-      END {
-        asort(data)
-        for(i=1;i<=NR;i++) {
-          split(data[i],x,"\x99")
+    # We keep the first event, so prioritization is by order of specified catalogs
+if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
+    info_msg "Culling multiple input seismic catalogs..."
+    cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_precull.txt
+    num_eqs_precull=$(wc -l < ${F_SEIS}eqs_precull.txt | tr -d ' ')
+    gawk < ${F_SEIS}eqs_precull.txt -v n=${num_eqs_precull} '
+    @include "tectoplot_functions.awk"
+    BEGIN {
+      epoch_cutoff=30  # Seconds between events
+      mag_cutoff=0.3   # Magnitude difference
+      lon_cutoff=0.2   # Longitude difference
+      lat_cutoff=0.2   # Latitude difference
+      depth_cutoff=20  # depth difference
+    }
+    (NR <= n) {
+      data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)"\x99"NR
+    }
+    (NR > n) {
+      data[NR]=$5"\x99"$0"\x99"0"\x99"iso8601_to_epoch($5)"\x99"NR
+    }
+    END {
+      asort(data)
+      for(i=1;i<=NR;i++)
+      {
+        split(data[i],x,"\x99")
 
-          # x[1] = timecode, x[2] = full data string, x[3] = is_imported flag
-          # x[4] = epoch time (seconds)
+        # x[1] = timecode, x[2] = full data string, x[3] = is_imported flag
+        # x[4] = epoch time (seconds) x[5]=line number in input file
 
-          # event_timecode[i]=x[1]
-          event[i]=x[2]
-          split(x[2], evec, " ")
-          lon[i]=evec[1]
-          lat[i]=evec[2]
-          depth[i]=evec[3]
-          mag[i]=evec[4]
-          is_imported[i]=x[3]
-          epoch[i]=x[4]
-        }
-        for(i=1;i<=NR;i++) {
-          # For each event in the global catalog
-          if (is_imported[i]==0) {
-            printme=1
-            # Check only the 10 closest events in time
-            for(j=i-5;j<=i+5;++j) {
-              if (j>=1 && j<=NR && j != i && is_imported[j] == 1) {
-                if ((abs(epoch[i]-epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff)) {
-                    # There is an equivalent event in the catalog
-                    print event[i] > "./duplicated_global_events.txt"
-                    printme=0
-                    break
-                }
-              }
+        # event_timecode[i]=x[1]
+        event[i]=x[2]
+        split(x[2], evec, " ")
+        lon[i]=evec[1]
+        lat[i]=evec[2]
+        depth[i]=evec[3]
+        mag[i]=evec[4]
+        is_imported[i]=x[3]
+        epoch[i]=x[4]
+        linenumber[i]=x[5]
+      }
+      for(i=1;i<=NR;i++)
+      {
+        # For each event in the combined catalog
+        printme=1
+        # if (is_imported[i]==0) {
+        #   printme=1
+          # Check only the 10 closest events in time
+        for(j=i-5;j<=i+5;++j)
+        {
+          if (j>=1 && j<=NR && j != i && is_imported[j] == 1)
+          {
+            if ((abs(epoch[i]-epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff) && (linenumber[i] > linenumber[j]) )
+            {
+                  # There is an equivalent event in the catalog that has a
+                  # lower line number, so do not print this event
+                  print event[i], "[" linenumber[i] "]", "was removed because it matches", event[j], "[" linenumber[j] "]" > "./culled_seismicity.txt"
+                  printme=0
+                  break
             }
-            if (printme==1) {
-              print event[i]
-            }
-          } else {
-            # Event is from the imported catalog - print it
-            print event[i]
           }
         }
-      }' > ${F_SEIS}eqs.txt
-    else
-      cp ${F_SEIS}eqs_imported.txt ${F_SEIS}eqs.txt
-    fi
+        if (printme==1) {
+          print event[i]
+        }
+      }
+    }' > ${F_SEIS}eqs.txt
+    [[ -s culled_seismicity.txt ]] && mv culled_seismicity.txt ${F_SEIS}
+  # else
+  #   cp ${F_SEIS}eqs_imported.txt ${F_SEIS}eqs.txt
+    num_after_cull=$(wc -l < ${F_SEIS}eqs.txt | tr -d ' ')
+    info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
   fi
+
 
   # Secondary select of combined seismicity using the actual AOI polygon which
   # may differ from the lat/lon box.
@@ -10085,7 +10163,6 @@ fi
       [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed ${CMTFILE} > newids.txt && CMTFILE=$(abs_path newids.txt)
 
       info_msg "Merging cluster IDs with CMT catalog"
-
 
   fi
 

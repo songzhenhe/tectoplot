@@ -238,12 +238,6 @@ function download_isc_file() {
   fi
 }
 
-
-
-ISC_MIRROR="http://isc-mirror.iris.washington.edu"
-
-
-
 # Change into the ISC data directory, creating if needed, and check Tiles directory
 # Create tile files using touch
 
@@ -258,7 +252,6 @@ if [[ -e isc_complete.txt ]]; then
   sort < isc_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_complete.txt.sort
   mv isc_complete.txt.sort isc_complete.txt
 fi
-
 
 ISCTILEDIR="Tiles/"
 
@@ -405,19 +398,6 @@ if [[ -e isc_just_downloaded.txt ]]; then
     echo "Processing file $isc_file into tile files"
     cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCTILEDIR} -v minepoch=$lastevent_epoch '
     @include "tectoplot_functions.awk"
-    # function rd(n, multipleOf)
-    # {
-    #   if (n % multipleOf == 0) {
-    #     num = n
-    #   } else {
-    #      if (n > 0) {
-    #         num = n - n % multipleOf;
-    #      } else {
-    #         num = n + (-multipleOf - n % multipleOf);
-    #      }
-    #   }
-    #   return num
-    # }
     BEGIN { added=0 }
     {
       timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
