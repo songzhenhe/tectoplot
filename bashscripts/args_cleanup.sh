@@ -128,6 +128,17 @@ function cleanup_on_exit()
       done
 }
 
+function move_on_exit()
+{
+      for i in "${on_exit_move_items[@]}"; do
+        if [[ -d ${OUTPUTDIRECTORY} ]]; then
+          info_msg "mv $i ${OUTPUTDIRECTORY}"
+          mv $i ${OUTPUTDIRECTORY}
+        else
+          info_msg "Not moving file $i"
+        fi
+      done
+}
 # Be sure to only cleanup files that are in the temporary directory
 function cleanup()
 {
@@ -136,6 +147,17 @@ function cleanup()
     if [[ $n -eq 0 ]]; then
         info_msg "Setting EXIT trap function cleanup_on_exit()"
         trap cleanup_on_exit EXIT
+    fi
+}
+
+# Be sure to only cleanup files that are in the temporary directory
+function move_exit()
+{
+    local n=${#on_exit_move_items[*]}
+    on_exit_move_items[$n]="$*"
+    if [[ $n -eq 0 ]]; then
+        info_msg "Setting EXIT trap function move_on_exit()"
+        trap move_on_exit EXIT
     fi
 }
 

@@ -509,7 +509,7 @@ main() {
         case "${response}" in
         "")
           echo
-          ${tectoplot_folder_dir}tectoplot -setdatadir "${HOME}TectoplotData/"
+          ${tectoplot_folder_dir}/tectoplot -setdatadir "${HOME}TectoplotData/"
           break
           ;;
         none)
@@ -518,7 +518,7 @@ main() {
           ;;
         *)
           echo
-          ${tectoplot_folder_dir}tectoplot -setdatadir "${response}"
+          ${tectoplot_folder_dir}/tectoplot -setdatadir "${response}/"
           break
           ;;
         esac

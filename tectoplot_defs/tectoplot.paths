@@ -57,6 +57,9 @@ CMTTOOLS=${BASHSCRIPTDIR}"cmt_tools.sh"
 SWATH=${BASHSCRIPTDIR}"swath.sh"
 MPROFILE_SH_SRC=${BASHSCRIPTDIR}"profile.sh"
 CMTSLURP=${BASHSCRIPTDIR}"cmt_tools.sh"
+FLOAT_TEXT=${BASHSCRIPTDIR}"textobj.sh"
+
+
 
 ##### C/C++ CODES
 # Source the following scripts at startup
@@ -90,9 +93,13 @@ FOCAL_NCUBE=$THREEDDIR"ncube.obj"
 
 FOCAL_MATERIAL=$THREEDDIR"focsphere.mtl"
 FOCAL_TEXTURE=$THREEDDIR"focaltexture.jpg"
+FOCAL_TEXTURE_DIM=$THREEDDIR"focaltexture_dim.jpg"
+
 VOLCANO_OBJ=$THREEDDIR"cone_normalized_rot2.obj"
 VOLCANO_MATERIAL=$THREEDDIR"volcanoes.mtl"
 
+##### 3D fonts
+PLY_FLOAT_TEXT_FONT_DIR=${THREEDDIR}"newfont/flatfont/"
 
 ##### FORTRAN code and executable path for Reasenberg declustering
 

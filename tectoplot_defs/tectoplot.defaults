@@ -30,6 +30,10 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+DEM_MINLON="unset"
+
+PAGE_COLOR="white"      # Color of the paper background
+
 EQ_REGION_WIDTH=2       # Width/height of default region surrounding -r eq
 CULL_EQ_CATALOGS=1      # 1 = cull catalogs by default; 0 = don't
 
@@ -40,8 +44,26 @@ PLY_POLYMAG=6         # Minimum magnitude of earthquakes drawn as polygons inste
 PLY_POLYMAG_POWER=2     # Radius of polymag eqs is multiplied by magnitude to this power
 PLY_POLYSCALE=0.001     # Scale factor (radius of M=1) for earthquake polygons 1 = 100km
 PLY_VOLCSCALE=0.05      # Scale factor for volcano objects
+PLY_SCALE=1             # Scale factor applied to all scaleable objects
 PLY_SIDEBOXDEPTH=10     # Depth of PLY sidebox, in km positive down
 PLY_SIDEBOXCOLOR="155/155/155"    # RGB of sidebox color, or GMT color?
+PLY_SIDEBOXTEXT=1       # 1 to plot X/Y labels on sidebox, 0 to not plot
+PLY_SIDEBOXINTERVAL_SPECIFY=0   # Use specified vert/horz intervals? 1=yes, 2=no
+PLY_SIDEBOXINTERVAL_VERT=5  # Spacing of vertical unit text, km
+PLY_SIDEBOXINTERVAL_HORZ=1  # Spacing of horizontal unit text, degrees
+PLY_PT_OPACITY=1        # Opacity of seismicity point data
+
+#PLY_DEMOBJ="dem"        # Name of the DEM mesh (e.g. dem.obj)
+
+PLY_ZOFFSET=0           # Vertical offset (positive away from Earth center) in km of mesh
+PLY_MTLNAME="ColoredIntensity"    # Name of material for DEM mesh OBJ
+PLY_TEXNAME="ColoredIntensity_texture.png"
+PLY_ALPHACUT=20         # Grayscale (white) cutoff
+PLY_OCEANDEPTH=0        # Depth of the ocean layer (km, positive down)
+
+PLY_TEXTCODE="basetext"
+PLY_TEXTFONTCOLOR="white"
+PLY_BACKGROUND_COLOR="black"
 
 # Default labels for profile axes
 

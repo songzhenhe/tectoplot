@@ -34,6 +34,7 @@
 
 # Math functions
 
+function sqr(x)        { return x*x                     }
 function max(x,y)      { return (x>y)?x:y               }
 function min(x,y)      { return (x<y)?x:y               }
 function getpi()       { return atan2(0,-1)             }
@@ -50,6 +51,12 @@ function ddiff(u)      { return u > 180 ? 360 - u : u   }
 function ceil(x)       { return int(x)+(x>int(x))       }
 function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
+
+# Rescale a value val that comes from data with range [xmin, xmax] into range [ymin, ymax]
+
+function rescale_value(val, xmin, xmax, ymin, ymax) {
+  return (val-xmin)/(xmax-xmin)*(ymax-ymin)+ymin
+}
 
 # Some string functions
 
@@ -800,6 +807,78 @@ function iso8601_to_epoch(timestring) {
   return mktime(the_time);
 }
 
+#
+
+function time_increments_from_date(timestring_start, timestring_end, timestring_inc) {
+  timecode=substr(timestring_start, 1, 19)
+  split(timecode, a, "-")
+  year=a[1]
+  month=a[2]
+  split(a[3],b,"T")
+  day=b[1]
+  split(b[2],c,":")
+  hour=c[1]
+  minute=c[2]
+  second=c[3]
+
+  timecode=substr(timestring_end, 1, 19)
+  split(timecode, a, "-")
+  year_end=a[1]
+  month_end=a[2]
+  split(a[3],b,"T")
+  day_end=b[1]
+  split(b[2],c,":")
+  hour_end=c[1]
+  minute_end=c[2]
+  second_end=c[3]
+
+  # Calculate the epoch of the start time
+  start_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
+  epoch_start=mktime(start_time);
+
+  # Calculate the epoch of the end time
+  end_time=sprintf("%04i %02i %02i %02i %02i %02i",year_end,month_end,day_end,hour_end,minute_end,int(second_end+0.5));
+  epoch_end=mktime(end_time);
+
+
+  if (timestring_inc+0 != timestring_inc) {
+    # third argument is the number of divisions to generate between start and
+    # end times
+    timecode_inc=substr(timestring_inc, 1, 19)
+    split(timecode_inc, d, "-")
+    year_inc=d[1]
+    month_inc=d[2]
+    split(d[3],e,"T")
+    day_inc=e[1]
+    split(e[2],f,":")
+    hour_inc=f[1]
+    minute_inc=f[2]
+    second_inc=f[3]
+  } else {
+    # third argument is the number of divisions to generate between start and
+    # end times
+    year_inc=0
+    month_inc=0
+    day_inc=0
+    hour_inc=0
+    minute_inc=0
+    second_inc=(epoch_end-epoch_start)/timestring_inc
+  }
+
+  newtime=timestring_start
+
+  for(increment=1; newtime<timestring_end;increment++ ) {
+    the_time=sprintf("%04i %02i %02i %02i %02i %02i", year+increment*year_inc, month+increment*month_inc, day+increment*day_inc, hour+increment*hour_inc, minute+increment*minute_inc, int(second+increment*second_inc+0.5));
+    newtime=strftime("%FT%T",i+mktime(the_time))
+    if (newtime>timestring_end) {
+      break
+    }
+    print newtime
+
+  }
+}
+
+
 # Functions for 3D focal mechanisms (rotations)
 
 function calc_rotation_matrix(yaw_deg, pitch_deg, roll_deg)
@@ -873,4 +952,15 @@ function multiply_ecef_matrix(x, y, z,    i,j) {
       }
   #    print "w[" i "]=" w[i] > "/dev/stderr"
   }
+}
+
+# Returns distance in meters, inputs are in degrees
+
+function haversine_m(lon1, lat1, lon2, lat2) {
+  hav_lon1_r=deg2rad(lon1)
+  hav_lat1_r=deg2rad(lat1)
+  hav_lon2_r=deg2rad(lon2)
+  hav_lat2_r=deg2rad(lat2)
+
+  return 2*6371000*asin(sqrt( sqr((hav_lat2_r-hav_lat1_r)/2) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
 }

@@ -88,8 +88,28 @@ function weighted_average_combine() {
   fi
 }
 
+function rgb_to_grayscale() {
+  gdal_calc.py  --overwrite --quiet -A "${1}" --A_band=1 -B "${1}" --B_band=2 -C "${1}" \
+              --C_band=3 --outfile="${2}" --calc="A*0.2989+B*0.5870+C*0.1140"
+}
+
+# Create an alpha mask where all near-black colors (lighter than $3 and A~B~C)
+# are set to white, all others are black
+
+function rgb_to_alpha() {
+  gdal_calc.py  --overwrite --quiet -A "${1}" --A_band=1 -B "${1}" --B_band=2 -C "${1}" \
+  --C_band=3 --outfile="${2}" --calc="uint8( ((A-B<10)*(A-C<10)*(A*0.2989+B*0.5870+C*0.1140)<${3}) * 255.)"
+}
+
+# Create an alpha mask from a PNG alpha channel (Band 4)
+
+function png_to_alpha() {
+  gdal_calc.py  --overwrite --quiet -A "${1}" --A_band=4 --outfile="${2}" \
+  --calc="uint8((A>0)*255.)"
+}
+
 # Prints (space separated): raster maximum, mean, minimum, standard deviation
-function gdal_stats {
+function gdal_stats() {
   gdalinfo -stats "${1}" | grep "Minimum=" | awk -F, '{print $1; print $2; print $3; print $4}' | awk -F= '{print $2}'
 }
 
