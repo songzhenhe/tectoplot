@@ -76,6 +76,7 @@ EULERADD_AWK=$AWKSCRIPTDIR"euleradd.awk"
 ##### AWK 3D scripts
 
 REPLICATE_OBS=$AWKSCRIPTDIR"replicate_obj.sh"
+MAKE3D_SCRIPT=$BASHSCRIPTDIR"make3d.sh"
 
 ##### 3D assets
 
@@ -95,8 +96,10 @@ FOCAL_MATERIAL=$THREEDDIR"focsphere.mtl"
 FOCAL_TEXTURE=$THREEDDIR"focaltexture.jpg"
 FOCAL_TEXTURE_DIM=$THREEDDIR"focaltexture_dim.jpg"
 
-VOLCANO_OBJ=$THREEDDIR"cone_normalized_rot2.obj"
+VOLCANO_OBJ=$THREEDDIR"cone.obj"
 VOLCANO_MATERIAL=$THREEDDIR"volcanoes.mtl"
+
+ARROW_OBJ=$THREEDDIR"arrow8.obj"
 
 ##### 3D fonts
 PLY_FLOAT_TEXT_FONT_DIR=${THREEDDIR}"newfont/flatfont/"

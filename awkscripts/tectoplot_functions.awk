@@ -366,6 +366,16 @@ function ave_dir(d1, d2) {
   return val
 }
 
+# Calculate an azimuth from north and east XY components (in degrees)
+
+function azimuth_from_en(east, north,      res) {
+  res=rad2deg(atan2(east, north))
+  while (res<0) {
+    res+=360
+  }
+  return res
+}
+
 # The following function will take a string in the (approximate) form
 # +-[deg][chars][min][chars][sec][chars][north|*n*]|[south|*s*]|[east|*e*]|[west|*w*][chars]
 # and return the appropriately signed decimal degree

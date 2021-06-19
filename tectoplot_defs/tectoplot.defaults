@@ -53,6 +53,10 @@ PLY_SIDEBOXINTERVAL_VERT=5  # Spacing of vertical unit text, km
 PLY_SIDEBOXINTERVAL_HORZ=1  # Spacing of horizontal unit text, degrees
 PLY_PT_OPACITY=1        # Opacity of seismicity point data
 
+PLY_GPSSCALE=0.25       # Scale factor for GPS velocity arrows, Y dimension
+PLY_GPSFATSCALE=3      # Scale factor for GPS velocity arrows, X+Z dimensions (radial)
+PLY_GPS_VELSCALE=0.1
+
 #PLY_DEMOBJ="dem"        # Name of the DEM mesh (e.g. dem.obj)
 
 PLY_ZOFFSET=0           # Vertical offset (positive away from Earth center) in km of mesh
