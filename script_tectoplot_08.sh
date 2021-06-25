@@ -1442,7 +1442,7 @@ fi
     fi
     shift # Gets rid of EVENTMAP_ID somehow...
     #
-    set -- "blank" "-r" "eq" ${EVENTMAP_ID} ${EVENTMAP_DEGBUF} "-t" "-b" "c" "-z" "-c" "ORIGIN" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "-legend" "-cprof" "eq" "eq" "slab2" "map" "100k" "-oto" "-mob" "-title" "Earthquake $EVENTMAP_ID" "$@"
+    set -- "blank" "-r" "eq" ${EVENTMAP_ID} ${EVENTMAP_DEGBUF} "-t" "-b" "c" "-z" "-c" "ORIGIN" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "-legend" "onmap" "-title" "Earthquake $EVENTMAP_ID" "$@" # "-cprof" "eq" "eq" "slab2" "map" "100k" "-oto" "-mob"
     ;;
 
   # Normal commands
@@ -5008,8 +5008,11 @@ fi
       elif [[ "${2}" == "eq" ]]; then
         setregionbyearthquakeflag=1
         REGION_EQ=${3}
+
         shift
         shift
+        shift
+
         if arg_is_positive_float "{$2}"; then
           info_msg "[-r]: EQ region width is ${2}"
           EQ_REGION_WIDTH="${2}"

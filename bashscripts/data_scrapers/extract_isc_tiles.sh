@@ -129,10 +129,13 @@ selected_files=($(gawk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${
 #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
 
 for this_file in ${selected_files[@]}; do
+  echo "Using file ${this_file}"
   gawk < $this_file -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v mindate=${6} -v maxdate=${7} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
+  @include "tectoplot_functions.awk"
   ($5 <= maxlat && $5 >= minlat && $11 >= minmag && $11 <= maxmag && $7 >= mindepth && $7 <= maxdepth) {
 
-    if ((maxlon <= 180 && (minlon <= $6 && $6 <= maxlon)) || (maxlon > 180 && (minlon <= $6+360 || $6+360 <= maxlon))) {
+    # if ((maxlon <= 180 && (minlon <= $6 && $6 <= maxlon)) || (maxlon > 180 && (minlon <= $6+360 || $6+360 <= maxlon))) {
+    if (test_lon(minlon, maxlon, $6)==1) {
 
       # Now we check if the event actually falls inside the specified time window
       timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
