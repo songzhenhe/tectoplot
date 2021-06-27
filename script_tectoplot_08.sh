@@ -1653,7 +1653,9 @@ fi
   plotbigbarflag=1
     ;;
 
-  -cprof) # args lon lat az length width res
+  -cprof) # args lon lat azimuth(degrees) length(km) width(km) res(km)
+
+  # Should take arguments in the form lon lat az 100k 10k 20k
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cprof:        specify automatic profiles using center point, azimuth, length
@@ -1795,9 +1797,6 @@ fi
     fi
 
     clipdemflag=1
-
-    # echo "aprof profiles are ${aproflist[@]} / $SPROFWIDTH / $SPROF_RES"
-    # cat aprof_profs.txt
     ;;
 
   -aprofcodes)
@@ -1839,10 +1838,10 @@ cat <<-EOF
 -author "Author ID"
   Store author information in ${DEFDIR}tectoplot.author
 
-Example: Reset a stored author ID and then update it to "Mappy McMapface"
+Example: Reset a stored author ID and then update it to "Author 1"
   tectoplot -author print
   tectoplot -author reset
-  tectoplot -author "Mappy McMapface"
+  tectoplot -author "Author 1"
   tectoplot -author print
 
 --------------------------------------------------------------------------------
@@ -2222,48 +2221,73 @@ fi
 # maxdip: at least one nodal plane dip is lower than this value
 
   -cfilter)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-cfilter:         filter CMT by nodal plane dip or rake range
+-cfilter [command1] [range1] [[command2]] [[range2]] ...
+
+The filter is satisfied if the criteria are met by any nodal plane.
+
+commands:
+Not implemented:  maxstrike [strike]
+Not implemented:  minstrike [strike]
+  maxdip    [dip]
+  mindip    [dip]
+  rakerange [minrake] [maxrake]
+
+Example: Plot CMT data with rake between 160 and 130, New Zealand
+  tectoplot -r NZ -a -c -cfilter rakerange 130 160
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
     cfilterflag=1
 
-    if [[ $2 =~ "maxdip" ]]; then
-      cfiltercommand+="${2}"
-      shift
-      if arg_is_positive_float $2; then
-        CF_MAXDIP="$2"
-        shift
-      else
-        info_msg "[-cfilter]: maxdip requires positive float argument"
-        exit
-      fi
-    fi
-    if [[ $2 =~ "mindip" ]]; then
-      cfiltercommand+="${2}"
-      shift
-      if arg_is_positive_float $2; then
-        CF_MINDIP="$2"
-        shift
-      else
-        info_msg "[-cfilter]: mindip requires positive float argument"
-        exit
-      fi
-    fi
-    if [[ $2 =~ "rakerange" ]]; then
-      cfiltercommand+="${2}"
-      shift
-      if arg_is_float $2; then
-        CF_MINRAKE="$2"
-        shift
-        if arg_is_float $2; then
-          CF_MAXRAKE="$2"
+    while ! arg_is_flag "${2}"; do
+      case "${2}" in
+        maxdip)
+          cfiltercommand+=("${2}")
           shift
-        else
-          info_msg "[-cfilter]: rakerange requires two float arguments"
-          exit
-        fi
-      else
-        info_msg "[-cfilter]: rakerange requires two float arguments"
-        exit
-      fi
-    fi
+          if arg_is_positive_float $2; then
+            CF_MAXDIP="$2"
+            shift
+          else
+            info_msg "[-cfilter]: maxdip requires positive float argument"
+            exit
+          fi
+        ;;
+        mindip)
+          cfiltercommand+=("${2}")
+          shift
+          if arg_is_positive_float $2; then
+            CF_MINDIP="$2"
+            shift
+          else
+            info_msg "[-cfilter]: mindip requires positive float argument"
+            exit
+          fi
+        ;;
+        rakerange)
+          cfiltercommand+=("${2}")
+          shift
+          if arg_is_float $2; then
+            CF_MINRAKE="$2"
+            shift
+            if arg_is_float $2; then
+              CF_MAXRAKE="$2"
+              shift
+            else
+              info_msg "[-cfilter]: rakerange requires two float arguments"
+              exit
+            fi
+          else
+            info_msg "[-cfilter]: rakerange requires two float arguments"
+            exit
+          fi
+        ;;
+
+      esac
+    done
     ;;
 
   -clipdem)
@@ -4566,8 +4590,8 @@ cat <<-EOF
 -pp:           plot populated places above a specified population
 -pp [[population=${CITIES_MINPOP}]]
 
-  Use -p to set plate model.
-  Source data is from Geonames
+  Source data is from Geonames.
+  Label populated places using -ppl
 
 Example:
   tectoplot -r =EU -a -pp 500000
@@ -4602,7 +4626,7 @@ cat <<-EOF
   Source data is from Geonames
 
 Example:
-  tectoplot -r =EU -p -pe -pl
+  tectoplot -r =EU -pp 500000 -ppl 500000
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9326,12 +9350,11 @@ if [[ $plotseis -eq 1 ]]; then
   NUMEQCATS=0
   ##############################################################################
   # Initial select of seismicity based on geographic coords, mag, and depth
-  # Takes into account crossing of antimeridian (e.g lon in range [120 220])
+  # Takes into account crossing of antimeridian (e.g lon in range [120 220] or [-190 -170])
 
-  # Data are selected from either ANSS or ISC tiles generated be -scrapedata
+  # Data are selected from either ANSS, ISC, ISC-EHB, or custom data files
+  # Tectoplot catalog eqs.txt is Lon Lat Depth Mag Timecode ID epoch clusterid
 
-# COMEBACK
-  # This is for the ANSS catalog
   customseisindex=1
 
   for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
@@ -9404,8 +9427,6 @@ if [[ $plotseis -eq 1 ]]; then
       # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
       #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
 
-      # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
-
       gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
       @include "tectoplot_functions.awk"
       {
@@ -9477,16 +9498,37 @@ if [[ $plotseis -eq 1 ]]; then
         echo "${ISCEHB_EQ_SOURCESTRING}" >> ${LONGSOURCES}
     fi
     if [[ $eqcattype =~ "custom" ]]; then
-        gawk < ${SEISADDFILE[$customseisindex]}  -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
-          (NF==7) { print }                                 # Full record exists
-          ((NF < 7) && (NF >=4)) {
-            if ($5=="") { $5=0 }                            # Patch entries to ensure same column number
-            if ($6=="") { $6=0 }
-            if ($7=="") { $7="none" }
-            if ((mindate <= $5 && $5 <= maxdate) && $3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag)
-              print $1, $2, $3, $4, $5, $6, $7
+      info_msg "[-z]: Loading custom seismicity file ${SEISADDFILE[$customseisindex]}"
+        gawk < ${SEISADDFILE[$customseisindex]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
+          @include "tectoplot_functions.awk"
+          {
+             # We have at least lon lat depth mag
+            if (NF >= 4) {
+              if ($5=="") {
+                $5=0
+                checkdate=0
+              } else {
+                checkdate=1
+              }
+              if ($6=="") {
+                $6=0
+              }
+              if ($7=="") {
+                $7="none"
+              }
+              if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag && $2 >= minlat && $2 <= maxlat) {
+                if (test_lon(minlon, maxlon, $1) == 1) {
+                  if (checkdate==1) {
+                    if (mindate <= $5 && $5 <= maxdate) {
+                      print $1, $2, $3, $4, $5, $6, $7
+                    }
+                  } else {
+                    print $1, $2, $3, $4, $5, $6, $7
+                  }
+                }
+              }
             }
-        ' >> ${F_SEIS}eqs.txt
+          }' >> ${F_SEIS}eqs.txt
         ((NUMEQCATS+=1))
         ((customseisindex+=1))
         echo "CustomEQ" >> ${SHORTSOURCES}
@@ -9511,7 +9553,7 @@ if [[ $plotseis -eq 1 ]]; then
   ##############################################################################
   # Add additional user-specified seismicity files. This needs to be expanded
   # to import from various common formats. Currently needs tectoplot format data
-  # and only ingests lines with exactly 7 fields.
+  # and only ingests lines with 4-7 fields.
 
     # Cull the combined catalogs by removing global events that fall within a
     # specified space-time-magnitude window of an event in the custom catalog
@@ -9585,12 +9627,10 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
       }
     }' > ${F_SEIS}eqs.txt
     [[ -s culled_seismicity.txt ]] && mv culled_seismicity.txt ${F_SEIS}
-  # else
-  #   cp ${F_SEIS}eqs_imported.txt ${F_SEIS}eqs.txt
+
     num_after_cull=$(wc -l < ${F_SEIS}eqs.txt | tr -d ' ')
     info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
   fi
-
 
   # Secondary select of combined seismicity using the actual AOI polygon which
   # may differ from the lat/lon box.
@@ -9611,7 +9651,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   # Select seismicity that falls within a specified polygon.
 
   if [[ $polygonselectflag -eq 1 ]]; then
-    info_msg "Selecting seismicity within AOI polygon ${POLYGONAOI}"
+    info_msg "Selecting seismicity within speficied AOI polygon ${POLYGONAOI}"
     mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
     gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
     cleanup ${F_SEIS}eqs_preselect.txt
@@ -9630,17 +9670,16 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
       $6 in A {
         print
       }' ${F_SEIS}eqselectlist.txt ${F_SEIS}eqs.txt > ${F_SEIS}eqselected.dat
-
     [[ -s ${F_SEIS}eqselected.dat ]] && cp ${F_SEIS}eqselected.dat ${F_SEIS}eqs.txt
   fi
 
 
-  #### Decluster seismicity using GK algorithm
+  #### Decluster seismicity using one of several available algorithms
 
   if [[ $seisdeclusterflag -eq 1 ]]; then
     info_msg "Declustering seismicity catalog..."
     if [[ ${DECLUSTER_METHOD} =~ "rb" ]]; then
-      info_msg "Reasenberg"
+      info_msg "Using Reasenberg method"
 
       if [[ ! -x ${REASENBERG_EXEC} ]]; then
         echo "Compiling Reasenberg declustering code"
@@ -9652,7 +9691,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
       fi
 
     else
-      info_msg "Window method ${DECLUSTER_METHOD}"
+      info_msg "Using Gardner-Knopoff window method ${DECLUSTER_METHOD}"
       ${DECLUSTER_GK} ${F_SEIS}eqs.txt ${DECLUSTER_METHOD} ${DECLUSTER_MINSIZE}
       cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_predecluster.txt
     fi
@@ -9749,10 +9788,9 @@ if [[ $calccmtflag -eq 1 ]]; then
     echo "CMT/$CMTTYPE" >> ${SHORTSOURCES}
 
     for i in $(seq 1 $cmtfilenumber); do
-      info_msg "Slurping custom CMTs from ${CMTADDFILE[$i]} and appending to CMT file"
+      info_msg "Adding custom CMTs from ${CMTADDFILE[$i]}"
       info_msg "${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]}"
-      # source ${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]}
-      # echo gawk -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"
+
       source "${CMTSLURP}" ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | gawk -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
       @include "tectoplot_functions.awk"
       {
@@ -9774,7 +9812,7 @@ if [[ $calccmtflag -eq 1 ]]; then
       highlightCMTs+=("${CMTIDCODE[$i]}")
     done
 
-    # Concatenate the data and apply the eqselect selection
+    # Concatenate the data
     if [[ $cmtreplaceflag -eq 0 ]]; then
       cat ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat > ${F_CMT}cmt_combined_aoi.dat
       CMTFILE=$(abs_path ${F_CMT}cmt_combined_aoi.dat)
@@ -9782,9 +9820,6 @@ if [[ $calccmtflag -eq 1 ]]; then
       CMTFILE=${F_CMT}cmt_local_aoi.dat
     fi
   fi
-
-  # We don't usually keep the individually selected data
-  # cleanup ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat
 
   gawk < $CMTFILE -v dothrust=$cmtthrustflag -v donormal=$cmtnormalflag -v doss=$cmtssflag '{
     if (substr($1,2,1) == "T" && dothrust == 1) {
@@ -9797,7 +9832,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   }' > ${F_CMT}cmt_typefilter.dat
   CMTFILE=$(abs_path ${F_CMT}cmt_typefilter.dat)
 
-
   # Select focal mechanisms from the eqlist
   if [[ $eqlistselectflag -eq 1 ]]; then
     info_msg "Selecting focal mechanisms from eqlist"
@@ -9808,11 +9842,8 @@ if [[ $calccmtflag -eq 1 ]]; then
         A[$1]=1
         next
       }
-      $2 in A { print }' ${CMTFILE} ${F_CMT}selectfile.dat >  ${F_CMT}cmt_eqlistsel.dat
-    #
-    # for i in ${!eqlistarray[@]}; do
-    #   grep -- "${eqlistarray[$i]}" ${CMTFILE} >> ${F_CMT}cmt_eqlistsel.dat
-    # done
+      $2 in A { print }' ${CMTFILE} ${F_CMT}selectfile.dat > ${F_CMT}cmt_eqlistsel.dat
+
     CMTFILE=$(abs_path ${F_CMT}cmt_eqlistsel.dat)
   fi
 
@@ -9863,7 +9894,7 @@ if [[ $calccmtflag -eq 1 ]]; then
   # fi
 
   # This abomination of a command is because I don't know how to use gmt select
-  # to print the full record based only on the lon/lat in specific columns.
+  # to print the full record based only on the lon/lat in specified columns.
 
   if [[ $polygonselectflag -eq 1 ]]; then
     info_msg "Selecting focal mechanisms within user polygon ${POLYGONAOI} using ${CMTTYPE} location"
@@ -9899,59 +9930,56 @@ if [[ $calccmtflag -eq 1 ]]; then
     CMTFILE=$(abs_path ${F_CMT}cmt_polygonselect.dat)
   fi
 
-
   # 16.     strike1	          (°)
   # 17.     dip1	            (°)
   # 18.     rake1	            (°)
   # 19.     strike2	          (°)
   # 20.     dip2	            (°)
   # 21.     rake2	            (°)
+
   ##### Select focal mechanisms using cfilter
   if [[ $cfilterflag -eq 1 ]]; then
-    cf_index=0
     cp ${CMTFILE} ${F_CMT}cmt_cfilter.txt
     FILTERFILE=$(abs_path ${F_CMT}cmt_cfilter.txt)
-    while : ; do
-      case ${cfiltercommand[$cf_index]} in
+
+    for thiscmd in ${cfiltercommand[@]}; do
+      echo "Processing ${thiscmd} beginning with $(wc -l < ${FILTERFILE}) lines"
+
+      case $thiscmd in
         maxdip)
           gawk < ${FILTERFILE} -v dip=${CF_MAXDIP} '{
-           if ($17 <= dip || $20 <= dip) {
-             print
-           }
-         }' > ${F_CMT}filter.out
-         mv ${F_CMT}filter.out ${FILTERFILE}
+             if ($17 <= dip || $20 <= dip) {
+               print
+             }
+          }' > ${F_CMT}filter.out
+           mv ${F_CMT}filter.out ${FILTERFILE}
         ;;
         mindip)
           gawk < ${FILTERFILE} -v dip=${CF_MINDIP} '{
            if ($17 >= dip || $20 >= dip) {
              print
            }
-         }' > ${F_CMT}filter.out
-         mv ${F_CMT}filter.out ${FILTERFILE}
+          }' > ${F_CMT}filter.out
+          mv ${F_CMT}filter.out ${FILTERFILE}
         ;;
         rakerange)
-        gawk < ${FILTERFILE} -v minrake=${CF_MINRAKE} -v maxrake=${CF_MAXRAKE} '{
-         if (minrake < maxrake) {
-           if (($18 >= minrake && $18 <= maxrake) || ($21 >= minrake && $21 <= maxrake)) {
-             print
+          gawk < ${FILTERFILE} -v minrake=${CF_MINRAKE} -v maxrake=${CF_MAXRAKE} '{
+           if (minrake < maxrake) {
+             if (($18 >= minrake && $18 <= maxrake) || ($21 >= minrake && $21 <= maxrake)) {
+               print
+             }
+           } else {
+             if ( ($18 <= maxrake && $18 >= -180) || ($21 >= minrake && $21 <= 180) ) {
+               print
+             }
            }
-         } else {
-           # minrake = 160 maxrake = -160
-           # e.g. rake in [160:180] [-180:-160]
-           if ( ($18 <= maxrake && $18 >= -180) || ($21 >= minrake && $21 <= 180) ) {
-             print
-           }
-         }
-        }' > ${F_CMT}filter.out
-        mv ${F_CMT}filter.out ${FILTERFILE}
+          }' > ${F_CMT}filter.out
+          mv ${F_CMT}filter.out ${FILTERFILE}
         ;;
       esac
-      cf_index=$(echo "${cf_index} + 1" | bc)
-      [[ -z ${cfiltercommand[$cf_index]} ]] && break
     done
     [[ -s ${FILTERFILE} ]] && CMTFILE=$(abs_path ${FILTERFILE})
   fi
-
 
   ##### Select focal mechanisms on land
 
@@ -10281,14 +10309,7 @@ fi
   # If CMTFILE exists but we aren't plotting CMT's this will really cull a lot of EQs! Careful!
   # CMTFILE should arguably be AOI selected by now in all cases (can we check?)
 
-  # NOTE: The method of pasting files to compare across lines is computationally
-  # dumb and should ideally be replaced by some kind of line-by-line comparison.
-
   # This section is very sensitive to file formats and any change will break it.
-
-
-  # I want a new algorithm that fuses CMT and EQ formats more easily, sorts them
-  # by time, and then runs a window comparison to ID equivalent events.
 
   if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e ${F_SEIS}eqs.txt ]]; then
 
@@ -10440,7 +10461,7 @@ fi
   fi
 
   # Rescale CMT magnitudes to match rescaled seismicity, if that option is set
-  # This function assumed that the CMT file included the seconds in the last field
+  # This function assumes that the CMT file included the epoch seconds
 
   # Ideally we would do the rescaling at the moment of plotting and not make new
   # files, but I'm not sure how to do that with psmeca
@@ -10576,13 +10597,6 @@ fi
 
     # This code was clearly patched in to deal with a slab issue
 
-    # cp ../${F_CMT}cmt_thrust.txt ../${F_CMT}cmt_thrust_orig.txt
-    # [[ -s ../${F_CMT}cmt_thrust_nearslab.txt ]] && cp ../${F_CMT}cmt_thrust_nearslab.txt ../${F_CMT}cmt_thrust.txt
-    #
-    # # This assumes cmt_thrust.txt is in GlobalCMT format...
-    # cp ../${F_CMT}cmt_thrust.txt kin_thrust.txt
-
-
   touch kin_thrust.txt kin_normal.txt kin_strikeslip.txt
 
 	# Generate the kinematic vectors
@@ -10605,8 +10619,6 @@ fi
   cd ..
 
 fi
-
-
 
 
 #### Back to seismicity for some reason
@@ -11434,8 +11446,6 @@ if [[ $kmlflag -eq 1 ]]; then
   gmt gmtset MAP_FRAME_TYPE inside
 fi
 
-
-
 # Font options
 echo "gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black" >> makemap.sh
 gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black
@@ -11471,6 +11481,8 @@ cleanup base_fake.ps base_fake.eps base_fake_nolabels.ps base_fake_nolabels.eps
 gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
 gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE > base_fake.ps
 gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
+
+# We can just use cp instead of running GMT so many times...
 
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
@@ -12701,6 +12713,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
     platerelvel)
       gmt makecpt -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVEL_CPT
+      gmt makecpt -T0/100/1 -Ctokyo -Z ${VERBOSE} > $PLATEVEL_CPT
       cat ${F_PLATES}paz1*.txt > ${F_PLATES}all.txt
       gmt psxy ${F_PLATES}all.txt -Sc0.1i -C$PLATEVEL_CPT -i0,1,3 $RJOK >> map.ps
 
