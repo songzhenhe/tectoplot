@@ -5014,7 +5014,7 @@ Example: Plot coastlines of Great Britain
 EOF
 shift && continue
 fi
-
+  called_r_flag=1
 	  if ! arg_is_float "${2}"; then
       # If first argument isn't a number, it is interpreted as a global extent (g), an earthquake event, an XY file, a raster file, or finally as a country code.
 # Option 1: Global extent from -180:180 longitude
@@ -5402,6 +5402,13 @@ Oblique Mercator specified by center point, azimuth, width and height
 Oblique Mercator specified by a center point, pole location, width, height
 -RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
 
+Projections with standard parallels:
+
+-RJ [projection] [central_lon] [central_lat] [parallel_1] [parallel_2]
+    Albers|B
+    Lambert|L
+    Equid|D
+
 Examples:
    tectoplot -r BR -RJ UTM -a
 --------------------------------------------------------------------------------
@@ -5605,6 +5612,40 @@ fi
 
         rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
         rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
+        RJSTRING="${rj[@]}"
+        recalcregionflag_bounds=1
+        projcoordsflag=1
+      ;;
+      Albers|B|Lambert|L|Equid|D)
+
+        if [[ ! $called_r_flag -eq 1 ]]; then
+          info_msg "[-RJ]: Albers|B option requires -r to set map region first!"
+        fi
+        if arg_is_float $2; then   # Specified a central meridian
+          CENTRALLON=$2
+          shift
+        fi
+        if arg_is_float $2; then   # Specified a latitude
+          CENTRALLAT=$2
+          shift
+        fi
+        if arg_is_float $2; then   # Specified a standard parallel
+          STANDARD_PARALLEL_1=$2
+          shift
+        fi
+        if arg_is_float $2; then   # Specified a standard parallel
+          STANDARD_PARALLEL_2=$2
+          shift
+        fi
+
+        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+
+        case $ARG1 in
+          Albers|B)      rj+=("-JB${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
+          Lambert|L)     rj+=("-JL${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
+          Equid|D)       rj+=("-JD${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
+        esac
+
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1

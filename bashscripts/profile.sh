@@ -509,16 +509,34 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
     info_msg "Loading single track sample grid: ${ptgridfilelist[$i]}: Zscale: ${ptgridzscalelist[$i]} Spacing: ${ptgridspacinglist[$i]}"
 
+
+    # If the AOI has a MAXLON which is less than 180°, grdedit -L+n the source file.
+    # This is likely bad practice as we don't want to edit original data, but for Slab2.0
+    # this seems to be needed and copying grids is annoying.
+
+    if [[ $(echo "${MAXLON} < 180" | bc) -eq 1 ]]; then
+      gmt grdedit -L+n ${ptgridfilelist[$i]}
+      changebackflag=1
+    else
+      gmt grdedit -L+p ${ptgridfilelist[$i]}
+    fi
+
     # Cut the grid to the AOI and multiply by its ZSCALE
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
 
     rm -f ${F_PROFILES}tmp.nc
-    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+
+
+
+    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn # 2>/dev/null
+
     if [[ -e ${F_PROFILES}tmp.nc ]]; then
       gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
     fi
-
-    echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} " > ${F_PROFILES}data_id.txt
+    if [[ $changebackflag -eq 1 ]]; then
+      gmt grdedit -L+p ${ptgridfilelist[$i]}
+    fi
+    echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} " >> ${F_PROFILES}data_id.txt
 
   # X is an xyz dataset; E is an earthquake dataset
   elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
@@ -843,13 +861,12 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
     # profile line itself
 
     for i in ${!ptgridfilelist[@]}; do
+
       gridfileflag=1
 
       echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
 
-
       if [[ -e ${F_PROFILES}${ptgridfilesellist[$i]} ]]; then
-
         # Resample the track at the specified X increment.
         gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
 cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
@@ -857,7 +874,6 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
         # Calculate the X coordinate of the resampled track, accounting for any X offset due to profile alignment
         gmt mapproject -G+uk+a ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | gawk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
 cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
-
         # Sample the grid at the points.  Note that -N is needed to avoid paste problems.
 
         gmt grdtrack -N -Vn -G${F_PROFILES}${ptgridfilesellist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
