@@ -28,54 +28,64 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### NOTE:
+### PLASE NOTE:
 
-This script and its associated code is being actively developed during my spare time to support my own research projects, and large changes can occur that can accidentally break functionality. There are definitely bugs and significant oversights here and there, which will be worked out over time. Eventually the code will be more robust and will be more thoroughly tested and documented. In the mean time, a general changelog can be found at the top of the main tectoplot script. I am commiting updates fairly often as of May 2021.
+This script and its associated code is being actively developed during my spare time to support my own research projects, and large changes can occur that can accidentally break functionality. The code isn't really intended for release, but since people are finding it useful I have opened the repository. There are definitely bugs and significant oversights here and there, which will be worked out over time. Eventually the code will be more robust and will be more thoroughly tested and documented. I am updating the code fairly often as of July 2021, and a small group of users are now helping to find the many issues that need to be fixed.
 
-If you use this script, please keep an eye on your data and validate any plots and outputs before you use them!
+If you use this script, please keep an eye on your data and validate any plots and outputs before you use them! Documentation lags significantly behind development.
 
 At present, not all the data files linked in the script are downloadable from original sources; these are distributed with the script instead. This mainly includes the plate and plate motion models and GPS data, which do need a small amount of customization before use, like splitting polygons that cross the antimeridian, etc.
 
-
 ## Overview
 
-tectoplot is a bash script and associated helper scripts that makes seismotectonic maps, cross sections, and oblique block diagrams. It tries to simplify the process of visualizing data while also maintaining flexibility by running from the command line in a Unix environment and operating mainly on flat text-format data files. tectoplot started as a basic script to automate making shaded relief maps with GMT, and has snowballed over time to incorporate additional functions like plate motion models, swath profiles of topography or other data, cross sections, perspective block diagrams, etc.
+tectoplot is a bash script and associated helper scripts/programs that makes it easier to create seismotectonic maps, cross sections, and oblique block diagrams. It tries to simplify the process of visualizing data while also maintaining flexibility by running from the command line in a Unix environment and operating mainly on flat text-format data files. tectoplot started as a basic script to automate making shaded relief maps with GMT, and has snowballed over time to incorporate additional functions like plate motion models, swath profiles of topography or other data, cross sections, perspective block diagrams, 3d models via Sketchfab, etc.  
 
-tectoplot is mainly intended for small-scale geological studies where maps are 10+km across and data are in geographic coordinates. More detailed areas with projected data are currently beyond the scope of the program.
+tectoplot is mainly intended for small-scale seismotectonic studies where maps are 10+km across and data are in geographic coordinates. More detailed areas with projected data are currently beyond the scope of the program.
 
-Calculations generally leave behind the intermediate steps and final data in a temporary folder. This gives access to (for instance) raw swath profile data, filtered seismicity data, clipped DEMs or grids, etc. Some functions generate scripts that can be used to adjust displays or can be the basis of more complex plots (e.g. perspective diagrams).
+Calculations generally leave behind the intermediate steps and final data in a temporary folder. This gives access to (for instance) raw swath profile data, filtered seismicity data, clipped DEMs or grids, etc. Some functions generate shell scripts that can be used to adjust displays or can be the basis of more complex plots (e.g. perspective diagrams).
 
-tectoplot will download and manage various publicly available datasets, like SRTM/GEBCO bathymetry, ISC/GCMT seismicity and focal mechanisms, global populated places, gravity and magnetic data, volcanoes, active faults, etc. It tries to simplify the seismicity catalogs to ensure that maps do not have (for instance) multiple versions of the same event. This process is currently a bit ad-hoc and could be improved. tectoplot can plot either centroid or origin locations for CMT data and will also draw lines to show the alternative locations, on both maps and profiles.
+tectoplot will download and manage various publicly available datasets, like SRTM/GEBCO bathymetry, ISC/GCMT seismicity and focal mechanisms, global populated places, gravity and magnetic data, volcanoes, active faults, etc. It tries to simplify the seismicity catalogs to ensure that maps do not have (for instance) multiple versions of the same event. tectoplot can plot either centroid or origin locations for CMT data and will also draw lines to show the alternative locations, on both maps and profiles.
 
-tectoplot's cross section functionality supports multiple profiles incorporating various kinds of data (swath grids like topography or gravity, along-profile sampled grids like Slab2.0 depth grids, XYZ data, XYZ seismicity data scaled by magnitude, and focal mechanisms). Profiles can be aligned in the X direction using an XY polyline that crosses the profiles, such as a trench axis, and can be aligned in the Z direction by matching profile values to 0 at this intersection point. This allows stacking of profiles. Profiles can have more than two vertices, and attempts are made to project data intelligently onto such profiles. Notably, a signed distance function is available that will extract topography in a distance-from-track and distance-along-track-of-closest-point-on-track space, which avoids some of the nasty artifacts arising from kinked profiles.
+tectoplot's cross section functionality supports multiple profiles incorporating various kinds of data (swath grids like topography or gravity, along-profile sampled grids like Slab2.0 depth grids, XYZ data, XYZ seismicity data scaled by magnitude, and focal mechanisms). Profiles can be aligned in the X direction using an XY polyline that crosses the profiles, such as a trench axis, and can be aligned in the Z direction by matching profile values to 0 at this intersection point. This allows stacking of profiles. Profiles can have more than two vertices, and attempts are made to project data intelligently onto such profiles. Notably, a signed distance function is available that will extract topography in a distance-from-track and distance-along-track-of-closest-point-on-track space, which avoids some of the nasty artifacts arising from kinked profiles - but raises other issues.
 
 ## Credits
+
 This script relies very heavily on GMT 6 (www.generic-mapping-tools.org), gdal (gdal.org), and GNU awk (gawk).
 
-NDK import in cmt_tools.sh is heavily modified from ndk2meca.awk by Thorsten Becker (sourced from http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk)
+NDK import in cmt_tools.sh was inspired by ndk2meca.awk by Thorsten Becker (sourced from http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk)
 
 Moment tensor diagonalization in done in awk (yes, you read that correctly).
 
-Various CMT calculations are modified from GMT's psmeca.c/ultimeca.c by G. Patau (IPGP)
+Various CMT calculations are modified from GMT's classic psmeca.c/ultimeca.c by G. Patau (IPGP)
 
 tectoplot includes source redistributions of:
- Texture shading by Leland Brown and TIFF generation by Brett Casebolt (C source)
+ Texture shading by Leland Brown and TIFF generation by Brett Casebolt (C source with very minor modifications)
     -> Including two new sub-programs for sky view factor and cast shadows (C source, Kyle Bradley)
- Reasenberg seismicity declustering (Fortran source).
+ Reasenberg seismicity declustering (Fortran source, minor modifications).
  Zaliapin et al. (2008) seismicity declustering (Python code by Mark Williams, UNR)
-
 
 ## Installation
 
+  tectoplot has been verified to run on linux (Ubuntu), OSX, and Ubuntu running on Windows Subsystem for Linux (WSL).
+
   For full functionality, tectoplot requires that the following programs be
-  callable from a shell script. The tested versions are indicated below
+  callable from a bash 4-5 shell script. The tested versions are indicated below
   (as of May 3, 2021). Earlier or later versions may or may not work fully.
 
   gmt (6.1.1) geod (7.2.1) gawk (5.1.0) gdal (3.2.0) python (3.9) gs (9.26-9.53)
   gcc / g++ / gfortran or other CC, CXX, F90 compilers
 
   Note that gs 9.53 will pipe warnings to stdout about transparency. It's fine to
-  downgrade to an earlier version like gs 9.26
+  downgrade to an earlier version like gs 9.26 to avoid these messages.
+
+  If your system doesn't already meet these criteria, or you want a more consistent environment, tectoplot's dependencies can be installed via homebrew or miniconda using the installation script provided in the git repository:
+
+  Run the following command from a terminal to download and execute the easy installation script:
+
+  /usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
+
+  This script will prompt for options and paths, and then clone the tectoplot and tectoplot-example
+  repositories, download homebrew + dependencies, or download miniconda+dependencies.
 
   1. Decide what you want to install and where you want to install it:
 
@@ -83,9 +93,6 @@ tectoplot includes source redistributions of:
   - (recommended) tectoplot-examples
   - dependencies installed via homebrew (install if necessary)
   - (recommended) dependencies installed via miniconda (install if necessary)
-
-  tectoplot will compile several helper programs written in C/C++/Fortran and
-  will use gcc, g++, and gfortran by default.
 
   Installing via homebrew will try to install the following packages and their
   dependencies:
@@ -97,54 +104,53 @@ tectoplot includes source redistributions of:
   (OSX): python=3.9 git gmt gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_linux-64
   (Linux): python=3.9 git gmt gawk ghostscript gcc_linux-64 gxx_linux-64 gfortran_linux-64
 
-  2. TO INSTALL TECTOPLOT EASILY: Run the following command from a terminal to
-     download and execute the easy installation script:
-
-/usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
-
-  This script will prompt for options and paths, and then clone the tectoplot and tectoplot-example
-  repositories, download homebrew + dependencies, or download miniconda+dependencies.
+  During installation, tectoplot will compile several helper programs written in C/C++/Fortran and
+  will use gcc, g++, and gfortran by default. If this process fails or if you install tectoplot manually, you will need to run 'tectoplot -compile' from the command line.
 
 ## Cloning the repository directly
 
 git clone https://github.com/kyleedwardbradley/tectoplot
+git clone https://github.com/kyleedwardbradley/tectoplot-examples
 
 ## Setting up tectoplot after installation
 
 If you did not use the installation script, you will need to do the following steps:
 
-1.	Add the new directory to your path environment variable
+1.	Add the new directory to your path environment variable. You may need to restart your terminal or
+    otherwise ensure that your path has been updated.
 
   > cd tectoplot
   > ./tectoplot -addpath
   > . ~/.profile
 
 2.	Define the directory where downloaded data will reside. tectoplot will
-    download a lot of data if asked, and will store cached DEM tiles in this
-    directory, so make sure you have ~20 GB of disk space.
+    download a lot of data if asked, and will also store cached DEM tiles in this
+    directory, so make sure you have ~20 GB of disk space and a lot of time.
 
   > tectoplot -setdatadir "/full/path/to/data/directory/"
 
 3.	Download the online datasets into the data directory. If an error occurs,
-    run this command again until all downloads clear.
+    run this command again until all downloads clear. If something seems really broken,
+    please let me know.
 
   > tectoplot -getdata
 
-4.	Compile accompanying codes (-getdata may have downloaded some of these codes)
+4.	Compile accompanying Fortran/C codes (-getdata may have downloaded some of these codes)
 
   > tectoplot -compile
 
 5.	Scrape and process the seismicity and focal mechanism catalogs. This will
-     take a -very- long time!
+     take a -very- long time! The code is also a bit touchy and it's possible that things
+     can get messed up - if that happens, delete the folders containing the offending
+     data and scrape it again.
 
   > tectoplot -scrapedata
 
 6.	If Preview is not your PDF viewer, set an alternative that is callable from
-    the command line (e.g. evince in this case)
+    the command line (e.g. evince in this case). This program will be called to open
+    all PDFs generated (unless the -noopen option is given)
 
   > tectoplot -setopen evince
-
-
 
 
 ## Examples
