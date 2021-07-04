@@ -1820,6 +1820,46 @@ fi
       plots+=("aprofcodes")
     ;;
 
+  -arrow)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-arrow:     change the width of arrow vectors
+-arrow [narrower | narrow | normal | wide | wider]
+
+Example: Plot GPS velocities with wide arrows
+  tectoplot -a -g pa -arrow wide
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  case "${2}" in
+    # GMT 4 arrow format
+    # tailwidth/headlength/halfheadwidth
+    narrower)
+      ARROWFMT="0.01/0.14/0.06"
+      shift
+      ;;
+    narrow)
+      ARROWFMT="0.02/0.14/0.06"
+      shift
+      ;;
+    normal)
+      ARROWFMT="0.06/0.12/0.06"
+      shift
+      ;;
+    wide)
+      ARROWFMT="0.08/0.14/0.1"
+      shift
+      ;;
+    wider)
+      ARROWFMT="0.1/0.3/0.2"
+      shift
+      ;;
+    *)
+      info_msg "[-arrow]: wide | ... "
+  esac
+  ;;
+
   -author)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3620,7 +3660,16 @@ fi
         info_msg "[-li]: Line width specified. Using ${USERLINEWIDTH_arr[$userlinefilenumber]}."
       fi
 
-      info_msg "[-pt]: LINE${userlinefilenumber}: ${USERLINEDATAFILE[$userlinefilenumber]}"
+      if [[ "${2}" == "fill" ]]; then
+        info_msg "[-li]: Fillling polygon"
+        USERLINEFILL_arr[$userlinefilenumber]="-Gred"
+        shift
+      else
+        USERLINEFILL_arr[$userlinefilenumber]=""
+        shift
+      fi
+
+      info_msg "[-li]: LINE${userlinefilenumber}: ${USERLINEDATAFILE[$userlinefilenumber]}"
 
       plots+=("userline")
 
@@ -3882,6 +3931,8 @@ Profile control file format:
 @ XMIN[auto] XMAX[auto] ZMIN[auto] ZMAX[auto] CROSSINGZEROLINE_FILE ZMATCH_FLAG[match|null]
 # Profile axes labels
 L |Label X|Label Y|Label Z
+# Various flags to affect plotting behavior
+M ...
 # Focal mechanism data file
 C CMTFILE SWATH_WIDTH ZSCALE GMT_arguments
 # Earthquake (scaled) xyzm data file
@@ -3899,6 +3950,7 @@ B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 # Profiles are defined with P command
 # XOFFSET/ZOFFSET can be a value, 0 (allow shifting), or null (0 and don't shift)
 P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
+
 
 Example: Make oblique perspective cross section the Eastern Mediterranean
   printf "@ auto auto -30 5 null\n" > ./profile.control
@@ -5322,7 +5374,11 @@ cat <<-EOF
 -rect:         make rectangular map for non-rectangular projections
 -rect
 
-  Works with -RJ UTM
+  Confirmed to work with the following map projections:
+    UTM
+    Albers|B
+    Lambert|L
+    Equid|D
 
 Example: Make a rectangular map of a high latitude region with a UTM projection
    tectoplot -r -160 -150 54 60 -a -RJ UTM -rect
@@ -6355,6 +6411,17 @@ fi
 		fi
     plots+=("slipratedeficit")
 		;;
+
+    -text)
+    if ! arg_is_flag "${2}"; then
+      TEXTFILE=$(abs_path "${2}")
+      shift
+    else
+      info_msg "[-text]: text file needed as argument"
+      exit
+    fi
+    plots+=("text")
+    ;;
 
     -tflat)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -8028,7 +8095,7 @@ fi
   -zconland)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zconland:    select FMS/seismicity with origin epicenter on land
+-zconland:    select FMS/seismicity with origin epicenter beneath land
 -zconland
 
 Example: None
@@ -8038,6 +8105,24 @@ EOF
   fi
 
   zconlandflag=1
+  zc_land_or_sea=1
+
+  ;;
+
+  -zconsea)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zconsea:    select FMS/seismicity with origin epicenter beneath the sea
+-zconsea:
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  zconlandflag=1
+  zc_land_or_sea=0
 
   ;;
 
@@ -8435,6 +8520,13 @@ INCH=$PSSIZE
 # based on the maximal range present in the final plot. I would usually do this by
 # rendering the map frame as populated polylines and finding the maximal coordinates of the vertices.
 
+# It is important that if MAKERECTMAP is set to 1, then also
+# rj[0] contains the -R string and rj[1] contains the -J string
+
+if [[ $MAKERECTMAP -eq 1 && ${rj[0]} == -R* && ${rj[1]} == -J* ]]; then
+  rj[0]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
+  RJSTRING="${rj[@]}"
+fi
 # We have to set the RJ flag after setting the plot size (INCH)
 
 if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
@@ -8447,8 +8539,9 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
   fi
   info_msg "Using UTM Zone $UTMZONE"
 
+
   if [[ $MAKERECTMAP -eq 1 ]]; then
-    rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
+  #  rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
     rj[2]="-JU${UTMZONE}/${INCH}i"
     RJSTRING="${rj[@]}"
 
@@ -9699,6 +9792,40 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   fi
   info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
+  ##############################################################################
+  # Select seismicity on land
+
+  if [[ $zconlandflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
+    info_msg "Selecting seismicity on land or at sea"
+    if [[ -s ${F_TOPO}dem.nc ]]; then
+
+      gmt grdtrack ${F_SEIS}eqs.txt -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
+      {
+        if (landorsea==1) {
+          # Land
+          print ($1>0)?1:0
+        } else {
+          # sea
+          print ($1<=0)?1:0
+        }
+      }'> ${F_SEIS}eqs_onland_sel.txt
+      gawk '
+      (NR==FNR) {
+        toprint[NR]=$1
+      }
+      (NR!=FNR) {
+        if (toprint[NR-length(toprint)]==1) {
+          print
+        }
+      }' ${F_SEIS}eqs_onland_sel.txt ${F_SEIS}eqs.txt > ${F_SEIS}eqs_onland.txt
+    fi
+    if [[ -s ${F_SEIS}eqs_onland.txt ]]; then
+      cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_land.txt
+      mv ${F_SEIS}eqs_onland.txt ${F_SEIS}eqs.txt
+    fi
+  fi
+
+
   # Select seismicity from eqlist
 
   if [[ $eqlistselectflag -eq 1 ]]; then
@@ -10035,9 +10162,15 @@ if [[ $calccmtflag -eq 1 ]]; then
           ;;
       esac
 
-      gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${F_TOPO}dem.nc | gawk '
+      gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
       {
-        print ($1>0)?1:0
+        if (landorsea==1) {
+          # Land
+          print ($1>0)?1:0
+        } else {
+          # sea
+          print ($1<=0)?1:0
+        }
       }'> ${F_CMT}cmt_onland_sel.txt
       gawk '
       (NR==FNR) {
@@ -12119,8 +12252,9 @@ for plot in ${plots[@]} ; do
 
     userline)
       info_msg "Plotting line dataset $current_userlinefilenumber"
-      # gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
-      gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
+      echo       gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE \>\> map.ps
+
+      gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
       current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)
       ;;
       #
@@ -12359,7 +12493,15 @@ for plot in ${plots[@]} ; do
         fi
         if [[ -e ${F_SEIS}eqs.txt ]]; then
           info_msg "Adding eqs to sprof as seis-xyz"
-          echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 -W0.2p,black" >> sprof.control
+
+          EQLWNUM=$(echo $EQLINEWIDTH | gawk '{print $1 + 0}')
+          if [[ $(echo "${EQLWNUM} == 0" | bc) -eq 1 ]]; then
+            EQWCOM=""
+          else
+            EQWCOM="-W${EQLINEWIDTH},${EQLINECOLOR}"
+          fi
+
+          echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 ${EQWCOM}" >> sprof.control
         fi
         if [[ -e ${F_CMT}cmt.dat ]]; then
           info_msg "Adding cmt to sprof"
@@ -13303,6 +13445,12 @@ echo banana
         gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyblock $RJOK $VERBOSE >> map.ps
       fi
 			;;
+
+    text)
+      gmt pstext ${TEXTFILE}  -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
+      # -Dj-0.05i/0.025i+v0.7p,black
+    ;;
+
 
     topo)
 
