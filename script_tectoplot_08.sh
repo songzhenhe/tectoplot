@@ -158,7 +158,7 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
 # November 13, 2020: Added -zs option to include supplemental seismic dataset (cat onto eqs.txt)
 # November 13, 2020: Fixed a bug in gridded data profile that added bad info to all_data.txt
 # November 12, 2020: Added -rect option for -RJ UTM to plot rectangular map (updating AOI as needed)
-# November 11, 2020: Added -zsort option to sort EQs before plotting
+# November 11, 2020: Added -zcsort option to sort EQs before plotting
 # November 11, 2020: Added ability to plot scale bar of specified length centered on lon/lat point
 # November 11, 2020: Fixed a bug in ISC focal mechanism scraper that excluded all Jan-April events! (!!!), also adds pre-1976 GCMT/ISC mechanisms, mostly deep focus
 # November 10, 2020: Updated topo contour plotting and CPT management scheme
@@ -2264,18 +2264,21 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cfilter:         filter CMT by nodal plane dip or rake range
--cfilter [command1] [range1] [[command2]] [[range2]] ...
+-cfilter [command1] [arg1] [[command2]] [[arg2]] ...
 
-The filter is satisfied if the criteria are met by any nodal plane.
+The criteria are evaluated separately, and an event is rejected only
+if neither nodal plane meets each criterion. rakerange takes two
+arguments.
 
-commands:
-Not implemented:  maxstrike [strike]
-Not implemented:  minstrike [strike]
+commands (all arguments are in degrees)
+
   maxdip    [dip]
   mindip    [dip]
+  maxstrike [strike]
+  minstrike [strike)]
   rakerange [minrake] [maxrake]
 
-Example: Plot CMT data with rake between 160 and 130, New Zealand
+Example: Plot CMT data with a nodal plane with a rake between 160 and 130, New Zealand
   tectoplot -r NZ -a -c -cfilter rakerange 130 160
 --------------------------------------------------------------------------------
 EOF
@@ -2304,6 +2307,28 @@ fi
             shift
           else
             info_msg "[-cfilter]: mindip requires positive float argument"
+            exit
+          fi
+        ;;
+        maxstrike)
+          cfiltercommand+=("${2}")
+          shift
+          if arg_is_positive_float $2; then
+            CF_MAXSTRIKE="$2"
+            shift
+          else
+            info_msg "[-cfilter]: maxstrike requires positive float argument"
+            exit
+          fi
+        ;;
+        minstrike)
+          cfiltercommand+=("${2}")
+          shift
+          if arg_is_positive_float $2; then
+            CF_MINSTRIKE="$2"
+            shift
+          else
+            info_msg "[-cfilter]: minstrike requires positive float argument"
             exit
           fi
         ;;
@@ -2391,7 +2416,8 @@ fi
     if [[ -e ${CLIP_POLY_FILE} ]]; then
       info_msg "[-clipon|clipout]: Using polygon file ${CLIP_POLY_FILE}"
       shift
-      plots+=("clipon")
+      [[ $clipcmd =~ "-clipon" ]] && plots+=("clipon")
+      [[ $clipcmd =~ "-clipout" ]] && plots+=("clipout")
     else
       info_msg "[-clipon|clipout]: No polygon file ${CLIP_POLY_FILE} found. Interpreting as GMT ID"
       # Extract the DCW borders and fix the longitude range if necessary
@@ -2404,11 +2430,11 @@ fi
           print $1+360, $2
         }
         else if ($1==">"){
-          print "0 x"
+         print "0 x"
         }
-        # else {
-        #   print
-        # }
+        else {
+          print
+        }
       }' > ${TMP}tectoplot_path.clip
 
       CLIP_POLY_FILE=$(abs_path ${TMP}tectoplot_path.clip)
@@ -5589,7 +5615,8 @@ fi
         if [[ ${ARG1:1:2} == "g" ]]; then
           info_msg "[-RJ]: using global circle map ($ARG1)"
         else
-          recalcregionflag_lonlat=1
+          info_msg "[-RJ]: not recalculating region due to broken behavior"
+          # recalcregionflag_lonlat=1
         fi
       ;;
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
@@ -8379,11 +8406,11 @@ fi
     dontplotseisflag=1
     ;;
 
-  -zsort)
+  -zcsort)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zsort:        sort seismicity and focal mechanisms by a specified dimension
--zsort [[dimension]] [[direction]]
+-zcsort:        sort seismicity and focal mechanisms by a specified dimension
+-zcsort [[dimension]] [[direction]]
 
   dimension: depth | time | mag    (magnitude)
   direction: up | down
@@ -8394,14 +8421,14 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      info_msg "[-zsort]:  No sort dimension specified. Using depth."
+      info_msg "[-zcsort]:  No sort dimension specified. Using depth."
       ZSORTTYPE="depth"
     else
       ZSORTTYPE="${2}"
       shift
     fi
     if arg_is_flag $2; then
-      info_msg "[-zsort]:  No sort direction specified. Using down."
+      info_msg "[-zcsort]:  No sort direction specified. Using down."
       ZSORTDIR="down"
     else
       ZSORTDIR="${2}"
@@ -8565,8 +8592,8 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
   info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING[@]}"
 fi
 
-### NOTE: All "Default projection" sections below are now unneeded as we have
-###       a well defined RJSTRING for all maps
+
+# We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
 
 # Examine boundary of map to see of we want to reset the AOI to only the map area
 
@@ -9887,7 +9914,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
         SORTFIELD=4
       ;;
       *)
-        info_msg "[-zsort]: Sort field $ZSORTTYPE not recognized. Using depth."
+        info_msg "[-zcsort]: Sort field $ZSORTTYPE not recognized. Using depth."
         SORTFIELD=3
       ;;
     esac
@@ -10111,9 +10138,25 @@ if [[ $calccmtflag -eq 1 ]]; then
     FILTERFILE=$(abs_path ${F_CMT}cmt_cfilter.txt)
 
     for thiscmd in ${cfiltercommand[@]}; do
-      echo "Processing ${thiscmd} beginning with $(wc -l < ${FILTERFILE}) lines"
+      info_msg "[-cfilter]: Processing ${thiscmd} beginning with $(wc -l < ${FILTERFILE}) lines"
 
       case $thiscmd in
+        maxstrike)
+          gawk < ${FILTERFILE} -v strike=${CF_MAXSTRIKE} '{
+             if ($16 <= strike || $19 <= strike) {
+               print
+             }
+          }' > ${F_CMT}filter.out
+           mv ${F_CMT}filter.out ${FILTERFILE}
+        ;;
+        minstrike)
+          gawk < ${FILTERFILE} -v strike=${CF_MINSTRIKE} '{
+             if ($16 >= strike || $19 >= strike) {
+               print
+             }
+          }' > ${F_CMT}filter.out
+           mv ${F_CMT}filter.out ${FILTERFILE}
+        ;;
         maxdip)
           gawk < ${FILTERFILE} -v dip=${CF_MAXDIP} '{
              if ($17 <= dip || $20 <= dip) {
@@ -10625,7 +10668,7 @@ fi
           SORTFIELD=13
         ;;
         *)
-          info_msg "[-zsort]: Sort field $ZSORTTYPE not recognized. Using depth."
+          info_msg "[-zcsort]: CMT Sort field $ZSORTTYPE not recognized. Using depth."
           SORTFIELD=3
         ;;
       esac
@@ -11818,18 +11861,23 @@ for plot in ${plots[@]} ; do
       ;;
 
     clipon)
+      info_msg "[-clipon]: Activating interior clipping using ${CLIP_POLY_FILE}"
       [[ -s ${CLIP_POLY_FILE} ]] && gmt psclip ${CLIP_POLY_FILE} ${RJOK} ${VERBOSE} >> map.ps
       ;;
 
     clipout)
+      info_msg "[-clipout]: Activating exterior clipping using ${CLIP_POLY_FILE}"
       [[ -s ${CLIP_POLY_FILE} ]] && gmt psclip -N ${CLIP_POLY_FILE} ${RJOK} ${VERBOSE} >> map.ps
       ;;
 
     clipoff)
+      info_msg "[-clipoff]: Deactivating clipping"
       gmt psclip -C -K -O ${VERBOSE} >> map.ps
       ;;
 
     clipline)
+      info_msg "[-clipline]: Plotting clipping path using ${CLIP_POLY_FILE}"
+
       [[ -s ${CLIP_POLY_FILE} ]] && gmt psxy ${CLIP_POLY_FILE} ${CLIP_POLY_PEN} ${RJOK} ${VERBOSE} >> map.ps
       ;;
 
