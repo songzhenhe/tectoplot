@@ -8599,7 +8599,7 @@ fi
 
 info_msg "Recalculating AOI using grdcut"
 
-gmt grdcut ${RJSTRING[@]} /Users/kylebradley/Dropbox/scripts/tectoplot/globaldem.nc -Gcut.nc
+# gmt grdcut ${RJSTRING[@]} /Users/kylebradley/Dropbox/scripts/tectoplot/globaldem.nc -Gcut.nc
 
 info_msg "Recalculating AOI from map boundary"
 
