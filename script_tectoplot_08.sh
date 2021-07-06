@@ -5615,8 +5615,8 @@ fi
         if [[ ${ARG1:1:2} == "g" ]]; then
           info_msg "[-RJ]: using global circle map ($ARG1)"
         else
-          info_msg "[-RJ]: not recalculating region due to broken behavior"
-          # recalcregionflag_lonlat=1
+          info_msg "[-RJ]: will recalculate data region using lonlat"
+          recalcregionflag_lonlat=1
         fi
       ;;
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
@@ -8596,6 +8596,10 @@ fi
 # We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
 
 # Examine boundary of map to see of we want to reset the AOI to only the map area
+
+info_msg "Recalculating AOI using grdcut"
+
+gmt grdcut ${RJSTRING[@]} /Users/kylebradley/Dropbox/scripts/tectoplot/globaldem.nc -Gcut.nc
 
 info_msg "Recalculating AOI from map boundary"
 

@@ -515,26 +515,26 @@ property float z
 property uchar red
 property uchar green
 property uchar blue
-element material 1
-property uchar ambient_red
-property uchar ambient_green
-property uchar ambient_blue
-property float ambient_coeff
-property uchar diffuse_red
-property uchar diffuse_green
-property uchar diffuse_blue
-property float diffuse_coeff
-property uchar specular_red
-property uchar specular_green
-property uchar specular_blue
-property float specular_coeff
-property float specular_power
-property float opacity
 end_header
 EOF
 
-        PLY_POLYSCALE_SEIS=$(echo "${PLY_SCALE} * ${PLY_POLYSCALE}" | bc -l)
+# element material 1
+# property uchar ambient_red
+# property uchar ambient_green
+# property uchar ambient_blue
+# property float ambient_coeff
+# property uchar diffuse_red
+# property uchar diffuse_green
+# property uchar diffuse_blue
+# property float diffuse_coeff
+# property uchar specular_red
+# property uchar specular_green
+# property uchar specular_blue
+# property float specular_coeff
+# property float specular_power
+# property float opacity
 
+        PLY_POLYSCALE_SEIS=$(echo "${PLY_SCALE} * ${PLY_POLYSCALE}" | bc -l)
 
         replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
         gawk -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE_SEIS} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
@@ -604,7 +604,7 @@ EOF
 
           cat ${F_3D}tectoplot_header.ply ${F_3D}tectoplot_vertex.ply > ${F_3D}tectoplot.ply
 
-          echo "255 255 255 0.3 255 255 255 0.4 255 255 255 0.6 0.4 ${PLY_PT_OPACITY}" >> ${F_3D}tectoplot.ply
+#          echo "255 255 255 0.3 255 255 255 0.4 255 255 255 0.6 0.4 ${PLY_PT_OPACITY}" >> ${F_3D}tectoplot.ply
   fi
 
   # Make the 3D mesh from topography
