@@ -9989,7 +9989,6 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   if [[ $polygonselectflag -eq 1 ]]; then
     info_msg "Selecting seismicity within speficied AOI polygon ${POLYGONAOI}"
     mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
-    echo gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn
     gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
     # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
     # cleanup ${F_SEIS}eqs_preselect.txt
@@ -12517,7 +12516,8 @@ for plot in ${plots[@]} ; do
 			;;
 
     graticule)
-      gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
+      gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
+  #  gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
       ;;
 
     grav)
@@ -12681,6 +12681,7 @@ for plot in ${plots[@]} ; do
     mapscale)
       # The values of SCALECMD will be set by the scale) section
       SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f $SCALEFILL"
+      gmt psbasemap ${SCALECMD} $RJOK $VERBOSE >> map.ps
       ;;
 
     aprofcodes)
