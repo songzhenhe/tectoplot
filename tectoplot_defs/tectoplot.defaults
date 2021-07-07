@@ -311,6 +311,10 @@ COUNTRY_LABEL_FONTSIZE="8p"
 COUNTRY_LABEL_FONT="Helvetica"
 COUNTRY_LABEL_FONTCOLOR="red"
 
+BORDER_STATE_QUALITY="-Da"
+BORDER_STATE_LINEWIDTH="0.3p"
+BORDER_STATE_LINECOLOR="red"
+
 ################################################################################
 ##### Global Curie Depth Map (GCDM)
 GCDMMIN=4                   # Minimum depth of CPT

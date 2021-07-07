@@ -1551,6 +1551,44 @@ fi
     fi
     ;;
 
+  -acs)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-acb:          plot state borders
+-acb [[line color=${BORDER_STATE_LINECOLOR}]] [[line width${BORDER_STATE_LINEWIDTH}]] [[border quality=${BORDER_STATE_QUALITY}]]
+  a - auto: select best resolution given map scale.
+  f - full resolution (may be very slow for large regions).
+  h - high resolution (may be slow for large regions).
+  i - intermediate resolution.
+  l - low resolution [Default].
+  c - crude resolution, for busy plots that need crude continent outlines only.
+Example: Plot state borders and coastline
+  tectoplot -r g -a l -acs red 0.2p a
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+      plots+=("stateborders")
+      if arg_is_flag $2; then
+        info_msg "[-acs]: No border line color specified. Using $BORDER_STATE_LINECOLOR"
+      else
+        BORDER_STATE_LINECOLOR="${2}"
+        shift
+      fi
+      if arg_is_flag $2; then
+        info_msg "[-acs]: No border line width specified. Using $BORDER_STATE_LINEWIDTH"
+      else
+        BORDER_STATE_LINEWIDTH="${2}"
+        shift
+      fi
+      if arg_is_flag $2; then
+        info_msg "[-acs]: No border quality specified [a,l,f]. Using $BORDER_STATE_QUALITY"
+      else
+        BORDER_STATE_QUALITY="-D${2}"
+        shift
+      fi
+      ;;
+
   -acl)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8568,11 +8606,15 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
 
 
   if [[ $MAKERECTMAP -eq 1 ]]; then
-  #  rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
+    rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
     rj[2]="-JU${UTMZONE}/${INCH}i"
     RJSTRING="${rj[@]}"
 
+    echo "Making map outline"
+    echo     gmt psbasemap -A $RJSTRING ${VERBOSE}
+
     gmt psbasemap -A $RJSTRING ${VERBOSE} | grep -v "#" > mapoutline.txt
+    echo "Noooo"
     MINLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
     MAXLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
     MINLATNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
@@ -8593,112 +8635,231 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
 fi
 
 
-# We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
-
-# Examine boundary of map to see of we want to reset the AOI to only the map area
-
-info_msg "Recalculating AOI using grdcut"
-
-# gmt grdcut ${RJSTRING[@]} /Users/kylebradley/Dropbox/scripts/tectoplot/globaldem.nc -Gcut.nc
-
-info_msg "Recalculating AOI from map boundary"
-
-# Get the bounding box and normalize longitudes to the range [-180:180]
-# gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
-
-gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
-  ($1!="NaN") {
-    while ($1>180) { $1=$1-360 }
-    while ($1<-180) { $1=$1+360 }
-    if ($1==($1+0) && $2==($2+0)) {
-      print
-    }
-  }' > ${TMP}${F_MAPELEMENTS}bounds.txt
-
-# Project the bounding box using the RJSTRING
-
-# This was always a bad method, try to jettison it
-gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
-
-# The reason to do this is because our -R/// string needs to change based on
-# various earlier settings, so we need to update MINLON/MAXLON/MINLAT/MAXLAT
-
 if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
-    NEWRANGETL=($(gmt mapproject ${RJSTRING[@]} -WjTL ${VERBOSE}))
-    NEWRANGETR=($(gmt mapproject ${RJSTRING[@]} -WjTR ${VERBOSE}))
-    NEWRANGEBL=($(gmt mapproject ${RJSTRING[@]} -WjBL ${VERBOSE}))
-    NEWRANGEBR=($(gmt mapproject ${RJSTRING[@]} -WjBR ${VERBOSE}))
-    # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+# We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
 
-    # echo "TL: ${NEWRANGETL[@]}"
-    # echo "BR: ${NEWRANGEBR[@]}"
-    # echo "CM: ${NEWRANGECM[@]}"
+# Get the bounds using a grid of points
+  gawk '
+  BEGIN {
+    for(i=-90;i<=90;i++) {
+      for(j=-180;j<=180;j++) {
+        print j, i
+      }
+    }
+  }' | gmt gmtselect ${RJSTRING[@]} > selectbounds.txt
 
-    NEWRANGE=($(echo ${NEWRANGETL[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
-    info_msg "Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+  NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
+    BEGIN {
+      found_m180=0
+      found_180=0
+      getline
+      minlon=$1
+      maxlon=$1
+      minlat=$2
+      maxlat=$2
+      maxneglon=-180
+      minposlon=180
+    }
+    {
 
-    # # Only adopt the new range if the max/min values are numbers and their order is OK
-    usenewrange=1
-    if [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]]; then
-      info_msg "recalcregion: The corner method has NaN outputs. Try the bounds method."
-      recalcregionflag_bounds=1
+      minlon=($1<minlon)?$1:minlon
+      maxlon=($1>maxlon)?$1:maxlon
+      minlat=($2<minlat)?$2:minlat
+      maxlat=($2>maxlat)?$2:maxlat
+      maxneglon=($1>maxneglon && $1<=0)?$1:maxneglon
+      minposlon=($1<minposlon && $1>=0)?$1:minposlon
 
-    fi
-    # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
+      # if ($1==-180) {
+      #   found_m180=1
+      # } else if ($1==180) {
+      #   found_180=1
+      # }
 
-    # This newrange needs to take into account longitudes below -180 and above 180...
+      foundlon[$1]=1
+      lon[NR]=$1
+      lat[NR]=$2
+    }
+    END {
 
-    if [[ $usenewrange -eq 1 ]]; then
-      info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-      MINLON=${NEWRANGE[0]}
-      MAXLON=${NEWRANGE[1]}
-      MINLAT=${NEWRANGE[2]}
-      MAXLAT=${NEWRANGE[3]}
-    else
-      info_msg "Could not update AOI based on map extent."
-    fi
+      print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
+      print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
+      if (minlon==-180 && maxlon==180) {
+        crosses_meridian=0
+        # Either it is a global extent, or crosses the antimeridian
+
+        if (length(foundlon)==361) {
+          print "Detected global longitude range"  > "/dev/stderr"
+          if (minlon >= -180+buffer_d) {
+            minlon-=buffer_d
+          }
+          if (maxlon <= 180-buffer_d ) {
+            maxlon += buffer_d
+          }
+          if (minlat >= -90+buffer_d) {
+            minlat-=buffer_d
+          }
+          if (maxlat <= 90-buffer_d) {
+            maxlat+=buffer_d
+          }
+          print minlon, maxlon, minlat, maxlat
+        } else {
+          print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
+          maxneglon+=360
+          if (minposlon >= buffer_d+0) {
+            minposlon-=buffer_d
+          }
+          if (maxneglon <= 180-buffer_d ) {
+            maxneglon += buffer_d
+          }
+          if (minlat >= -90+buffer_d) {
+            minlat-=buffer_d
+          }
+          if (maxlat <= 90-buffer_d) {
+            maxlat+=buffer_d
+          }
+          print minposlon, maxneglon, minlat, maxlat
+
+        }
+      } else {
+        print "Detected reasonable longitude range"  > "/dev/stderr"
+        if (minlon >= -180+buffer_d) {
+          minlon-=buffer_d
+        }
+        if (maxlon <= 180-buffer_d ) {
+          maxlon += buffer_d
+        }
+        if (minlat >= -90+buffer_d) {
+          minlat-=buffer_d
+        }
+        if (maxlat <= 90-buffer_d) {
+          maxlat+=buffer_d
+        }
+        print minlon, maxlon, minlat, maxlat
+      }
+
+    }'))
+
+  # range=$(xy_range selectbounds.txt)
+  # Points at -180 and 180 indicates crossing of the antimeridian. In that case, we choose the positive longitude
+
+  echo "Inferred range is ${NEWRANGE[@]}"
+  MINLON=${NEWRANGE[0]}
+  MAXLON=${NEWRANGE[1]}
+  MINLAT=${NEWRANGE[2]}
+  MAXLAT=${NEWRANGE[3]}
+
 fi
 
-if [[ $recalcregionflag_bounds -eq 1 ]]; then
 
-    NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}bounds.txt))
-    # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+echo ${MINLON} ${MAXLAT}> ${TMP}${F_MAPELEMENTS}bounds.txt
+echo ${MAXLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
+echo ${MAXLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
+echo ${MINLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 
-    # echo "TL: ${NEWRANGETL[@]}"
-    # echo "BR: ${NEWRANGEBR[@]}"
-    # echo "CM: ${NEWRANGECM[@]}"
 
-  #  NEWRANGE=($(echo ${NEWRANGE[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
-    info_msg "Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-
-    # # Only adopt the new range if the max/min values are numbers and their order is OK
-    usenewrange=1
-    [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]] && usenewrange=0
-
-    # [[ ${NEWRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
-
-    # This newrange needs to take into account longitudes below -180 and above 180...
-
-    if [[ $usenewrange -eq 1 ]]; then
-      info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-      MINLON=${NEWRANGE[0]}
-      MAXLON=${NEWRANGE[1]}
-      MINLAT=${NEWRANGE[2]}
-      MAXLAT=${NEWRANGE[3]}
-    else
-      info_msg "Could not update AOI based on map extent."
-    fi
-fi
+# # Examine boundary of map to see of we want to reset the AOI to only the map area
+#
+# # info_msg "Recalculating AOI from map boundary"
+#
+# # Get the bounding box and normalize longitudes to the range [-180:180]
+# # gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
+#
+# echo Getting bounds: gmt psbasemap ${RJSTRING[@]} -A
+#
+# gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+#   ($1!="NaN") {
+#     while ($1>180) { $1=$1-360 }
+#     while ($1<-180) { $1=$1+360 }
+#     if ($1==($1+0) && $2==($2+0)) {
+#       print
+#     }
+#   }' > ${TMP}${F_MAPELEMENTS}bounds.txt
+#
+# # Project the bounding box using the RJSTRING
+#
+# # This was always a bad method, try to jettison it
+gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
+#
+# # The reason to do this is because our -R/// string needs to change based on
+# # various earlier settings, so we need to update MINLON/MAXLON/MINLAT/MAXLAT
+#
+# if [[ $recalcregionflag_lonlat -eq 1 ]]; then
+#
+#     NEWRANGETL=($(gmt mapproject ${RJSTRING[@]} -WjTL ${VERBOSE}))
+#     NEWRANGETR=($(gmt mapproject ${RJSTRING[@]} -WjTR ${VERBOSE}))
+#     NEWRANGEBL=($(gmt mapproject ${RJSTRING[@]} -WjBL ${VERBOSE}))
+#     NEWRANGEBR=($(gmt mapproject ${RJSTRING[@]} -WjBR ${VERBOSE}))
+#     # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+#
+#     # echo "TL: ${NEWRANGETL[@]}"
+#     # echo "BR: ${NEWRANGEBR[@]}"
+#     # echo "CM: ${NEWRANGECM[@]}"
+#
+#     NEWRANGE=($(echo ${NEWRANGETL[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
+#     info_msg "mapproject points method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+#
+#     # # Only adopt the new range if the max/min values are numbers and their order is OK
+#     usenewrange=1
+#     if [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]]; then
+#       info_msg "recalcregion: The corner method has NaN outputs. Try the bounds method."
+#       recalcregionflag_bounds=1
+#
+#     fi
+#     # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
+#     # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
+#
+#     # This newrange needs to take into account longitudes below -180 and above 180...
+#
+#     if [[ $usenewrange -eq 1 ]]; then
+#       info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+#       MINLON=${NEWRANGE[0]}
+#       MAXLON=${NEWRANGE[1]}
+#       MINLAT=${NEWRANGE[2]}
+#       MAXLAT=${NEWRANGE[3]}
+#     else
+#       info_msg "Could not update AOI based on map extent."
+#     fi
+# fi
+#
+# if [[ $recalcregionflag_bounds -eq 1 ]]; then
+#
+#     NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}bounds.txt))
+#     # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+#
+#     # echo "TL: ${NEWRANGETL[@]}"
+#     # echo "BR: ${NEWRANGEBR[@]}"
+#     # echo "CM: ${NEWRANGECM[@]}"
+#
+#   #  NEWRANGE=($(echo ${NEWRANGE[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
+#     info_msg "Bounds method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+#
+#     # # Only adopt the new range if the max/min values are numbers and their order is OK
+#     usenewrange=1
+#     [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]] && usenewrange=0
+#
+#     # [[ ${NEWRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+#     # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
+#     # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
+#
+#     # This newrange needs to take into account longitudes below -180 and above 180...
+#
+#     if [[ $usenewrange -eq 1 ]]; then
+#       info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+#       MINLON=${NEWRANGE[0]}
+#       MAXLON=${NEWRANGE[1]}
+#       MINLAT=${NEWRANGE[2]}
+#       MAXLAT=${NEWRANGE[3]}
+#     else
+#       info_msg "Could not update AOI based on map extent."
+#     fi
+# fi
 
 NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
 
@@ -8853,7 +9014,7 @@ BEGIN {
 }' > ${F_MAPELEMENTS}aprof_database_proj.txt
 
 # Project aprof_database.txt back to geographic coordinates and rearrange
-gmt mapproject ${F_MAPELEMENTS}aprof_database_proj.txt ${RJSTRING[@]} -I ${VERBOSE} | tr '\t' ' ' > ${F_MAPELEMENTS}aprof_database.txt
+gmt mapproject ${F_MAPELEMENTS}aprof_database_proj.txt ${RJSTRING[@]} -I ${VERBOSE} | tr '\t' ' ' | gawk '($1!="NaN"){print}' > ${F_MAPELEMENTS}aprof_database.txt
 
 # Extract the aprof list to make the profiles
 for code in ${aproflist[@]}; do
@@ -12035,6 +12196,10 @@ for plot in ${plots[@]} ; do
 
     countryborders)
       gmt pscoast ${BORDER_QUALITY} -N1/${BORDER_LINEWIDTH},${BORDER_LINECOLOR} $RJOK $VERBOSE >> map.ps
+      ;;
+
+    stateborders)
+      gmt pscoast ${BORDER_STATE_QUALITY} -N2/${BORDER_STATE_LINEWIDTH},${BORDER_STATE_LINECOLOR} $RJOK $VERBOSE >> map.ps
       ;;
 
     countrylabels)
