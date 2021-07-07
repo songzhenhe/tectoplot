@@ -6621,6 +6621,7 @@ fi
     done
     PLOTTITLE="${TITLELIST[@]}"
     plottitleflag=1
+    plots+=("maptitle")
     ;;
 
   -tn)
@@ -9252,7 +9253,8 @@ fi
 if [[ $usecustombflag -eq 0 ]]; then
   bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
   bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
-  bcmds+=("-B${GRIDCALL}${TITLE}")
+  bcmds+=("-B${GRIDCALL}")
+  # bcmds+=("-B${GRIDCALL}${TITLE}")
   BSTRING=("${bcmds[@]}")
 fi
 
@@ -12682,6 +12684,24 @@ for plot in ${plots[@]} ; do
       # The values of SCALECMD will be set by the scale) section
       SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f $SCALEFILL"
       gmt psbasemap ${SCALECMD} $RJOK $VERBOSE >> map.ps
+      ;;
+
+    maptitle)
+
+      gmt psbasemap "-B+t\"${PLOTTITLE}\"" $RJOK $VERBOSE >> map.ps
+ #
+ # [[ $PLOTTITLE == "" ]]; then
+ #        TITLE=""
+ #      else
+ #        TITLE="+t\"${PLOTTITLE}\""
+ #      fi
+ #      if [[ $usecustombflag -eq 0 ]]; then
+ #        bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
+ #        bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
+ #        bcmds+=("-B${GRIDCALL}${TITLE}")
+ #        BSTRING=("${bcmds[@]}")
+ #      fi
+
       ;;
 
     aprofcodes)
