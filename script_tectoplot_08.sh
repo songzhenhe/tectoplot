@@ -4581,10 +4581,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pg:           use polygon file to select data
--pg [filename] [[show]]
+-pg [ filename | GMTcode ] [[show]]
 
   Select seismicity data within polygon.
   Polygon file is either XY format or is the first feature in a KML file
+  GMTcode is any GMT region code consistent with pscoast -E{code} -M, e.g. US.MT
   show: plot the polygon boundary
 
 Example:
@@ -4596,19 +4597,26 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      info_msg "[-pg]: No polygon file specified."
+      info_msg "[-pg]: No polygon file or region specified."
     else
-      polygonselectflag=1
-      POLYGONAOI=$(abs_path $2)
+      POLYGONAOI="${2}"
       shift
-      if [[ ! -e $POLYGONAOI ]]; then
-        info_msg "[-pg]: Polygon file $POLYGONAOI does not exist."
-        exit 1
+      if [[ ! -s $POLYGONAOI ]]; then
+        info_msg "[-pg]: Polygon file $POLYGONAOI does not exist or is empty. Treating string as a GMT region code!"
+        gmt pscoast -E"${POLYGONAOI}" -M > gmt_polyselect.txt
+        if [[ -s gmt_polyselect.txt ]]; then
+          POLYGONAOI=$(abs_path gmt_polyselect.txt)
+          polygonselectflag=1
+          fixselectpolygonsflag=1
+        fi
       else
+        POLYGONAOI=$(abs_path "${POLYGONAOI}")
         if [[ ${POLYGONAOI} =~ ".kml" ]]; then
           kml_to_first_xy ${POLYGONAOI} pg_poly.xy
           POLYGONAOI=$(abs_path pg_poly.xy)
         fi
+        polygonselectflag=1
+        fixselectpolygonsflag=1
       fi
       if arg_is_flag $2; then
         info_msg "[-pg]: Not plotting polygon."
@@ -4623,8 +4631,10 @@ fi
       fi
     fi
 
+
+
     # Now we have to fix the polygon file in case polygons cross the dateline.
-    [[ -s ${POLYGONAOI} ]] && fixselectpolygonsflag=1
+    # [[ -s ${POLYGONAOI} ]] && fixselectpolygonsflag=1
 
     ;; # args: none
 
@@ -9979,8 +9989,10 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   if [[ $polygonselectflag -eq 1 ]]; then
     info_msg "Selecting seismicity within speficied AOI polygon ${POLYGONAOI}"
     mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
+    echo gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn
     gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-    cleanup ${F_SEIS}eqs_preselect.txt
+    # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+    # cleanup ${F_SEIS}eqs_preselect.txt
   fi
   info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
