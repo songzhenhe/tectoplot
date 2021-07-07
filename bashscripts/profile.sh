@@ -1405,17 +1405,31 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       gawk < ${xyzfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4}'> ${F_PROFILES}tmpbuf.txt
 
       # Paste result onto input lines and select the points that are closest to current track out of all tracks
+
+      # Note: if the tracks cross each other, then this will cause complicated and unwanted behavior!
+
       paste ${F_PROFILES}tmpbuf.txt ${xyzfilelist[i]} ${F_PROFILES}tmp.txt  > ${F_PROFILES}joinbuf.txt
 
-      cat ${F_PROFILES}joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
-        if ($1==lineid) {
-          for (i=2;i<=NF;++i) {
-            printf "%s ", $(i)
-          }
-          printf("\n")
-        }
-      }' > ${F_PROFILES}$FNAME
 
+      if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
+        info_msg "[profile.sh]: XYZ IS using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
+        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+          if ($1==lineid) {
+            for (i=2;i<=NF;++i) {
+              printf "%s ", $(i)
+            }
+            printf("\n")
+          }
+        }' > ${F_PROFILES}$FNAME
+      else
+        info_msg "[profile.sh]: XYZ NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
+        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+           for (i=2;i<=NF;++i) {
+             printf "%s ", $(i)
+           }
+           printf("\n")
+       }' > ${F_PROFILES}$FNAME
+      fi
       # output is lon lat ... fields ... dist_to_track lon_at_track lat_at_track
 
       # Calculate distance from data points to any profile line, using only first two columns, then paste onto input file.
@@ -1584,9 +1598,29 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
+      if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
+        info_msg "[profile.sh]: labels ARE using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
+        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+          if ($1==lineid) {
+            for (i=2;i<=NF;++i) {
+              printf "%s ", $(i)
+            }
+            printf("\n")
+          }
+        }' > ${F_PROFILES}$FNAME
+      else
+        info_msg "[profile.sh]: labels NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
+        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+           for (i=2;i<=NF;++i) {
+             printf "%s ", $(i)
+           }
+           printf("\n")
+       }' > ${F_PROFILES}$FNAME
+      fi
+
       gawk < ${F_CMT}cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
-      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-        if ($1==lineid && $2/1000 < (maxdist+0)) {
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+        if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
@@ -1595,8 +1629,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       }' > ${F_PROFILES}cmt_thrust_sel.txt
 
       if [[ -e ${F_CMT}cmt_alt_pts_thrust.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1608,8 +1642,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       # cmt_alt_lines comes in the format >:lat1 lon1 z1:lat2 lon2 z2\n
       # Split into two XYZ files, project each file separately, and then merge to plot.
       if [[ -e ${F_CMT}cmt_alt_lines_thrust.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_thrust.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1625,8 +1659,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       fi
 
       gawk < ${F_CMT}cmt_normal.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
-      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_normal.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-        if ($1==lineid && $2/1000 < (maxdist+0)) {
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_normal.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+        if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
@@ -1635,8 +1669,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       }' > ${F_PROFILES}cmt_normal_sel.txt
 
       if [[ -e ${F_CMT}cmt_alt_pts_normal.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1646,8 +1680,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       fi
 
       if [[ -e ${F_CMT}cmt_alt_lines_normal.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_normal.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1663,8 +1697,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       fi
 
       gawk < ${F_CMT}cmt_strikeslip.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
-      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_strikeslip.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-        if ($1==lineid && $2/1000 < (maxdist+0)) {
+      paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_strikeslip.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+        if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
             printf "%s ", $(i)
           }
@@ -1673,8 +1707,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       }' > ${F_PROFILES}cmt_strikeslip_sel.txt
 
       if [[ -e ${F_CMT}cmt_alt_pts_strikeslip.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_pts_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1684,8 +1718,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       fi
 
       if [[ -e ${F_CMT}cmt_alt_lines_strikeslip.xyz ]]; then
-        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH '{
-          if ($1==lineid && $2/1000 < (maxdist+0)) {
+        paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_alt_lines_strikeslip.xyz | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
+          if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
             for (i=3;i<=NF;++i) {
               printf "%s ", $(i)
             }
@@ -1929,14 +1963,35 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           paste ${F_PROFILES}tmpbuf_${LINEID}.txt ${labelfilelist[i]} ${F_PROFILES}tmpA_${LINEID}.txt  > ${F_PROFILES}joinbuf.txt
       #      head joinbuf.txt
       #      echo PROFILE_INUM=$PROFILE_INUM
-          cat ${F_PROFILES}joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
-            if ($1==lineid) {
-              for (i=2;i<=NF;++i) {
-                printf "%s ", $(i)
+
+          if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
+            info_msg "[profile.sh]: labels ARE using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
+            gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+              if ($1==lineid) {
+                for (i=2;i<=NF;++i) {
+                  printf "%s ", $(i)
+                }
+                printf("\n")
               }
-              printf("\n")
-            }
-          }' > ${F_PROFILES}$FNAME
+            }' > ${F_PROFILES}$FNAME
+          else
+            info_msg "[profile.sh]: labels NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
+            gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+               for (i=2;i<=NF;++i) {
+                 printf "%s ", $(i)
+               }
+               printf("\n")
+           }' > ${F_PROFILES}$FNAME
+          fi
+
+          # cat ${F_PROFILES}joinbuf.txt | gawk -v lineid=$PROFILE_INUM '{
+          #   if ($1==lineid) {
+          #     for (i=2;i<=NF;++i) {
+          #       printf "%s ", $(i)
+          #     }
+          #     printf("\n")
+          #   }
+          # }' > ${F_PROFILES}$FNAME
 
           # output is lon lat ... fields ... dist_to_track lon_at_track lat_at_track
 

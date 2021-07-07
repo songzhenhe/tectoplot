@@ -80,6 +80,8 @@ DEM_LONBUFFER=0.0       # Extra height of DEM vs AOI (Degrees)
 
 PLOT_SECTIONS_PROFILEFLAG=1
 
+PROFILE_USE_CLOSEST=0    # If set to 1, only plot data on closest profile; If 0 plot on all profiles
+
 OTO_METHOD="change_h"    # choose from change_z and change_h
 
 DECLUSTER_MINSIZE=1

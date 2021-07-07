@@ -5970,6 +5970,106 @@ fi
     plots+=("mapscale")
     ;;
 
+  -north)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-north:        plot a north arrow
+-north [size] [[lon]] [[lat]]
+-north [size] [[aprofcode]]
+
+  arrow is centered on the reference point
+  aprofcode is an uppercase letter map location ID (plot using -aprofcodes)
+
+Example:
+  tectoplot -r US.CO -t -north 1i C
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    # We just use this section to create the SCALECMD values
+
+    if arg_is_flag $2; then
+      info_msg "[-north]: No north arrow size specified. Using 0.5i"
+      ARROWSIZE="0.5i"
+    else
+      ARROWSIZE="${2}"
+      shift
+    fi
+    # Adjust position and buffering of scale bar using either letter combinations OR Lat/Lon location
+
+    if arg_is_float $2; then
+      ARROWREFLON="${2}"
+      shift
+      if arg_is_float $2; then
+        ARROWREFLAT="${2}"
+        ARROWLENLAT="${2}"
+        shift
+      else
+        info_msg "[-north]: Only longitude and not latitude specified. Using $MAXLAT"
+        ARROWREFLAT=$MINLAT
+        ARROWLENLAT=$MINLAT
+      fi
+    fi
+
+    if [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
+      info_msg "[-north]: aprofcode ${2:0:1} found."
+      ARROWAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+      BEGIN {
+          row[1]="AFKPU"
+          row[2]="BGLQV"
+          row[3]="CHMRW"
+          row[4]="DINSX"
+          row[5]="EJOTY"
+          difflat=maxlat-minlat
+          difflon=maxlon-minlon
+
+          newdifflon=difflon*8/10
+          newminlon=minlon+difflon*1/10
+          newmaxlon=maxlon-difflon*1/10
+
+          newdifflat=difflat*8/10
+          newminlat=minlat+difflat*1/10
+          newmaxlat=maxlat-difflat*1/10
+
+          minlon=newminlon
+          maxlon=newmaxlon
+          minlat=newminlat
+          maxlat=newmaxlat
+          difflat=newdifflat
+          difflon=newdifflon
+
+          for(i=1;i<=5;i++) {
+            for(j=1; j<=5; j++) {
+              char=toupper(substr(row[i],j,1))
+              lats[char]=minlat+(i-1)/4*difflat
+              lons[char]=minlon+(j-1)/4*difflon
+              # print char, lons[char], lats[char]
+            }
+          }
+      }
+      {
+        for(i=1;i<=length($0);++i) {
+          char1=toupper(substr($0,i,1));
+          print lons[char1], lats[char1]
+        }
+      }'))
+      ARROWREFLON=${ARROWAPROF[0]}
+      ARROWREFLAT=${ARROWAPROF[1]}
+      ARROWLENLAT=${ARROWAPROF[1]}
+      shift
+    fi
+
+    if [[ $2 =~ "white" ]]; then
+      ARROWFILL="-F+gwhite"
+      shift
+    else
+      ARROWFILL=""
+    fi
+
+    plots+=("northarrow")
+    ;;
+
+
   -scrapedata) # args: none | gia
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -12684,6 +12784,14 @@ for plot in ${plots[@]} ; do
       # The values of SCALECMD will be set by the scale) section
       SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f $SCALEFILL"
       gmt psbasemap ${SCALECMD} $RJOK $VERBOSE >> map.ps
+      ;;
+
+    northarrow)
+      # The values of SCALECMD will be set by the scale) section
+      ARROWCMD="-Tdg${ARROWREFLON}/${ARROWREFLAT}+w${ARROWSIZE}"
+      # SMALLJ_RJOK=$(echo ${RJSTRING[@]} | tr 'J' 'j')
+      echo gmt psbasemap ${ARROWCMD} $SRJOK $VERBOSE
+      gmt psbasemap ${ARROWCMD} $RJOK $VERBOSE >> map.ps
       ;;
 
     maptitle)
