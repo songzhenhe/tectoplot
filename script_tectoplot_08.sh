@@ -757,12 +757,12 @@ do
         info_msg "[-addpath]: ~/.profile does not exist. Creating."
       else
         val=$(grep "tectoplot" ~/.profile | gawk  'END{print NR}')
-        info_msg "[-addpath]: Backing up ~/.profile file to ${DEFDIR}".profile_old""
+        info_msg "[-addpath]: Backing up ~/.profile file to ${OPTDIR}".profile_old""
 
         if [[ ! $val -eq 0 ]]; then
           echo "[-addpath]: Warning: found $val lines containing tectoplot in ~/.profile. Remove manually."
         fi
-        cp ~/.profile ${DEFDIR}".profile_old"
+        cp ~/.profile ${OPTDIR}".profile_old"
       fi
       echo >> ~/.profile
       echo "# tectoplot " >> ~/.profile
