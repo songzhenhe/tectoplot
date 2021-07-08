@@ -37,6 +37,7 @@ PAGE_COLOR="white"      # Color of the paper background
 EQ_REGION_WIDTH=2       # Width/height of default region surrounding -r eq
 CULL_EQ_CATALOGS=1      # 1 = cull catalogs by default; 0 = don't
 
+PLY_MAXSIZE=800         # Maximum X/Y size of DEM mesh; prevents hanging for large DEMs
 PLY_FIB_KM=250          # Distance in km between global Fibonacci spiral points, PLY output
 PLY_VEXAG=1             # Vertical exaggeration of seismicity
 PLY_VEXAG_TOPO=1        # Vertical exaggeration of topography
@@ -603,5 +604,3 @@ GRIDCONTOURLABELS="on"
 CENTROIDFLAG=0
 
 CMTTYPE="ORIGIN"    # ORIGIN or CENTROID
-[[ $CMTTYPE =~ "ORIGIN" ]] && ORIGINFLAG=1 && CENTROIDFLAG=0
-[[ $CMTTYPE =~ "CENTROID" ]] && ORIGINFLAG=0 && CENTROIDFLAG=1

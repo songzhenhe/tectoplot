@@ -518,22 +518,6 @@ property uchar blue
 end_header
 EOF
 
-# element material 1
-# property uchar ambient_red
-# property uchar ambient_green
-# property uchar ambient_blue
-# property float ambient_coeff
-# property uchar diffuse_red
-# property uchar diffuse_green
-# property uchar diffuse_blue
-# property float diffuse_coeff
-# property uchar specular_red
-# property uchar specular_green
-# property uchar specular_blue
-# property float specular_coeff
-# property float specular_power
-# property float opacity
-
         PLY_POLYSCALE_SEIS=$(echo "${PLY_SCALE} * ${PLY_POLYSCALE}" | bc -l)
 
         replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
@@ -671,15 +655,15 @@ EOF
           dem_orig_minlon=${dem_orig_info[1]}
           dem_orig_maxlon=${dem_orig_info[2]}
 
+
+          # If we are making a globe, we need to adjust the edges to close the mesh
           if [[ $(echo "$dem_orig_minlon < -179 && $dem_orig_minlon > -181" | bc) -eq 1 ]]; then
             if [[ $(echo "$dem_orig_maxlon > 179 && $dem_orig_maxlon < 181" | bc) -eq 1 ]]; then
-              # echo "Let's close the globe!"
               closeglobeflag=1
             fi
           fi
 
           if [[ $plymaxsizeflag -eq 1 ]]; then
-            #PLY_MAXSIZE
             if [[ $(echo "${dem_orig_numx} > ${PLY_MAXSIZE}" | bc) -eq 1 ]]; then
               PERCENTRED=$(echo "${PLY_MAXSIZE} / $dem_orig_numx * 100" | bc -l)
               info_msg "[-makeply]: Reducing DEM by ${PERCENTRED}"
@@ -687,7 +671,6 @@ EOF
               dem_info=($(gmt grdinfo ${F_TOPO}dem_plyrescale.nc -C -Vn))
               dem_numx=${dem_info[9]}
               dem_numy=${dem_info[10]}
-              # info_msg "[-makeply]: New size is", $dem_numx, $dem_numy
               PLY_DEM=${F_TOPO}dem_plyrescale.nc
             else
               PLY_DEM=${F_TOPO}dem.nc
@@ -712,14 +695,8 @@ EOF
           # The texture file will be the shaded relief which has the same dimensions
           # as the DEM, so we can output vt coordinates easily.
 
-          # I need to modify this so that vectorx[i] etc are UNIT SPHERE coordinates
-          # and then output them scaled by 1) topo height, 2) Earth radius (ocean height),
-          # 3) box bottom radius
 
           MAP_PS_DIM=($(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}'))
-
-          # echo "Going in with map_lat_in=${MAP_PS_DIM[0]} -v map_lon_in=${MAP_PS_DIM[1]}"
-  # echo "gawk -v axestext=${PLY_SIDEBOXTEXT} -v axesflag=${PLY_SIDEBOXINTERVAL_SPECIFY} -v axesvert=${PLY_SIDEBOXINTERVAL_VERT} -v axeshorz=${PLY_SIDEBOXINTERVAL_HORZ}"
 
           gawk -v axestext=${PLY_SIDEBOXTEXT} -v axesflag=${PLY_SIDEBOXINTERVAL_SPECIFY} -v axesvert=${PLY_SIDEBOXINTERVAL_VERT} -v axeshorz=${PLY_SIDEBOXINTERVAL_HORZ} -v map_lat_in=${MAP_PS_DIM[0]} -v map_lon_in=${MAP_PS_DIM[1]} -v mtlname=${PLY_MTLNAME} -v zoffset=${PLY_ZOFFSET} -v v_exag=${PLY_VEXAG_TOPO} -v v_exag_data=${PLY_VEXAG} -v width=${dem_numx} -v height=${dem_numy} -v closeglobe=${closeglobeflag} -v makeocean=${plymakeoceanflag} -v makebox=${plysideboxflag} -v boxdepth=${PLY_SIDEBOXDEPTH} -v boxcolor=${PLY_SIDEBOXCOLOR} '
           @include "tectoplot_functions.awk"

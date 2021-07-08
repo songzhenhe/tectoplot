@@ -28,37 +28,13 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# To do: define grid points for plate motions using own lon/lat text file
-
-VERSION="0.4.1"
-TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, March 2021"
-
-# Formula for an enhanced map
-# tectoplot -n -r ~/Dropbox/SumatraMaps/Sumbawa.jpg -im ~/Dropbox/SumatraMaps/Sumbawa.jpg -noframe -t 01s -tclip 116.7 118.5 -9.116666 -8 -tflat -tuni -tunsetflat -tshad 55 5 -timg ~/Dropbox/SumatraMaps/Sumbawa.jpg -open
-
-#
-# Script to make seismotectonic plots with integrated plate motions and
-# earthquake kinematics, plus cross sections, primarily using GMT.
-#
-# Kyle Bradley, Nanyang Technological University (kbradley@ntu.edu.sg)
-# Prefers GS 9.26 (and no later) for transparency
-
-# NOTE: You have to be careful with culling earthquakes because it will remove
-#       ORIGIN seismicity in favor of CENTROID focal mechanisms which may result
-#       in non-plotting of the preserved CMT if the centroid is far away.
-
-# ISSUE: If no top tile grid is given, various parts of the profile script will
-# fail to work as we won't have the profile width and scale factors set correctly
-# and won't generate the top plot script.
-
-# -kv option should automatically create two panels which are projections to the
-# right and bottom of kinematic slip vector data. Right = same height as map
-# bottom = same width as map. Units are latitude and longitude.
-
-# To do: plot TPN axes on cross sections
+VERSION="0.4.2"
+TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
 
 
-# CHANGELOG
+# July   0,    2021: Added PLY_MAXSIZE=800 to defaults
+
+# CHANGELOG - stopped updating in May
 
 # May    9,    2021: Added -zccluster to profiles, including CMT
 #                  : Updated earthquake culling code, fixed eqlabels on profiles
@@ -271,18 +247,25 @@ RJOK="-R -J -O -K"
 SOURCE="${BASH_SOURCE[0]}"
 
 if [[ ${SOURCE//[^[:space:]]} ]]; then
-    echo "Error: tectoplot script resides in a path containing a space."
+    echo "Error: tectoplot script resides in a path containing a space. Out of caution, exiting."
     exit 1
 fi
 
+# if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
   DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
   SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 TECTOPLOTDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"/
 
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
+
+# OPTDIR contains personal definitions (tectoplot.author, tectoplot.regions, etc) that do no
+
+OPTDIR=$TECTOPLOTDIR"tectoplot_opts/"
+
+[[ ! -d ${OPTDIR} ]] && mkdir -p ${OPTDIR}
 
 # These files are sourced using the . command, so they should be valid bash
 # scripts but without #!/bin/bash
@@ -291,7 +274,11 @@ TECTOPLOT_DEFAULTS_FILE=$DEFDIR"tectoplot.defaults"
 TECTOPLOT_PATHS_FILE=$DEFDIR"tectoplot.paths"
 TECTOPLOT_PATHS_MESSAGE=$DEFDIR"tectoplot.paths.message"
 TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
-TECTOPLOT_AUTHOR=$DEFDIR"tectoplot.author"
+
+# These files are personal definitions stored in OPTDIR
+
+TECTOPLOT_AUTHOR=${OPTDIR}"tectoplot.author"
+DATAROOTDIR=${OPTDIR}"tectoplot.dataroot"
 
 ################################################################################
 # Load CPT defaults, paths, and defaults
@@ -1914,7 +1901,7 @@ cat <<-EOF
 -author nodate
   Plot author but not timestamp on map.
 -author "Author ID"
-  Store author information in ${DEFDIR}tectoplot.author
+  Store author information in ${OPTDIR}tectoplot.author
 
 Example: Reset a stored author ID and then update it to "Author 1"
   tectoplot -author print
@@ -2070,34 +2057,20 @@ fi
     # CMTFILE=$FOCALCATALOG
 
     # Select focal mechanisms from GCMT, ISC, GCMT+ISC
-    if arg_is_flag $2; then
-      CENTROIDFLAG=1
-      ORIGINFLAG=0
-      CMTTYPE="CENTROID"
-    else
+    if [[ "${2}" == "ORIGIN" || "${2}" == "CENTROID" ]]; then
       CMTTYPE="${2}"
       shift
-      case ${CMTTYPE} in
-        ORIGIN)
-          CENTROIDFLAG=0
-          ORIGINFLAG=1
-          ;;
-        CENTROID)
-          CENTROIDFLAG=1
-          ORIGINFLAG=0
-          ;;
-        *)
-          info_msg "[-c]: Allowed CMT types are ORIGIN and CENTROID"
-        ;;
-      esac
-      if arg_is_flag $2; then
-        info_msg "[-c]: No scaling for CMTs specified... using default $CMTSCALE"
-      else
-        CMTSCALE="${2}"
-        info_msg "[-c]: CMT scale updated to $CMTSCALE"
-        shift
-      fi
     fi
+    if arg_is_flag $2; then
+      info_msg "[-c]: No scaling for CMTs specified... using default $CMTSCALE"
+    else
+      CMTSCALE="${2}"
+      info_msg "[-c]: CMT scale updated to $CMTSCALE"
+      shift
+    fi
+
+    [[ $CMTTYPE =~ "ORIGIN" ]] && ORIGINFLAG=1 && CENTROIDFLAG=0
+    [[ $CMTTYPE =~ "CENTROID" ]] && ORIGINFLAG=0 && CENTROIDFLAG=1
 
 		plots+=("cmt")
     cpts+=("seisdepth")
@@ -5828,20 +5801,20 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      echo "[-setdatadir]: No data directory specified. Current dir is:"
-      cat $DEFDIR"tectoplot.dataroot"
+      echo -n "[-setdatadir]: No data directory specified. Current data directory is: "
+      cat ${DATAROOTDIR}
       exit 1
     else
       datadirpath=$(abs_path $2)
       # Directory will end with / after abs_path
       shift
       if [[ -d ${datadirpath} ]]; then
-        echo "[-setdatadir]: Data directory ${datadirpath} exists."
-        echo "${datadirpath}" > $DEFDIR"tectoplot.dataroot"
+        echo "[-setdatadir]: Setting data directory to ${datadirpath}"
+        echo "${datadirpath}" > ${DATAROOTDIR}
       else
-        echo "[-setdatadir]: Data directory ${datadirpath} does not exist. Creating."
+        echo "[-setdatadir]: Creating new data directory ${datadirpath}"
         mkdir -p "${datadirpath}"
-        echo "${datadirpath}" > $DEFDIR"tectoplot.dataroot"
+        echo "${datadirpath}" > ${DATAROOTDIR}
       fi
     fi
     exit
@@ -13438,10 +13411,10 @@ echo banana
     seissum)
       echo res ${SSRESC}
       # Convert Mw to M0 and sum within grid nodes, then take the log10 and plot.
-      gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -Gseissum.nc ${VERBOSE}
-      gmt grdmath ${VERBOSE} seissum.nc LOG10 = seisout.nc
-      gmt grd2cpt -Qo -I -Cseis seisout.nc ${VERBOSE} > ${CPTDIR}seisout.cpt
-      gmt grdimage seisout.nc -C${CPTDIR}seisout.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+      gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
+      gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = seisout.nc
+      gmt grd2cpt -Qo -I -Cseis ${F_CPTS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+      gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
       ;;
 
     slab2)
