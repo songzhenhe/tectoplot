@@ -388,14 +388,14 @@ SANDWELL2019_CURV_bytes="829690416"
 
 ##### EarthByte Data provided with GPlates
 
-EARTHBYTEDIR=$DATAROOT"EarthByte/"
+TECTFABRICSDIR=$DATAROOT"EarthByte/"
 
 EARTHBYTE_ISOCHRONS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPlates/SampleData_GPlates2.2/Individual/FeatureCollections/Isochrons.zip"
 EARTHBYTE_ISOCHRONS_SHP_BYTES=310048
 EARTHBYTE_ISOCHRONS_ZIP_BYTES=714027
 
-EARTHBYTE_ISOCHRONS_SHP=${EARTHBYTEDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.shp"
-EARTHBYTE_ISOCHRONS_GMT=${EARTHBYTEDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.gmt"
+EARTHBYTE_ISOCHRONS_SHP=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.shp"
+EARTHBYTE_ISOCHRONS_GMT=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.gmt"
 
 EARTHBYTE_ISOCHRONS_SOURCESTRING="Müller, R.D., Seton, M., Zahirovic, S., Williams, S.E., Matthews, K.J., Wright, N.M., Shephard, G.E., Maloney, K.T., Barnett-Moore, N., Hosseinpour, M., Bower, D.J. & Cannon, J. 2016. Ocean Basin Evolution and Global-Scale Plate Reorganization Events Since Pangea Breakup, Annual Review of Earth and Planetary Sciences, vol. 44, pp. 107 . DOI: 10.1146/annurev-earth-060115-012211."
 EARTHBYTE_ISOCHRONS_SHORT_SOURCESTRING="EarthByte"
@@ -405,8 +405,8 @@ EARTHBYTE_HOTSPOTS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPl
 EARTHBYTE_HOTSPOTS_SHP_BYTES=2004
 EARTHBYTE_HOTSPOTS_ZIP_BYTES=31660
 
-EARTHBYTE_HOTSPOTS_SHP=${EARTHBYTEDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.shp"
-EARTHBYTE_HOTSPOTS_GMT=${EARTHBYTEDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.gmt"
+EARTHBYTE_HOTSPOTS_SHP=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.shp"
+EARTHBYTE_HOTSPOTS_GMT=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.gmt"
 
 EARTHBYTE_HOTSPOTS_SOURCESTRING="Whittaker, J., Afonso, J., Masterton, S., Müller, R., Wessel, P., Williams, S., and Seton, M., 2015, Long-term interaction between mid-ocean ridges and mantle plumes: Nature Geoscience, v. 8, no. 6, p. 479-483, doi: 10.1038/ngeo2437"
 EARTHBYTE_HOTSPOTS_SHORT_SOURCESTRING="EarthByte"
@@ -566,6 +566,52 @@ SRCMODFSPLOCATIONS=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/FSPlocations.txt"
 ##### Plate models
 
 PLATEMODELSDIR=$TECTOPLOTDIR"platemodels/"
+
+# EarthByte datasets
+
+TECTFABRICSDIR=${PLATEMODELSDIR}"TectonicFabrics/"
+
+EARTHBYTE_SOURCESTRING="EarthByte data from GPlates2.2.0, converted to GMT format using GPlates: https://www.earthbyte.org/gplates-2-2-software-and-data-sets/"
+EARTHBYTE_SHORT_SOURCESTRING="EarthByte"
+
+# Discordant zones
+EARTHBYTE_DZ=${TECTFABRICSDIR}"DZ.gmt"
+
+# Extinct Ridges (not used)
+EARTHBYTE_ER=${TECTFABRICSDIR}"ER.gmt"
+
+# Fracture Zones
+EARTHBYTE_FZ=${TECTFABRICSDIR}"FZ.gmt"
+EARTHBYTE_FZLC=${TECTFABRICSDIR}"FZLC.gmt"
+
+# Pseudofaults
+EARTHBYTE_PF=${TECTFABRICSDIR}"PF.gmt"
+
+# Propagating ridges
+EARTHBYTE_PR=${TECTFABRICSDIR}"PR.gmt"
+
+# Unclassified V-anomalies
+EARTHBYTE_UNCV=${TECTFABRICSDIR}"UNCV.gmt"
+
+# V-shaped structures
+EARTHBYTE_VANOM=${TECTFABRICSDIR}"VANOM.gmt"
+
+# Additional datasets from GPlates2.2.0 converted to .gmt format
+# See source directory for README and licensing files
+
+TECTFABRICS_SR=${TECTFABRICSDIR}"Muller_etal_AREPS_2016_Ridges.gmt"
+
+TECTFABRICS_SR_SOURCESTRING="Seafloor fabrics: Müller et al., 2016 10.1146/annurev-earth-060115-012211"
+TECTFABRICS_SR_SHORT_SOURCESTRING="M2016"
+
+TECTFABRICS_VP=${TECTFABRICSDIR}"Johansson_etal_2018_VolcanicProvinces_v2.gmt"
+
+TECTFABRICS_VP_SOURCESTRING="Volcanic provinces: Johansson et al., 2018 doi:10.1029/2017GL076691"
+TECTFABRICS_VP_SHORT_SOURCESTRING="VP/JH2018"
+
+TECTFABRICS_CP=${TECTFABRICSDIR}"Matthews_etal_GPC_2016_ContinentalPolygons.gmt"
+TECTFABRICS_CP_SOURCESTRING="Continental polygons: Matthews et al., 2016"
+TECTFABRICS_CP_SHORT_SOURCESTRING="CP/M2016"
 
 # MORVEL56-NNR (Argus et al., 2011)
 MORVEL_SOURCESTRING="MORVEL56 NNR plate motions, Argus et al., 2011 doi:10.1111/j.1365-246X.2009.04491.x"

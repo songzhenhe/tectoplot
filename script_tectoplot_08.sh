@@ -846,11 +846,11 @@ do
       # check_and_download_dataset "IDCODE" $SOURCEURL "yes" $DESTDIR $CHECKFILE $DESTDIR"data.zip" $CHECKFILE_BYTES $ZIP_BYTES
 
       # First do the EarthByte datasets
-      check_and_download_dataset "EB-ISO" $EARTHBYTE_ISOCHRONS_SOURCEURL "yes" $EARTHBYTEDIR $EARTHBYTE_ISOCHRONS_SHP $EARTHBYTEDIR"iso.zip" $EARTHBYTE_ISOCHRONS_SHP_BYTES $EARTHBYTE_ISOCHRONS_ZIP_BYTES
+      check_and_download_dataset "EB-ISO" $EARTHBYTE_ISOCHRONS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_ISOCHRONS_SHP $TECTFABRICSDIR"iso.zip" $EARTHBYTE_ISOCHRONS_SHP_BYTES $EARTHBYTE_ISOCHRONS_ZIP_BYTES
       # Convert EB_ISO shapefile to GMT format for psxy usage
       [[ ! -s $EARTHBYTE_ISOCHRONS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_ISOCHRONS_GMT $EARTHBYTE_ISOCHRONS_SHP
 
-      check_and_download_dataset "EB-HOT" $EARTHBYTE_HOTSPOTS_SOURCEURL "yes" $EARTHBYTEDIR $EARTHBYTE_HOTSPOTS_SHP $EARTHBYTEDIR"hot.zip" $EARTHBYTE_HOTSPOTS_SHP_BYTES $EARTHBYTE_HOTSPOTS_ZIP_BYTES
+      check_and_download_dataset "EB-HOT" $EARTHBYTE_HOTSPOTS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_HOTSPOTS_SHP $TECTFABRICSDIR"hot.zip" $EARTHBYTE_HOTSPOTS_SHP_BYTES $EARTHBYTE_HOTSPOTS_ZIP_BYTES
       # Convert EB_ISO shapefile to GMT format for psxy usage
       [[ ! -s $EARTHBYTE_HOTSPOTS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_HOTSPOTS_GMT $EARTHBYTE_HOTSPOTS_SHP
 
@@ -3034,18 +3034,107 @@ fi
     plots+=("refpoint")
 	   ;;
 
-    -fz)
+  # Plot tectonic fabrics
+  -tf)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--fz:           plot oceanic fracture zones
--fz
+-tf:           plot tectonic fabrics
+-tf [code1] [[code2]] ...
+
+  codes
+  all: Plot all codes except cp
+
+  cp: continental polygons (Matthews et al., 2016; via Gplates2.2.0)
+  dz: discordant zones (EarthByte)
+  fz: fracture zones (EarthByte)
+  pf: pseudo faults (EarthByte)
+  pr: propagating ridges (EarthByte)
+  sr: spreading ridges (active and extinct) (Muller et al., 2016; via Gplates2.2.0)
+  va: v-anomalies, classified and unclassified (EarthByte)
+  vp: volcanic provinces (Johansson et al., 2018; via Gplates2.2.0)
 
 Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-  plots+=("gfsml_fz")
+
+  unset tectonic_fabrics
+  if [[ "${2}" == "all" ]]; then
+    tectonic_fabrics+=("vp")
+    tectonic_fabrics+=("dz")
+    tectonic_fabrics+=("fz")
+    tectonic_fabrics+=("pf")
+    tectonic_fabrics+=("pr")
+    tectonic_fabrics+=("sr")
+    tectonic_fabrics+=("va")
+    cpts+=("geoage")
+    plots+=("geoage")  # Fake
+
+    echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+    echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $TECTFABRICS_SR_SOURCESTRING >> ${LONGSOURCES}
+    echo $TECTFABRICS_SR_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $TECTFABRICS_VP_SOURCESTRING >> ${LONGSOURCES}
+    echo $TECTFABRICS_VP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    shift
+  else
+    while ! arg_is_flag "${2}"; do
+        case "${2}" in
+          cp)
+            tectonic_fabrics+=("cp")
+            echo $TECTFABRICS_CP_SOURCESTRING >> ${LONGSOURCES}
+            echo $TECTFABRICS_CP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            cpts+=("plateid")
+          ;;
+          dz)
+            tectonic_fabrics+=("dz")
+            echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+            echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          ;;
+          fz)
+            tectonic_fabrics+=("fz")
+            # plots+=("fracturezones")
+            echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+            echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          ;;
+          pf)
+            tectonic_fabrics+=("pf")
+            echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+            echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          ;;
+          pr)
+            tectonic_fabrics+=("pr")
+            echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+            echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          ;;
+          sr)
+            tectonic_fabrics+=("sr")
+            echo $TECTFABRICS_SR_SOURCESTRING >> ${LONGSOURCES}
+            echo $TECTFABRICS_SR_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            # plots+=("spreadingridges")
+          ;;
+          va)
+            tectonic_fabrics+=("va")
+            echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
+            echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          ;;
+          vp)
+            tectonic_fabrics+=("vp")
+            # plots+=("volcanicprovinces")
+            echo $TECTFABRICS_VP_SOURCESTRING >> ${LONGSOURCES}
+            echo $TECTFABRICS_VP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            makegeoageflag=1
+          ;;
+        esac
+    shift
+    done
+  fi
+  if [[ $makegeoageflag -eq 1 ]]; then
+    cpts+=("geoage")
+    plots+=("geoage")  # Fake
+  fi
+  plots+=("tectonic_fabrics")
   ;;
 
 	-g|--gps) # args: none || string
@@ -6644,6 +6733,9 @@ Example: Solomon Islands seismicity between Jan 1 2001 and Jan 1 2005
 EOF
 shift && continue
 fi
+    STARTTIME=$(date_shift_utc $daynum 0 0 0)
+    ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
+
     timeselectflag=1
     if [[ "${2}" == "week" ]]; then
       weeknum=1
@@ -6666,10 +6758,14 @@ fi
       STARTTIME=$(date_shift_utc $daynum 0 0 0)
       ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
     else
-      STARTTIME="${2}"
-      ENDTIME="${3}"
-      shift
-      shift
+      if ! arg_is_flag "${2}"; then
+        STARTTIME="${2}"
+        shift
+      fi
+      if ! arg_is_flag "${2}"; then
+        ENDTIME="${2}"
+        shift
+      fi
     fi
     info_msg "Time constraints: $STARTTIME to $ENDTIME"
     ;;
@@ -11662,12 +11758,40 @@ for cptfile in ${cpts[@]} ; do
 	case $cptfile in
 
     eqtime)
-      gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
+
+      gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
+        BEGIN {
+          if (timeend-timestart > 60*60*24*365.25 * 5) {
+            # Greater than 5 years
+            endstr_start=4
+            endstr_end=4
+          } else if (timeend-timestart >= 60*60*24*365.25 * 1) {
+            # Greater than or equal to 1 year but less than 5 years
+            endstr_start=4
+            endstr_end=4
+          } else if (timeend-timestart < 60*60*24*365.25 * 1) {
+            # Less than one year - use full timestring
+            endstr_start=19
+            endstr_end=19
+            print substr(timeend, 17, 3) > "/dev/stderr"
+            if (substr(timeend, 17, 3) == ":00") {
+              endstr_end=16
+            }
+            if (substr(timestart, 17, 3) == ":00") {
+              endstr_start=16
+            }
+          }
+          gsub(/T/, " ", timestart)
+          gsub(/T/, " ", timeend)
+          gsub(/-/, "/", timestart)
+          gsub(/-/, "/", timeend)
+        }
+
         {
           if (NR==1) {
-            print $1,$2,$3, $4, ";" substr(timestart,1,4)
+            print $1,$2,$3, $4, ";" substr(timestart,1,endstr_start)
           } else if ($5=="B") {
-            print $1,$2,$3,$4, ";" substr(timeend,1,4)
+            print $1,$2,$3,$4, ";" substr(timeend,1,endstr_end)
           } else if (NF>3) {
             print $1,$2,$3,$4, ";"
           } else {
@@ -11675,11 +11799,39 @@ for cptfile in ${cpts[@]} ; do
           }
         }' > ${F_CPTS}"eqtime.cpt"
         gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
+          BEGIN {
+            OFMT="%.12f"
+            if (timeend-timestart > 60*60*24*365.25 * 5) {
+              # Greater than 5 years
+              endstr_start=4
+              endstr_end=4
+            } else if (timeend-timestart >= 60*60*24*365.25 * 1) {
+              # Greater than or equal to 1 year but less than 5 years
+              endstr_start=4
+              endstr_end=4
+            } else if (timeend-timestart < 60*60*24*365.25 * 1) {
+              # Less than one year - use full timestring
+              endstr_start=19
+              endstr_end=19
+              print substr(timeend, 17, 3) > "/dev/stderr"
+              if (substr(timeend, 17, 3) == ":00") {
+                endstr_end=16
+              }
+              if (substr(timestart, 17, 3) == ":00") {
+                endstr_start=16
+              }
+            }
+            gsub(/T/, " ", timestart)
+            gsub(/T/, " ", timeend)
+            gsub(/-/, "/", timestart)
+            gsub(/-/, "/", timeend)
+          }
+
           {
             if (NR==1) {
-              print $1/10000000,$2,$3/10000000, $4, ";" substr(timestart,1,4)
+              print $1/10000000,$2,$3/10000000, $4, ";" substr(timestart,1,endstr_start)
             } else if ($5=="B") {
-              print $1/10000000,$2,$3/10000000,$4, ";" substr(timeend,1,4)
+              print $1/10000000,$2,$3/10000000,$4, ";" substr(timeend,1,endstr_end)
             } else if (NF>3) {
               print $1/10000000,$2,$3/10000000,$4, ";"
             } else {
@@ -11712,6 +11864,10 @@ for cptfile in ${cpts[@]} ; do
 
     geoage)
       cp ${CPTDIR}geoage.cpt ${GEOAGE_CPT}
+    ;;
+
+    plateid)
+      gmt makecpt -Ccategorical -Ww -T0/100/1 ${VERBOSE} > ${PLATEID_CPT}
     ;;
 
     grav) # WGM gravity maps
@@ -12538,12 +12694,50 @@ for plot in ${plots[@]} ; do
       gmt psxy $GEMFAULTS -W$AFLINEWIDTH,$AFLINECOLOR $RJOK $VERBOSE >> map.ps
       ;;
 
-    gfsml_fz)
-      gmt psxy $GSFML_FZ1 -W0.5p,black $RJOK ${VERBOSE} >> map.ps
-      gmt psxy $GSFML_FZ2 -W0.5p,black $RJOK ${VERBOSE} >> map.ps
-      # gmt psxy $GSFML_FZ3 -W0.2p,green $RJOK ${VERBOSE} >> map.ps
-      # gmt psxy $GSFML_FZ4 -W0.2p,orange $RJOK ${VERBOSE} >> map.ps
+
+    tectonic_fabrics)
+      for this_fabric in ${tectonic_fabrics[@]}; do
+        case $this_fabric in
+          cp)
+            info_msg "[-tf]: Plotting continental polygons"
+            gmt psxy ${TECTFABRICS_CP} -W0.1p,black+cf -aZ=PLATEID1 -C${PLATEID_CPT} $RJOK ${VERBOSE} >> map.ps
+          ;;
+          dz)
+            info_msg "[-tf]: Plotting discordant zones"
+            gmt psxy ${EARTHBYTE_DZ} -W0.5p,green $RJOK ${VERBOSE} >> map.ps
+          ;;
+          fz)
+            info_msg "[-tf]: Plotting fracture zones"
+            gmt psxy ${EARTHBYTE_FZ} -W0.5p,black $RJOK ${VERBOSE} >> map.ps
+            gmt psxy ${EARTHBYTE_FZLC} -W0.3p,black $RJOK ${VERBOSE} >> map.ps
+          ;;
+          pf)
+            info_msg "[-tf]: Plotting pseudofaults"
+            gmt psxy ${EARTHBYTE_PF} -W0.5p,orange $RJOK ${VERBOSE} >> map.ps
+          ;;
+          pr)
+            info_msg "[-tf]: Plotting propagating ridges"
+            gmt psxy ${EARTHBYTE_PR} -W0.5p,yellow $RJOK ${VERBOSE} >> map.ps
+          ;;
+          sr)
+            info_msg "[-tf]: Plotting spreading ridges"
+            gmt psxy ${TECTFABRICS_SR} -W0.5p,red $RJOK ${VERBOSE} >> map.ps
+          ;;
+          va)
+            info_msg "[-tf]: Plotting v-shaped anomalies"
+            gmt psxy ${EARTHBYTE_UNCV} -W0.5p,white $RJOK ${VERBOSE} >> map.ps
+            gmt psxy ${EARTHBYTE_VANOM} -W0.5p,pink $RJOK ${VERBOSE} >> map.ps
+          ;;
+          vp)
+            info_msg "[-tf]: Plotting volcanic provinces" # including extinct ridges"
+            gmt psxy ${TECTFABRICS_VP} -W0.1p,black+cf -aZ=FROMAGE -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> map.ps
+          ;;
+        esac
+      done
+
+
       ;;
+
 
     ebiso)
       gmt psxy ${EARTHBYTE_ISOCHRONS_GMT} -aZ=FROMAGE -W1p+cl -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> map.ps
@@ -12622,6 +12816,8 @@ for plot in ${plots[@]} ; do
       # Requires *_platevecs.txt to plot velocity field
       # Input data are in mm/yr
       info_msg "Plotting grid arrows"
+
+      # For stereo plots with a horizon, londiff can actually be way too large!
 
       LONDIFF=$(echo "$MAXLON - $MINLON" | bc -l)
       pwnum=$(echo "5p" | gawk  '{print $1+0}')
@@ -14272,6 +14468,18 @@ if [[ $makelegendflag -eq 1 ]]; then
           echo "G 0.2i" >> legendbars.txt
           echo "B $SEIS_CPT 0.2i 0.1i+malu+e -S+c+s -B+l\"Earthquake time\"" >> legendbars.txt
           barplotcount=$barplotcount+1
+        ;;
+
+      geoage)
+        if [[ -e $GEOAGE_CPT ]]; then
+
+          # Reduce the CPT to the used scale range
+          gmt makecpt -C$GEOAGE_CPT -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
+
+          echo "G 0.2i" >> legendbars.txt
+          echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i 0.1i+malu -Bxa100f50+l\"Age (Ma)\"" >> legendbars.txt
+          barplotcount=$barplotcount+1
+        fi
         ;;
 
   		grav)
