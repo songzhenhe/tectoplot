@@ -11787,16 +11787,23 @@ for cptfile in ${cpts[@]} ; do
         }
 
         {
-          if (NR==1) {
-            print $1,$2,$3, $4, ";" substr(timestart,1,endstr_start)
-          } else if ($5=="B") {
-            print $1,$2,$3,$4, ";" substr(timeend,1,endstr_end)
-          } else if (NF>3) {
-            print $1,$2,$3,$4, ";"
-          } else {
+          if ($1=="B") {
+            print oldstr, ";", substr(timeend,1,endstr_end)
             print
+          } else if ($1+0 != $1) {
+            print
+          } else {
+            if (NR!=1) {
+              if (NR==2) {
+                print oldstr, ";" substr(timestart,1,endstr_start)
+              } else {
+                print oldstr, ";"
+              }
+            }
+            oldstr=$0
           }
         }' > ${F_CPTS}"eqtime.cpt"
+        # echo gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE}
         gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
           BEGIN {
             OFMT="%.12f"
@@ -11826,14 +11833,22 @@ for cptfile in ${cpts[@]} ; do
           }
 
           {
-            if (NR==1) {
-              print $1/10000000,$2,$3/10000000, $4, ";" substr(timestart,1,endstr_start)
-            } else if ($5=="B") {
-              print $1/10000000,$2,$3/10000000,$4, ";" substr(timeend,1,endstr_end)
-            } else if (NF>3) {
-              print $1/10000000,$2,$3/10000000,$4, ";"
-            } else {
+            if ($1=="B") {
+              print oldstr, ";", substr(timeend,1,endstr_end)
               print
+            } else if ($1+0 != $1) {
+              print
+            } else {
+              if (NR!=1) {
+                if (NR==2) {
+                  print oldstr, ";" substr(timestart,1,endstr_start)
+                } else {
+                  print oldstr, ";"
+                }
+              }
+              $1=$1/10000000
+              $3=$3/10000000
+              oldstr=sprintf("%f %s %f %s", $1, $2, $3, $4)
             }
           }' > ${F_CPTS}"eqtime_cmt.cpt"
       ;;
