@@ -11761,19 +11761,18 @@ for cptfile in ${cpts[@]} ; do
 
       gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
         BEGIN {
-          if (timeend-timestart > 60*60*24*365.25 * 5) {
+          if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
             # Greater than 5 years
             endstr_start=4
             endstr_end=4
-          } else if (timeend-timestart >= 60*60*24*365.25 * 1) {
+          } else if (timeend_s-timestart_s >= 60*60*24*365.25 * 1) {
             # Greater than or equal to 1 year but less than 5 years
             endstr_start=4
             endstr_end=4
-          } else if (timeend-timestart < 60*60*24*365.25 * 1) {
+          } else if (timeend_s-timestart_s < 60*60*24*365.25 * 1) {
             # Less than one year - use full timestring
             endstr_start=19
             endstr_end=19
-            print substr(timeend, 17, 3) > "/dev/stderr"
             if (substr(timeend, 17, 3) == ":00") {
               endstr_end=16
             }
@@ -11801,19 +11800,18 @@ for cptfile in ${cpts[@]} ; do
         gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
           BEGIN {
             OFMT="%.12f"
-            if (timeend-timestart > 60*60*24*365.25 * 5) {
+            if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
               # Greater than 5 years
               endstr_start=4
               endstr_end=4
-            } else if (timeend-timestart >= 60*60*24*365.25 * 1) {
+            } else if (timeend_s-timestart_s >= 60*60*24*365.25 * 1) {
               # Greater than or equal to 1 year but less than 5 years
               endstr_start=4
               endstr_end=4
-            } else if (timeend-timestart < 60*60*24*365.25 * 1) {
+            } else if (timeend_s-timestart_s < 60*60*24*365.25 * 1) {
               # Less than one year - use full timestring
               endstr_start=19
               endstr_end=19
-              print substr(timeend, 17, 3) > "/dev/stderr"
               if (substr(timeend, 17, 3) == ":00") {
                 endstr_end=16
               }
