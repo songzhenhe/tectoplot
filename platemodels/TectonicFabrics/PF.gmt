@@ -1,0 +1,51 @@
+# @VGMT1.0
+# @R-173.687740914/137.228032974/-65.0254954982/-37.6776110353            
+# @Je4326
+# @Jp"+proj=longlat +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +no_defs "
+# @Jw"GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9108\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+# @GLINESTRING
+# @NName|description|timestamp|begin|end|altitudeMode|tessellate|extrude|visibility
+# @Tstring|string|datetime|datetime|datetime|string|integer|integer|integer
+# FEATURE_DATA
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0001 KM, USYD)"|||||-1|-1|-1
+131.704296645999989 -49.853769227699999 0
+134.728769175999986 -48.800711502299997 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0002 KM, USYD)"|||||-1|-1|-1
+135.401782811 -50.033200648799991 0
+137.228032974 -49.340993958 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0003 KM, USYD)"|||||-1|-1|-1
+130.070227273 -49.473509125200003 0
+132.426198957 -48.753009603499997 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0006 KM, USYD)"|||||-1|-1|-1
+-167.043472204000011 -63.691053245200003 0
+-163.783922795 -63.6569124297 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0009 KM, USYD)"|||||-1|-1|-1
+-173.38590842 -65.025495498200002 0
+-173.687740913999988 -65.015968059499997 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0010 KM, USYD)"|||||-1|-1|-1
+-83.536869177499995 -43.755928845200003 0
+-82.578878668300007 -43.837655107800003 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0012 KM, USYD)"|||||-1|-1|-1
+-95.496362494500005 -37.677611035300004 0
+-94.316476784100004 -38.110626245799999 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0013 KM, USYD)"|||||-1|-1|-1
+-13.314049707300001 -45.982830477599997 0
+-12.925341291200001 -46.029806343399997 0
+-12.271611824400001 -46.161943342299999 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0014 KM, USYD)"|||||-1|-1|-1
+-17.326872856200001 -38.122644637199997 0
+-18.0734165416 -38.070288320300001 0
+>
+# @D"Untitled Path"|"Pseudofault (Propagating ridge feature: PR_KM_0001-0016 KM, USYD)"|||||-1|-1|-1
+-15.157414811400001 -44.996661881400001 0
+-13.9710247765 -45.32242201099999 0
+-12.8891271501 -45.539291577299998 0

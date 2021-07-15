@@ -93,12 +93,23 @@ for ehbfile in *.hdf; do
         lat=$12+0
         lon=$13+0
         depth=$14+0
-        mag=$16+0
+
+        # ISC-EHB: use MW, MS, MB in that order
+        if ($17+0>0) {
+          mag=$17+0
+          type="mw"
+        } else if ($16>0) {
+          mag=$16+0
+          type="ms"
+        } else {
+          mag=$15+0
+          type="mb"
+        }
         id=trim($34)
         the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
         epoch=mktime(the_time);
         timestring=sprintf("%4d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute, second)
-        print lon, lat, depth, mag, timestring, id, epoch
+        print lon, lat, depth, mag, timestring, id, epoch, type
     }
     ' >> ehb_events.cat
 done

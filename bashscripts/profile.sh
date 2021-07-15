@@ -527,8 +527,24 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     rm -f ${F_PROFILES}tmp.nc
 
 
-
-    gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn # 2>/dev/null
+    if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+      info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}"
+    else
+      info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
+      gmt grdedit -L+n ${ptgridfilelist[$i]}
+      if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+        info_msg "Grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+n"
+      else
+        info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]} with grdedit -L+n. Trying grdedit -L+p"
+        gmt grdedit -L+p ${ptgridfilelist[$i]}
+        if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+          info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+p"
+        else
+          echo "gmt grdcut failed entirely on ${ptgridfilelist[$i]}"
+          exit 1
+        fi
+      fi
+    fi
 
     if [[ -e ${F_PROFILES}tmp.nc ]]; then
       gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
@@ -1598,25 +1614,28 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
-      if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
-        info_msg "[profile.sh]: labels ARE using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
-        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
-          if ($1==lineid) {
-            for (i=2;i<=NF;++i) {
-              printf "%s ", $(i)
-            }
-            printf("\n")
-          }
-        }' > ${F_PROFILES}$FNAME
-      else
-        info_msg "[profile.sh]: labels NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
-        gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
-           for (i=2;i<=NF;++i) {
-             printf "%s ", $(i)
-           }
-           printf("\n")
-       }' > ${F_PROFILES}$FNAME
-      fi
+      # COMEBACK: I think I pasted this accidentally to here? 
+      # # I have no idea why I expect joinbuf.txt to exist at this stage...? Maybe if -z is already set.
+      #
+      # if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
+      #   info_msg "[profile.sh]: labels ARE using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
+      #   gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+      #     if ($1==lineid) {
+      #       for (i=2;i<=NF;++i) {
+      #         printf "%s ", $(i)
+      #       }
+      #       printf("\n")
+      #     }
+      #   }' > ${F_PROFILES}$FNAME
+      # else
+      #   info_msg "[profile.sh]: labels NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
+      #   gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
+      #      for (i=2;i<=NF;++i) {
+      #        printf "%s ", $(i)
+      #      }
+      #      printf("\n")
+      #  }' > ${F_PROFILES}$FNAME
+      # fi
 
       gawk < ${F_CMT}cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
       paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
@@ -1959,6 +1978,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           # Calculate distance from data points to the track, using only first two columns
           gawk < ${labelfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}${LINEID}_trackfile.txt -fg -Vn | gawk '{print $3, $4, $5}' > ${F_PROFILES}tmpA_${LINEID}.txt
           gawk < ${labelfilelist[i]} '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4}'> ${F_PROFILES}tmpbuf_${LINEID}.txt
+
           # Paste result onto input lines and select the points that are closest to current track out of all tracks
           paste ${F_PROFILES}tmpbuf_${LINEID}.txt ${labelfilelist[i]} ${F_PROFILES}tmpA_${LINEID}.txt  > ${F_PROFILES}joinbuf.txt
       #      head joinbuf.txt
@@ -2285,7 +2305,8 @@ EOF
         echo "xshift=0" >> ${LINEID}_plot_start.sh
       echo "fi" >> ${LINEID}_plot_start.sh
 
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_plot_start.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh

@@ -30,6 +30,24 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+
+TOPO_CPT_TYPE="-Z"          # -Z means continuous; "" mean discrete
+
+DEM_QUANTILE_RADIUS=55      # Width of kernel used for local histogram
+DEM_QUANTILE=0.1            # Nth quantile
+QUANTILE_FACT=0.7           # Fraction
+
+
+
+FONT_ANNOT_COLORBAR="8p,AvantGarde-Book,black"
+
+LEGEND_V_OFFSET=12/72   # Distance in inches separating top of map from bottom of legend; title goes in between
+
+
+LABELSONMAP=1       # If 1, plot EQ/CMT labels on map. If not 1, plot on separate PS files
+
+THEME_ID="avant"   # Choose from classic or avant
+
 DEM_MINLON="unset"
 
 PAGE_COLOR="white"      # Color of the paper background
@@ -264,7 +282,7 @@ ALIGNXY_FILE="null"
 AUTHOR_YSHIFT=0
 AUTHOR_XSHIFT=0
 LEGENDX="0"                  # Offset from left side of page, inches
-LEGEND_WIDTH="2i"            # Width of the legend, inches
+LEGEND_WIDTH="2.5i"            # Width of the legend, inches
 
 ################################################################################
 # Command text options

@@ -1,0 +1,144 @@
+# @VGMT1.0 @GPOINT
+# @R-177/167/-78/71                                                       
+# @Je4326
+# @Jp"+proj=longlat +datum=WGS84 +no_defs "
+# @Jw"GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+# @NHotspotNam|Long|Lat|PlumeType|Source|P|PLATEID1|TYPE|FROMAGE|TOAGE|DESCR|FEATURE_ID|PLATEID2|GPGIM_TYPE|RECON_METH|L_PLATE|R_PLATE|NAME|SPREAD_ASY|IMPORT_AGE
+# @Tstring|double|double|string|string|string|integer|string|double|double|string|string|integer|string|string|integer|integer|string|double|double
+# FEATURE_DATA
+# @DErebus|167|-78|?|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-6ad2d7cc-0628-471d-aa56-9615579b7a55|0|gpml:HotSpot||0|0|Erebus|0|
+167.0 -78.0
+# @DBalleny|163|-67|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-57c84e58-763d-4a7f-9cdc-e138b7fe5263|0|gpml:HotSpot||0|0|Balleny|0|
+163.0 -67.0
+# @DDeception_Island|-61|-63|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-d45a3820-5bf0-4a03-891f-1768e5a4e5f2|0|gpml:HotSpot||0|0|Deception_Island|0|
+-61.0 -63.0
+# @DLouisville|-141|-54|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-4562e72c-7b07-4613-b986-6c423b585beb|0|gpml:HotSpot||0|0|Louisville|0|
+-141.0 -54.0
+# @DBouvet_Shona|3|-54|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-c5159492-d2b6-4608-9369-5f2d34146737|0|gpml:HotSpot||0|0|Bouvet_Shona|0|
+3.0 -54.0
+# @DKerguelen|69|-50|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-96fb4d6c-906a-4fa5-80ab-6ae14866443a|0|gpml:HotSpot||0|0|Kerguelen|0|
+69.0 -50.0
+# @DMarion|38|-47|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-2cfd0fe1-2347-4f71-8fe7-d56b370e7739|0|gpml:HotSpot||0|0|Marion|0|
+38.0 -47.0
+# @DCrozet|50|-46|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-0a9a5570-aaee-4c77-8128-190a2f358e69|0|gpml:HotSpot||0|0|Crozet|0|
+50.0 -46.0
+# @DChatam|-177|-44|?|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-d9768a89-13fa-4ef4-bf7c-067936846aef|0|gpml:HotSpot||0|0|Chatam|0|
+-177.0 -44.0
+# @DDiscovery|0|-42|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-41bc55ff-49f9-4c0d-ad0f-a897e4a63485|0|gpml:HotSpot||0|0|Discovery|0|
+0.0 -42.0
+# @DAustralia|146|-41|mid-mantle|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-6eba9bc1-daa2-4bae-b13b-597f2a2dcb14|0|gpml:HotSpot||0|0|Australia|0|
+146.0 -41.0
+# @DTasmanid|156|-39|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-c46bddbd-9bea-413b-9ca4-76edab3cb31e|0|gpml:HotSpot||0|0|Tasmanid|0|
+156.0 -39.0
+# @DTristan_da_Cunha|-12|-37|Deep|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-d22542c9-ff54-4003-95f2-de447f9af06b|0|gpml:HotSpot||0|0|Tristan_da_Cunha|0|
+-12.0 -37.0
+# @D"Indian Ocean"|100|-35|?|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-cdbfca8f-82f0-49f0-bad7-c08819716a35|0|gpml:HotSpot||0|0|"Indian Ocean"|0|
+100.0 -35.0
+# @DJuan_Fernandez|-81|-34|mid-mantle|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-0f67f16e-44f4-489d-9e20-ce67ac1722e7|0|gpml:HotSpot||0|0|Juan_Fernandez|0|
+-81.0 -34.0
+# @DVema|4|-33|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-c1f1b301-96d2-483c-b77d-614f3cb6e79c|0|gpml:HotSpot||0|0|Vema|0|
+4.0 -33.0
+# @DLord_Howe|159|-33|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-f539198c-84b1-4635-9c4c-f1a39c0fc67d|0|gpml:HotSpot||0|0|Lord_Howe|0|
+159.0 -33.0
+# @DCook_Islands_Austral|-140|-30|"Potentially Deep"|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-1e86fd46-cbf0-4060-ba83-a582f629d485|0|gpml:HotSpot||0|0|Cook_Islands_Austral|0|
+-140.0 -30.0
+# @DEaster|-108|-27|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-ab13e25d-a80c-406c-bfbb-f10f80e3ef31|0|gpml:HotSpot||0|0|Easter|0|
+-108.0 -27.0
+# @DPitcairn|-130|-26|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-ea703bba-a6f3-4eec-aa05-14ac58395cab|0|gpml:HotSpot||0|0|Pitcairn|0|
+-130.0 -26.0
+# @DSan_Felix|-80|-26|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-dc48eb90-df9c-4852-b39a-a43ed99955e1|0|gpml:HotSpot||0|0|San_Felix|0|
+-80.0 -26.0
+# @DMacdonald|-158|-22|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-d2fe764a-5352-4b2b-a402-75ff4a7765a6|0|gpml:HotSpot||0|0|Macdonald|0|
+-158.0 -22.0
+# @DReunion|56|-21|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-1ce38135-6fc7-4f32-80ba-45d920105807|0|gpml:HotSpot||0|0|Reunion|0|
+56.0 -21.0
+# @DRodriguez|64|-20|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-4838cb0f-b1fc-4977-9c92-5ec636ad08c3|0|gpml:HotSpot||0|0|Rodriguez|0|
+64.0 -20.0
+# @DTahiti_Society|-148|-18|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-e9a50e98-4a92-40ac-be51-3aa97ca75e6e|0|gpml:HotSpot||0|0|Tahiti_Society|0|
+-148.0 -18.0
+# @DSt_Helena|-20|-17|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-ddd2e32e-5b7e-418a-9eb1-4a4b1659225e|0|gpml:HotSpot||0|0|St_Helena|0|
+-20.0 -17.0
+# @DCocos_Keeling|95|-17|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-fbd4b2f0-4ad1-4f2b-af03-482b65552547|0|gpml:HotSpot||0|0|Cocos_Keeling|0|
+95.0 -17.0
+# @DSamoa|-168|-15|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-e6370e5a-3da7-4861-9f86-21443afd4337|0|gpml:HotSpot||0|0|Samoa|0|
+-168.0 -15.0
+# @DComores|43|-12|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-ef9102ca-4ff1-4f62-8c74-54b464e2fa81|0|gpml:HotSpot||0|0|Comores|0|
+43.0 -12.0
+# @DMarqueses|-138|-10|"Potentially Deep"|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-6dabf1e8-ae6b-447a-9353-982fe5c4586a|0|gpml:HotSpot||0|0|Marqueses|0|
+-138.0 -10.0
+# @DAscension|-14|-8|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-8488c4b6-abd9-4b67-87cd-206cabc5a1e3|0|gpml:HotSpot||0|0|Ascension|0|
+-14.0 -8.0
+# @DSeychelles|56|-5|"upper mantle"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-ce568471-7c01-45f5-bde4-06c602f90aa3|0|gpml:HotSpot||0|0|Seychelles|0|
+56.0 -5.0
+# @DFernando|-32|-4|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-9b6ee40f-ea77-420e-8c1a-313b9a6ab412|0|gpml:HotSpot||0|0|Fernando|0|
+-32.0 -4.0
+# @DLake_Victoria|38|-3|?|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-0a4b7ffb-f60f-4844-ad0a-c9fc89132ba8|0|gpml:HotSpot||0|0|Lake_Victoria|0|
+38.0 -3.0
+# @DCaroline2|167|-3|?|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-c5e271f7-d1f9-4761-923e-fd558ecc20fa|0|gpml:HotSpot||0|0|Caroline2|0|
+167.0 -3.0
+# @DGalapagos|-92|0|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-95193f01-6bba-4c05-9552-d64cba357223|0|gpml:HotSpot||0|0|Galapagos|0|
+-92.0 0.0
+# @DCameroon|9.2|4.2|?|"Steinberger et al. 2000"|y|1|HS|200|-999|"Steinberger et al. 2000"|GPlates-8883bacd-3565-4256-b8a6-97bdee78f024|0|gpml:HotSpot||0|0|Cameroon|0|
+9.2 4.2
+# @DCaroline|164|5|"Potentially Deep"|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-eb567448-a396-47df-8342-3d8d64c4d39c|0|gpml:HotSpot||0|0|Caroline|0|
+164.0 5.0
+# @DAfar|39|7|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-06790fa7-3c87-49e2-b63e-9601230446fd|0|gpml:HotSpot||0|0|Afar|0|
+39.0 7.0
+# @DDarfur|24|13|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-8f18f731-f82e-4df0-990a-1eac1c29b104|0|gpml:HotSpot||0|0|Darfur|0|
+24.0 13.0
+# @DCape_Verde|-24|15|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-da445b7b-c2fb-4cb2-8716-cd420bacdf1e|0|gpml:HotSpot||0|0|Cape_Verde|0|
+-24.0 15.0
+# @DShimada|-118|17|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-daec4c75-e32f-419d-870f-9ab2a9a728d4|0|gpml:HotSpot||0|0|Shimada|0|
+-118.0 17.0
+# @DHawaii|-155|19|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-84d0cd2f-4c3f-4284-8ae6-46f41604353d|0|gpml:HotSpot||0|0|Hawaii|0|
+-155.0 19.0
+# @DSocorro|-111|19|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-d02e04ec-f75a-4bda-b37a-af0c95bd9e05|0|gpml:HotSpot||0|0|Socorro|0|
+-111.0 19.0
+# @DHainan|110|20|mid-mantle|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-7f46b45b-dd0f-4d2b-857f-64cc37b10cfc|0|gpml:HotSpot||0|0|Hainan|0|
+110.0 20.0
+# @DTibesti|17|21|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-fea5a2d8-8544-4f7f-b233-ef68ea7d58b1|0|gpml:HotSpot||0|0|Tibesti|0|
+17.0 21.0
+# @DAtlantic_Ridge|-45|22|"Potentially Deep"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-e7fa511d-6d17-4809-9705-92b1d7a01d5f|0|gpml:HotSpot||0|0|Atlantic_Ridge|0|
+-45.0 22.0
+# @DHoggar|6|23|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-e026744d-aaf5-4e33-b5b7-2d2b59cd5202|0|gpml:HotSpot||0|0|Hoggar|0|
+6.0 23.0
+# @DBaja_Guadalupe|-113|27|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-e93e1457-843a-4f3f-9bd0-43d1c92395ab|0|gpml:HotSpot||0|0|Baja_Guadalupe|0|
+-113.0 27.0
+# @DGreat_Meteor_New_England|-32|28|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-4d008ea6-d39b-488b-9e4d-2ffd270c18fb|0|gpml:HotSpot||0|0|Great_Meteor_New_England|0|
+-32.0 28.0
+# @DCanary|-18|28|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-cf84f8da-71c0-4d37-814b-05bfd9afb67f|0|gpml:HotSpot||0|0|Canary|0|
+-18.0 28.0
+# @DBermuda|-67|33|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-9e08f206-f706-4afd-be76-5ff8f8c5dd0a|0|gpml:HotSpot||0|0|Bermuda|0|
+-67.0 33.0
+# @DMadeira|-17|33|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-31313fa5-9e00-4e82-9b87-33e848b1631e|0|gpml:HotSpot||0|0|Madeira|0|
+-17.0 33.0
+# @DRaton|-104|37|?|"Steinberger et al. 2000"|y|1|HS|200|-999|"Steinberger et al. 2000"|GPlates-7984bf31-b6b5-4e3b-bff1-bdd78d8a7db7|0|gpml:HotSpot||0|0|Raton|0|
+-104.0 37.0
+# @DCorner|-52|37|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-e67fdcbf-32fc-479f-ba5b-bdf2a765e3d3|0|gpml:HotSpot||0|0|Corner|0|
+-52.0 37.0
+# @DAzores|-26|38|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-de218490-7079-4ed7-ab79-f2dff1971267|0|gpml:HotSpot||0|0|Azores|0|
+-26.0 38.0
+# @DEtna|15|38|"upper mantle"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-57f329a8-513f-45ff-8169-d7a2aae6628a|0|gpml:HotSpot||0|0|Etna|0|
+15.0 38.0
+# @DYellowstone|-111|44|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-a481eed2-e3dd-4f37-87f3-8e5cc4ea9e5a|0|gpml:HotSpot||0|0|Yellowstone|0|
+-111.0 44.0
+# @DJuan_de_Fuca_Cobb|-130|46|mid-mantle|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-51d8e51c-9732-4bdd-b2f1-cbf7e5b077c1|0|gpml:HotSpot||0|0|Juan_de_Fuca_Cobb|0|
+-130.0 46.0
+# @DEifel|4|50|"upper mantle"|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-03d09b5e-68d2-4bd4-b530-ebebba1a7545|0|gpml:HotSpot||0|0|Eifel|0|
+4.0 50.0
+# @DAlaska_Nunivak|-166|60|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-c4a111c8-af30-4129-8025-e3be25bf6a10|0|gpml:HotSpot||0|0|Alaska_Nunivak|0|
+-166.0 60.0
+# @DIceland|-17|64|Deep|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-dd003d60-30ea-4327-b570-2b5a5d28ff44|0|gpml:HotSpot||0|0|Iceland|0|
+-17.0 64.0
+# @DKolyma_Anjuisky|165|67|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-4f63e04c-68a1-466e-9744-451a5e5a7542|0|gpml:HotSpot||0|0|Kolyma_Anjuisky|0|
+165.0 67.0
+# @DJan_Mayen|-8|71|Secondary/Tertiary|"Courtillot et al. 2003"|y|1|HS|200|-999|"Courtillot et al. 2003"|GPlates-24cd18ba-aac0-49db-90d7-c7aa053c703f|0|gpml:HotSpot||0|0|Jan_Mayen|0|
+-8.0 71.0
+# @DTrindade_Arnold|167|-78|?|"Courtillot200; Anderson$Schramm"|y|1|HS|200|-999|"Courtillot200; Anderson$Schramm"|GPlates-44a122c5-f200-4d3b-9d9f-4d1812bb1319|0|gpml:HotSpot||0|0|Trindade_Arnold|0|
+-26.9892858472708 -19.0347549292397
+# @DAmsterdam_Christmas|167|-78|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-e5712aaa-9fed-4343-b9c3-5610727bb9de|0|gpml:HotSpot||0|0|Amsterdam_Christmas|0|
+78.5758905425856 -35.954472995424
+# @DRurutu/Arago|-151|-23|?|"Anderson and Schramm 2005"|y|1|HS|200|-999|"Anderson and Schramm 2005"|GPlates-364e2cf9-b5af-49f4-8f34-6170428c503d|0|gpml:HotSpot||0|0|Rurutu/Arago|0|
+-151.0 -23.0
+# @DBowie|-136|53|mid-mantle|"Montelli et al. 2006"|y|1|HS|200|-999|"Montelli et al. 2006"|GPlates-95dfd826-6516-43ba-ad0b-d6339bed5a0f|0|gpml:HotSpot||0|0|Bowie|0|
+-136 53

@@ -1,0 +1,49 @@
+26 October, 2011
+Last updated - 22 February, 2014
+
+The tectonic fabric of the ocean basins
+
+K.J. Matthews, R.D. Müller, P. Wessel & J.M. Whittaker, The tectonic fabric of the ocean basins, The Journal of Geophysical Research. (doi:10.1029/2011JB008413)
+
+
+
+This dataset contains hand-digitised traces of fracture zones, discordant zones, V-shaped structures, unclassified V-anomalies, pseudofaults and extinct ridges. Features were digitised in Google Earth from Sandwell and Smith's (2009) v16.1 vertical gravity gradient data. Apart from the Bay of Biscay ridge and the Sonne ridge in the Cuvier Abyssal Plain, all features were traced along their vertical gravity gradient minima. 
+
+See Table 1 of Matthews et al. (2011) for a full explanation of the dataset classification scheme*
+*Note: Propagating ridges are associated with the formation of pairs of pseudofaults and extinct ridges (see Table 1), these traces are contained in separate files (Pseudofaults and Extinct Ridges). Additionally, these traces are stored together in a single file called Propagating Ridges^.
+
+DZ=Discordant Zones
+FZ=Fracture Zones
+FZLC=Fracture Zones (traced with less certainty due to a weak vertical gravity gradient signal)
+PF=Pseudofaults
+UNCV=Unclassified V-Anomalies
+VANOM=V-Shaped Structures
+ER=Extinct Ridges**
+PR=Propagating Ridges^
+
+**Note: The Extinct Ridges file contains different "types" of extinct ridges, both those produced as a result of ridge propagation (as described in Table 1), but also those that form as a result of spreading cessation and ridge jumps.
+
+
+
+The GPML formatted files (gpml_raw and gpml_cookiecut) are compatible with the plate reconstruction software GPlates (www.gplates.org). The GPlates "cookie-cut" dataset can be reconstructed back through time when loaded into GPlates along with a plate rotation file (see data bundle available with GPlates). It was partitioned using the freely available static plate polygons released with GPlates v1.3 (from the plate motion model of Seton et al., 2012). The gplates_shp files are shapefiles that can be loaded in GPlates.
+
+The KML formatted dataset is compatible with Google Earth.
+
+The gmt files, are ascii files that can be plotted using Generic Mapping Tools (GMT) or similar software.
+
+
+
+The dataset is also stored in a database hosted by The Global Seafloor Fabric and Magnetic Lineation Data Base Project website: www.soest.hawaii.edu/PT/GSFML/
+
+
+
+References:
+Sandwell, D. T. and W. H. F. Smith (2009). "Global marine gravity from retracked Geosat and ERS-1 altimetry: Ridge segmentation versus spreading rate." Journal of Geophysical Research 114(B1): B01411.
+Seton, M., R. D. Müller, S. Zahirovic, C. Gaina, T. Torsvik, G. Shephard, A. Talsma, M. Gurnis, M. Turner and S. Maus (2012). "Global continental and ocean basin reconstructions since 200Ma." Earth-Science Reviews 113(3): 212-270.
+
+
+
+UPDATES:
+22 Februrary 2014
+- cookiecut files are now partitioned using the static polygons associated with the global plate reconstruction of Seton et al. (2012).
+- the features produced by ridge propagation have now been separated into a Pseudofaults file (PF) and the Extinct Ridges (ER) file (a single file containing both features produced by propagating ridges is also still available - PR).
