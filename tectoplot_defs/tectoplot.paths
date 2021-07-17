@@ -653,6 +653,16 @@ GBMPOLES=$PLATEMODELSDIR"GBM/block.180.poles.dat"
 GBMMIDPOINTS=$PLATEMODELSDIR"GBM/GBM_midpoints.txt"
 GBMPLATEEDGES=$PLATEMODELSDIR"GBM/block.180.dat"
 
+# Flinn-Engdahl regions
+FE_DIR=${PLATEMODELSDIR}"FE/"
+FE_REGION_POLY=${FE_DIR}"fe_region_poly/"
+FE_SEISMIC_POLY=${FE_DIR}"fe_seismic_poly/"
+FE_SEISMIC_ZONES=${FE_DIR}"flinn_engdahl_seismic_regions.gmt"
+FE_SEISMIC_LABELS=${FE_DIR}"flinn_engdahl_seismic_regions_labels.txt"
+FE_REGION_ZONES=${FE_DIR}"flinn_engdahl_geographic_regions.gmt"
+FE_REGION_LABELS=${FE_DIR}"flinn_engdahl_geographic_regions_labels.txt"
+
+
 # Communication cables data
 CABLES=$DATAROOT"gregs_cable_map_v1.58/Cables.gmt"
 

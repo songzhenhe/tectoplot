@@ -3034,6 +3034,33 @@ fi
     plots+=("refpoint")
 	   ;;
 
+  -fe)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-fe:           plot Flinn-Engdahl geographic or seismic regions
+-fe [[seismic]]
+
+  By default, plots and labels Flinn-Engdahl regions
+
+  seismic: plot seismic regions instead of geographic regions
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  FE_TYPE="region"
+
+  if [[ $2 == "seismic" ]]; then
+    FE_TYPE="seismic"
+    shift
+  fi
+
+
+  plots+=("flinn-engdahl")
+    ;;
+
   # Plot tectonic fabrics
   -tf)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -3199,10 +3226,10 @@ fi
     plots+=("extragps")
     ;;
 
-  -fixcpt)
-  replace_gmt_colornames_rgb $2
-  exit
-  ;;
+-fixcpt)
+replace_gmt_colornames_rgb $2
+exit
+;;
 
   -gcdm)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4642,11 +4669,12 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pg:           use polygon file to select data
--pg [ filename | GMTcode ] [[show]]
+-pg [ filename | GMTcode | fe ] [[show]]
 
   Select seismicity data within polygon.
   Polygon file is either XY format or is the first feature in a KML file
   GMTcode is any GMT region code consistent with pscoast -E{code} -M, e.g. US.MT
+  fe: use the Flinn-Engdahl polygons specified by -feg or -fes
   show: plot the polygon boundary
 
 Example:
@@ -4657,42 +4685,41 @@ Example:
 EOF
 shift && continue
 fi
-    if arg_is_flag $2; then
-      info_msg "[-pg]: No polygon file or region specified."
-    else
-      POLYGONAOI="${2}"
-      shift
-      if [[ ! -s $POLYGONAOI ]]; then
-        info_msg "[-pg]: Polygon file $POLYGONAOI does not exist or is empty. Treating string as a GMT region code!"
-        gmt pscoast -E"${POLYGONAOI}" -M > gmt_polyselect.txt
-        if [[ -s gmt_polyselect.txt ]]; then
-          POLYGONAOI=$(abs_path gmt_polyselect.txt)
+
+    while ! arg_is_flag "${2}"; do
+      case "${2}" in
+        show)
+          info_msg "[-pg]: Plotting polygon AOI"
+          plots+=("polygonaoi")
+        ;;
+        fe)
+          info_msg "[-pg]: Using Flinn-Engdahl polygons from -feg or -fes"
+          POLYGONAOI=$(abs_path ${TMP}"fe_region.txt")
           polygonselectflag=1
           fixselectpolygonsflag=1
-        fi
-      else
-        POLYGONAOI=$(abs_path "${POLYGONAOI}")
-        if [[ ${POLYGONAOI} =~ ".kml" ]]; then
-          kml_to_first_xy ${POLYGONAOI} pg_poly.xy
-          POLYGONAOI=$(abs_path pg_poly.xy)
-        fi
-        polygonselectflag=1
-        fixselectpolygonsflag=1
-      fi
-      if arg_is_flag $2; then
-        info_msg "[-pg]: Not plotting polygon."
-      else
-        if [[ $2 == "show" ]]; then
-          info_msg "Plotting polygon AOI"
-          plots+=("polygonaoi")
-        else
-          info_msg "[-pg]: Unknown option $2"
-        fi
-        shift
-      fi
-    fi
-
-
+        ;;
+        *)
+          if [[ ! -s "${2}" ]]; then
+            info_msg "[-pg]: Polygon file ${2} does not exist or is empty. Treating string as a GMT region code!"
+            gmt pscoast -E"${2}" -M > gmt_polyselect.txt
+            if [[ -s gmt_polyselect.txt ]]; then
+              POLYGONAOI=$(abs_path gmt_polyselect.txt)
+              polygonselectflag=1
+              fixselectpolygonsflag=1
+            fi
+          else
+            POLYGONAOI=$(abs_path "${2}")
+            if [[ ${POLYGONAOI} =~ ".kml" ]]; then
+              kml_to_first_xy ${POLYGONAOI} pg_poly.xy
+              POLYGONAOI=$(abs_path pg_poly.xy)
+            fi
+            polygonselectflag=1
+            fixselectpolygonsflag=1
+          fi
+        ;;
+      esac
+      shift
+    done
 
     # Now we have to fix the polygon file in case polygons cross the dateline.
     # [[ -s ${POLYGONAOI} ]] && fixselectpolygonsflag=1
@@ -5195,6 +5222,10 @@ Option 6: Rectangular area centered on lat/lon coordinate in flexible format.
 Option 7: Same as option 6 but lonlat format.
 -r latlon [lat] [lon] [[mapwidth]]
 
+Option 8: Flinn-Engdahl geographic or seismic region code
+-r feg IDnum(1-757)
+-r fes IDnum(1-50)
+
 Example: Plot coastlines of Great Britain
   tectoplot -r GB -a
 --------------------------------------------------------------------------------
@@ -5205,7 +5236,46 @@ fi
 	  if ! arg_is_float "${2}"; then
       # If first argument isn't a number, it is interpreted as a global extent (g), an earthquake event, an XY file, a raster file, or finally as a country code.
 # Option 1: Global extent from -180:180 longitude
-      if [[ ${2} == "g" ]]; then
+
+      if [[ "${2}" == "feg" ]]; then
+        shift
+        while arg_is_positive_float "${2}"; do
+          FE_REGION_ID="${2}"
+          shift
+          cat ${FE_REGION_POLY}"flinn_engdahl_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+        done
+
+        FE_RANGE=($(xy_range ${TMP}fe_region.txt))
+        MINLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $1 } else { print $1-1 } }')
+        MAXLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $2 } else { print $2+1 } }')
+        MINLAT=$(echo "${FE_RANGE[2]}" | gawk '{print ($1-1>-90)?$1-1:-90}')
+        MAXLAT=$(echo "${FE_RANGE[3]}" | gawk '{print ($1+1<90)?$1+1:90}')
+
+        if [[ "${2}" == show ]]; then
+          plotselectedfeflag=1
+          shift
+        fi
+
+
+      elif [[ "${2}" == "fes" ]]; then
+        shift
+        while arg_is_positive_float "${2}"; do
+          FE_REGION_ID="${2}"
+          shift
+          cat ${FE_SEISMIC_POLY}"flinn_engdahl_combined_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+        done
+
+        FE_RANGE=($(xy_range ${TMP}fe_region.txt))
+        MINLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $1 } else { print $1-1 } }')
+        MAXLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $2 } else { print $2+1 } }')
+        MINLAT=$(echo "${FE_RANGE[2]}" | gawk '{print ($1-1>-90)?$1-1:-90}')
+        MAXLAT=$(echo "${FE_RANGE[3]}" | gawk '{print ($1+1<90)?$1+1:90}')
+
+        if [[ "${2}" == show ]]; then
+          plotselectedfeflag=1
+          shift
+        fi
+      elif [[ ${2} == "g" ]]; then
         MINLON=-180
         MAXLON=180
         MINLAT=-90
@@ -6594,6 +6664,23 @@ cat <<-EOF
 
   commandstring: [ to be completed ]
 
+  a: block labels
+  b: blocks
+  g: faults, nodes, etc
+  l: dashed line along base of coupling
+  c: coupling (slip rate deficit)
+  x: faults
+  s: slip vector azimuths (modeled + observed)
+  o: observed GPS velocity
+  v: modeled GPS velocity
+  r: residual GPS velocity
+  f: fault segment midpoint slip rates
+  q: fault segment midpoint slip, subsampled by distance
+  e: elastic component of block velocity
+  t: rotation component of block velocity
+
+
+
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -6622,7 +6709,7 @@ fi
 		plotplates=1
     tdefnodeflag=1
 		if arg_is_flag $2; then
-			info_msg "[--tdefpm]: No path specified for TDEFNODE results folder"
+			info_msg "[-tdefpm]: No path specified for TDEFNODE results folder"
 			exit 2
 		else
 			TDPATH="${2}"
@@ -6641,7 +6728,7 @@ fi
 			POLESRC="TDEFNODE"
 			PLATES="${TDFOLD}/${TDMODEL}/"def2tecto_out/blocks.dat
 			POLES="${TDFOLD}/${TDMODEL}/"def2tecto_out/poles.dat
-	  	info_msg "[--tdefpm]: TDEFNODE block model is ${PLATEMODEL}"
+	  	info_msg "[-tdefpm]: TDEFNODE block model is ${PLATEMODEL}"
 	  	TDEFRP="${3}"
 			DEFREF=$TDEFRP
 	    shift
@@ -8766,6 +8853,11 @@ done
 # IMMEDIATELY AFTER PROCESSING ARGUMENTS, DO THESE CRITICAL TASKS
 
 [[ $USAGEFLAG -eq 1 ]] && exit
+
+if [[ $plotselectedfeflag -eq 1 ]]; then
+  plots+=("selected-flinn-engdahl")
+fi
+
 
 if [[ $ADD_EQ_SOURCESTRING -eq 1 ]]; then
   echo $EQ_SOURCESTRING >> ${LONGSOURCES}
@@ -12681,6 +12773,7 @@ fi
 ##### DO PLOTTING
 # SECTION PLOT
 
+
 for plot in ${plots[@]} ; do
 	case $plot in
     caxes)
@@ -13155,6 +13248,33 @@ for plot in ${plots[@]} ; do
     eqtime)
       # Nothing. Placeholder for legend.
       ;;
+
+    selected-flinn-engdahl)
+      gmt psxy fe_region.txt -W1p,red $RJOK $VERBOSE >> map.ps
+      ;;
+
+    flinn-engdahl)
+      case $FE_TYPE in
+        region)
+          gmt psxy ${FE_REGION_ZONES} -W1p,red $RJOK $VERBOSE >> map.ps
+          gmt pstext ${FE_REGION_LABELS}  -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
+
+        ;;
+        seismic)
+          gmt psxy ${FE_SEISMIC_ZONES} -W1p,red $RJOK $VERBOSE >> map.ps
+          gmt pstext ${FE_SEISMIC_LABELS} -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
+
+        ;;
+
+
+
+      esac
+    # FE_SEISMIC_ZONES=${FE_DIR}"flinn_engdahl_seismic_regions.gmt"
+    # FE_SEISMIC_LABELS=${FE_DIR}"flinn_engdahl_seismic_regions_labels.txt"
+    # FE_REGION_ZONES=${FE_DIR}"flinn_engdahl_geographic_regions.gmt"
+    # FE_REGION_LABELS=${FE_DIR}"flinn_engdahl_geographic_regions_labels.txt"
+      ;;
+
     gcdm)
       gmt grdimage $GCDMDATA $GRID_PRINT_RES -C$GCDM_CPT $RJOK $VERBOSE >> map.ps
       ;;
@@ -14089,8 +14209,8 @@ echo banana
       echo res ${SSRESC}
       # Convert Mw to M0 and sum within grid nodes, then take the log10 and plot.
       gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
-      gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = seisout.nc
-      gmt grd2cpt -Qo -I -Cseis ${F_CPTS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+      gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
+      gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
       gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
       ;;
 
