@@ -146,8 +146,7 @@ F_GPS="gps/"                          # GPS velocity data
 F_3D="3d/"                            # 3D model data
 
 ##### DATAROOT is the directory that contains all downloaded data directories.
-
-DATAROOT=$(head -n 1 $DEFDIR"tectoplot.dataroot")
+# Its path is stored in ${OPTDIR}tectoplot.dataroot
 
 GMTCOLORS="$DEFDIR"tectoplot.gmtcolors
 
@@ -158,9 +157,6 @@ CUSTOMREGIONS=$DEFDIR"tectoplot.customregions"
 
 SAVEDTOPODIR=${DATAROOT}"SavedTopography/"
 [[ -d ${DATAROOT} && ! -d ${SAVEDTOPODIR} ]] && mkdir -p ${SAVEDTOPODIR}
-
-##### OPENPROGRAM is the program to call from the command line to view PDF file
-OPENPROGRAM=$(head -n 1 $DEFDIR"tectoplot.pdfviewer")
 
 ##### TEXTURE is the path to the texture executable
 TEXTUREDIR=${CSCRIPTDIR}"texture_shader/"

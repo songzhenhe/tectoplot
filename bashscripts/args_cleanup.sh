@@ -82,36 +82,6 @@ function info_msg() {
   printf "%s\n" "${@}" >> "${INFO_MSG}"
 }
 
-# Return the full path to a file or directory
-function abs_path() {
-    if [ -d "${1}" ]; then
-        (cd "${1}"; echo "$(pwd)/")
-    elif [ -f "${1}" ]; then
-        if [[ $1 = /* ]]; then
-            echo "${1}"
-        elif [[ $1 == */* ]]; then
-            echo "$(cd "${1%/*}"; pwd)/${1##*/}"
-        else
-            echo "$(pwd)/$1"
-        fi
-    elif [[ $1 =~ TEMP/* ]]; then
-      echo "${FULL_TMP}"/"${1##*/}"
-    fi
-}
-
-
-# Return the full path to the directory containing a file, or the directory itself
-function abs_dir() {
-    if [ -d "${1}" ]; then
-        (cd "${1}"; echo "$(pwd)/")
-    elif [ -f "${1}" ]; then
-        if [[ $1 == */* ]]; then
-            echo "$(cd "${1%/*}"; pwd)/"
-        else
-            echo "$(pwd)/"
-        fi
-    fi
-}
 
 # Exit cleanup code from Mitch Frazier
 # https://www.linuxjournal.com/content/use-bash-trap-statement-cleanup-temporary-files
@@ -163,4 +133,46 @@ function move_exit()
 
 function is_gmt_cpt () {
   gawk < "${GMTCPTS}" -v id="${1}" 'BEGIN{res=0} ($1==id) {res=1; exit} END {print res}'
+}
+
+# Return the full path to a file or directory
+function abs_path() {
+
+    # If it's an existing directory, return the full path with / at the end
+    if [ -d "${1}" ]; then
+        (cd "${1}"; echo "$(pwd)/")
+    # If it's an existing file, return the full path with / at the end
+    elif [ -f "${1}" ]; then
+        if [[ $1 = /* ]]; then
+            echo "${1}"
+        elif [[ $1 == */* ]]; then
+            echo "$(cd "${1%/*}"; pwd)/${1##*/}"
+        else
+            echo "$(pwd)/$1"
+        fi
+    # Special case to parse to the temporary data directory
+    elif [[ $1 =~ TEMP/* ]]; then
+      echo "${FULL_TMP}"/"${1##*/}"
+    fi
+}
+
+
+# Return the full path to the directory containing a file, or the directory itself
+function abs_dir() {
+    if [ -d "${1}" ]; then
+        (cd "${1}"; echo "$(pwd)/")
+    elif [ -f "${1}" ]; then
+        if [[ $1 == */* ]]; then
+            echo "$(cd "${1%/*}"; pwd)/"
+        else
+            echo "$(pwd)/"
+        fi
+    # Assume it's a directory that does not yet exist
+    else
+      if [[ $1 == */ ]]; then
+        echo "${1}"
+      else
+        echo "${1}"/
+      fi
+    fi
 }

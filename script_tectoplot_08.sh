@@ -278,7 +278,62 @@ TECTOPLOT_CPTDEFS=$DEFDIR"tectoplot.cpts"
 # These files are personal definitions stored in OPTDIR
 
 TECTOPLOT_AUTHOR=${OPTDIR}"tectoplot.author"
-DATAROOTDIR=${OPTDIR}"tectoplot.dataroot"
+
+if [[ -s ${OPTDIR}"tectoplot.pdfviewer" ]]; then
+  OPENPROGRAM=$(head -n 1 ${OPTDIR}"tectoplot.pdfviewer")
+else
+  OPENPROGRAM=""
+fi
+
+if ! command -v ${OPENPROGRAM} &> /dev/null; then
+    echo "PDF viewing command ${OPENPROGRAM} doesn't work. Setting default based on OS."
+    case "$OSTYPE" in
+     # cygwin*)
+     #    OPENPROGRAM="cmd /c start"
+     #    ;;
+     linux*)
+        OPENPROGRAM_TRY="xdg-open"
+        ;;
+     darwin*)
+        OPENPROGRAM_TRY="open -a Preview"
+        ;;
+    esac
+    if ! command -v ${OPENPROGRAM_TRY} &> /dev/null; then
+      echo "Default PDF viewing command ${OPENPROGRAM_TRY} doesn't work."
+      openprogramflag=0
+    else
+      echo ${OPENPROGRAM_TRY} > ${OPTDIR}"tectoplot.pdfviewer"
+      openprogramflag=1
+    fi
+else
+  openprogramflag=1
+fi
+#
+# if [[ "${OPENPROGRAM}" == "open -a Preview" ]]; then
+#   openprogramflag=1
+# else
+#
+#   if [[ ! -x ${OPENPROGRAM} ]]; then
+#     echo "PDF viewer ${OPENPROGRAM} cannot be called. Setting default based on OS..."
+#
+#
+#     if [[ ! -x ${OPENPROGRAM} ]]; then
+#       "Default PDF viewer ${OPENPROGRAM} cannot be called."
+#       openprogramflag=0
+#     else
+#       openprogramflag=1
+#     fi
+#
+#   else
+#     openprogramflag=1
+#   fi
+# fi
+
+DATAROOT=$(head -n 1 ${OPTDIR}"tectoplot.dataroot")
+
+# if [[ ! -d ${DATAROOT} ]]; then
+#   echo "Warning: Data directory ${DATAROOT} does not exist. Set using tectoplot -setdatadir"
+# fi
 
 ################################################################################
 # Load CPT defaults, paths, and defaults
@@ -316,18 +371,21 @@ export AWKPATH=${AWKSCRIPTDIR}
 # Get rid of gmt.conf as it is likely to mess up our plots
 [[ -s ~/gmt.conf ]] && mv ~/gmt.conf ~/gmt.conf.tectoplot.saved
 
+
 ################################################################################
 ################################################################################
 ##### FUNCTION DEFINITIONS
 
 # Source various bash functions
+source $ARGS_CLEANUP_SH
 source $IMAGE_SH
 source $TIME_SH
-source $ARGS_CLEANUP_SH
 source $DOWNLOAD_DATASETS_SH
 source $GEOSPATIAL_SH
 source $SEISMICITY_SH
 source $INFO_SH
+
+
 
 FULL_TMP=$(abs_path ${TMP})
 
@@ -356,30 +414,8 @@ cprofnum=0
 
 # Startup code that runs every time the script is called
 
-case "$OSTYPE" in
-   cygwin*)
-      alias open="cmd /c start"
-      ;;
-   linux*)
-      alias open="xdg-open"
-      ;;
-   darwin*)
-      alias start="open -a Preview"
-      ;;
-esac
-
 function open_prog() {
-  case "$OSTYPE" in
-     cygwin*)
-        cmd /c start "${1}"
-        ;;
-     linux*)
-        xdg-open "${1}"
-        ;;
-     darwin*)
-        open -a Preview "${1}"
-        ;;
-  esac
+  nohup ${OPENPROGRAM} "${1}" &>/dev/null &
 }
 
 # Declare the associative array of items to be removed on exit
@@ -1918,31 +1954,31 @@ fi
     if arg_is_flag $2; then
       info_msg "[-author]: No author indicated."
       if [[ -e $TECTOPLOT_AUTHOR ]]; then
-        info_msg "Using author info in ${DEFDIR}tectoplot.author"
-        AUTHOR_ID=$(head -n 1 $DEFDIR"tectoplot.author")
+        info_msg "Using author info in ${OPTDIR}tectoplot.author"
+        AUTHOR_ID=$(head -n 1 $OPTDIR"tectoplot.author")
       else
-        info_msg "No author in ${DEFDIR}tectoplot.author and no author indicated"
+        info_msg "No author in ${OPTDIR}tectoplot.author and no author indicated"
         AUTHOR_ID=""
       fi
     else
       AUTHOR_ID="${2}"
       shift
       if [[ $AUTHOR_ID == "reset" ]]; then
-        info_msg "Resetting ${DEFDIR}tectoplot.author"
+        info_msg "Resetting ${OPTDIR}tectoplot.author"
         rm -f $TECTOPLOT_AUTHOR
         touch $TECTOPLOT_AUTHOR
         AUTHOR_ID=""
         exit
       elif [[ $AUTHOR_ID == "print" ]]; then
-        info_msg "Printing ${DEFDIR}tectoplot.author"
-        cat ${DEFDIR}tectoplot.author
+        info_msg "Printing ${OPTDIR}tectoplot.author"
+        cat ${OPTDIR}tectoplot.author
         exit
       elif [[ $AUTHOR_ID == "nodate" ]]; then
         info_msg "[-author]: Not printing timestamp"
-        AUTHOR_ID=$(head -n 1 $DEFDIR"tectoplot.author")
+        AUTHOR_ID=$(head -n 1 $OPTDIR"tectoplot.author")
         authortimestampflag=0
       else
-        info_msg "Setting author information in ${DEFDIR}tectoplot.author: ${2}"
+        info_msg "Setting author information in ${OPTDIR}tectoplot.author: ${2}"
         echo "$AUTHOR_ID" > $TECTOPLOT_AUTHOR
       fi
     fi
@@ -4398,7 +4434,7 @@ cat <<-EOF
 -open:         open main PDF at end (NO LONGER USED - LEGACY OPTION)
 -open
 
-  Uses program specified in tectoplot_defs/tectoplot.pdfviewer
+  Uses program specified in ${OPTDIR}/tectoplot.pdfviewer
 
 Example:
   tectoplot -r IN -oca -a
@@ -5961,20 +5997,20 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      echo -n "[-setdatadir]: No data directory specified. Current data directory is: "
-      cat ${DATAROOTDIR}
+      info_msg "[-setdatadir]: No data directory specified. Current data directory is: "
+      cat ${OPTDIR}"tectoplot.dataroot"
       exit 1
     else
-      datadirpath=$(abs_path $2)
+      datadirpath=$(abs_dir "${2}")
       # Directory will end with / after abs_path
       shift
       if [[ -d ${datadirpath} ]]; then
         echo "[-setdatadir]: Setting data directory to ${datadirpath}"
-        echo "${datadirpath}" > ${DATAROOTDIR}
+        echo "${datadirpath}" > ${OPTDIR}"tectoplot.dataroot"
       else
         echo "[-setdatadir]: Creating new data directory ${datadirpath}"
         mkdir -p "${datadirpath}"
-        echo "${datadirpath}" > ${DATAROOTDIR}
+        echo "${datadirpath}" > ${OPTDIR}"tectoplot.dataroot"
       fi
     fi
     exit
@@ -5986,7 +6022,7 @@ cat <<-EOF
 -setopen:      set the program that is used to open pdf files
 -setopen [application]
 
-  The path to the open program is stored in the tectoplot.pdfviewer file
+  The path to the open program is stored in the ${OPTDIR}tectoplot.pdfviewer file
 
 Example:
   tectoplot -setopen Preview
@@ -5997,10 +6033,20 @@ fi
     if arg_is_flag $2; then
       echo "[-setopen]: PDFs are opened using: ${OPENPROGRAM}"
     else
-      openapp="${2}"
+      OPENPROGRAM="${2}"
       shift
-      echo "${openapp}" > $DEFDIR"tectoplot.pdfviewer"
+      if command -v ${OPENPROGRAM} &> /dev/null; then
+        echo "${OPENPROGRAM}" > ${OPTDIR}"tectoplot.pdfviewer"
+      else
+        if command open -a ${OPENPROGRAM}; then
+          echo "open -a ${OPENPROGRAM}" > ${OPTDIR}"tectoplot.pdfviewer"
+
+        else
+          echo "Program ${OPENPROGRAM} cannot be called using open -a! Not setting."
+        fi
+      fi
     fi
+    exit
     ;;
 
   -scale)
@@ -14196,8 +14242,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
           gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         else
-# MIGHT BE BROKEN?
-echo banana
+# Does this work?
           [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
           gmt psxy ${F_SEIS}eqs.txt -C$SEIS_CPT ${EQWCOM} -S${SEISSYMBOL}${SEISSIZE} ${SEIS_INPUTORDER1} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         fi
@@ -14206,12 +14251,13 @@ echo banana
 			;;
 
     seissum)
-      echo res ${SSRESC}
       # Convert Mw to M0 and sum within grid nodes, then take the log10 and plot.
       gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
       gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
       gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
       gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+
+
       ;;
 
     slab2)
