@@ -280,9 +280,24 @@ function brew_packages() {
   # addition taps to enable packages not included in core tap
   tap_list=""
   # term_list includes packages which run from terminal without GUI
-  term_list="git gawk proj gcc gmt@6 ghostscript"
+  term_list="git gawk proj gcc ghostscript"
+  # "gmt@6"
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
+
+  # Install gmt 6.1.1 instead of GMT 6.2 until stable with tectoplot
+  #
+  echo "First, install GMT 6.1.1 instead of 6.2.0 until tectoplot is stable with 6.2.0"
+
+  GMTVERSION=$(gmt --version)
+  if [[ ${GMTVERSION} == 6.2* ]]; then
+    echo "GMT 6.2 already installed. Run 'brew uninstall gmt' before running this script."
+    exit 1
+  else
+    # This is the formula for GMT 6.1.1_6
+    curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
+  fi
+
   # print_msg "\nAdding additional Homebrew taps..."
   for tap in ${tap_list}; do
     print_msg "Checking for tap > ${tap}"
@@ -381,8 +396,8 @@ function miniconda_deps() {
     print_msg "Activating tectoplot environment..."
     conda activate tectoplot || exit_msg
 
-    print_msg "Installing dependencies into new tectoplot environment..."
-    conda install python=3.9 git gmt gawk ghostscript -c conda-forge
+    print_msg "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
+    conda install python=3.9 git gmt=6.1.1 gawk ghostscript -c conda-forge
 
     case "$OSTYPE" in
       linux*)
@@ -391,7 +406,7 @@ function miniconda_deps() {
         ;;
       darwin*)
         print_msg "Detected OSX... assuming x86_64"
-        conda install clang_osx-64 clangxx_osx-64 gfortran_linux-64 -c conda-forge
+        conda install clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
     esac
 

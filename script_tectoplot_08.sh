@@ -282,7 +282,17 @@ TECTOPLOT_AUTHOR=${OPTDIR}"tectoplot.author"
 if [[ -s ${OPTDIR}"tectoplot.pdfviewer" ]]; then
   OPENPROGRAM=$(head -n 1 ${OPTDIR}"tectoplot.pdfviewer")
 else
-  OPENPROGRAM=""
+  case "$OSTYPE" in
+   # cygwin*)
+   #    OPENPROGRAM="cmd /c start"
+   #    ;;
+   linux*)
+      OPENPROGRAM_TRY="xdg-open"
+      ;;
+   darwin*)
+      OPENPROGRAM_TRY="open -a Preview"
+      ;;
+  esac
 fi
 
 if ! command -v ${OPENPROGRAM} &> /dev/null; then
@@ -327,6 +337,13 @@ fi
 #   else
 #     openprogramflag=1
 #   fi
+# fi
+
+GMTVERSION=$(gmt --version)
+# if [[ $(echo $GMTVERSION | gawk '{ if ($1 >= "6.2.0") { print 0 } else {print 1 }}') -eq 1 ]]; then
+#   echo "GMT greater than 6.2"
+#   GMTVERSION="6.2"
+#
 # fi
 
 DATAROOT=$(head -n 1 ${OPTDIR}"tectoplot.dataroot")
@@ -384,7 +401,7 @@ source $DOWNLOAD_DATASETS_SH
 source $GEOSPATIAL_SH
 source $SEISMICITY_SH
 source $INFO_SH
-
+source $GMT_WRAPPERS
 
 
 FULL_TMP=$(abs_path ${TMP})
@@ -5914,7 +5931,6 @@ fi
         recalcregionflag_lonlat=1
         projcoordsflag=1
 
-echo RJ=${RJSTRING[@]}
       ;;
       Albers|B|Lambert|L|Equid|D)
 
@@ -9755,22 +9771,92 @@ if [[ $plotslab2 -eq 1 ]]; then
   cleanup inpoint.file
   for slabcfile in $(ls -1a ${SLAB2_CLIPDIR}*.csv); do
     # echo "Looking at file $slabcfile"
-    gawk < $slabcfile '{
-      if ($1 > 180) {
-        print $1-360, $2
-      } else {
-        print $1, $2
+    # gawk <  '{
+    #   if ($1 > 180) {
+    #     print $1-360, $2
+    #   } else {
+    #     print $1, $2
+    #   }
+    # }' > tmpslabfile.dat
+
+    gawk < $slabcfile '
+      BEGIN {
+        found_m180=0
+        found_180=0
+        getline
+        if ($1 > 180) {
+          $1=$1-360
+        }
+        minlon=$1
+        maxlon=$1
+        minlat=$2
+        maxlat=$2
+        maxneglon=-180
+        minposlon=180
+        lon[NR]=$1
+        lat[NR]=$1
       }
-    }' > tmpslabfile.dat
-    numinregion=$(gmt select tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} | wc -l)
+      {
+        if ($1 > 180) {
+          $1=$1-360
+        }
+        minlon=($1<minlon)?$1:minlon
+        maxlon=($1>maxlon)?$1:maxlon
+        minlat=($2<minlat)?$2:minlat
+        maxlat=($2>maxlat)?$2:maxlat
+        maxneglon=($1>maxneglon && $1<=0)?$1:maxneglon
+        minposlon=($1<minposlon && $1>=0)?$1:minposlon
+
+        foundlon[$1]=1
+        lon[NR]=$1
+        lat[NR]=$2
+      }
+      END {
+
+        # print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
+        # print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
+        if (maxneglon < -140 && minposlon > 140) {
+#            print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
+            adjustlon=1
+            maxneglon+=360
+        } else {
+#          print "Detected reasonable longitude range"  > "/dev/stderr"
+        }
+
+      }
+      END {
+        for(i=1;i<=NR;i++) {
+          if (lon[i]<0) {
+            print lon[i]+adjustlon*360, lat[i]
+          } else {
+            print lon[i], lat[i]
+          }
+        }
+      }' > new_tmpslabfile.dat
+
+
+    # echo gmt select tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
+    # gmt select new_tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
+    numinregion=$(gmt select new_tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} | wc -l)
+    # echo $numinregion
     if [[ $numinregion -ge 1 ]]; then
       numslab2inregion=$(echo "$numslab2inregion+1" | bc)
       slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
+      # echo added ${slab2inregion[$numslab2inregion]}
     else
-      numinregion=$(gmt select inpoint.file -Ftmpslabfile.dat ${VERBOSE} | wc -l)
+
+      # If the slab wasn't selected above, try another approach
+      # This is intended to select slabs when the view is so close that we don't
+      # encompass any of the edge points. But it is breaking for some reason, likely
+      # due to projection issues or longitude range issues
+      numinregion=$(gmt select inpoint.file -Fnew_tmpslabfile.dat ${VERBOSE} | wc -l)
+
       # echo $numinregion
       if [[ $numinregion -eq 1 ]]; then
+
         numslab2inregion=$(echo "$numslab2inregion+1" | bc)
+        # echo added x ${slab2inregion[$numslab2inregion]}
+
         slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
       fi
     fi
@@ -12653,6 +12739,26 @@ if [[ -s ${DEFDIR}${THEME_ID}.theme ]]; then
 
   # cat theme.sh
   source theme.sh
+elif [[ -s ${OPTDIR}${THEME_ID}.theme ]]; then
+  info_msg "Setting theme to user theme ${THEME_ID}"
+
+  gawk < ${OPTDIR}${THEME_ID}.theme -v thistheme="${2}" '
+  BEGIN {
+    printf "gmt gmtset "
+  }
+  {
+    if (substr($1,1,1) != "#") {
+      if ($2 != "null") {
+        printf "%s %s ", $1, $2
+      }
+    }
+  }
+  END {
+    printf "\n"
+  }' > theme.sh
+
+  # cat theme.sh
+  source theme.sh
 fi
 
 if [[ $insideframeflag -eq 1 ]]; then
@@ -12982,13 +13088,13 @@ for plot in ${plots[@]} ; do
       fi
 
       if [[ $cmtthrustflag -eq 1 ]]; then
-        gmt psmeca -E"${CMT_THRUSTCOLOR}" -Z$SEIS_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
-        gmt psmeca -E"${CMT_NORMALCOLOR}" -Z$SEIS_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca ${SEIS_CPT} -E"${CMT_NORMALCOLOR}"  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtssflag -eq 1 ]]; then
-        gmt psmeca -E"${CMT_SSCOLOR}" -Z$SEIS_CPT ${CMTEXTRA} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca $SEIS_CPT -E"${CMT_SSCOLOR}" ${CMTEXTRA} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       ;;
 
@@ -15293,21 +15399,21 @@ if [[ $makelegendflag -eq 1 ]]; then
         MEXP_T=$(stretched_m0_from_mw $MEXP_V_T)
 
         if [[ $CMTLETTER == "c" ]]; then
-          echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -15317,7 +15423,7 @@ if [[ $makelegendflag -eq 1 ]]; then
           echo "$CENTERLON $CENTERLAT reverse" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> mecaleg.ps
         fi
         if [[ $CMTLETTER == "m" ]]; then
-          echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_N 0 0 " | gmt psmeca -E"${CMT_NORMALCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_N 0 0 " | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -15325,7 +15431,7 @@ if [[ $makelegendflag -eq 1 ]]; then
           fi
           # echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_S 0 0 " | gmt psmeca -E"${CMT_SSCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_S 0 0 " | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -15333,7 +15439,7 @@ if [[ $makelegendflag -eq 1 ]]; then
           fi
           # echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
           echo "$CENTERLON $CENTERLAT strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_T 0 0 2016-12-08T17:38:46" | gmt psmeca -E"${CMT_THRUSTCOLOR}" -L0.25p,black -Z$SEISDEPTH_CPT ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_T 0 0 2016-12-08T17:38:46" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
             [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps

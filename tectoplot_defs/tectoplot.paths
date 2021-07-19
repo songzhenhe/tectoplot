@@ -64,6 +64,7 @@ MPROFILE_SH_SRC=${BASHSCRIPTDIR}"profile.sh"
 CMTSLURP=${BASHSCRIPTDIR}"cmt_tools.sh"
 FLOAT_TEXT=${BASHSCRIPTDIR}"textobj.sh"
 SET_THEME=${BASHSCRIPTDIR}"settheme.sh"
+GMT_WRAPPERS=${BASHSCRIPTDIR}"gmt_wrappers.sh"
 
 
 

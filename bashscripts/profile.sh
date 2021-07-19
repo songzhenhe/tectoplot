@@ -1614,7 +1614,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
-      # COMEBACK: I think I pasted this accidentally to here? 
+      # COMEBACK: I think I pasted this accidentally to here?
       # # I have no idea why I expect joinbuf.txt to exist at this stage...? Maybe if -z is already set.
       #
       # if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
@@ -1799,7 +1799,10 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
 
         # cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+
+
         cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        # S${CMTLETTER}0.05i causes pscoupe to die with gmt 6.2
 
         # pscoupe outputs data into files called Aa... rather than to a specified output file
 
@@ -1836,7 +1839,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         done
         rm -f Aa*
 
-        cat ${F_PROFILES}cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+        cat ${F_PROFILES}cmt_strikeslip_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' > ${F_PROFILES}cmt_strikeslip_pscoupe.txt
+        gmt pscoupe ${F_PROFILES}cmt_strikeslip_pscoupe.txt -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER} -Xc -Yc > /dev/null
         rm -f *_map
         for pscoupefile in Aa*; do
           info_msg "Shifting profile $pscoupefile by $cur_x km to account for segmentation"
