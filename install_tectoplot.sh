@@ -406,7 +406,7 @@ function miniconda_deps() {
     conda activate tectoplot || exit_msg
 
     print_msg "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
-    conda install python=3.9 git gmt=6.1.1 gawk ghostscript -c conda-forge
+    conda install python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
 
     case "$OSTYPE" in
       linux*)
