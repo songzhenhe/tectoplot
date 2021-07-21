@@ -7232,7 +7232,8 @@ shift && continue
 fi
   if ! arg_is_flag "${2}"; then
     if [[ -s "${2}" ]]; then
-      TOPO_CPT_DEF=$(abs_path "${2}")
+      TOPO_CPT_DEF=$(abs_path ${2})
+      info_msg "[-tcpt]: Setting CPT to ${TOPO_CPT_DEF}"
     else
       TOPO_CPT_DEF="${2}"
     fi
@@ -10239,7 +10240,7 @@ if [[ $plotseis -eq 1 ]]; then
             }
           }
         }
-        else if (tolower(type) == "ml") { # Mereu, 2019
+      else if (tolower(type) == "ml") { # Mereu, 2020
           oldval=$5
           $5 = 0.62 * $5 + 1.09
           print $12, type "=" oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
@@ -10293,7 +10294,8 @@ if [[ $plotseis -eq 1 ]]; then
             print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
           }
         } else if (tolower(type) == "ml") {
-          # Mereu, 2019
+          # Is it more wrong to use a local ml->Mw conversion or leave the ml alone? Not sure!
+          # Mereu, 2020
           oldval=mag
           $11 = 0.62 * mag + 1.09
           print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"

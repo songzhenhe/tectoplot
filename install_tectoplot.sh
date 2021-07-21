@@ -238,7 +238,7 @@ function install_homebrew() {
   print_msg "\nInstalling Homebrew..."
   print_msg "Checking for Homebrew..."
   if command_exists "brew"; then
-    print_msg "Homebrew is installed."
+    print_msg "Homebrew is already installed."
 
     # Is there really any reason to update/upgrade? As they take significant
     # time to complete.
@@ -261,7 +261,7 @@ function install_homebrew() {
     fi
   else
     print_msg "\n"
-    print_msg "Homebrew not installed. Attempting to install via curl..."
+    print_msg "Homebrew is not installed. Attempting to install via curl..."
     if command_exists "curl"; then
       if /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
         print_msg "Homebrew was installed.\n"
@@ -280,7 +280,7 @@ function brew_packages() {
   # addition taps to enable packages not included in core tap
   tap_list=""
   # term_list includes packages which run from terminal without GUI
-  term_list="git gawk proj gcc ghostscript"
+  term_list="git gawk proj gcc ghostscript evince"
   # "gmt@6"
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
@@ -344,6 +344,15 @@ function brew_packages() {
     fi
   done
 }
+
+function install_evince() {
+  if command_exists "brew"; then
+    brew install evince
+  else
+    print_msg "Homebrew is not installed. Not installing evince."
+  fi
+}
+
 
 function exit_msg() {
   echo "Previous step failed... exiting"
@@ -433,6 +442,21 @@ function clone_tectoplot() {
   fi
 }
 
+function install_evince_anyway() {
+  while true; do
+    read -r -p "PDF viewer evince cannot be installed using conda. Use homebrew to install? " response
+    case "${response}" in
+    Y|y|"")
+      echo
+      install_homebrew
+      install_evince
+      ;;
+    *)
+      ;;
+    esac
+  done
+}
+
 function clone_tectoplot_examples() {
   if [[ -d ${tectoplot_folder_dir}/tectoplot-examples/ ]]; then
     print_msg "Folder ./tectoplot already exists... not cloning repository"
@@ -499,12 +523,14 @@ main() {
       brew_packages
     ;;
     miniconda)
+      # In case we want evince, we need to install homebrew anyway.
       set_miniconda_folder
       report_storage $miniconda_folder_dir
       install_miniconda
       miniconda_deps
     ;;
   esac
+
 
 
   if [[ $INSTALL_TECTOPLOT_REPO =~ "true" && $SETUP_TECTOPLOT =~ "true" ]]; then
@@ -541,6 +567,12 @@ main() {
 
     fi
   fi
+
+  if ! command_exists "evince"; then
+    install_evince_anyway
+  fi
+
+
 
   print_msg "Script completed.\n"
 }
