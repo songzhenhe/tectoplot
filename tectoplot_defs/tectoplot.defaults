@@ -46,7 +46,7 @@ LEGEND_V_OFFSET=12/72   # Distance in inches separating top of map from bottom o
 
 LABELSONMAP=1       # If 1, plot EQ/CMT labels on map. If not 1, plot on separate PS files
 
-THEME_ID="avant"   # Choose from classic or avant
+THEME_ID="classic"   # Choose from classic or avant
 
 DEM_MINLON="unset"
 

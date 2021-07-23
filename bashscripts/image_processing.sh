@@ -44,10 +44,17 @@ function multiply_combine() {
 
 function alpha_value() {
   info_msg "Executing alpha transparency of $1 by factor $2 [0-1]. Result=$3."
-  gdal_calc.py –-NoDataValue=none --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
-                 ((A/255.)*(1-${2})+(255/255.)*(${2}))
-                 ) * 255 )" --outfile="${3}"
-  gdal_edit.py -unsetnodata "${3}"
+
+  if [[ $GDAL_VERSION_GT_3_2 -eq 1 ]]; then
+    gdal_calc.py --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
+                   ((A/255.)*(1-${2})+(255/255.)*(${2}))
+                   ) * 255 )" --outfile="${3}"
+  else
+    gdal_calc.py –-NoDataValue=none --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
+                   ((A/255.)*(1-${2})+(255/255.)*(${2}))
+                   ) * 255 )" --outfile="${3}"
+    gdal_edit.py -unsetnodata "${3}"
+  fi
 }
 
 # function alpha_multiply_combine() {
@@ -242,6 +249,7 @@ function recolor_sea() {
 # and trailing annotation fields are also printed.
 
 function replace_gmt_colornames_rgb() {
+  cp $1 thisfile.cpt
   gawk '
   BEGIN {
     firstline=0
@@ -265,7 +273,6 @@ function replace_gmt_colornames_rgb() {
         if (format=="none") {
           print
         } else if (format=="a/b/c") {
-
           if ($2 in colors) {
             $2=colors[$2]
           }
@@ -281,7 +288,7 @@ function replace_gmt_colornames_rgb() {
               $4=colors[$4]
             } else {
               num2=split($4, c2, "/")
-              if (num2 != 3) {
+              if (num1 != 3) {
                 print("CPT format inconsistent - expecting Z1 A/B/C Z2 A/B/C [N]") > "/dev/stderr"
                 exit
               }
@@ -366,6 +373,75 @@ function scale_cpt() {
       }
     } else {
       print
+    }
+  }'
+}
+
+function multiply_scale_cpt() {
+  gawk < "${1}" -v scale_below="${2}" -v scale_above="${3}" '
+  BEGIN {
+    firstline=0
+  }
+  {
+    if (substr($0,0,1)!="#") {
+      if (NF > 2) {
+        scale=($1 < 0)?scale_below:scale_above
+        $1=$1*scale
+        scale=($3 < 0)?scale_below:scale_above
+        $3=$3*scale
+        print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5
+      } else {
+        print
+      }
+    } else {
+      print
+    }
+  }'
+}
+
+
+# This function takes a clean RGB CPT (ARG1) and stretches the z values
+# between ARG2 and ARG3, keeping the relative spacing between z slices.
+# Comments, annotation letters, and BFN are preserved. The zero hinge is
+# not respected
+
+# CPT format is
+# # comment
+# z R/G/B z R/G/B
+# B R/G/B
+# F R/G/B
+# N R/G/B
+
+function rescale_cpt() {
+  gawk < "${1}" -v scale_min="${2}" -v scale_max="${3}" '
+  @include "tectoplot_functions.awk"
+  BEGIN {
+    max_z=-9999999
+    min_z=9999999
+  }
+  {
+    if ($1+0==$1) {
+      max_z=($3>max_z)?$3:max_z
+      min_z=($1<min_z)?$1:min_z
+      isslice[NR]=1
+      slice_minz[NR]=$1
+      slice_mincolor[NR]=$2
+      slice_maxz[NR]=$3
+      slice_maxcolor[NR]=$4
+    } else {
+      isslice[NR]=0
+      nonslice[NR]=$0
+    }
+  }
+  END {
+    for(i=1;i<=NR;i++) {
+      if (isslice[i]==1) {
+        new_minz=rescale_value(slice_minz[i], min_z, max_z, scale_min, scale_max)
+        new_maxz=rescale_value(slice_maxz[i], min_z, max_z, scale_min, scale_max)
+        print new_minz, slice_mincolor[i], new_maxz, slice_maxcolor[i]
+      } else {
+        print nonslice[i]
+      }
     }
   }'
 }

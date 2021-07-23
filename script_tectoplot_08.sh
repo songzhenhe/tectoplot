@@ -346,6 +346,9 @@ GMTVERSION=$(gmt --version)
 #
 # fi
 
+GDAL_VERSION_GT_3_2=$(gdalinfo --version | gawk -F, '{split($1, a, " "); if (a[2] > "3.2.0") { print 1 } else { print 0 }}')
+
+
 DATAROOT=$(head -n 1 ${OPTDIR}"tectoplot.dataroot")
 
 # if [[ ! -d ${DATAROOT} ]]; then
@@ -5263,7 +5266,7 @@ Option 3: Use a rectangular region. All arguments are decimal degrees.
 -r [MinLon] [MaxLon] [MinLat] [MaxLat]
 
 Option 4: Use the extent of an existing XY file (lon lat format) or grid file
--r [filename]
+-r [filename] [[degree_buffer]]
 
 Option 5: Rectangular area centered on a catalog earthquake. -z is required.
 -r eq [EarthquakeID] [[mapwidth=${EQ_REGION_WIDTH}]]
@@ -5411,13 +5414,22 @@ fi
               MAXLAT=$(echo $rasrange | gawk  '{print $5}')
               ;;
           esac
+        shift
+
+        if arg_is_positive_float "${2}"; then
+          REGION_BUFDEG="${2}"
+          shift
+          MINLON=$(echo $REGION_BUFDEG $MINLON | gawk  '{print $2-$1}')
+          MAXLON=$(echo $REGION_BUFDEG $MAXLON | gawk  '{print $2+$1}')
+          MINLAT=$(echo $REGION_BUFDEG $MINLAT | gawk  '{print ($2-$1<-90)?-90:$2-$1}')
+          MAXLAT=$(echo $REGION_BUFDEG $MAXLAT | gawk  '{print ($2+$1>90)?90:$2+$1}')
+        fi
 
         if [[ $(echo "$MAXLON > $MINLON" | bc) -eq 1 ]]; then
           if [[ $(echo "$MAXLAT > $MINLAT" | bc) -eq 1 ]]; then
-            info_msg "Set region to $MINLON/$MAXLON/$MINLAT/$MAXLAT to match $2"
+            info_msg "Set region to $MINLON/$MAXLON/$MINLAT/$MAXLAT"
           fi
         fi
-        shift
 
 # Option 6: A single argument which doesn't match any of the above is a country ID OR a custom ID
       # Custom IDs override region IDs, so we search for that first
@@ -6531,7 +6543,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography (~wgs1984 only)
--t [[datasource=SRTM30]] [[ { gmt topo args } ]] [[cpt_file]]
+-t [[datasource=SRTM30]] [[ { gmt topo args } ]]
 
   DATA SOURCE:
 
@@ -6551,6 +6563,8 @@ cat <<-EOF
          | 15s | 03s | 01s
 
   The default visualization is GMT standard CPT+hillshade.
+
+  Note: Use -tcpt to adjust the color stretch
 
 Example:
   tectoplot -r AU -t 10m
@@ -6655,26 +6669,26 @@ fi
       reprojecttopoflag=1
       shift
     fi
-    # Specify a CPT file
-    if arg_is_flag $2; then
-      info_msg "[-t]: No topo CPT specified. Using default."
-    else
-      customgridcptflag=1
-      CPTNAME="${2}"
-      CUSTOMCPT=$(abs_path $2)
-      shift
-      if ! [[ -e $CUSTOMCPT ]]; then
-        info_msg "CPT $CUSTOMCPT does not exist... looking for $CPTNAME in $CPTDIR"
-        if [[ -e $CPTDIR$CPTNAME ]]; then
-          CUSTOMCPT=$CPTDIR$CPTNAME
-          info_msg "Found CPT $CPTDIR$CPTNAME"
-        else
-          info_msg "No CPT could be assigned. Using $TOPO_CPT_DEF"
-          CUSTOMCPT=$TOPO_CPT_DEF
-        fi
-      fi
-    fi
-
+    # # Specify a CPT file
+    # if arg_is_flag $2; then
+    #   info_msg "[-t]: No topo CPT specified. Using default."
+    # else
+    #   customgridcptflag=1
+    #   CPTNAME="${2}"
+    #   CUSTOMCPT=$(abs_path $2)
+    #   shift
+    #   if ! [[ -e $CUSTOMCPT ]]; then
+    #     info_msg "CPT $CUSTOMCPT does not exist... looking for $CPTNAME in $CPTDIR"
+    #     if [[ -e $CPTDIR$CPTNAME ]]; then
+    #       CUSTOMCPT=$CPTDIR$CPTNAME
+    #       info_msg "Found CPT $CPTDIR$CPTNAME"
+    #     else
+    #       info_msg "No CPT could be assigned. Using $TOPO_CPT_DEF"
+    #       CUSTOMCPT=$TOPO_CPT_DEF
+    #     fi
+    #   fi
+    # fi
+    #
     cpts+=("topo")
     fasttopoflag=1
 
@@ -6996,11 +7010,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tr:           rescale cpt to data range
--tr
+-tr   [min] [[max]] [[spacing]]
 
-  Stretch the CPT color scheme across the topographic range in the DEM
-
-  If data is completely above 0 elevation, only stretch the top half of the CPT
+  Stretch the CPT color scheme across the topographic range in the DEM (default),
+  or between given values. Spacing dictates width of CPT z-slices.
 
 Example:
   tectoplot -r 45 46 33 34 -t -tr
@@ -7008,8 +7021,60 @@ Example:
 EOF
 shift && continue
 fi
+
+    if arg_is_float "${2}"; then
+      RESCALE_CPT_MIN="${2}"
+      shift
+    else
+      RESCALE_CPT_MIN="none"
+    fi
+    if arg_is_float "${2}"; then
+      RESCALE_CPT_MAX="${2}"
+      shift
+    else
+      RESCALE_CPT_MAX="none"
+    fi
+    if arg_is_positive_float "${2}"; then
+      RESCALE_CPT_SPACING="${2}"
+      shift
+    else
+      RESCALE_CPT_SPACING="none"
+    fi
+
     rescaletopoflag=1
     ;;
+
+    -trp)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tr:           rescale cpt by two factors, above and below 0
+-tr   [below] [above]
+
+  Stretch the CPT color scheme by multiplying values > 0 by [above] and
+  values < 0 by [below]
+
+Example:
+  tectoplot -r 45 46 33 34 -t -tr
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+      if arg_is_float "${2}"; then
+        MULT_CPT_BELOW="${2}"
+        shift
+      else
+        MULT_CPT_BELOW=1
+      fi
+      if arg_is_float "${2}"; then
+        MULT_CPT_ABOVE="${2}"
+        shift
+      else
+        MULT_CPT_ABOVE="none"
+      fi
+
+      multiplyrescaletopoflag=1
+      ;;
 
   -ts)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -7215,41 +7280,65 @@ fi
     useowntopoctrlflag=1
     ;;
 
+  -cptrescale)
+
+    echo "Rescaling"
+    rescale_cpt $2 $3 $4
+    echo "Replacing colornames"
+    replace_gmt_colornames_rgb $2
+    shift
+    shift
+    shift
+    exit
+    ;;
+
   -tcpt)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tcpt:         Specify the color scheme for topography
 -tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
 
-  type:
-  d = discrete
-  c = continuous
+  cpt = CPT file or builtin CPT name
 
 Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
+
+# type:
+# d = discrete
+# c = continuous
+
+
   if ! arg_is_flag "${2}"; then
     if [[ -s "${2}" ]]; then
       TOPO_CPT_DEF=$(abs_path ${2})
       info_msg "[-tcpt]: Setting CPT to ${TOPO_CPT_DEF}"
-    else
+    elif gmt makecpt -C${2} > /dev/null 2>&1; then
+      info_msg "[-tcpt]: CPT ${2} is a builtin GMT CPT."
       TOPO_CPT_DEF="${2}"
+    else
+      echo "[-tcpt]: ${2} is not a valid CPT"
+      echo -n "GMT builtin CPTS (see gmt -makecpt): "
+      gmt makecpt 2>&1 | gawk '($2==":"){printf("%s "), $1} END { printf("\n")}'
+      exit 1
     fi
     shift
   fi
-  if ! arg_is_flag "${2}"; then
-    case "${2}" in
-      c)
-        TOPO_CPT_TYPE="-Z"
-        ;;
-      d)
-        TOPO_CPT_TYPE=""
-        ;;
-    esac
-    shift
-  fi
+
+
+  # if ! arg_is_flag "${2}"; then
+  #   case "${2}" in
+  #     c)
+  #       TOPO_CPT_TYPE="-Z"
+  #       ;;
+  #     d)
+  #       TOPO_CPT_TYPE=""
+  #       ;;
+  #   esac
+  #   shift
+  # fi
 
   ;;
 
@@ -12344,7 +12433,7 @@ for cptfile in ${cpts[@]} ; do
 
       # Strategy:
 
-      # 1. Determine whether the Z range crosses 0.
+      # 1. Determine the range of the DEM
 
       zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
       MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
@@ -12359,237 +12448,316 @@ for cptfile in ${cpts[@]} ; do
 
       gmt makecpt -C${TOPO_CPT_DEF} > ${F_CPTS}first.cpt
 
-      # 1.1. Use a 1 meter step spacing to avoid losing contrast
-
-      SPACING_D=1
-      # $(echo ${MINZ} ${MAXZ} | gawk '
-      #   {
-      #     if ($2-$1 > 5000) {
-      #       print 1
-      #     } else if ($2-$1 > 2500) {
-      #       print 5000
-      #     } else if ($2-$1 > 1250) {
-      #       print 250
-      #     } else if ($2-$1 > 500) {
-      #       print 100
-      #     } else {
-      #       print 10
-      #     }
-      #   }')
-
-      CPT_ZRANGE=($(gawk <  ${F_CPTS}first.cpt '
-        BEGIN {
-          getline
-          minz=($1<$3)?$1:$3
-          maxz=($1>$3)?$1:$3
-          haszero=0
-        }
-        ($1+0==$1){
-          minz=($1<minz)?$1:minz
-          minz=($3<minz)?$3:minz
-
-          maxz=($1>maxz)?$1:maxz
-          maxz=($3>maxz)?$3:maxz
-        }
-        ($1==0) {
-          haszero=1
-        }
-        END {
-          print minz, maxz, haszero
-        }'))
-
-      CPT_HAS_ZERO=${CPT_ZRANGE[2]}
-
-      # echo ${CPT_ZRANGE[0]} ${CPT_ZRANGE[1]}
-      #
-      # echo -T${CPT_ZRANGE[0]}/${CPT_ZRANGE[1]}/${SPACING_D}
-
-      # Sample the CPT at the specified
-
-      if [[ $rescaletopoflag -eq 1 ]]; then
-        gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${MINZ}/${MAXZ}/${SPACING_D} > ${F_CPTS}respaced.cpt
+      if [[ $usedirectcptflag -eq 1 ]]; then
+        mv ${F_CPTS}first.cpt ${F_CPTS}new_extended_2.cpt
       else
-        gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${CPT_ZRANGE[0]}/${CPT_ZRANGE[1]}/${SPACING_D} > ${F_CPTS}respaced.cpt
-      fi
-      replace_gmt_colornames_rgb  ${F_CPTS}respaced.cpt >  ${F_CPTS}respaced_rgb.cpt
 
-      # Detect whether the CPT file crosses 0 but does not have a 0 z slice
+        # 1.1. Use a 1 meter step spacing to avoid losing contrast
 
-      if [[ $(echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0" | bc) -eq 1 ]]; then
-        if [[ $CPT_HAS_ZERO -eq 0 ]]; then
-          # echo "CPT needs to have a 0 slice added"
-          gawk <  ${F_CPTS}respaced_rgb.cpt '
-            BEGIN {
-              getline
-              last_c1=$2
-              last_c2=$4
-              printed_zero=0
-              print
-            }
-            ($1+0==$1) {
-              if ($1>0 && printed_zero==0) {
-                print 0, last_c2, $1, last_c2
-                printed_zero=1
-              }
-              print
-              last_c1=$2
-              last_c2=$4
-            }
-            ($1+0!=$1) {
-              print
-            }' >  ${F_CPTS}new_0slice.cpt
-            mv  ${F_CPTS}new_0slice.cpt  ${F_CPTS}respaced_rgb.cpt
-            CPT_HAS_ZERO=1
-        # else
-        #   echo "CPT needs and has a 0 slice"
-        fi
-      fi
+        SPACING_D=1
+        # $(echo ${MINZ} ${MAXZ} | gawk '
+        #   {
+        #     if ($2-$1 > 5000) {
+        #       print 1
+        #     } else if ($2-$1 > 2500) {
+        #       print 5000
+        #     } else if ($2-$1 > 1250) {
+        #       print 250
+        #     } else if ($2-$1 > 500) {
+        #       print 100
+        #     } else {
+        #       print 10
+        #     }
+        #   }')
 
-      # echo "Need to extend range of CPT file to cover data: $MINZ $MAXZ ${CPT_ZRANGE[0]} ${CPT_ZRANGE[1]}?"
-
-      # If our data range crosses 0, minZ<=0 and maxz>=0
-
-        EXTEND_D=($(echo ${MINZ} ${MAXZ} | gawk '
-          {
-            if ($1<0 && $2<0) {
-              endv=0-$1
-            } else if ($1<0 && $2>0) {
-              if ((0-$1) > $2) {
-                endv=0-$1
-              } else {  # ($1>0 and $2 > 0)
-                endv=$2
-              }
-            } else if ($1>= 0 && $2 >= 0) {
-              endv=$2
-            }
-            # print "range", $2-$1 > "/dev/stderr"
-            if ($2-$1 > 5000) {
-              x=10**(length(int(endv))-1);
-              print x*int((endv/x)+0.5)+1000, 2000
-            } else if ($2-$1 > 2500) {
-              x=10**(length(int(endv))-1);
-              print x*int((endv/x)+0.5)+1000, 1000
-            } else if ($2-$1 > 1250) {
-              x=10**(length(int(endv))-1);
-              print x*int((endv/x)+0.5)+1000, 500
-            } else if ($2-$1 > 500) {
-              x=10**(length(int(endv))-1);
-              print x*int((endv/x)+0.5)+1000, 200
-            } else {
-              x=10**(length(int(endv))-1);
-              print x*int((endv/x)+0.5)+1000, 20
-            }
-          }'))
-
-        extend_val=${EXTEND_D[0]}
-        extend_int=${EXTEND_D[1]}
-
-        # echo "extend val is ${extend_val} range is ${extend_int}"
-
-        gawk < ${F_CPTS}respaced_rgb.cpt -v extv=${extend_val} '
+        CPT_ZRANGE=($(gawk <  ${F_CPTS}first.cpt '
           BEGIN {
             getline
-            if ($1 > 0-extv) {
-              print 0-extv, $2, $1, $2
-            }
-            print $1, $2, $3, $4
-            last1=$1
-            last2=$2
-            last3=$3
-            last4=$4
+            minz=($1<$3)?$1:$3
+            maxz=($1>$3)?$1:$3
           }
-          ($1=="B") {
-            # if (last3 != extv) {
-              # Ensure we do not have a zslice with dz=0
-            print last3, last4, extv, last4
-            # }
-            print
+          ($1+0==$1){
+            minz=($1<minz)?$1:minz
+            minz=($3<minz)?$3:minz
+
+            maxz=($1>maxz)?$1:maxz
+            maxz=($3>maxz)?$3:maxz
           }
-          ($1+0==$1) {
-            if ($1+0 <= extv) {
+          END {
+            print minz, maxz
+          }'))
+
+        CPT_HAS_ZERO=${CPT_ZRANGE[2]}
+
+        # If the input CPT is symmetric about 0 and has a 0 slice, then rescaling will by symmetric about 0
+        # If
+
+
+        if [[ $rescaletopoflag -eq 1 ]]; then
+
+          # Stretch the CPT to fit the requested range
+          if [[ ${RESCALE_CPT_MIN} == "none" ]]; then
+            RESCALE_CPT_MIN=${MINZ}
+          fi
+          if [[ ${RESCALE_CPT_MAX} == "none" ]]; then
+            RESCALE_CPT_MAX=${MAXZ}
+          fi
+          if [[ ${RESCALE_CPT_SPACING} == "none" ]]; then
+            RESCALE_CPT_SPACING=${SPACING_D}
+          fi
+          gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${RESCALE_CPT_MIN}/${RESCALE_CPT_MAX}/${RESCALE_CPT_SPACING} -Fr > ${F_CPTS}respaced.cpt
+        else
+          gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${CPT_ZRANGE[0]}/${CPT_ZRANGE[1]}/${SPACING_D} -Fr > ${F_CPTS}respaced.cpt
+        fi
+
+        if [[ $multiplyrescaletopoflag -eq 1 ]]; then
+          multiply_scale_cpt ${F_CPTS}respaced.cpt ${MULT_CPT_BELOW} ${MULT_CPT_ABOVE} > ${F_CPTS}mult_scaled.cpt
+          cp ${F_CPTS}mult_scaled.cpt ${F_CPTS}respaced.cpt
+        fi
+
+        replace_gmt_colornames_rgb  ${F_CPTS}respaced.cpt >  ${F_CPTS}respaced_rgb.cpt
+
+
+        # Check whether a z-slice line starts with 0.
+
+        CPT_HAS_ZERO=($(gawk <  ${F_CPTS}respaced_rgb.cpt '
+          BEGIN {
+            haszero=0
+          }
+          ($1==0) {
+            haszero=1
+          }
+          END {
+            print haszero
+          }'))
+
+        # Detect whether the CPT file crosses 0 but does not have a 0 z slice
+
+        if [[ $(echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0" | bc) -eq 1 ]]; then
+          if [[ $CPT_HAS_ZERO -eq 0 ]]; then
+            # echo "CPT needs to have a 0 slice added"
+            gawk <  ${F_CPTS}respaced_rgb.cpt '
+              BEGIN {
+                getline
+                last_c1=$2
+                last_c2=$4
+                printed_zero=0
+                print
+              }
+              ($1+0==$1) {
+                if ($1>0 && printed_zero==0) {
+                  print 0, last_c2, $1, last_c2
+                  printed_zero=1
+                }
+                print
+                last_c1=$2
+                last_c2=$4
+              }
+              ($1+0!=$1) {
+                print
+              }' >  ${F_CPTS}new_0slice.cpt
+              mv  ${F_CPTS}new_0slice.cpt  ${F_CPTS}respaced_rgb.cpt
+              CPT_HAS_ZERO=1
+          # else
+          #   echo "CPT needs and has a 0 slice"
+          fi
+        fi
+
+        # echo "Need to extend range of CPT file to cover data: $MINZ $MAXZ ${CPT_ZRANGE[0]} ${CPT_ZRANGE[1]}?"
+
+        # If our data range crosses 0, minZ<=0 and maxz>=0
+          EXTEND_D=($(echo ${MINZ} ${MAXZ} | gawk '
+            {
+              if ($1<0 && $2<0) {
+                endv=0-$1
+              } else if ($1<0 && $2>0) {
+                if ((0-$1) > $2) {
+                  endv=0-$1
+                } else {  # ($1>0 and $2 > 0)
+                  endv=$2
+                }
+              } else if ($1>= 0 && $2 >= 0) {
+                endv=$2
+              }
+              # print "range", $2-$1 > "/dev/stderr"
+              if ($2-$1 > 5000) {
+                x=10**(length(int(endv))-1);
+                print x*int((endv/x)+0.5)+1000, 2000
+              } else if ($2-$1 > 2500) {
+                x=10**(length(int(endv))-1);
+                print x*int((endv/x)+0.5)+1000, 1000
+              } else if ($2-$1 > 1250) {
+                x=10**(length(int(endv))-1);
+                print x*int((endv/x)+0.5)+1000, 500
+              } else if ($2-$1 > 500) {
+                x=10**(length(int(endv))-1);
+                print x*int((endv/x)+0.5)+1000, 200
+              } else {
+                x=10**(length(int(endv))-1);
+                print x*int((endv/x)+0.5)+1000, 20
+              }
+            }'))
+
+          extend_val=${EXTEND_D[0]}
+          extend_int=${EXTEND_D[1]}
+
+          # echo "minz=${MINZ} maxz=${MAXZ} extend val is ${extend_val} range is ${extend_int}"
+
+          gawk < ${F_CPTS}respaced_rgb.cpt -v extv=${extend_val} '
+            BEGIN {
+              getline
+              if ($1 > 0-extv) {
+                print 0-extv, $2, $1, $2
+              }
               print $1, $2, $3, $4
               last1=$1
               last2=$2
               last3=$3
               last4=$4
             }
-
-            # if ($1+0 < extv) {
-            #   print $1, $2, $3, $4
-
-            # } else {
-            #   print "Did not qualify", $0
-            # }
-
-          }
-          ($1+0!=$1 && $1 != "B") {
-            print
-          }' >  ${F_CPTS}new_extended.cpt
-
-          # If the maximum between-slice interval of the CPT is larger than extend_int, we can't proceed.
-
-          # cat ${F_CPTS}new_extended.cpt
-
-          # gawk < ${F_CPTS}new_extended.cpt '
-          #   BEGIN {
-          #     getline
-          #     last_z=$1
-          #     min_dz=0
-          #   }
-          #   ($1+0==$1) {
-          #     # print "examining", $1, "last is", last_z > "/dev/stderr"
-          #     if ($1-last_z > min_dz) {
-          #       min_dz=$1-last_z
-          #       # print "Grew to " $1 " - " last_z " = " min_dz
-          #     }
-          #     last_z=$1
-          #   }
-          #   # ($1+0 != $1) {
-          #   #   print "Not:"
-          #   #   print
-          #   # }
-          #   END {
-          #     print "min_dz is", min_dz
-          #   }'
-
-
-          # echo gmt makecpt -C${F_CPTS}new_extended.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr
-          # gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended.cpt -G-${extend_val}/${extend_val} -T-${extend_val}/${extend_val}/${extend_int} -Fr >  ${F_CPTS}new_resampled.cpt
-
-          gawk <  ${F_CPTS}new_extended.cpt -v minz=${MINZ} -v maxz=${MAXZ} '
-            ($1+0==$1) {
-              if ($3 > minz && $1 < maxz) {
-                print
-              }
-            }
-            ($1+0!=$1) {
+            ($1=="B") {
+              # if (last3 != extv) {
+                # Ensure we do not have a zslice with dz=0
+              print last3, last4, extv, last4
+              # }
               print
-            }' > ${F_CPTS}new_extended_2.cpt
+            }
+            ($1+0==$1) {
 
-            gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended_2.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr > ${F_CPTS}new_resampled.cpt
-
-            CPT_ZRANGE_2=($(gawk <  ${F_CPTS}new_extended_2.cpt '
-              BEGIN {
-                getline
-                minz=($1<$3)?$1:$3
-                maxz=($1>$3)?$1:$3
-                haszero=0
+              if ($1+0 <= extv) {
+                print $1, $2, $3, $4
+                last1=$1
+                last2=$2
+                last3=$3
+                last4=$4
               }
-              ($1+0==$1){
-                minz=($1<minz)?$1:minz
-                minz=($3<minz)?$3:minz
 
-                maxz=($1>maxz)?$1:maxz
-                maxz=($3>maxz)?$3:maxz
-              }
-              ($1==0) {
-                haszero=1
-              }
-              END {
-                print minz, maxz
-              }'))
+              # if ($1+0 < extv) {
+              #   print $1, $2, $3, $4
 
-              # echo here ${CPT_ZRANGE_2[@]} $(echo "${CPT_ZRANGE_2[1]} - ${CPT_ZRANGE_2[0]}" | bc -l )
+              # } else {
+              #   print "Did not qualify", $0
+              # }
+
+            }
+            ($1+0!=$1 && $1 != "B") {
+              print
+            }' >  ${F_CPTS}new_extended.cpt
+
+            # If the maximum between-slice interval of the CPT is larger than extend_int, we can't proceed.
+
+            # cat ${F_CPTS}new_extended.cpt
+
+            # gawk < ${F_CPTS}new_extended.cpt '
+            #   BEGIN {
+            #     getline
+            #     last_z=$1
+            #     min_dz=0
+            #   }
+            #   ($1+0==$1) {
+            #     # print "examining", $1, "last is", last_z > "/dev/stderr"
+            #     if ($1-last_z > min_dz) {
+            #       min_dz=$1-last_z
+            #       # print "Grew to " $1 " - " last_z " = " min_dz
+            #     }
+            #     last_z=$1
+            #   }
+            #   # ($1+0 != $1) {
+            #   #   print "Not:"
+            #   #   print
+            #   # }
+            #   END {
+            #     print "min_dz is", min_dz
+            #   }'
+
+
+            # echo gmt makecpt -C${F_CPTS}new_extended.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr
+            # gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended.cpt -G-${extend_val}/${extend_val} -T-${extend_val}/${extend_val}/${extend_int} -Fr >  ${F_CPTS}new_resampled.cpt
+
+            gawk <  ${F_CPTS}new_extended.cpt -v minz=${MINZ} -v maxz=${MAXZ} '
+              ($1+0==$1) {
+                if ($3 > minz && $1 < maxz) {
+                  if ($3 > maxz) {
+                    $3=maxz
+                  }
+                  if ($1 < minz) {
+                    $1=minz
+                  }
+                  print
+                }
+              }
+              ($1+0!=$1) {
+                print
+              }' > ${F_CPTS}new_extended_2.cpt
+
+              gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended_2.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr > ${F_CPTS}new_resampled.cpt
+
+
+        # gmt makecpt
+        # 	-T Make evenly spaced color boundaries from <min> to <max> in steps of <inc>.
+        # 	-F Select the color model for output (R for r/g/b or grayscale or colorname,
+  	    #      r for r/g/b only, h for h-s-v, c for c/m/y/k) [Default uses the input model]
+        #	  -G Truncate incoming CPT to be limited to the z-range <zlo>/<zhi>.
+  	    #      To accept one of the incoming limits, set that limit to NaN.
+        #   -D Set back- and foreground color to match the bottom/top limits
+  	    #      in the output CPT [Default uses color table]. Append i to match the
+  	    #      bottom/top values in the input CPT.
+
+        # COMEBACK
+
+        # if [[ $rescaletopoflag -eq 1 ]]; then
+        #   info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
+        #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
+        #
+        # else
+        #   info_msg "Resampling topo $BATHY  CPT to within existing $MINZ/$MAXZ"
+        #   # gmt makecpt -Fr -C$TOPO_CPT_DEF -G$MINZ/$MAXZ -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
+        #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
+        # fi
+        #
+        # mv topotmp.cpt $TOPO_CPT
+        # GDIFFZ=$(echo "($MAXZ - $MINZ) > 4000" | bc)  # Scale range is greater than 4 km
+        # # Set the interval value for the legend scale based on the range of the data
+        # if [[ $GDIFFZ -eq 1 ]]; then
+        #   BATHYXINC=2
+        # else
+        #   BATHYXINC=$(echo "($MAXZ - $MINZ) / 6 / 1000" | bc -l | gawk  '{ print int($1/0.1)*0.1}')
+        # fi
+        # GDIFFZ=$(echo "($MAXZ - $MINZ) < 1000" | bc) # Scale range is lower than 1 km
+        # # Set the interval value for the legend scale based on the range of the data
+        # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
+        #   BATHYXINC=0.1
+        # fi
+        # GDIFFZ=$(echo "($MAXZ - $MINZ) < 100" | bc) # Scale range is lower than 1 km
+        # # Set the interval value for the legend scale based on the range of the data
+        # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
+        #   BATHYXINC=0.01
+        # fi
+      fi
+    fi
+
+    CPT_ZRANGE_2=($(gawk <  ${F_CPTS}new_extended_2.cpt '
+      BEGIN {
+        getline
+        minz=($1<$3)?$1:$3
+        maxz=($1>$3)?$1:$3
+        haszero=0
+      }
+      ($1+0==$1){
+        minz=($1<minz)?$1:minz
+        minz=($3<minz)?$3:minz
+
+        maxz=($1>maxz)?$1:maxz
+        maxz=($3>maxz)?$3:maxz
+      }
+      ($1==0) {
+        haszero=1
+      }
+      END {
+        print minz, maxz
+      }'))
+
+      # echo here ${CPT_ZRANGE_2[@]} $(echo "${CPT_ZRANGE_2[1]} - ${CPT_ZRANGE_2[0]}" | bc -l )
 
       BATHYXINC=$(echo ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} | gawk '
         {
@@ -12614,47 +12782,6 @@ for cptfile in ${cpts[@]} ; do
 
       cp ${F_CPTS}new_extended_2.cpt ${TOPO_CPT}
 
-      # gmt makecpt
-      # 	-T Make evenly spaced color boundaries from <min> to <max> in steps of <inc>.
-      # 	-F Select the color model for output (R for r/g/b or grayscale or colorname,
-	    #      r for r/g/b only, h for h-s-v, c for c/m/y/k) [Default uses the input model]
-      #	  -G Truncate incoming CPT to be limited to the z-range <zlo>/<zhi>.
-	    #      To accept one of the incoming limits, set that limit to NaN.
-      #   -D Set back- and foreground color to match the bottom/top limits
-	    #      in the output CPT [Default uses color table]. Append i to match the
-	    #      bottom/top values in the input CPT.
-
-      # COMEBACK
-
-      # if [[ $rescaletopoflag -eq 1 ]]; then
-      #   info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
-      #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-      #
-      # else
-      #   info_msg "Resampling topo $BATHY  CPT to within existing $MINZ/$MAXZ"
-      #   # gmt makecpt -Fr -C$TOPO_CPT_DEF -G$MINZ/$MAXZ -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-      #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-      # fi
-      #
-      # mv topotmp.cpt $TOPO_CPT
-      # GDIFFZ=$(echo "($MAXZ - $MINZ) > 4000" | bc)  # Scale range is greater than 4 km
-      # # Set the interval value for the legend scale based on the range of the data
-      # if [[ $GDIFFZ -eq 1 ]]; then
-      #   BATHYXINC=2
-      # else
-      #   BATHYXINC=$(echo "($MAXZ - $MINZ) / 6 / 1000" | bc -l | gawk  '{ print int($1/0.1)*0.1}')
-      # fi
-      # GDIFFZ=$(echo "($MAXZ - $MINZ) < 1000" | bc) # Scale range is lower than 1 km
-      # # Set the interval value for the legend scale based on the range of the data
-      # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
-      #   BATHYXINC=0.1
-      # fi
-      # GDIFFZ=$(echo "($MAXZ - $MINZ) < 100" | bc) # Scale range is lower than 1 km
-      # # Set the interval value for the legend scale based on the range of the data
-      # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
-      #   BATHYXINC=0.01
-      # fi
-    fi
 
     ;;
 
@@ -14489,37 +14616,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 			TDMODEL=$(echo $TDPATH | xargs -n 1 basename | gawk  -F. '{print $1}')
 			info_msg "$TDMODEL"
 
-      if [[ ${TDSTRING} =~ .*a.* ]]; then
-        # BLOCK LABELS
-        info_msg "TDEFNODE block labels"
-        gawk < ${TDPATH}${TDMODEL}_blocks.out '{ print $2,$3,$1 }' | gmt pstext -F+f8,Helvetica,orange+jBL $RJOK $VERBOSE >> map.ps
-      fi
-      if [[ ${TDSTRING} =~ .*b.* ]]; then
-        # BLOCKS ############
-        info_msg "TDEFNODE blocks"
-        gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -W1p,black -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-      fi
-
-      if [[ ${TDSTRING} =~ .*g.* ]]; then
-        # Faults, nodes, etc.
-        # Find the number of faults in the model
-        info_msg "TDEFNODE faults, nodes, etc"
-        numfaults=$(gawk 'BEGIN {min=0} { if ($1 == ">" && $3 > min) { min = $3} } END { print min }' ${TDPATH}${TDMODEL}_flt_atr.gmt)
-        gmt makecpt -Ccategorical -T0/$numfaults/1 $VERBOSE > faultblock.cpt
-        gawk '{ if ($1 ==">") printf "%s %s%f\n",$1,$2,$3; else print $1,$2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -Cfaultblock.cpt $RJOK $VERBOSE >> map.ps
-        gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wfatter,red,solid $RJOK $VERBOSE >> map.ps
-        gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wthickest,black,solid $RJOK $VERBOSE >> map.ps
-        #gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -L -R -J -Wthicker,black,solid -O -K $VERBOSE  >> map.ps
-        gawk '{if ($4==1) print $7, $8, $2}' ${TDPATH}${TDMODEL}.nod | gmt pstext -F+f10p,Helvetica,lightblue $RJOK $VERBOSE >> map.ps
-        gawk '{print $7, $8}' ${TDPATH}${TDMODEL}.nod | gmt psxy -Sc.02i -Gblack $RJOK $VERBOSE >> map.ps
-      fi
-			# if [[ ${TDSTRING} =~ .*l.* ]]; then
-      #   # Coupling. Not sure this is the best way, but it seems to work...
-      #   info_msg "TDEFNODE coupling"
-			# 	gmt makecpt -Cseis -Do -I -T0/1/0.01 -N > $SLIPRATE_DEF_CPT
-			# gawk '{ if ($1 ==">") print $1 $2 $5; else print $1, $2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
-			# fi
-      if [[ ${TDSTRING} =~ .*l.* || ${TDSTRING} =~ .*c.* ]]; then
+      if [[ ${TDSTRING} =~ .*l.* || ${TDSTRING} =~ .*c.* || ${TDSTRING} =~ .*d.* ]]; then
         # Plot a dashed line along the contour of coupling = 0
         info_msg "TDEFNODE coupling"
         gawk '{
@@ -14575,157 +14672,425 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           }' > faultgroup_$groupd.xyz
           # May wish to process grouped fault data here
 
-          mkdir tmpgrd
+          mkdir -p tmpgrd
           cd tmpgrd
-            gmt nearneighbor ../faultgroup_$groupd.xyz -S0.2d -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I0.1d -Gout.grd
+            gmt nearneighbor ../faultgroup_$groupd.xyz -S0.2d -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I0.1d -Gfaultgroup_${groupd}.grd
           cd ..
-
-          if [[ ${TDSTRING} =~ .*c.* ]]; then
-            gmt psxy faultgroup_$groupd.xyz -Sc0.015i -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
-          fi
-
-          if [[ ${TDSTRING} =~ .*l.* ]]; then
-            gmt grdcontour tmpgrd/out.grd -S5 -C+0.7 -W0.1p,black,- $RJOK $VERBOSE >> map.ps
-          fi
-          # gmt contour faultgroup_$groupd.xyz -C+0.1 -W0.25p,black,- $RJOK $VERBOSE >> map.ps
 
           # May wish to process grouped fault data here
           groupd=$(echo "$groupd+1" | bc)
         done < faultid_groups.txt
       fi
 
-			if [[ ${TDSTRING} =~ .*X.* ]]; then
-				# FAULTS ############
-        info_msg "TDEFNODE faults"
-				gmt psxy ${TDPATH}${TDMODEL}_blk0.gmt -R -J -W1p,red -O -K $VERBOSE >> map.ps 2>/dev/null
-		  	gawk < ${TDPATH}${TDMODEL}_blk0.gmt '{ if ($1 == ">") print $3,$4, $5 " (" $2 ")" }' | gmt pstext -F+f8,Helvetica,black+jBL $RJOK $VERBOSE >> map.ps
+      while IFS='' read -r -d '' -n 1 char; do
+        case $char in
+          a)
+            info_msg "TDEFNODE block labels"
+            gawk < ${TDPATH}${TDMODEL}_blocks.out '{ print $2,$3,$1 }' | gmt pstext -F+f8,Helvetica,orange+jBL $RJOK $VERBOSE >> map.ps
+          ;;
+          b)
+            info_msg "TDEFNODE blocks"
+            gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -W1p,black -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+          ;;
+          g)
+            # Faults, nodes, etc.
+            # Find the number of faults in the model
+            info_msg "TDEFNODE faults, nodes, etc"
+            numfaults=$(gawk 'BEGIN {min=0} { if ($1 == ">" && $3 > min) { min = $3} } END { print min }' ${TDPATH}${TDMODEL}_flt_atr.gmt)
+            gmt makecpt -Ccategorical -T0/$numfaults/1 $VERBOSE > faultblock.cpt
+            gawk '{ if ($1 ==">") printf "%s %s%f\n",$1,$2,$3; else print $1,$2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -Cfaultblock.cpt $RJOK $VERBOSE >> map.ps
+            gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wfatter,red,solid $RJOK $VERBOSE >> map.ps
+            gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wthickest,black,solid $RJOK $VERBOSE >> map.ps
+            #gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -L -R -J -Wthicker,black,solid -O -K $VERBOSE  >> map.ps
+            gawk '{if ($4==1) print $7, $8, $2}' ${TDPATH}${TDMODEL}.nod | gmt pstext -F+f10p,Helvetica,lightblue $RJOK $VERBOSE >> map.ps
+            gawk '{print $7, $8}' ${TDPATH}${TDMODEL}.nod | gmt psxy -Sc.02i -Gblack $RJOK $VERBOSE >> map.ps
+          ;;
+          c)
+            for thisd in $(seq 1 $groupd); do
+              gmt psxy faultgroup_$thisd.xyz -Sc0.015i -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
+            done
+            ;;
+          d)
+            for thisd in $(seq 1 $groupd); do
+              gmt grdimage tmpgrd/faultgroup_${thisd}.grd -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE -Q >> map.ps
+            done
+            ;;
+          l)
+            for thisd in $(seq 1 $groupd); do
+              gmt grdcontour tmpgrd/faultgroup_${thisd}.grd -S5 -C+0.7 -W0.1p,black,- $RJOK $VERBOSE >> map.ps
+            done
+            ;;
+          X)
+    				# FAULTS ############
+            info_msg "TDEFNODE faults"
+    				gmt psxy ${TDPATH}${TDMODEL}_blk0.gmt -R -J -W1p,red -O -K $VERBOSE >> map.ps 2>/dev/null
+    		  	gawk < ${TDPATH}${TDMODEL}_blk0.gmt '{ if ($1 == ">") print $3,$4, $5 " (" $2 ")" }' | gmt pstext -F+f8,Helvetica,black+jBL $RJOK $VERBOSE >> map.ps
 
-				# PSUEDOFAULTS ############
-				gmt psxy ${TDPATH}${TDMODEL}_blk1.gmt -R -J -W1p,green -O -K $VERBOSE >> map.ps 2>/dev/null
-			  gawk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
-			fi
+    				# PSUEDOFAULTS ############
+    				gmt psxy ${TDPATH}${TDMODEL}_blk1.gmt -R -J -W1p,green -O -K $VERBOSE >> map.ps 2>/dev/null
+    			  gawk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
+      	    ;;
 
-			if [[ ${TDSTRING} =~ .*s.* ]]; then
-				# SLIP VECTORS ######
-        legendwords+=("slipvectors")
-        info_msg "TDEFNODE slip vectors (observed and predicted)"
-			  gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVBIG '(NR > 1) {print $1, $2, $3, size}' > ${TDMODEL}.svobs
-		  	gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVSMALL '(NR > 1) {print $1, $2, $5, size}' > ${TDMODEL}.svcalc
-				gmt psxy -SV"${PVHEAD}"+jc -W"${SVBIGW}",black ${TDMODEL}.svobs $RJOK $VERBOSE >> map.ps
-				gmt psxy -SV"${PVHEAD}"+jc -W"${SVSMALLW}",lightgreen ${TDMODEL}.svcalc $RJOK $VERBOSE >> map.ps
-			fi
+          s)
+    				# SLIP VECTORS ######
+            legendwords+=("slipvectors")
+            info_msg "TDEFNODE slip vectors (observed and predicted)"
+    			  gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVBIG '(NR > 1) {print $1, $2, $3, size}' > ${TDMODEL}.svobs
+    		  	gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVSMALL '(NR > 1) {print $1, $2, $5, size}' > ${TDMODEL}.svcalc
+    				gmt psxy -SV"${PVHEAD}"+jc -W"${SVBIGW}",black ${TDMODEL}.svobs $RJOK $VERBOSE >> map.ps
+    				gmt psxy -SV"${PVHEAD}"+jc -W"${SVSMALLW}",lightgreen ${TDMODEL}.svcalc $RJOK $VERBOSE >> map.ps
+      	    ;;
 
-			if [[ ${TDSTRING} =~ .*o.* ]]; then
-				# GPS ##############
-				# observed vectors
-        # lon, lat, ve, vn, sve, svn, xcor, site
-        # gmt psvelo $GPS_FILE -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        info_msg "TDEFNODE observed GPS velocities"
-        legendwords+=("TDEFobsgps")
-				echo "" | gawk  '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs
-				gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        # gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
-        # gmt psxy -SV$ARROWFMT -W0.25p,white -Gblack ${TDMODEL}.xyobs $RJOK $VERBOSE >> map.ps
-			fi
+      	  o)
+    				# GPS ##############
+    				# observed vectors
+            # lon, lat, ve, vn, sve, svn, xcor, site
+            # gmt psvelo $GPS_FILE -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+            info_msg "TDEFNODE observed GPS velocities"
+            legendwords+=("TDEFobsgps")
+    				echo "" | gawk  '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs
+    				gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+            # gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
+            # gmt psxy -SV$ARROWFMT -W0.25p,white -Gblack ${TDMODEL}.xyobs $RJOK $VERBOSE >> map.ps
+      	    ;;
 
-			if [[ ${TDSTRING} =~ .*v.* ]]; then
-				# calculated vectors  UPDATE TO PSVELO
-        info_msg "TDEFNODE modeled GPS velocities"
-        legendwords+=("TDEFcalcgps")
-			gawk '{ if ($5==1 && $6==1) print $8, $9, $13, $18, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.vec
-        gmt psvelo ${TDMODEL}.vec -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -D0 -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      	  v)
+    				# calculated vectors  UPDATE TO PSVELO
+            info_msg "TDEFNODE modeled GPS velocities"
+            legendwords+=("TDEFcalcgps")
+    			  gawk '{ if ($5==1 && $6==1) print $8, $9, $13, $18, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.vec
+            gmt psvelo ${TDMODEL}.vec -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -D0 -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
-        #  Generate AZ/VEL data
-        echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.vec > ${TDMODEL}.xyvec
-        # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.vec > ${TDMODEL}_smallcalc.xyvec
-        # gmt psxy -SV$ARROWFMT -W0.25p,black -Gwhite ${TDMODEL}.xyvec $RJOK $VERBOSE >> map.ps
-        # gmt psxy -SC$SMALLRES -W0.25p,black -Gwhite ${TDMODEL}_smallcalc.xyvec $RJOK $VERBOSE >> map.ps
-			fi
+            #  Generate AZ/VEL data
+            echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.vec > ${TDMODEL}.xyvec
+            # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.vec > ${TDMODEL}_smallcalc.xyvec
+            # gmt psxy -SV$ARROWFMT -W0.25p,black -Gwhite ${TDMODEL}.xyvec $RJOK $VERBOSE >> map.ps
+            # gmt psxy -SC$SMALLRES -W0.25p,black -Gwhite ${TDMODEL}_smallcalc.xyvec $RJOK $VERBOSE >> map.ps
+      		  ;;
 
-			if [[ ${TDSTRING} =~ .*r.* ]]; then
-        legendwords+=("TDEFresidgps")
-				#residual vectors UPDATE TO PSVELO
-        info_msg "TDEFNODE residual GPS velocities"
-			  gawk '{ if ($5==1 && $6==1) print $8, $9, $14, $19, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.res
-        # gmt psvelo ${TDMODEL}.res -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      		r)
+            legendwords+=("TDEFresidgps")
+    				#residual vectors UPDATE TO PSVELO
+            info_msg "TDEFNODE residual GPS velocities"
+    			  gawk '{ if ($5==1 && $6==1) print $8, $9, $14, $19, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.res
+            # gmt psvelo ${TDMODEL}.res -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+            gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
-        #  Generate AZ/VEL data
-        echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.res > ${TDMODEL}.xyres
-        # gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyres $RJOK $VERBOSE >> map.ps
-        # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
-        # gmt psxy -SC$SMALLRES -W0.25p,black -Ggreen ${TDMODEL}_smallres.xyvec $RJOK $VERBOSE >> map.ps
-			fi
+            #  Generate AZ/VEL data
+            echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.res > ${TDMODEL}.xyres
+            # gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyres $RJOK $VERBOSE >> map.ps
+            # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
+            # gmt psxy -SC$SMALLRES -W0.25p,black -Ggreen ${TDMODEL}_smallres.xyvec $RJOK $VERBOSE >> map.ps
+      			;;
 
-			if [[ ${TDSTRING} =~ .*f.* ]]; then
-        # Fault segment midpoint slip rates
-        # CONVERT TO PSVELO ONLY
-        info_msg "TDEFNODE fault midpoint slip rates - all "
-        legendwords+=("TDEFsliprates")
-			  gawk '{ print $1, $2, $3, $4, $5, $6, $7, $8 }' ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvec
-        # gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      		f)
+            # Fault segment midpoint slip rates
+            # CONVERT TO PSVELO ONLY
+            info_msg "TDEFNODE fault midpoint slip rates - all "
+            legendwords+=("TDEFsliprates")
+    			  gawk '{ print $1, $2, $3, $4, $5, $6, $7, $8 }' ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvec
+            # gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+            gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
 
-        # Generate AZ/VEL data
-        gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvec > ${TDMODEL}.xymidvec
+            # Generate AZ/VEL data
+            gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvec > ${TDMODEL}.xymidvec
 
-        # Label
-        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvec > ${TDMODEL}.fsliplabel
+            # Label
+            gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvec > ${TDMODEL}.fsliplabel
 
-		  	gmt pstext -F+f"${SLIP_FONTSIZE}","${SLIP_FONT}","${SLIP_FONTCOLOR}"+jBM $RJOK ${TDMODEL}.fsliplabel $VERBOSE >> map.ps
-			fi
-      if [[ ${TDSTRING} =~ .*q.* ]]; then
-        # Fault segment midpoint slip rates, only plot when the "distance" between the point and the last point is larger than a set value
-        # CONVERT TO PSVELO ONLY
-        info_msg "TDEFNODE fault midpoint slip rates - near cutoff = ${SLIP_DIST} degrees"
-        legendwords+=("TDEFsliprates")
+    		  	gmt pstext -F+f"${SLIP_FONTSIZE}","${SLIP_FONT}","${SLIP_FONTCOLOR}"+jBM $RJOK ${TDMODEL}.fsliplabel $VERBOSE >> map.ps
+      			;;
+          q)              # Fault segment midpoint slip rates, only plot when the "distance" between the point and the last point is larger than a set value
+            # CONVERT TO PSVELO ONLY
+            info_msg "TDEFNODE fault midpoint slip rates - near cutoff = ${SLIP_DIST} degrees"
+            legendwords+=("TDEFsliprates")
 
-        gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
-            newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
-            if (newdist > cutoff) {
-              lastx=$1
-              lasty=$2
-              print $1, $2, $3, $4, $5, $6, $7, $8
-            }
-        }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
-        gmt psvelo ${TDMODEL}.midvecsel -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
-        # Generate AZ/VEL data
-        gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvecsel > ${TDMODEL}.xymidvecsel
-        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
-        gmt pstext -F+f${SLIP_FONTSIZE},${SLIP_FONT},${SLIP_FONTCOLOR}+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
-      fi
-      if [[ ${TDSTRING} =~ .*y.* ]]; then
-        # Fault segment midpoint slip rates, text on fault only, only plot when the "distance" between the point and the last point is larger than a set value
-        info_msg "TDEFNODE fault midpoint slip rates, label only - near cutoff = 2"
-        gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
-            newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
-            if (newdist > cutoff) {
-              lastx=$1
-              lasty=$2
-              print $1, $2, $3, $4, $5, $6, $7, $8
-            }
-        }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
-        gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
-        gmt pstext -F+f6,Helvetica-Bold,white+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
-      fi
-      if [[ ${TDSTRING} =~ .*e.* ]]; then
-        # elastic component of velocity CONVERT TO PSVELO
-        info_msg "TDEFNODE elastic component of velocity"
-        legendwords+=("TDEFelasticvelocity")
+            gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+                newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
+                if (newdist > cutoff) {
+                  lastx=$1
+                  lasty=$2
+                  print $1, $2, $3, $4, $5, $6, $7, $8
+                }
+            }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
+            gmt psvelo ${TDMODEL}.midvecsel -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+            # Generate AZ/VEL data
+            gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvecsel > ${TDMODEL}.xymidvecsel
+            gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+            gmt pstext -F+f${SLIP_FONTSIZE},${SLIP_FONT},${SLIP_FONTCOLOR}+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
+            ;;
+          y)              # Fault segment midpoint slip rates, text on fault only, only plot when the "distance" between the point and the last point is larger than a set value
+            info_msg "TDEFNODE fault midpoint slip rates, label only - near cutoff = 2"
+            gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+                newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
+                if (newdist > cutoff) {
+                  lastx=$1
+                  lasty=$2
+                  print $1, $2, $3, $4, $5, $6, $7, $8
+                }
+            }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
+            gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+            gmt pstext -F+f6,Helvetica-Bold,white+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
+            ;;
+          e)              # elastic component of velocity CONVERT TO PSVELO
+            info_msg "TDEFNODE elastic component of velocity"
+            legendwords+=("TDEFelasticvelocity")
 
-        gawk '{ if ($5==1 && $6==1) print $8, $9, $28, $29, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.elastic
-        gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.elastic > ${TDMODEL}.xyelastic
-        gmt psxy -SV$ARROWFMT -W0.1p,black -Gred ${TDMODEL}.xyelastic  $RJOK $VERBOSE >> map.ps
-      fi
-      if [[ ${TDSTRING} =~ .*t.* ]]; then
-        # rotation component of velocity; CONVERT TO PSVELO
-        info_msg "TDEFNODE block rotation component of velocity"
-        legendwords+=("TDEFrotationvelocity")
+            gawk '{ if ($5==1 && $6==1) print $8, $9, $28, $29, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.elastic
+            gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.elastic > ${TDMODEL}.xyelastic
+            gmt psxy -SV$ARROWFMT -W0.1p,black -Ggray ${TDMODEL}.xyelastic  $RJOK $VERBOSE >> map.ps
+            ;;
+          t)              # rotation component of velocity; CONVERT TO PSVELO
+            info_msg "TDEFNODE block rotation component of velocity"
+            legendwords+=("TDEFrotationvelocity")
 
-        gawk '{ if ($5==1 && $6==1) print $8, $9, $38, $39, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.block
-        gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.block > ${TDMODEL}.xyblock
-        gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyblock $RJOK $VERBOSE >> map.ps
-      fi
+            gawk '{ if ($5==1 && $6==1) print $8, $9, $38, $39, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.block
+            gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.block > ${TDMODEL}.xyblock
+            gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyblock $RJOK $VERBOSE >> map.ps
+            ;;
+        esac
+      done < <(printf %s "${TDSTRING}")
+
+      # if [[ ${TDSTRING} =~ .*a.* ]]; then
+      #   # BLOCK LABELS
+      #   info_msg "TDEFNODE block labels"
+      #   gawk < ${TDPATH}${TDMODEL}_blocks.out '{ print $2,$3,$1 }' | gmt pstext -F+f8,Helvetica,orange+jBL $RJOK $VERBOSE >> map.ps
+      # fi
+      # if [[ ${TDSTRING} =~ .*b.* ]]; then
+      #   # BLOCKS ############
+      #   info_msg "TDEFNODE blocks"
+      #   gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -W1p,black -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      # fi
+      #
+      # if [[ ${TDSTRING} =~ .*g.* ]]; then
+      #   # Faults, nodes, etc.
+      #   # Find the number of faults in the model
+      #   info_msg "TDEFNODE faults, nodes, etc"
+      #   numfaults=$(gawk 'BEGIN {min=0} { if ($1 == ">" && $3 > min) { min = $3} } END { print min }' ${TDPATH}${TDMODEL}_flt_atr.gmt)
+      #   gmt makecpt -Ccategorical -T0/$numfaults/1 $VERBOSE > faultblock.cpt
+      #   gawk '{ if ($1 ==">") printf "%s %s%f\n",$1,$2,$3; else print $1,$2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -Cfaultblock.cpt $RJOK $VERBOSE >> map.ps
+      #   gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wfatter,red,solid $RJOK $VERBOSE >> map.ps
+      #   gmt psxy ${TDPATH}${TDMODEL}_blk3.gmt -Wthickest,black,solid $RJOK $VERBOSE >> map.ps
+      #   #gmt psxy ${TDPATH}${TDMODEL}_blk.gmt -L -R -J -Wthicker,black,solid -O -K $VERBOSE  >> map.ps
+      #   gawk '{if ($4==1) print $7, $8, $2}' ${TDPATH}${TDMODEL}.nod | gmt pstext -F+f10p,Helvetica,lightblue $RJOK $VERBOSE >> map.ps
+      #   gawk '{print $7, $8}' ${TDPATH}${TDMODEL}.nod | gmt psxy -Sc.02i -Gblack $RJOK $VERBOSE >> map.ps
+      # fi
+			# # if [[ ${TDSTRING} =~ .*l.* ]]; then
+      # #   # Coupling. Not sure this is the best way, but it seems to work...
+      # #   info_msg "TDEFNODE coupling"
+			# # 	gmt makecpt -Cseis -Do -I -T0/1/0.01 -N > $SLIPRATE_DEF_CPT
+			# # gawk '{ if ($1 ==">") print $1 $2 $5; else print $1, $2 }' ${TDPATH}${TDMODEL}_flt_atr.gmt | gmt psxy -L -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
+			# # fi
+      # if [[ ${TDSTRING} =~ .*l.* || ${TDSTRING} =~ .*c.* || ${TDSTRING} =~ .*d.* ]]; then
+      #   # Plot a dashed line along the contour of coupling = 0
+      #   info_msg "TDEFNODE coupling"
+      #   gawk '{
+      #     if ($1 ==">") {
+      #       carat=$1
+      #       faultid=$3
+      #       z=$2
+      #       val=$5
+      #       getline
+      #       p1x=$1; p1y=$2
+      #       getline
+      #       p2x=$1; p2y=$2
+      #       getline
+      #       p3x=$1; p3y=$2
+      #       geline
+      #       p4x=$1; p4y=$2
+      #       xav=(p1x+p2x+p3x+p4x)/4
+      #       yav=(p1y+p2y+p3y+p4y)/4
+      #       print faultid, xav, yav, val
+      #     }
+      #   }' ${TDPATH}${TDMODEL}_flt_atr.gmt > tdsrd_faultids.xyz
+      #
+      #   if [[ $tdeffaultlistflag -eq 1 ]]; then
+      #     echo $FAULTIDLIST | gawk  '{
+      #       n=split($0,groups,":");
+      #       for(i=1; i<=n; i++) {
+      #          print groups[i]
+      #       }
+      #     }' | tr ',' ' ' > faultid_groups.txt
+      #   else # Extract all fault IDs as Group 1 if we don't specify faults/groups
+      #     gawk < tdsrd_faultids.xyz '{
+      #       seen[$1]++
+      #       } END {
+      #         for (key in seen) {
+      #           printf "%s ", key
+      #       }
+      #     } END { printf "\n"}' > faultid_groups.txt
+      #   fi
+      #
+      #   groupd=1
+      #   while read p; do
+      #     echo "Processing fault group $groupd"
+      #     gawk < tdsrd_faultids.xyz -v idstr="$p" 'BEGIN {
+      #         split(idstr,idarray," ")
+      #         for (i in idarray) {
+      #           idcheck[idarray[i]]
+      #         }
+      #       }
+      #       {
+      #         if ($1 in idcheck) {
+      #           print $2, $3, $4
+      #         }
+      #     }' > faultgroup_$groupd.xyz
+      #     # May wish to process grouped fault data here
+      #
+      #     mkdir tmpgrd
+      #     cd tmpgrd
+      #       gmt nearneighbor ../faultgroup_$groupd.xyz -S0.2d -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I0.1d -Gout.grd
+      #     cd ..
+      #
+      #     if [[ ${TDSTRING} =~ .*c.* ]]; then
+      #       gmt psxy faultgroup_$groupd.xyz -Sc0.015i -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE >> map.ps
+      #     fi
+      #     if [[ ${TDSTRING} =~ .*d.* ]]; then
+      #       gmt grdimage tmpgrd/out.grd -C$SLIPRATE_DEF_CPT $RJOK $VERBOSE -Q >> map.ps
+      #     fi
+      #
+      #     if [[ ${TDSTRING} =~ .*l.* ]]; then
+      #       gmt grdcontour tmpgrd/out.grd -S5 -C+0.7 -W0.1p,black,- $RJOK $VERBOSE >> map.ps
+      #     fi
+      #     # gmt contour faultgroup_$groupd.xyz -C+0.1 -W0.25p,black,- $RJOK $VERBOSE >> map.ps
+      #
+      #     # May wish to process grouped fault data here
+      #     groupd=$(echo "$groupd+1" | bc)
+      #   done < faultid_groups.txt
+      # fi
+      #
+			# if [[ ${TDSTRING} =~ .*X.* ]]; then
+			# 	# FAULTS ############
+      #   info_msg "TDEFNODE faults"
+			# 	gmt psxy ${TDPATH}${TDMODEL}_blk0.gmt -R -J -W1p,red -O -K $VERBOSE >> map.ps 2>/dev/null
+		  # 	gawk < ${TDPATH}${TDMODEL}_blk0.gmt '{ if ($1 == ">") print $3,$4, $5 " (" $2 ")" }' | gmt pstext -F+f8,Helvetica,black+jBL $RJOK $VERBOSE >> map.ps
+      #
+			# 	# PSUEDOFAULTS ############
+			# 	gmt psxy ${TDPATH}${TDMODEL}_blk1.gmt -R -J -W1p,green -O -K $VERBOSE >> map.ps 2>/dev/null
+			#   gawk < ${TDPATH}${TDMODEL}_blk1.gmt '{ if ($1 == ">") print $3,$4,$5 }' | gmt pstext -F+f8,Helvetica,brown+jBL $RJOK $VERBOSE >> map.ps
+			# fi
+      #
+			# if [[ ${TDSTRING} =~ .*s.* ]]; then
+			# 	# SLIP VECTORS ######
+      #   legendwords+=("slipvectors")
+      #   info_msg "TDEFNODE slip vectors (observed and predicted)"
+			#   gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVBIG '(NR > 1) {print $1, $2, $3, size}' > ${TDMODEL}.svobs
+		  # 	gawk < ${TDPATH}${TDMODEL}.svs -v size=$SVSMALL '(NR > 1) {print $1, $2, $5, size}' > ${TDMODEL}.svcalc
+			# 	gmt psxy -SV"${PVHEAD}"+jc -W"${SVBIGW}",black ${TDMODEL}.svobs $RJOK $VERBOSE >> map.ps
+			# 	gmt psxy -SV"${PVHEAD}"+jc -W"${SVSMALLW}",lightgreen ${TDMODEL}.svcalc $RJOK $VERBOSE >> map.ps
+			# fi
+      #
+			# if [[ ${TDSTRING} =~ .*o.* ]]; then
+			# 	# GPS ##############
+			# 	# observed vectors
+      #   # lon, lat, ve, vn, sve, svn, xcor, site
+      #   # gmt psvelo $GPS_FILE -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #   info_msg "TDEFNODE observed GPS velocities"
+      #   legendwords+=("TDEFobsgps")
+			# 	echo "" | gawk  '{ if ($5==1 && $6==1) print $8, $9, $12, $17, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.obs
+			# 	gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #   # gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.obs > ${TDMODEL}.xyobs
+      #   # gmt psxy -SV$ARROWFMT -W0.25p,white -Gblack ${TDMODEL}.xyobs $RJOK $VERBOSE >> map.ps
+			# fi
+      #
+			# if [[ ${TDSTRING} =~ .*v.* ]]; then
+			# 	# calculated vectors  UPDATE TO PSVELO
+      #   info_msg "TDEFNODE modeled GPS velocities"
+      #   legendwords+=("TDEFcalcgps")
+			# gawk '{ if ($5==1 && $6==1) print $8, $9, $13, $18, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.vec
+      #   gmt psvelo ${TDMODEL}.vec -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -D0 -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #
+      #   #  Generate AZ/VEL data
+      #   echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.vec > ${TDMODEL}.xyvec
+      #   # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.vec > ${TDMODEL}_smallcalc.xyvec
+      #   # gmt psxy -SV$ARROWFMT -W0.25p,black -Gwhite ${TDMODEL}.xyvec $RJOK $VERBOSE >> map.ps
+      #   # gmt psxy -SC$SMALLRES -W0.25p,black -Gwhite ${TDMODEL}_smallcalc.xyvec $RJOK $VERBOSE >> map.ps
+			# fi
+      #
+			# if [[ ${TDSTRING} =~ .*r.* ]]; then
+      #   legendwords+=("TDEFresidgps")
+			# 	#residual vectors UPDATE TO PSVELO
+      #   info_msg "TDEFNODE residual GPS velocities"
+			#   gawk '{ if ($5==1 && $6==1) print $8, $9, $14, $19, $15, $20, $27, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.res
+      #   # gmt psvelo ${TDMODEL}.res -W${TD_VGPS_LINEWIDTH},${TD_VGPS_LINECOLOR} -G${TD_VGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #   gmt psvelo ${TDMODEL}.obs -W${TD_OGPS_LINEWIDTH},${TD_OGPS_LINECOLOR} -G${TD_OGPS_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #
+      #   #  Generate AZ/VEL data
+      #   echo "" | gawk  '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.res > ${TDMODEL}.xyres
+      #   # gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyres $RJOK $VERBOSE >> map.ps
+      #   # gawk  '(sqrt($3*$3+$4*$4) <= 5) { print $1, $2 }' ${TDMODEL}.res > ${TDMODEL}_smallres.xyvec
+      #   # gmt psxy -SC$SMALLRES -W0.25p,black -Ggreen ${TDMODEL}_smallres.xyvec $RJOK $VERBOSE >> map.ps
+			# fi
+      #
+			# if [[ ${TDSTRING} =~ .*f.* ]]; then
+      #   # Fault segment midpoint slip rates
+      #   # CONVERT TO PSVELO ONLY
+      #   info_msg "TDEFNODE fault midpoint slip rates - all "
+      #   legendwords+=("TDEFsliprates")
+			#   gawk '{ print $1, $2, $3, $4, $5, $6, $7, $8 }' ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvec
+      #   # gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #   gmt psvelo ${TDMODEL}.midvec -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #
+      #   # Generate AZ/VEL data
+      #   gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvec > ${TDMODEL}.xymidvec
+      #
+      #   # Label
+      #   gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvec > ${TDMODEL}.fsliplabel
+      #
+		  # 	gmt pstext -F+f"${SLIP_FONTSIZE}","${SLIP_FONT}","${SLIP_FONTCOLOR}"+jBM $RJOK ${TDMODEL}.fsliplabel $VERBOSE >> map.ps
+			# fi
+      # if [[ ${TDSTRING} =~ .*q.* ]]; then
+      #   # Fault segment midpoint slip rates, only plot when the "distance" between the point and the last point is larger than a set value
+      #   # CONVERT TO PSVELO ONLY
+      #   info_msg "TDEFNODE fault midpoint slip rates - near cutoff = ${SLIP_DIST} degrees"
+      #   legendwords+=("TDEFsliprates")
+      #
+      #   gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+      #       newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
+      #       if (newdist > cutoff) {
+      #         lastx=$1
+      #         lasty=$2
+      #         print $1, $2, $3, $4, $5, $6, $7, $8
+      #       }
+      #   }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
+      #   gmt psvelo ${TDMODEL}.midvecsel -W${SLIP_LINEWIDTH},${SLIP_LINECOLOR} -G${SLIP_FILLCOLOR} -Se$VELSCALE/${GPS_ELLIPSE}/0 -A${ARROWFMT} -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      #   # Generate AZ/VEL data
+      #   gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' ${TDMODEL}.midvecsel > ${TDMODEL}.xymidvecsel
+      #   gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+      #   gmt pstext -F+f${SLIP_FONTSIZE},${SLIP_FONT},${SLIP_FONTCOLOR}+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
+      # fi
+      # if [[ ${TDSTRING} =~ .*y.* ]]; then
+      #   # Fault segment midpoint slip rates, text on fault only, only plot when the "distance" between the point and the last point is larger than a set value
+      #   info_msg "TDEFNODE fault midpoint slip rates, label only - near cutoff = 2"
+      #   gawk -v cutoff=${SLIP_DIST} 'BEGIN {dist=0;lastx=9999;lasty=9999} {
+      #       newdist = sqrt(($1-lastx)*($1-lastx)+($2-lasty)*($2-lasty));
+      #       if (newdist > cutoff) {
+      #         lastx=$1
+      #         lasty=$2
+      #         print $1, $2, $3, $4, $5, $6, $7, $8
+      #       }
+      #   }' < ${TDPATH}${TDMODEL}_mid.vec > ${TDMODEL}.midvecsel
+      #   gawk '{ printf "%f %f %.1f\n", $1, $2, sqrt($3*$3+$4*$4) }' ${TDMODEL}.midvecsel > ${TDMODEL}.fsliplabelsel
+      #   gmt pstext -F+f6,Helvetica-Bold,white+jCM $RJOK ${TDMODEL}.fsliplabelsel $VERBOSE >> map.ps
+      # fi
+      # if [[ ${TDSTRING} =~ .*e.* ]]; then
+      #   # elastic component of velocity CONVERT TO PSVELO
+      #   info_msg "TDEFNODE elastic component of velocity"
+      #   legendwords+=("TDEFelasticvelocity")
+      #
+      #   gawk '{ if ($5==1 && $6==1) print $8, $9, $28, $29, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.elastic
+      #   gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.elastic > ${TDMODEL}.xyelastic
+      #   gmt psxy -SV$ARROWFMT -W0.1p,black -Gred ${TDMODEL}.xyelastic  $RJOK $VERBOSE >> map.ps
+      # fi
+      # if [[ ${TDSTRING} =~ .*t.* ]]; then
+      #   # rotation component of velocity; CONVERT TO PSVELO
+      #   info_msg "TDEFNODE block rotation component of velocity"
+      #   legendwords+=("TDEFrotationvelocity")
+      #
+      #   gawk '{ if ($5==1 && $6==1) print $8, $9, $38, $39, 0, 0, 1, $1 }' ${TDPATH}${TDMODEL}.vsum > ${TDMODEL}.block
+      #   gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${TDMODEL}.block > ${TDMODEL}.xyblock
+      #   gmt psxy -SV$ARROWFMT -W0.1p,black -Ggreen ${TDMODEL}.xyblock $RJOK $VERBOSE >> map.ps
+      # fi
 			;;
 
     text)

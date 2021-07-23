@@ -73,6 +73,7 @@ function check_tectoplot() {
         break
       ;;
       none|"")
+        INSTALL_TECTOPLOT_NONE="true"
         break
       ;;
     esac
@@ -476,45 +477,47 @@ main() {
 
   check_tectoplot
 
-  DO_INSTALL_TECTOPLOT="false"
-  report_storage $tectoplot_folder_dir
+  if [[ ${INSTALL_TECTOPLOT_NONE} != "true" ]]; then
 
-  while true; do
-    read -r -p "Install selected repositories? [ default=y | n ]  " response
-    case "${response}" in
-    Y|y|"")
-      echo
-      DO_INSTALL_TECTOPLOT="true"
-      break
-      ;;
-    n)
-      echo
-      DO_INSTALL_TECTOPLOT="false"
-      break
-      ;;
-    *)
-      echo
-      print_msg "Unrecognized input ${response}. Not installing."
-      DO_INSTALL_TECTOPLOT="false"
-      break
-      ;;
-    esac
-  done
+    DO_INSTALL_TECTOPLOT="false"
+    report_storage $tectoplot_folder_dir
 
-  if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
+    while true; do
+      read -r -p "Install selected repositories? [ default=y | n ]  " response
+      case "${response}" in
+      Y|y|"")
+        echo
+        DO_INSTALL_TECTOPLOT="true"
+        break
+        ;;
+      n)
+        echo
+        DO_INSTALL_TECTOPLOT="false"
+        break
+        ;;
+      *)
+        echo
+        print_msg "Unrecognized input ${response}. Not installing."
+        DO_INSTALL_TECTOPLOT="false"
+        break
+        ;;
+      esac
+    done
 
-    if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
-      clone_tectoplot
-      query_setup_tectoplot
+    if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
+
+      if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
+        clone_tectoplot
+        query_setup_tectoplot
+      fi
+
+      if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
+        clone_tectoplot_examples
+      fi
     fi
 
-    if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
-      clone_tectoplot_examples
-    fi
+    check_dependencies
   fi
-
-  check_dependencies
-
 
   case $INSTALLTYPE in
     homebrew)
@@ -530,8 +533,6 @@ main() {
       miniconda_deps
     ;;
   esac
-
-
 
   if [[ $INSTALL_TECTOPLOT_REPO =~ "true" && $SETUP_TECTOPLOT =~ "true" ]]; then
     if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then

@@ -67,7 +67,6 @@ SET_THEME=${BASHSCRIPTDIR}"settheme.sh"
 GMT_WRAPPERS=${BASHSCRIPTDIR}"gmt_wrappers.sh"
 
 
-
 ##### C/C++ CODES
 # Source the following scripts at startup
 CSCRIPTDIR=${TECTOPLOTDIR}"cscripts/"
