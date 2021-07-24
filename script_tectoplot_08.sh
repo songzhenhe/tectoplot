@@ -14656,8 +14656,10 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           } END { printf "\n"}' > faultid_groups.txt
         fi
 
-        groupd=1
+        groupd=0
         while read p; do
+          groupd=$(echo "$groupd+1" | bc)
+
           echo "Processing fault group $groupd"
           gawk < tdsrd_faultids.xyz -v idstr="$p" 'BEGIN {
               split(idstr,idarray," ")
@@ -14678,7 +14680,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           cd ..
 
           # May wish to process grouped fault data here
-          groupd=$(echo "$groupd+1" | bc)
         done < faultid_groups.txt
       fi
 

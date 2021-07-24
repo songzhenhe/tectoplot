@@ -530,7 +530,7 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
       info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}"
     else
-      info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
+      info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
       gmt grdedit -L+n ${ptgridfilelist[$i]}
       if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
         info_msg "Grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+n"
@@ -1526,25 +1526,26 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       gawk < ${F_PROFILES}finaldist_${FNAME} '{print $1, $2, $2, $2, $2, $2 }' >> ${F_PROFILES}${LINEID}_all_data.txt
 
-      ##########################################################################
-      # Plot earthquake data scaled by magnitude
 
-      if [[ $zctimeflag -eq 1 ]]; then
-        SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
-        SEIS_INPUTORDER2="-i0,1,6"
-        SEIS_CPT=${F_CPTS}"eqtime.cpt"
-      elif [[ $zcclusterflag -eq 1 ]]; then
-        SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
-        SEIS_INPUTORDER2="-i0,1,7"
-        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
-      else
-        SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
-        SEIS_INPUTORDER2="-i0,1,2"
-        SEIS_CPT=$SEISDEPTH_CPT
-      fi
-
+      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,2"
+      SEIS_CPT=$SEISDEPTH_CPT
 
       if [[ ${xyzscaleeqsflag[i]} -eq 1 ]]; then
+
+        ##########################################################################
+        # Plot earthquake data scaled by magnitude
+
+        if [[ $zctimeflag -eq 1 ]]; then
+          SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+          SEIS_INPUTORDER2="-i0,1,6"
+          SEIS_CPT=${F_CPTS}"eqtime.cpt"
+        elif [[ $zcclusterflag -eq 1 ]]; then
+          SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+          SEIS_INPUTORDER2="-i0,1,7"
+          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+        fi
+
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
           # Plotting in km instead of in map geographic coords
@@ -1588,14 +1589,19 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
 
       else
+
+
         # PLOT ON THE MAP PS
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+        # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+        # We aren't actually supposed to use the -C here...
+
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
 
         # PLOT ON THE FLAT SECTION PS
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE SECTION PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -p -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
 
       rm -f presort_${FNAME}
@@ -1613,29 +1619,6 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       # the current line, we output it to the current profile. What happens if the alternative point is closer to a different profile?
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
-
-      # COMEBACK: I think I pasted this accidentally to here?
-      # # I have no idea why I expect joinbuf.txt to exist at this stage...? Maybe if -z is already set.
-      #
-      # if [[ $PROFILE_USE_CLOSEST -eq 1 ]]; then
-      #   info_msg "[profile.sh]: labels ARE using closest profile method ( -setvars { PROFILE_USE_CLOSEST 1 })"
-      #   gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
-      #     if ($1==lineid) {
-      #       for (i=2;i<=NF;++i) {
-      #         printf "%s ", $(i)
-      #       }
-      #       printf("\n")
-      #     }
-      #   }' > ${F_PROFILES}$FNAME
-      # else
-      #   info_msg "[profile.sh]: labels NOT using closest profile method (-setvars { PROFILE_USE_CLOSEST 0 })"
-      #   gawk < ${F_PROFILES}joinbuf.txt -v lineid=$PROFILE_INUM ' {
-      #      for (i=2;i<=NF;++i) {
-      #        printf "%s ", $(i)
-      #      }
-      #      printf("\n")
-      #  }' > ${F_PROFILES}$FNAME
-      # fi
 
       gawk < ${F_CMT}cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
       paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
