@@ -66,7 +66,7 @@ function trim(s)        { return rtrim(ltrim(s)); }
 
 # 3 vector math operations
 
-# Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v
+# Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v, normalized
 
 function v_cross(u1,u2,u3,v1,v2,v3) {
   w_cross_1 = u2*v3 - u3*v2
@@ -78,6 +78,16 @@ function v_cross(u1,u2,u3,v1,v2,v3) {
   w_cross_3 = w_cross_3 / v_cross_l
 }
 
+# Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v, not normalized
+
+
+function v_cross_nonorm(u1,u2,u3,v1,v2,v3) {
+  w_cross_1 = u2*v3 - u3*v2
+  w_cross_2 = u3*v1 - u1*v3
+  w_cross_3 = u1*v2 - u2*v1
+}
+
+
 # Set global variables w_sub_1, w_sub_2, and w_sub_3 as the resultant of u - v
 function v_subtract(u1,u2,u3,v1,v2,v3) {
   w_sub_1 = u1-v1
@@ -85,6 +95,11 @@ function v_subtract(u1,u2,u3,v1,v2,v3) {
   w_sub_3 = u3-v3
 }
 
+# Set global variables w_dot
+
+function v_dot(u1,u2,u3,v1,v2,v3) {
+  w_dot = u1*v1+u2*v2+u3*v3
+}
 
 
 # moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz)

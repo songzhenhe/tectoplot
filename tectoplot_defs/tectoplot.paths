@@ -146,14 +146,11 @@ F_GPS="gps/"                          # GPS velocity data
 F_3D="3d/"                            # 3D model data
 
 ##### DATAROOT is the directory that contains all downloaded data directories.
-# Its path is stored in ${OPTDIR}tectoplot.dataroot
 
 GMTCOLORS="$DEFDIR"tectoplot.gmtcolors
 
 TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
 TECTOPLOT_HEADERS=$DEFDIR"tectoplot.headers"
-
-CUSTOMREGIONS=$DEFDIR"tectoplot.customregions"
 
 SAVEDTOPODIR=${DATAROOT}"SavedTopography/"
 [[ -d ${DATAROOT} && ! -d ${SAVEDTOPODIR} ]] && mkdir -p ${SAVEDTOPODIR}

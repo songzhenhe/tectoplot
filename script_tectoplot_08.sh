@@ -259,6 +259,12 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 TECTOPLOTDIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"/
 
+
+if [[ "${THISDIR}"/ == "${TECTOPLOTDIR}"* ]]; then
+  echo "Cannot run tectoplot from a subdirectory of $TECTOPLOTDIR"
+  exit 1
+fi
+
 DEFDIR=$TECTOPLOTDIR"tectoplot_defs/"
 
 # OPTDIR contains personal definitions (tectoplot.author, tectoplot.regions, etc) that do no
@@ -350,6 +356,9 @@ GDAL_VERSION_GT_3_2=$(gdalinfo --version | gawk -F, '{split($1, a, " "); if (a[2
 
 
 DATAROOT=$(head -n 1 ${OPTDIR}"tectoplot.dataroot")
+CUSTOMREGIONSDIR=$OPTDIR"customregions/"
+CUSTOMREGIONS=$CUSTOMREGIONSDIR"tectoplot.customregions"
+[[ ! -d ${CUSTOMREGIONSDIR} ]] && mkdir -p ${CUSTOMREGIONSDIR}
 
 # if [[ ! -d ${DATAROOT} ]]; then
 #   echo "Warning: Data directory ${DATAROOT} does not exist. Set using tectoplot -setdatadir"
@@ -424,6 +433,7 @@ cmtfilenumber=0
 seisfilenumber=0
 usergridfilenumber=0
 userlinefilenumber=0
+usergpsfilenumber=0
 userpointfilenumber=0
 userpolyfilenumber=0
 cprofnum=0
@@ -1027,6 +1037,11 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
 
   TMP=$(abs_path "${TMP}")
 
+  # Copy the tectoplot command into the temporary directory.
+  # Note: this will remove any quotation marks in the command, which can mess up some commands!
+
+  echo $COMMAND > "${TMP}/tectoplot.cmd"
+
   [[ -s ${INFO_MSG} ]] && mv ${INFO_MSG} ${TMP}${INFO_MSG_NAME}
   INFO_MSG=${TMP}${INFO_MSG_NAME}
 
@@ -1231,6 +1246,7 @@ EOF
 shift && continue
   fi
   ;;
+
   -variables)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -1324,18 +1340,6 @@ shift && continue
 fi
   shift
   ;;
-
-
-
-
-
-
-
-
-
-
-
-
 
   -recenteq) # args: none | days
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -1939,6 +1943,40 @@ fi
     *)
       info_msg "[-arrow]: wide | ... "
   esac
+  ;;
+
+  -datareport)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-datareport:       plot footprints of downloaded data (DEM/Sentinel)
+-datareport
+
+  GMRT: red
+  EARTHRELIEF (GMT server): blue
+  Sentinel: green
+  Saved topography: shaded gray
+  Custom DEMs: purple
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plots+=("datareport")
+
+  ;;
+
+  -regionreport)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-datareport:       plot and label footprints of custom regions / saved shaded relief
+-datareport
+
+  Saved shaded relif: shaded gray
+  Custom map region: red line
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plots+=("regionreport")
   ;;
 
   -author)
@@ -3253,7 +3291,7 @@ fi
 		plots+=("gps")
 		;;
 
-  -gadd|--extragps) # args: file
+  -gadd) # args: file
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gadd:         plot custom gps velocity file in gmt psvelo format
@@ -3271,16 +3309,40 @@ Example: Plot a hypothetical plate velocity in Turkey
 EOF
 shift && continue
 fi
-    if arg_is_flag $2; then
-      info_msg "[-gadd]: No extra GPS file given. Exiting"
+    # if arg_is_flag $2; then
+    #   info_msg "[-gadd]: No extra GPS file given. Exiting"
+    #   exit 1
+    # else
+    #   EXTRAGPS=$(abs_path $2)
+    #   info_msg "[-gadd]: Plotting GPS velocities from $EXTRAGPS"
+    #   shift
+    # fi
+
+    # Required arguments
+    usergpsfilenumber=$(echo "$usergpsfilenumber + 1" | bc -l)
+    USERGPSDATAFILE[$usergpsfilenumber]=$(abs_path $2)
+    shift
+    if [[ ! -e ${USERGPSDATAFILE[$usergpsfilenumber]} ]]; then
+      info_msg "[-gadd]: User gps data file ${USERGPSDATAFILE[$usergpsfilenumber]} does not exist."
       exit 1
-    else
-      EXTRAGPS=$(abs_path $2)
-      info_msg "[-gadd]: Plotting GPS velocities from $EXTRAGPS"
-      shift
     fi
+    # Optional arguments
+    # Look for symbol code
+    if arg_is_flag $2; then
+      info_msg "[-gadd]: No color specified. Using $USERGPSCOLOR."
+      USERGPSCOLOR_arr[$usergpsfilenumber]=$EXTRAGPS_FILLCOLOR
+    else
+      USERGPSCOLOR_arr[$usergpsfilenumber]="${2}"
+      shift
+      info_msg "[-li]: User line color specified. Using ${USERGPSCOLOR_arr[$usergpsfilenumber]}."
+    fi
+
+    info_msg "[-gadd]: GPS ${usergpsfilenumber}: ${USERGPSDATAFILE[$usergpsfilenumber]}"
     plots+=("extragps")
+
     ;;
+
+
 
 -fixcpt)
 replace_gmt_colornames_rgb $2
@@ -5613,12 +5675,18 @@ fi
       info_msg "[-rdel]: Deleting region ID ${REGIONTODEL} and exiting."
       shift
     fi
-    gawk -v id=${REGIONTODEL} < $CUSTOMREGIONS '{
-      if ($1 != id) {
-        print
-      }
-    }' > ./regions.tmp
-    mv ./regions.tmp ${CUSTOMREGIONS}
+    if [[ -s $CUSTOMREGIONS ]]; then
+      gawk -v id=${REGIONTODEL} < $CUSTOMREGIONS '{
+        if ($1 != id) {
+          print
+        }
+      }' > ./regions.tmp
+      mv ./regions.tmp ${CUSTOMREGIONS}
+    fi
+    # Delete the AOI box
+    rm -f ${CUSTOMREGIONSDIR}${REGIONTODEL}.xy
+    # Delete any saved colored relief image
+    rm -f ${SAVEDTOPODIR}${REGIONTODEL}.tif
     exit
     ;;
 
@@ -5698,9 +5766,12 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -RJ:           set map projection
+-RJ
 
 Set UTM projection for AOI given by -r:
 -RJ UTM [[utmzone]]
+    If utmzone is not specified, it will be determined automatically from the
+    central longitude inferred from -r
 
 Set global extent [-180:180;-90:90] with central longitude [central_meridian]
 -RJ [projection] [[central_meridian]]
@@ -5722,18 +5793,20 @@ Circular plots with a specified horizon distance from center point:
     Orthographic|G
     Stereo|S
 
-Oblique Mercator specified by center point, azimuth, width and height
+Oblique Mercator: specified by center point, azimuth, width and height
 -RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
 
-Oblique Mercator specified by a center point, pole location, width, height
+Oblique Mercator: specified by a center point, pole location, width, height
 -RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
 
 Projections with standard parallels:
-
--RJ [projection] [central_lon] [central_lat] [parallel_1] [parallel_2]
+-RJ [projection] [[central_lon] [central_lat] [parallel_1] [parallel_2]]
     Albers|B
     Lambert|L
     Equid|D
+
+    If no parameters are given for these -RJ B|L|D, the standard parallels
+    are taken to be the maximum and minimum latitudes from -r.
 
 Examples:
    tectoplot -r BR -RJ UTM -a
@@ -5940,7 +6013,7 @@ fi
         rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
         rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
         RJSTRING="${rj[@]}"
-        recalcregionflag_lonlat=1
+        recalcregionflag_bounds=1
         projcoordsflag=1
 
       ;;
@@ -5952,18 +6025,26 @@ fi
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALLON=$2
           shift
+        else
+          CENTRALLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
         fi
         if arg_is_float $2; then   # Specified a latitude
           CENTRALLAT=$2
           shift
+        else
+          CENTRALLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
         fi
         if arg_is_float $2; then   # Specified a standard parallel
           STANDARD_PARALLEL_1=$2
           shift
+        else
+          STANDARD_PARALLEL_1=${MINLAT}
         fi
         if arg_is_float $2; then   # Specified a standard parallel
           STANDARD_PARALLEL_2=$2
           shift
+        else
+          STANDARD_PARALLEL_2=${MAXLAT}
         fi
 
         rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
@@ -5975,8 +6056,13 @@ fi
         esac
 
         RJSTRING="${rj[@]}"
+        # echo ${RJSTRING[@]}
         recalcregionflag_lonlat=1
         projcoordsflag=1
+      ;;
+      *)
+        echo "[-RJ]: projection ${ARG1} not recognized."
+        exit 1
       ;;
     esac
 
@@ -9000,9 +9086,10 @@ fi
   shift
 done
 
-#### SECTION CALCULATE
+#### END OF ARGUMENT PROCESSING SECTION
 
-# IMMEDIATELY AFTER PROCESSING ARGUMENTS, DO THESE CRITICAL TASKS
+
+#### BEGINNING OF BOOKKEEPING SECTION
 
 [[ $USAGEFLAG -eq 1 ]] && exit
 
@@ -9167,7 +9254,7 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
         print j, i
       }
     }
-  }' | gmt gmtselect ${RJSTRING[@]} > selectbounds.txt
+  }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > selectbounds.txt
 
   NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
     BEGIN {
@@ -9202,14 +9289,14 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
     }
     END {
 
-      print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
-      print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
+      # print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
+      # print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
       if (minlon==-180 && maxlon==180) {
         crosses_meridian=0
         # Either it is a global extent, or crosses the antimeridian
 
         if (length(foundlon)==361) {
-          print "Detected global longitude range"  > "/dev/stderr"
+          # print "Detected global longitude range"  > "/dev/stderr"
           if (minlon >= -180+buffer_d) {
             minlon-=buffer_d
           }
@@ -9224,7 +9311,7 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
           }
           print minlon, maxlon, minlat, maxlat
         } else {
-          print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
+          # print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
           maxneglon+=360
           if (minposlon >= buffer_d+0) {
             minposlon-=buffer_d
@@ -9242,7 +9329,7 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
         }
       } else {
-        print "Detected reasonable longitude range"  > "/dev/stderr"
+        # print "Detected reasonable longitude range"  > "/dev/stderr"
         if (minlon >= -180+buffer_d) {
           minlon-=buffer_d
         }
@@ -9263,7 +9350,7 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
   # range=$(xy_range selectbounds.txt)
   # Points at -180 and 180 indicates crossing of the antimeridian. In that case, we choose the positive longitude
 
-  echo "Inferred range is ${NEWRANGE[@]}"
+  # echo "Inferred range is ${NEWRANGE[@]}"
   MINLON=${NEWRANGE[0]}
   MAXLON=${NEWRANGE[1]}
   MINLAT=${NEWRANGE[2]}
@@ -9271,35 +9358,14 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
 fi
 
+# The default region box is the bounding longitude and latitude
 
 echo ${MINLON} ${MAXLAT}> ${TMP}${F_MAPELEMENTS}bounds.txt
 echo ${MAXLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 echo ${MAXLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 echo ${MINLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
+echo ${MINLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 
-
-# # Examine boundary of map to see of we want to reset the AOI to only the map area
-#
-# # info_msg "Recalculating AOI from map boundary"
-#
-# # Get the bounding box and normalize longitudes to the range [-180:180]
-# # gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} > thisb.txt
-#
-# echo Getting bounds: gmt psbasemap ${RJSTRING[@]} -A
-#
-# gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
-#   ($1!="NaN") {
-#     while ($1>180) { $1=$1-360 }
-#     while ($1<-180) { $1=$1+360 }
-#     if ($1==($1+0) && $2==($2+0)) {
-#       print
-#     }
-#   }' > ${TMP}${F_MAPELEMENTS}bounds.txt
-#
-# # Project the bounding box using the RJSTRING
-#
-# # This was always a bad method, try to jettison it
-gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
 #
 # # The reason to do this is because our -R/// string needs to change based on
 # # various earlier settings, so we need to update MINLON/MAXLON/MINLAT/MAXLAT
@@ -9346,49 +9412,70 @@ gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TM
 # fi
 #
 
-# This section is needed for oblique Mercator type projections
-# echo z
-# if [[ $recalcregionflag_bounds -eq 1 ]]; then
-#   echo j
-#     NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}bounds.txt))
-#     # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
-#
-#     # echo "TL: ${NEWRANGETL[@]}"
-#     # echo "BR: ${NEWRANGEBR[@]}"
-#     # echo "CM: ${NEWRANGECM[@]}"
-#
-#   #  NEWRANGE=($(echo ${NEWRANGE[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
-#     info_msg "Bounds method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-#
-#     # # Only adopt the new range if the max/min values are numbers and their order is OK
-#     usenewrange=1
-#     [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]] && usenewrange=0
-#
-#     # [[ ${NEWRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
-#     # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
-#
-#     # This newrange needs to take into account longitudes below -180 and above 180...
-#
-#     if [[ $usenewrange -eq 1 ]]; then
-#       info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-#       MINLON=${NEWRANGE[0]}
-#       MAXLON=${NEWRANGE[1]}
-#       MINLAT=${NEWRANGE[2]}
-#       MAXLAT=${NEWRANGE[3]}
-#
-#     else
-#       info_msg "Could not update AOI based on map extent."
-#     fi
-# fi
+# This section is needed to make the circular AOI for e.g. stereographic maps with a given horizon.
+# Not yet implemented
+
+if [[ $recalcregionflag_circle -eq 1 ]]; then
+  echo "Trying to make AOI bounds.txt using gmt project"
+  # COMEBACK
+fi
+
+# This section is needed to determine the region and bounding box for oblique Mercator type projections
+# Not yet tested for maps crossing the dateline!
+
+if [[ $recalcregionflag_bounds -eq 1 ]]; then
+
+    # Recalculate the bounding box using RJSTRING; this replaces the MINLON/MAXLON/MINLAT/MAXLAT bounding box
+
+    gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+      ($1!="NaN") {
+        while ($1>180) { $1=$1-360 }
+        while ($1<-180) { $1=$1+360 }
+        if ($1==($1+0) && $2==($2+0)) {
+          print
+        }
+      }' > ${TMP}${F_MAPELEMENTS}bounds.txt
+
+    # Calculate the range in longitude and latitude in order to set MINLON...etc
+
+    NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}bounds.txt))
+
+    info_msg "Bounds method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+
+    # # Only adopt the new range if the max/min values are numbers and their order is OK
+    usenewrange=1
+    [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]] && usenewrange=0
+
+    # Outdated rules... not used
+    # [[ ${NEWRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+    # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+    # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+    # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
+    # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
+    # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
+
+    # Not sure what happens if we cross the dateline...
+
+    if [[ $usenewrange -eq 1 ]]; then
+      info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+      MINLON=${NEWRANGE[0]}
+      MAXLON=${NEWRANGE[1]}
+      MINLAT=${NEWRANGE[2]}
+      MAXLAT=${NEWRANGE[3]}
+
+    else
+      info_msg "Could not update AOI based on map extent."
+    fi
+fi
 
 NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
 
 CENTERLON=${NEWRANGECM[0]}
 CENTERLAT=${NEWRANGECM[1]}
+
+info_msg "RJSTRING: ${RJSTRING[@]}; CENTERLON/CENTERLAT=${CENTERLON}/${CENTERLAT} MINLON/MAXLON/MINLAT/MAXLAT= ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
 
 ##### Define the output filename for the map, in PDF
 if [[ $outflag == 0 ]]; then
@@ -9400,19 +9487,23 @@ else
   MAPOUTLEGEND="legend.pdf"
 fi
 
-info_msg "RJSTRING: ${RJSTRING[@]}"
-
 ##### If we are adding a region code to the custom regions file, do it now #####
 
 if [[ $addregionidflag -eq 1 ]]; then
   #REGIONTOADD
-  gawk -v id=${REGIONTOADD} < $CUSTOMREGIONS '{
-    if ($1 != id) {
-      print
-    }
-  }' > ./regions.tmp
+  # ${CUSTOMREGIONSDIR}${REGIONTOADD}.xy
+  if [[ -s $CUSTOMREGIONS ]]; then
+    gawk -v id=${REGIONTOADD} < $CUSTOMREGIONS '{
+      if ($1 != id) {
+        print
+      }
+    }' > ./regions.tmp
+  else
+    touch ./regions.tmp
+  fi
   echo "${REGIONTOADD} ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${RJSTRING[@]}" >> ./regions.tmp
   mv ./regions.tmp ${CUSTOMREGIONS}
+  cp ${TMP}${F_MAPELEMENTS}bounds.txt ${CUSTOMREGIONSDIR}${REGIONTOADD}.xy
 fi
 
 if [[ $usecustomregionrjstringflag -eq 1 ]]; then
@@ -9425,35 +9516,13 @@ if [[ $usecustomregionrjstringflag -eq 1 ]]; then
   info_msg "[-r]: Using customID RJSTRING: ${RJSTRING[@]}"
 fi
 
+# Move the data source files into the temporary directory
 
-
-# Move some leftover files before cd to tmp
-# Move files that have been created in the argument processing step to their
-# appropriate places, if they exist.
-
-# [[ -s tectoplot_path.clip ]] && mv tectoplot_path.clip ${TMP} && CLIP_POLY_FILE=$(abs_path $TMP/tectoplot_path.clip)
-# [[ -d ../tmpcpts ]] && mv ../tmpcpts/* ${F_CPTS} && rmdir ../tmpcpts/
-# decoy - not real [[ -e ../aprof_profs.txt ]] && mv ../aprof_profs.txt ${F_PROFILES}
-# [[ -e ../cprof_prep.txt ]] && mv ../cprof_prep.txt ${F_PROFILES}
-# [[ -e ../bounds.txt ]] && mv ../bounds.txt ${F_MAPELEMENTS}
-# [[ -e ../projbounds.txt ]] && mv ../projbounds.txt ${F_MAPELEMENTS}
-# [[ -e ../vres_profile.xy ]] && mv ../vres_profile.xy ${F_MAPELEMENTS} && GRAVXYFILE=$(abs_path ${F_MAPELEMENTS}vres_profile.xy)
-
-# ${TMP}tectoplot_path.clip
-# decoy - not real ${TMP}${F_PROFILES}aprof_profs.txt
-# ${TMP}${F_PROFILES}cprof_prep.txt
-# ${TMP}${F_MAPELEMENTS}bounds.txt
-# ${TMP}${F_MAPELEMENTS}projbounds.txt
-# ${TMP}${F_MAPELEMENTS}bounds.txt
-# ${TMP}${F_MAPELEMENTS}vres_profile.xy
-
-
-# [[ -e ${INFO_MSG} ]] && mv ${INFO_MSG} ${TMP}
 [[ -e ${LONGSOURCES} ]] && mv ${LONGSOURCES} ${TMP}
 [[ -e ${SHORTSOURCES} ]] && mv ${SHORTSOURCES} ${TMP}
 
 if [[ $overplotflag -eq 1 ]]; then
-   info_msg "Copying basemap ps into temporary directory"
+   info_msg "[-ips]: Moving copy basemap postscript file into temporary directory"
    mv "${THISDIR}"/tmpmap.ps "${TMP}map.ps"
 fi
 
@@ -9496,7 +9565,6 @@ if [[ $fixselectpolygonsflag -eq 1 ]]; then
   cleanup ./polygon.prep ./fixpoly.sed
   POLYGONAOI=$(abs_path ${F_MAPELEMENTS}fixed_polygon.xy)
 fi
-
 
 # Determine the range of projected coordinates for the bounding box and save them
 XYRANGE=($(xy_range ${F_MAPELEMENTS}projbounds.txt))
@@ -9784,14 +9852,12 @@ if [[ $addinsetplotflag -eq 1 ]]; then
   plots+=("inset")
 fi
 
-MSG=$(echo ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<")
-# echo $MSG
-[[ $narrateflag -eq 1 ]] && echo $MSG
+info_msg ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<"
+info_msg ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<"
 
-legendwords=${plots[@]}
-MSG=$(echo ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<")
-[[ $narrateflag -eq 1 ]] && echo $MSG
+#### END OF BOOKKEEPING SECTION
 
+#### BEGIN DATA PROCESSING SECTION
 
 ################################################################################
 #####         Download Sentinel image                                      #####
@@ -12988,6 +13054,8 @@ MAP_PS_HEIGHT_IN_plus=$(echo "$MAP_PS_HEIGHT_IN+${LEGEND_V_OFFSET}" | bc -l )
 current_userpointfilenumber=1
 current_usergridnumber=1
 current_userlinefilenumber=1
+current_usergpsfilenumber=1
+
 
 # Print the author information, date, and command used to generate the map,
 # beneath the map.
@@ -13051,8 +13119,8 @@ if [[ $printcommandflag -eq 1 || $authorflag -eq 1 ]]; then
 
 fi
 
-##### DO PLOTTING
-# SECTION PLOT
+
+#### BEGIN PLOT SECTION
 
 
 for plot in ${plots[@]} ; do
@@ -13290,6 +13358,143 @@ for plot in ${plots[@]} ; do
       fi
       ;;
 
+      regionreport)
+
+
+        rm -f range.dat
+        # Plot AOI boxes of GMRT tiles
+        for sfile in ${SAVEDTOPODIR}*.tif; do
+          gdalinfo ${sfile} | gawk '
+            ($1=="Upper" && $2 == "Left") {
+              split($0, ts, "(")
+              split(ts[2], tt, ",")
+              split(tt[2], tu, ")")
+              minlon=tt[1]
+              maxlat=tu[1]
+            }
+            ($1=="Lower" && $2 == "Right") {
+              split($0, ts, "(")
+              split(ts[2], tt, ",")
+              split(tt[2], tu, ")")
+              maxlon=tt[1]
+              minlat=tu[1]
+            }
+            END {
+              print ">"
+              print minlon, minlat
+              print minlon, maxlat
+              print maxlon, maxlat
+              print maxlon, minlat
+              print minlon, minlat
+            }' >> range.dat
+        done
+        gmt psxy range.dat -W0p -Gblack -t70 ${RJOK} ${VERBOSE} >> map.ps
+
+        for bfile in ${CUSTOMREGIONSDIR}*.xy; do
+          gmt psxy $bfile -W1p,red ${RJOK} ${VERBOSE} >> map.ps
+
+          # Calculate the centroid of the XY file
+          # Calculate the true centroid of each polygon and output it to the label file
+          gawk < $bfile -v region=$(basename ${bfile}) '{
+            x[NR] = $1;
+            y[NR] = $2;
+          }
+          END {
+              x[NR+1] = x[1];
+              y[NR+1] = y[1];
+
+              SXS = 0;
+              SYS = 0;
+              AS = 0;
+              for (i = 1; i <= NR; ++i) {
+                J[i] = (x[i]*y[i+1]-x[i+1]*y[i]);
+                XS[i] = (x[i]+x[i+1]);
+                YS[i] = (y[i]+y[i+1]);
+              }
+              for (i = 1; i <= NR; ++i) {
+                SXS = SXS + (XS[i]*J[i]);
+                SYS = SYS + (YS[i]*J[i]);
+                AS = AS + (J[i]);
+            }
+            AS = 1/2*AS;
+            CX = 1/(6*AS)*SXS;
+            CY = 1/(6*AS)*SYS;
+
+            region_cut=substr(region, 1, length(region)-3)
+            print CX, CY, "10p,Helvetica,black", 0, "CM", region_cut
+          }' | gmt pstext -F+f+a+j $RJOK $VERBOSE >> map.ps
+  # -67.69	-31.22	10p,Helvetica,black	0	TR	Z112377A+usp0000rp1(7.5)
+        done
+
+    ;;
+
+    datareport)
+
+      rm -f range.dat
+      # Plot AOI boxes of GMRT tiles
+      for gmrtfile in ${GMRTDIR}*.nc; do
+        gmt grdinfo -C ${gmrtfile} | gawk '
+          ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5){
+            # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
+            print ">"
+            print $2, $4
+            print $2, $5
+            print $3, $5
+            print $3, $4
+            print $2, $4
+          }' >> range.dat
+      done
+      gmt psxy range.dat -W1p,red ${RJOK} ${VERBOSE} >> map.ps
+
+      rm -f range.dat
+      for erfile in ${EARTHRELIEFDIR}*.nc; do
+        gmt grdinfo -C ${erfile} | gawk '
+          ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5 && ($3-$2)<360 && ($4-$5)<180){
+            # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
+            print ">"
+            print $2, $4
+            print $2, $5
+            print $3, $5
+            print $3, $4
+            print $2, $4
+          }' >> range.dat
+      done
+      gmt psxy range.dat -W1p,blue ${RJOK} ${VERBOSE} >> map.ps
+
+      rm -f range.dat
+      # Plot AOI boxes of GMRT tiles
+      for sentinelfile in ${SENT_DIR}*.tif; do
+        gdalinfo ${sentinelfile} | gawk '
+          ($1=="Upper" && $2 == "Left") {
+            split($0, ts, "(")
+            split(ts[2], tt, ",")
+            split(tt[2], tu, ")")
+            minlon=tt[1]
+            maxlat=tu[1]
+          }
+          ($1=="Lower" && $2 == "Right") {
+            split($0, ts, "(")
+            split(ts[2], tt, ",")
+            split(tt[2], tu, ")")
+            maxlon=tt[1]
+            minlat=tu[1]
+          }
+          END {
+            print ">"
+            print minlon, minlat
+            print minlon, maxlat
+            print maxlon, maxlat
+            print maxlon, minlat
+            print minlon, minlat
+          }' >> range.dat
+      done
+      gmt psxy range.dat -W1p,green ${RJOK} ${VERBOSE} >> map.ps
+
+
+
+
+      ;;
+
     eqlabel)
 
       # The goal is to create labels for selected events that don't extend off the
@@ -13453,10 +13658,21 @@ for plot in ${plots[@]} ; do
       ;;
 
     extragps)
-      info_msg "Plotting extra GPS dataset $EXTRAGPS"
-      gmt psvelo $EXTRAGPS -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${EXTRAGPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+
+      # echo "Plotting gps dataset $current_usergpsfilenumber: ${USERGPSDATAFILE[$current_userlinefilenumber]}"
+      # echo       gmt psxy ${USERGPSDATAFILE[$current_userlinefilenumber]} ${USERGPSFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]}, $RJOK $VERBOSE \>\> map.ps
+
+      # gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
+      # current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)
+
+
+      # info_msg "Plotting extra GPS dataset ${USERGPSDATAFILE[$current_userlinefilenumber]}"
+      gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
       # Generate XY data for reference
-      gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' $EXTRAGPS > ${F_GPS}extragps.xy.txt
+      # gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${USERGPSDATAFILE[$current_userlinefilenumber]} > ${F_GPS}extragps_${$current_usergpsfilenumber}.xy.txt
+
+      current_usergpsfilenumber=$(echo "$current_usergpsfilenumber + 1" | bc -l)
+
       ;;
 
     euler)
@@ -15501,18 +15717,6 @@ echo              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO
         fi
       fi  # fasttopoflag = 0
 
-      # If we are saving the colored relief, check for region code and do so here
-      if [[ $tsaveflag -eq 1 ]]; then
-        if [[ $usingcustomregionflag -eq 1 ]]; then
-          info_msg "Saving custom topo visualization to (${SAVEDTOPODIR}${CUSTOMREGIONID}.tif)"
-          RELIEF_OUTFILE=${SAVEDTOPODIR}${CUSTOMREGIONID}.tif
-          cp ${COLORED_RELIEF} ${RELIEF_OUTFILE}
-          echo ${COMMAND} > ${SAVEDTOPODIR}${CUSTOMREGIONID}.command
-        else
-          info_msg "[-tsave]: Requires custom region ID (-radd; -r RegionID)"
-        fi
-      fi
-
       if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
         [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else # If we are doing fast topo visualization
@@ -16071,13 +16275,26 @@ if [[ $makelegendflag -eq 1 ]]; then
   fi
 fi  # [[ $makelegendflag -eq 1 ]]
 
+# If we are saving the colored relief, check for region code and do so here
+if [[ $tsaveflag -eq 1 ]]; then
+  if [[ $usingcustomregionflag -eq 1 ]]; then
+    info_msg "Saving custom topo visualization to (${SAVEDTOPODIR}${CUSTOMREGIONID}.tif)"
+    RELIEF_OUTFILE=${SAVEDTOPODIR}${CUSTOMREGIONID}.tif
+    cp ${COLORED_RELIEF} ${RELIEF_OUTFILE}
+    echo ${COMMAND} > ${SAVEDTOPODIR}${CUSTOMREGIONID}.command
+  else
+    info_msg "[-tsave]: Requires custom region ID (-radd; -r RegionID)"
+  fi
+fi
+
+
 # Export TECTOPLOT call and GMT command history from PS file to .history file
 
 # Close the PS if we need to
 gmt psxy -T -R -J -O $KEEPOPEN $VERBOSE >> map.ps
 
 echo "${COMMAND}" > "$MAPOUT.history"
-echo "${COMMAND}" >> $TECTOPLOTDIR"tectoplot.history"
+echo "${COMMAND}" >> $OPTDIR"tectoplot.history"
 
 grep "%@GMT:" map.ps | sed -e 's/%@GMT: //' >> "$MAPOUT.history"
 
