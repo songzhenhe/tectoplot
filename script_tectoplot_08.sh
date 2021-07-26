@@ -9246,7 +9246,8 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
 # We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
 
-# Get the bounds using a grid of points
+# Get the bounds using a grid of points. For some reason, sometimes gmtselect will return
+# lon+360 (e.g. 276 instead of -84), so fix that as needed...
   gawk '
   BEGIN {
     for(i=-90;i<=90;i++) {
@@ -9254,7 +9255,7 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
         print j, i
       }
     }
-  }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > selectbounds.txt
+  }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} | gawk '{ if ($1>180) { $1=$1-360 } else if ($1<-180) { $1=$1+360}; print }'> selectbounds.txt
 
   NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
     BEGIN {
@@ -9350,7 +9351,6 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
   # range=$(xy_range selectbounds.txt)
   # Points at -180 and 180 indicates crossing of the antimeridian. In that case, we choose the positive longitude
 
-  # echo "Inferred range is ${NEWRANGE[@]}"
   MINLON=${NEWRANGE[0]}
   MAXLON=${NEWRANGE[1]}
   MINLAT=${NEWRANGE[2]}
@@ -12739,7 +12739,6 @@ for cptfile in ${cpts[@]} ; do
 
             # echo gmt makecpt -C${F_CPTS}new_extended.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr
             # gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended.cpt -G-${extend_val}/${extend_val} -T-${extend_val}/${extend_val}/${extend_int} -Fr >  ${F_CPTS}new_resampled.cpt
-
             gawk <  ${F_CPTS}new_extended.cpt -v minz=${MINZ} -v maxz=${MAXZ} '
               ($1+0==$1) {
                 if ($3 > minz && $1 < maxz) {

@@ -521,7 +521,12 @@ main() {
 
   case $INSTALLTYPE in
     homebrew)
-      check_xcode
+      case "$OSTYPE" in
+        darwin*)
+          print_msg "Checking for Xcode command line tools"
+          check_xcode
+        ;;
+      esac
       install_homebrew
       brew_packages
     ;;
