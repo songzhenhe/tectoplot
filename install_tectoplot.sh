@@ -96,7 +96,7 @@ function check_tectoplot() {
               print_msg "Not installing over existing folder."
               INSTALL_TECTOPLOT="false"
             fi
-            print_msg "Installing tectoplot into default directory ${tectoplot_folder_dir}/tectoplot/"
+            print_msg "Installing tectoplot into ${tectoplot_folder_dir}/tectoplot/"
             INSTALL_TECTOPLOT="true"
           fi
           break
@@ -470,7 +470,7 @@ function clone_tectoplot_examples() {
   fi
 }
 
-# One function to rule them all.
+# Main logic
 main() {
   clear
   script_info
@@ -542,21 +542,21 @@ main() {
   if [[ $INSTALL_TECTOPLOT_REPO =~ "true" && $SETUP_TECTOPLOT =~ "true" ]]; then
     if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
 
+      cd ~/
+
       print_msg "Setting up tectoplot..."
 
-      cd ${tectoplot_folder_dir}/tectoplot/
       print_msg "tectoplot -addpath"
 
-      ./tectoplot -addpath
+      ${tectoplot_folder_dir}/tectoplot/tectoplot -addpath
       source ~/.profile
-      cd -
 
       while true; do
-        read -r -p "Path to tectoplot data folder: [ default=${HOME}TectoplotData/ | path | none ] " response
+        read -r -p "Data directory (will be created if it doesn't exist): [ ${HOME}/TectoplotData/ | /Your/path/ | none ] " response
         case "${response}" in
         "")
           echo
-          ${tectoplot_folder_dir}/tectoplot -setdatadir "${HOME}TectoplotData/"
+          ${tectoplot_folder_dir}/tectoplot -setdatadir "${HOME}/TectoplotData/"
           break
           ;;
         none)
@@ -577,8 +577,6 @@ main() {
   if ! command_exists "evince"; then
     install_evince_anyway
   fi
-
-
 
   print_msg "Script completed.\n"
 }
