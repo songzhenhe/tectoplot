@@ -5581,6 +5581,13 @@ fi
               CUSTOMREGIONRJSTRING+=("${ISCUSTOMREGION[${ind}]}")
               ind=$(echo "$ind+1"| bc)
               usecustomregionrjstringflag=1
+
+              # Check the custom region strings for projections that require a different bounding box method
+              if [[ ${ISCUSTOMREGION[${ind}]} == *"-JOc"* ]]; then
+                echo "Found Oblique Mercator"
+                boundboxfrompsbasemapflag=1
+              fi
+
             done
             if [[ $usecustomregionrjstringflag -eq 1 ]]; then
               info_msg "[-r]: customID ${2} has RJSTRING: ${CUSTOMREGIONRJSTRING[@]}"
@@ -9465,21 +9472,39 @@ if [[ $recalcregionflag_circle -eq 1 ]]; then
   # COMEBACK
 fi
 
+
+# If we read the RJ string from the custom regions file, set it here before we
+# determine the bounding box and projected bounding box
+
+if [[ $usecustomregionrjstringflag -eq 1 ]]; then
+  unset RJSTRING
+  ind=0
+  while ! [[ -z ${CUSTOMREGIONRJSTRING[$ind]} ]]; do
+    RJSTRING+=("${CUSTOMREGIONRJSTRING[$ind]}")
+    ind=$(echo "$ind+1" | bc)
+  done
+  info_msg "[-r]: Using customID RJSTRING: ${RJSTRING[@]}"
+fi
+
 # This section is needed to determine the region and bounding box for oblique Mercator type projections
 # Not yet tested for maps crossing the dateline!
+
+if [[ $boundboxfrompsbasemapflag -eq 1 || $recalcregionflag_bounds -eq 1 ]]; then
+  echo "Bound bound"
+echo ${RJSTRING[@]}
+  gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+    ($1!="NaN") {
+      while ($1>180) { $1=$1-360 }
+      while ($1<-180) { $1=$1+360 }
+      if ($1==($1+0) && $2==($2+0)) {
+        print
+      }
+    }' > ${TMP}${F_MAPELEMENTS}bounds.txt
+fi
 
 if [[ $recalcregionflag_bounds -eq 1 ]]; then
 
     # Recalculate the bounding box using RJSTRING; this replaces the MINLON/MAXLON/MINLAT/MAXLAT bounding box
-
-    gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
-      ($1!="NaN") {
-        while ($1>180) { $1=$1-360 }
-        while ($1<-180) { $1=$1+360 }
-        if ($1==($1+0) && $2==($2+0)) {
-          print
-        }
-      }' > ${TMP}${F_MAPELEMENTS}bounds.txt
 
     # Calculate the range in longitude and latitude in order to set MINLON...etc
 
@@ -9513,12 +9538,15 @@ if [[ $recalcregionflag_bounds -eq 1 ]]; then
     fi
 fi
 
-NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+# Find the center point of the map
 
+NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
 CENTERLON=${NEWRANGECM[0]}
 CENTERLAT=${NEWRANGECM[1]}
 
 info_msg "RJSTRING: ${RJSTRING[@]}; CENTERLON/CENTERLAT=${CENTERLON}/${CENTERLAT} MINLON/MAXLON/MINLAT/MAXLAT= ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+# Convert the bounding box to projected coordinates
 
 gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
 
@@ -9551,15 +9579,6 @@ if [[ $addregionidflag -eq 1 ]]; then
   cp ${TMP}${F_MAPELEMENTS}bounds.txt ${CUSTOMREGIONSDIR}${REGIONTOADD}.xy
 fi
 
-if [[ $usecustomregionrjstringflag -eq 1 ]]; then
-  unset RJSTRING
-  ind=0
-  while ! [[ -z ${CUSTOMREGIONRJSTRING[$ind]} ]]; do
-    RJSTRING+=("${CUSTOMREGIONRJSTRING[$ind]}")
-    ind=$(echo "$ind+1" | bc)
-  done
-  info_msg "[-r]: Using customID RJSTRING: ${RJSTRING[@]}"
-fi
 
 # Move the data source files into the temporary directory
 
@@ -9619,6 +9638,7 @@ MINPROJ_X=${XYRANGE[0]}
 MAXPROJ_X=${XYRANGE[1]}
 MINPROJ_Y=${XYRANGE[2]}
 MAXPROJ_Y=${XYRANGE[3]}
+
 
 gawk -v minlon=${XYRANGE[0]} -v maxlon=${XYRANGE[1]} -v minlat=${XYRANGE[2]} -v maxlat=${XYRANGE[3]} '
 BEGIN {
@@ -15923,7 +15943,10 @@ if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
 
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
+      echo ${RJSTRING[@]}
       # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
+      echo       gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_X}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNES -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain
+
       gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_X}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNrS -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
