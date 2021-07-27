@@ -4848,10 +4848,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -noframe:      do not plot coordinate grid or map frame
--noframe
+-noframe [[top]] [[left]] [[bottom]] [[right]]
 
-  Select seismicity data within polygon.
-  show: plot the polygon boundary
+  If no options are given, do not label the border at all.
+  If options are given, label all borders EXCEPT those listed.
 
 Example:
   tectoplot -r GR -a -noframe
@@ -4859,8 +4859,31 @@ Example:
 EOF
 shift && continue
 fi
-    dontplotgridflag=1
-    GRIDCALL="blrt"
+
+    GRIDCALL="NESW"
+
+    if arg_is_flag "${2}"; then
+      GRIDCALL="blrt"
+      dontplotgridflag=1
+    else
+      while ! arg_is_flag "${2}"; do
+        case "${2}" in
+          top)
+            GRIDCALL=$(echo $GRIDCALL | tr 'N' 't')
+            ;;
+          left)
+            GRIDCALL=$(echo $GRIDCALL | tr 'W' 'l')
+            ;;
+          bottom)
+            GRIDCALL=$(echo $GRIDCALL | tr 'S' 'b')
+            ;;
+          right)
+            GRIDCALL=$(echo $GRIDCALL | tr 'E' 'r')
+            ;;
+        esac
+        shift
+      done
+    fi
     ;;
 
   -pgo)
@@ -8710,6 +8733,28 @@ fi
   plotseistimeflag=1
   ;;
 
+  -seisproj)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-seisproj:     create a seismicity (X) vs depth (Y) projected panel
+-seisproj [[height_in]]
+
+  Output is seisproj.pdf
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if arg_is_positive_float "${2}"; then
+    SEISPROJHEIGHT_X="${2}"
+    shift
+  fi
+
+  plotseisprojflag=1
+  ;;
+
 -zccluster)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9569,6 +9614,11 @@ fi
 # Determine the range of projected coordinates for the bounding box and save them
 XYRANGE=($(xy_range ${F_MAPELEMENTS}projbounds.txt))
 echo ${XYRANGE[@]} > ${F_MAPELEMENTS}projxyrange.txt
+
+MINPROJ_X=${XYRANGE[0]}
+MAXPROJ_X=${XYRANGE[1]}
+MINPROJ_Y=${XYRANGE[2]}
+MAXPROJ_Y=${XYRANGE[3]}
 
 gawk -v minlon=${XYRANGE[0]} -v maxlon=${XYRANGE[1]} -v minlat=${XYRANGE[2]} -v maxlat=${XYRANGE[3]} '
 BEGIN {
@@ -13565,7 +13615,7 @@ for plot in ${plots[@]} ; do
         if [[ $LABELSONMAP -eq 1 ]]; then
           uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
         else
-          # Create a 'labels only' map
+          # Create a 'labels only' map for easier editing
           gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > cmtlabel_map.ps
           uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING[@]} -O $VERBOSE >> cmtlabel_map.ps
         fi
@@ -13623,7 +13673,7 @@ for plot in ${plots[@]} ; do
         if [[ $LABELSONMAP -eq 1 ]]; then
             uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
         else
-            # Create a 'labels only' map
+            # Create a 'labels only' map for easier editing
             gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > eqlabel_map.ps
             uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING[@]} -O $VERBOSE >> eqlabel_map.ps
         fi
@@ -15746,7 +15796,144 @@ echo              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO
 done
 
 
+#### SECTION: DATA FRAMES BELOW OR BESIDE THE MAP (incompatible with onmap profiles)
 
+#### Plot seismicty vs depth in a projected (X) frame below the map frame
+
+if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+
+  depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
+    BEGIN {
+      getline
+      maxdepth=$3
+      mindepth=$3
+    }
+    {
+      maxdepth=($3>maxdepth)?$3:maxdepth
+      mindepth=($3<mindepth)?$3:mindepth
+    }
+    END {
+      range=maxdepth-mindepth
+      print -(maxdepth+range/20), -(mindepth-range/10)
+    }'))
+
+    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gawk '
+      (NR==FNR) {
+        projx[NR]=$1
+        projy[NR]=$2
+      }
+      (NR>FNR) {
+        $1=projx[FNR]
+        $2=-$3
+        print
+      }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled.txt
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,6"
+      SEIS_CPT=${F_CPTS}"eqtime.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,7"
+      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,2"
+      SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      gmt_init_tmpdir
+
+      gmt psbasemap -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+      PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54 + 0.15}')
+
+      OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+      gmt gmtset PROJ_LENGTH_UNIT p
+      # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
+      gmt psxy ${F_SEIS}proj_eqs_scaled.txt -Ya-${PS_HEIGHT_IN_NOLABELS}i -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Bxaf -Byaf -BEbWt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+      gmt_remove_tmpdir
+    fi
+fi
+
+#### Plot seismicty vs depth in a projected (Y) frame to the right of the map frame
+
+if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+
+  depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
+    BEGIN {
+      getline
+      maxdepth=$3
+      mindepth=$3
+    }
+    {
+      maxdepth=($3>maxdepth)?$3:maxdepth
+      mindepth=($3<mindepth)?$3:mindepth
+    }
+    END {
+      range=maxdepth-mindepth
+      print -(maxdepth+range/20), -(mindepth-range/10)
+    }'))
+
+    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gawk '
+      (NR==FNR) {
+        projx[NR]=$1
+        projy[NR]=$2
+      }
+      (NR>FNR) {
+        $1=-$3
+        $2=projy[FNR]
+        print
+      }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled_y.txt
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,6"
+      SEIS_CPT=${F_CPTS}"eqtime.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,7"
+      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,2"
+      SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      gmt_init_tmpdir
+
+      PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      MAP_PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      MAP_PS_WIDTH_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+
+      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+
+      # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+
+      PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_IN_NOLABELS | gawk  '{print $1+ 0.15}')
+
+      OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+      gmt gmtset PROJ_LENGTH_UNIT p
+      # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_X}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNrS -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+      gmt_remove_tmpdir
+    fi
+fi
+
+
+
+# This is likely not compatible with the above section
 
 if [[ $plotbigbarflag -eq 1 ]]; then
 
@@ -15754,7 +15941,6 @@ if [[ $plotbigbarflag -eq 1 ]]; then
     echo "No CPT file for big bar found"
   fi
   gmt psscale -DJCB+w${PSSIZE}i+o0/1c+h+e -C${BIGBARCPT} -Bxaf+l"${BIGBARANNO}" -G${BIGBARLOW}/${BIGBARHIGH} $RJOK ${VERBOSE} >> map.ps
-
 fi
 
 current_usergridnumber=1

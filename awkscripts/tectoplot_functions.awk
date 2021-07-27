@@ -80,7 +80,6 @@ function v_cross(u1,u2,u3,v1,v2,v3) {
 
 # Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v, not normalized
 
-
 function v_cross_nonorm(u1,u2,u3,v1,v2,v3) {
   w_cross_1 = u2*v3 - u3*v2
   w_cross_2 = u3*v1 - u1*v3

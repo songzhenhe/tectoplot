@@ -31,6 +31,8 @@
 # Assignments should be in bash format
 
 
+SEISPROJHEIGHT_X=3            # Height in inches of -seisproj panel (X dimension)
+
 TOPO_CPT_TYPE="-Z"          # -Z means continuous; "" mean discrete
 
 DEM_QUANTILE_RADIUS=55      # Width of kernel used for local histogram
