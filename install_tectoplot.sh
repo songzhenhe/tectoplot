@@ -359,7 +359,7 @@ function brew_packages() {
   echo "First, install GMT 6.1.1 instead of 6.2.0 until tectoplot is stable with 6.2.0"
 
   GMTVERSION=$(gmt --version)
-  if [[ ${GMTVERSION} == 6.2* ]]; then
+  if [[ -z ${GMTVERSION} && ${GMTVERSION} == 6.2* ]]; then
     echo "GMT 6.2 already installed. Run 'brew uninstall gmt' before running this script."
     exit 1
   else
