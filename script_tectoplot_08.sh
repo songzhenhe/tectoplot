@@ -857,7 +857,7 @@ do
 
       echo "Compiling Reasenberg declustering tool"
       if [[ -x $(which ${F90COMPILER}) ]]; then
-        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -std=legacy -o ${REASENBERG_EXEC}
+        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -lrt -std=legacy -o ${REASENBERG_EXEC}
       fi
 
       echo "Compiling LITHO1 extract tool"
@@ -865,15 +865,17 @@ do
       ${CXXCOMPILER} -c ${CSCRIPTDIR}access_litho.cc -DMODELLOC=\"${LITHO1DIR_2}\" -o ${CSCRIPTDIR}access_litho.o
       ${CXXCOMPILER}  ${CSCRIPTDIR}access_litho.o -lm -DMODELLOC=\"${LITHO1DIR_2}\" -o ${LITHO1_PROG}
 
-      echo "Testing LITHO1 extract tool"
-      res=$(${LITHO1_PROG} -p 20 20 2>/dev/null | gawk  '(NR==1) { print $3 }')
-      if [[ $(echo "$res == 8060.22" | bc) -eq 1 ]]; then
-        echo "access_litho returned correct value"
-      else
-        echo "access_litho returned incorrect result. Deleting executable. Check compiler, paths, etc."
-        rm -f ${LITHO1_PROG}
+      if [[ -s ${LITHO1FILE} ]]; then
+        echo "Testing LITHO1 extract tool"
+        res=$(${LITHO1_PROG} -p 20 20 2>/dev/null | gawk  '(NR==1) { print $3 }')
+        if [[ $(echo "$res == 8060.22" | bc) -eq 1 ]]; then
+          echo "access_litho returned correct value"
+        else
+          echo "access_litho returned incorrect result. Deleting executable. Check compiler, paths, etc."
+          rm -f ${LITHO1_PROG}
+        fi
+        exit 0
       fi
-      exit 0
     fi
     ;;
 
