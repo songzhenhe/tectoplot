@@ -18,6 +18,9 @@ CCOMPILER="gcc"
 CXXCOMPILER="g++"
 F90COMPILER="gfortran"
 
+UPDATEFLAG=1
+UPGRADEFLAG=1
+
 # Try to set up path to C Compiler
 if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
   [[ ! -z ${CC} ]] && CCOMPILER=$(which ${CC})
@@ -304,7 +307,6 @@ function check_xcode() {
 }
 
 function install_homebrew() {
-  echo "Installing Homebrew..."
   echo "Checking for Homebrew..."
   if command_exists "brew"; then
     echo "Homebrew is already installed."
@@ -320,6 +322,7 @@ function install_homebrew() {
         echo "Brew update failed."
       fi
     fi
+
     if [[ $UPGRADEFLAG -eq 1 ]]; then
       echo "Running brew upgrade..."
       if brew upgrade; then
@@ -328,6 +331,7 @@ function install_homebrew() {
         echo "Brew upgrade failed."
       fi
     fi
+
   else
     echo
     echo "Homebrew is not found. Attempting to install via curl..."
@@ -338,12 +342,11 @@ function install_homebrew() {
         # Linux / WSL
         if [[ -d /home/linuxbrew/ ]]; then
           echo "/home/linuxbrew/ exists: Adding brew to ~/.profile and activating brew in current environment"
+
           echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ${HOME}/.profile
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
         fi
-
         # Other cases not yet known! E.g. OSX
-
       else
         echo "Homebrew install failed."
         exit 1
@@ -356,6 +359,8 @@ function install_homebrew() {
 }
 
 function brew_packages() {
+
+  echo "Installing packages using homebrew"
   # addition taps to enable packages not included in core tap
   tap_list=""
   # term_list includes packages which run from terminal without GUI
