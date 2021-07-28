@@ -857,7 +857,7 @@ do
 
       echo "Compiling Reasenberg declustering tool"
       if [[ -x $(which ${F90COMPILER}) ]]; then
-        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -lrt -std=legacy -o ${REASENBERG_EXEC}
+        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -o ${REASENBERG_EXEC}
       fi
 
       echo "Compiling LITHO1 extract tool"
