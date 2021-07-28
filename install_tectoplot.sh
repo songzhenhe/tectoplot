@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# UPDATE 7
+# UPDATE 8
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
@@ -705,12 +705,34 @@ function configure_tectoplot() {
       CONFIGURE_TECTOPLOT=1
       break
       ;;
+    N|n)
+      break
+      ;;
     *)
       ;;
     esac
   done
 
+
+
   if [[ $CONFIGURE_TECTOPLOT -eq 1 && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
+
+    while true; do
+      read -r -p "Activate tectoplot conda environment before configuring? Default is no [Yy|Nn] " response
+      case "${response}" in
+      Y|y|"")
+        echo
+        conda activate tectoplot
+        break
+        ;;
+      N|n)
+        break
+        exit
+        ;;
+      *)
+        ;;
+      esac
+    done
 
     cd ~/
     echo "Adding tectoplot to PATH variable in ~/.profile."
