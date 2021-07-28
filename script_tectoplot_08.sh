@@ -354,7 +354,7 @@ GMTVERSION=$(gmt --version)
 
 GDAL_VERSION_GT_3_2=$(gdalinfo --version | gawk -F, '{split($1, a, " "); if (a[2] > "3.2.0") { print 1 } else { print 0 }}')
 
-if [[ ! -s ${OPTDIR}"tectoplot.dataroot"); then ]]
+if [[ ! -s ${OPTDIR}"tectoplot.dataroot") ]]; then
   echo "Error: data directory not defined. Run tectoplot -setdatadir"
   exit 1
 else
