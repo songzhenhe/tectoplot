@@ -2,11 +2,6 @@
 
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
-# This code should manage several cases:
-# OSX (Xcode command line tools required)
-# Linux
-# Windows system for linux
-
 set -o errexit
 set -o pipefail
 
@@ -15,8 +10,23 @@ if [ ! -w $(pwd) ]; then
   exit
 fi
 
-tectoplot_folder_dir=$HOME
-miniconda_folder_dir=$HOME
+GMTREQ="6.1"
+GAWKREQ="5"
+
+CCOMPILER="gcc"
+CXXCOMPILER="g++"
+F90COMPILER="gfortran"
+
+# Try to set up path to C Compiler
+if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
+  [[ ! -z ${CC} ]] && CCOMPILER=$(which ${CC})
+  [[ ! -z ${CXX} ]] && CXXCOMPILER=$(which ${CXX})
+  [[ ! -z ${F90} ]] && F90COMPILER=$(which ${F90})
+fi
+
+
+tectoplot_folder_dir="${HOME}"
+miniconda_folder_dir="${HOME}"
 
 # Function to output details of script.
 function script_info() {
@@ -25,55 +35,80 @@ function script_info() {
 Name:           install_tectoplot.sh
 Description:    Automated installation of tectoplot + tectoplot-examples, +
                 installation of dependencies using Homebrew or miniconda
-Author:         Kyle Bradley
-Tested:         MacOS Catalina, Mojave, Big Sur, Ubuntu Linux
+Author:         Kyle Bradley, Nanyang Technological University
+Tested:         MacOS Catalina, Mojave, Big Sur, Ubuntu Linux (regular + WSL)
 Usage:          /usr/bin/env bash install_tectoplot.sh
 
-1. Choose whether to install tectoplot and tectoplot-examples from Github
-2.   If yes, select the directory to hold tectoplot/ and tectoplot-examples/
-3.   After installation, choose to add tectoplot/ to your ~/.profile
-4. Choose whether to install dependencies (homebrew, miniconda)
-5.   If installing miniconda, choose the directory to hold miniconda/
+The following directories need to be defined       :   Default location
+Home directory of tectoplot and tectoplot-examples :   ${HOME}/tectoplot/
+Miniconda directory (if installing)                :   ${HOME}/miniconda/
+tectoplot data directory                           :   ${HOME}/TectoplotData/
+
+Installation of dependencies using Homebrew may require root access via sudo
+
 
 EOF
-}
-
-function print_msg() {
-  echo -e "${1}"
 }
 
 function report_storage() {
   local this_folder="${1}"
   echo
   kb_home=$(df -k $this_folder | sed '1d' | awk '{print $4/1024/1024}')
-  print_msg "Disk containing directory $this_folder has ~${kb_home} Gb of storage remaining."
+  echo "Disk containing directory $this_folder has ~${kb_home} Gb of storage remaining. "
   echo
 }
 
+function clone_tectoplot() {
+  if [[ -d ${tectoplot_folder_dir}/tectoplot ]]; then
+    echo "tectoplot directory ${tectoplot_folder_dir}/tectoplot already exists. Delete before reinstalling!"
+  else
+    if git clone https://github.com/kyleedwardbradley/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
+      echo "tectoplot succesfully cloned to ${tectoplot_folder_dir}/tectoplot/"
+    else
+      echo "ERROR: Could not clone tectoplot repository to ${tectoplot_folder_dir}/tectoplot/"
+    fi
+  fi
+}
+
+function clone_tectoplot_examples() {
+  if [[ -d ${tectoplot_folder_dir}/tectoplot-examples/ ]]; then
+    echo "tectoplot directory ${tectoplot_folder_dir}/tectoplot-examples/ already exists. Delete before reinstalling!"
+  else
+    if git clone https://github.com/kyleedwardbradley/tectoplot-examples ${tectoplot_folder_dir}/tectoplot-examples; then
+      echo "tectoplot-examples succesfully cloned to ${tectoplot_folder_dir}/tectoplot-examples/"
+    else
+      echo "ERROR: Could not clone tectoplot examples repository to ${tectoplot_folder_dir}/tectoplot-examples/"
+    fi
+  fi
+}
+
 function check_tectoplot() {
-  print_msg "\n"
-
-
   while true; do
-    read -r -p "What tectoplot components should be installed [ tectoplot | examples | both | default=none ]   " response
-    case $response in
-      tectoplot)
-        INSTALL_TECTOPLOT_REPO="true"
-        INSTALL_TECTOPLOT_EXAMPLES="false"
+    read -r -p "Do you want to install tectoplot and/or tectoplot-examples from Github? Default is yes. [Yy|Nn] " response1
+    case $response1 in
+      Y|y|yes|"")
+        read -r -p "Which components do you want to install? Default is both. [ tectoplot | examples | both ] " response
+        case $response in
+          tectoplot)
+            INSTALL_TECTOPLOT_REPO="true"
+            INSTALL_TECTOPLOT_EXAMPLES="false"
+            break
+          ;;
+          examples)
+            INSTALL_TECTOPLOT_REPO="false"
+            INSTALL_TECTOPLOT_EXAMPLES="true"
+            break
+          ;;
+          both|"")
+            INSTALL_TECTOPLOT_REPO="true"
+            INSTALL_TECTOPLOT_EXAMPLES="true"
+            break
+          ;;
+        esac
         break
       ;;
-      examples)
-        INSTALL_TECTOPLOT_REPO="false"
-        INSTALL_TECTOPLOT_EXAMPLES="true"
-        break
-      ;;
-      both)
-        INSTALL_TECTOPLOT_REPO="true"
-        INSTALL_TECTOPLOT_EXAMPLES="true"
-        break
-      ;;
-      none|"")
-        INSTALL_TECTOPLOT_NONE="true"
+      *)
+        echo "Not installing tectoplot or tectoplot-examples"
         break
       ;;
     esac
@@ -82,70 +117,117 @@ function check_tectoplot() {
   if [[ ${INSTALL_TECTOPLOT_REPO} =~ "true" || ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" ]]; then
 
     while true; do
-      print_msg "\n"
-      read -r -p "Enter installation directory for repositories: [ default=${tectoplot_folder_dir} | path | none ]   " response
+      echo "Define the installation directory for tectoplot and/or tectoplot-examples."
+      echo "To accept default (${tectoplot_folder_dir}/tectoplot/), press enter. Otherwise, type a complete path and press enter."
+      read -r -p "" response
       case $response in
         "")
           echo
           if [[ ! -d $tectoplot_folder_dir ]]; then
-            print_msg "Directory $tectoplot_folder_dir does not exist. Not installing tectoplot."
-            INSTALL_TECTOPLOT="false"
+            echo "Directory $tectoplot_folder_dir does not exist. Not installing tectoplot or tectoplot-examples."
+            INSTALL_TECTOPLOT_REPO="false"
+            INSTALL_TECTOPLOT_EXAMPLES="false"
           else
-            if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
-              print_msg "WARNING: tectoplot folder ${tectoplot_folder_dir}/tectoplot/ already exists!"
-              print_msg "Not installing over existing folder."
-              INSTALL_TECTOPLOT="false"
+            if [[ ${INSTALL_TECTOPLOT_REPO} =~ "true" && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
+              echo "ERROR: tectoplot folder ${tectoplot_folder_dir}/tectoplot/ already exists!"
+              echo "Not installing tectoplot over existing folder. Delete if reinstalling."
+              INSTALL_TECTOPLOT_REPO="false"
+            else
+              echo "tectoplot: Target directory is ${tectoplot_folder_dir}/tectoplot/"
+              INSTALL_TECTOPLOT_REPO="true"
             fi
-            print_msg "Installing tectoplot into ${tectoplot_folder_dir}/tectoplot/"
-            INSTALL_TECTOPLOT="true"
+            if [[ ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" && -d ${tectoplot_folder_dir}/tectoplot-examples/ ]]; then
+              echo "ERROR: tectoplot folder ${tectoplot_folder_dir}/tectoplot-examples/ already exists!"
+              echo "Not installing tectoplot-examples over existing folder. Delete if reinstalling."
+              INSTALL_TECTOPLOT_EXAMPLES="false"
+            else
+              echo "tectoplot-examples: Target directory is ${tectoplot_folder_dir}/tectoplot-examples/"
+              INSTALL_TECTOPLOT_EXAMPLES="true"
+            fi
           fi
           break
         ;;
         none)
           echo
-          print_msg "Not installing tectoplot!"
-          INSTALL_TECTOPLOT="false"
+          INSTALL_TECTOPLOT_REPO="false"
+          INSTALL_TECTOPLOT_EXAMPLES="false"
           break
         ;;
         *)
           echo
           if [[ ! -d $response ]]; then
-            print_msg "Installation directory $response does not exist. Creating folder."
+            echo "Installation directory $response does not exist. Creating folder."
             mkdir -p "$response"
             tectoplot_folder_dir=$response
-            INSTALL_TECTOPLOT=true
           else
-            if [[ -d ${response}/tectoplot/ ]]; then
-              print_msg "WARNING: tectoplot folder ${response}/tectoplot/ already exists!"
-              print_msg "Not installing over existing folder."
-              INSTALL_TECTOPLOT="false"
+            if [[ ${INSTALL_TECTOPLOT_REPO} =~ "true" && -d ${response}/tectoplot/ ]]; then
+              echo "ERROR: tectoplot folder ${response}/tectoplot/ already exists!"
+              echo "Not installing over existing folder.  Delete if reinstalling."
+              INSTALL_TECTOPLOT_REPO="false"
+            else
+              tectoplot_folder_dir=$response
+              echo "Target directory is ${tectoplot_folder_dir}/tectoplot/"
+              INSTALL_TECTOPLOT_REPO="true"
             fi
-            tectoplot_folder_dir=$response
-            INSTALL_TECTOPLOT="true"
+            if [[ ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" && -d ${response}/tectoplot-examples/ ]]; then
+              echo "ERROR: tectoplot-examples folder ${response}/tectoplot-examples/ already exists!"
+              echo "Not installing over existing folder.  Delete if reinstalling."
+              INSTALL_TECTOPLOT_EXAMPLES="false"
+            else
+              tectoplot_folder_dir=$response
+              echo "Target directory is ${tectoplot_folder_dir}/tectoplot-examples/"
+              INSTALL_TECTOPLOT_EXAMPLES="true"
+            fi
           fi
           break
         ;;
       esac
     done
+
+    if [[ ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" || ${INSTALL_TECTOPLOT_REPO} =~ "true" ]]; then
+      report_storage ${tectoplot_folder_dir}
+      while true; do
+        read -r -p "Install selected repositories into ${tectoplot_folder_dir}/ ? Default is yes. [Yy|Nn] " response
+        case "${response}" in
+        Y|y|"")
+          break
+          ;;
+        N|n|*)
+          INSTALL_TECTOPLOT_EXAMPLES="false"
+          INSTALL_TECTOPLOT_REPO="false"
+          break
+          ;;
+        *)
+          echo "Unrecognized input ${response}. Not installing."
+          INSTALL_TECTOPLOT_EXAMPLES="false"
+          INSTALL_TECTOPLOT_REPO="false"
+          break
+          ;;
+        esac
+      done
+    fi
+
+
   fi
 }
 
+
 function set_miniconda_folder() {
-  print_msg "Default installation directory for miniconda: ${miniconda_folder_dir}/miniconda/"
+  echo "Default installation directory for miniconda: ${miniconda_folder_dir}/miniconda/"
   while true; do
     read -r -p "Enter alternative installation directory for miniconda/ (e.g. ${miniconda_folder_dir}/): [enter for default]   " response
     case $response in
       "")
-        print_msg "Using default miniconda folder: $miniconda_folder_dir/miniconda/"
+        echo "Using default miniconda folder: $miniconda_folder_dir/miniconda/"
         break
       ;;
       *)
       if [[ ! -d $response ]]; then
-        print_msg "Miniconda installation folder ${response} does not exist."
+        echo "Miniconda installation folder ${response} does not exist."
         exit 1
       else
         if [[ -d ${response}/miniconda/ ]]; then
-          print_msg "WARNING: miniconda folder ${response}/miniconda/ already exists!"
+          echo "WARNING: miniconda folder ${response}/miniconda/ already exists!"
         fi
         miniconda_folder_dir=$response
       fi
@@ -153,63 +235,38 @@ function set_miniconda_folder() {
       ;;
     esac
   done
-  print_msg "Note: A miniconda installation of tectoplot requires ~3.2 Gb of storage space. "
+  echo "Note: A miniconda installation of tectoplot requires ~3.2 Gb of storage space. "
 }
 
-# Function to pause script and check if the user wishes to continue.
-function check_dependencies() {
+function select_manager() {
   local response
-  print_msg "\n"
   while true; do
-    read -r -p "How do you want to install tectoplot's dependencies? [ homebrew | miniconda | default=none ]   " response
-    case "${response}" in
-    homebrew)
-      echo
-      INSTALLTYPE="homebrew"
-      print_msg "Assuming Homebrew Cellar will install onto disk holding directory $HOME..."
-      report_storage $HOME
-      break
-      ;;
-    miniconda)
-      echo
-      INSTALLTYPE="miniconda"
-      break
-      ;;
-    none|"")
-      echo
-      break
-      ;;
-    *)
-      echo
-      print_msg "No option selected for dependency installation: exiting."
-      exit
-      ;;
-    esac
-  done
-}
-
-function query_setup_tectoplot() {
-  local response
-  print_msg "\n"
-  while true; do
-    read -r -p "Add tectoplot's path to your ~/.profile? [Yy]/n  " response
-    case "${response}" in
-    Y|y|"")
-      echo
-      SETUP_TECTOPLOT="true"
-      break
-      ;;
-    n)
-      echo
-      SETUP_TECTOPLOT="false"
-      break
-      ;;
-    *)
-      echo
-      SETUP_TECTOPLOT="false"
-      break
-      ;;
-    esac
+    read -r -p "Do you want to use homebrew or miniconda to install/upgrade the dependencies? Default is no. [Yy|Nn] " response1
+    case "${response1}" in
+      Y|y)
+        read -r -p "Which package manager do you want to install? Default is miniconda. [ homebrew | miniconda ] " response2
+        case "${response2}" in
+          homebrew)
+            echo
+            INSTALLTYPE="homebrew"
+            echo "Assuming Homebrew Cellar will install onto disk holding directory $HOME..."
+            report_storage $HOME
+            break
+            ;;
+          miniconda|"")
+            echo
+            INSTALLTYPE="miniconda"
+            break
+            ;;
+          *)
+            echo "Unrecognized option. Trying again!"
+            ;;
+         esac
+         ;;
+     *)
+       break
+       ;;
+     esac
   done
 }
 
@@ -219,59 +276,59 @@ function command_exists() {
 }
 
 function check_xcode() {
-  print_msg "Checking for setup dependencies..."
-  print_msg "Checking for Xcode command line tools..."
+  echo "Checking for setup dependencies..."
+  echo "Checking for Xcode command line tools..."
   if command -v xcode-select --version >/dev/null 2>&1; then
-    print_msg "Xcode command line tools are installed."
+    echo "Xcode command line tools are installed."
   else
-    print_msg "\n"
-    print_msg "Attempting to install Xcode command line tools..."
+    echo "\n"
+    echo "Attempting to install Xcode command line tools..."
     if xcode-select --install  >/dev/null 2>&1; then
-        print_msg "Re-run script after Xcode command line tools have finished installing.\n"
+        echo "Re-run script after Xcode command line tools have finished installing.\n"
     else
-        print_msg "Xcode command line tools install failed.\n"
+        echo "Xcode command line tools install failed.\n"
     fi
     exit 1
   fi
 }
 
 function install_homebrew() {
-  print_msg "\nInstalling Homebrew..."
-  print_msg "Checking for Homebrew..."
+  echo "\nInstalling Homebrew..."
+  echo "Checking for Homebrew..."
   if command_exists "brew"; then
-    print_msg "Homebrew is already installed."
+    echo "Homebrew is already installed."
 
     # Is there really any reason to update/upgrade? As they take significant
     # time to complete.
 
     if [[ $UPDATEFLAG -eq 1 ]]; then
-      print_msg "Running brew update..."
+      echo "Running brew update..."
       if brew update ; then
-        print_msg "Brew update completed."
+        echo "Brew update completed."
       else
-        print_msg "Brew update failed."
+        echo "Brew update failed."
       fi
     fi
     if [[ $UPGRADEFLAG -eq 1 ]]; then
-      print_msg "Running brew upgrade..."
+      echo "Running brew upgrade..."
       if brew upgrade; then
-        print_msg "Brew upgrade completed."
+        echo "Brew upgrade completed."
       else
-        print_msg "Brew upgrade failed."
+        echo "Brew upgrade failed."
       fi
     fi
   else
-    print_msg "\n"
-    print_msg "Homebrew is not installed. Attempting to install via curl..."
+    echo "\n"
+    echo "Homebrew is not found. Attempting to install via curl..."
     if command_exists "curl"; then
       if /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
-        print_msg "Homebrew was installed.\n"
+        echo "Homebrew was installed.\n"
       else
-        print_msg "Homebrew install failed.\n"
+        echo "Homebrew install failed.\n"
         exit 1
       fi
     else
-      print_msg "curl not installed... cannot install Homebrew."
+      echo "curl not found... cannot install Homebrew."
       exit 1
     fi
   fi
@@ -299,48 +356,48 @@ function brew_packages() {
     curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
   fi
 
-  # print_msg "\nAdding additional Homebrew taps..."
+  # echo "\nAdding additional Homebrew taps..."
   for tap in ${tap_list}; do
-    print_msg "Checking for tap > ${tap}"
+    echo "Checking for tap > ${tap}"
     if brew tap | grep "${tap}" >/dev/null 2>&1 || command_exists "${tap}"; then
-      print_msg "Tap ${tap} already added."
+      echo "Tap ${tap} already added."
     else
-      print_msg "\n"
+      echo "\n"
       print_msg"Attempting to add tap ${tap}..."
       if brew tap "${tap}"; then
-        print_msg "Tap ${tap} added.\n"
+        echo "Tap ${tap} added.\n"
       else
-        print_msg "Unable to add tap ${tap}.\n"
+        echo "Unable to add tap ${tap}.\n"
       fi
     fi
   done
-  # print_msg "\nInstalling brew core packages..."
+  # echo "\nInstalling brew core packages..."
   for pkg in ${term_list}; do
-    print_msg "Checking for package > ${pkg}"
+    echo "Checking for package > ${pkg}"
     if brew list "${pkg}" >/dev/null 2>&1 || command_exists "${pkg}"; then
-      print_msg "Package ${pkg} already installed."
+      echo "Package ${pkg} already installed."
     else
-      print_msg "\n"
-      print_msg "Attempting to install ${pkg}..."
+      echo "\n"
+      echo "Attempting to install ${pkg}..."
       if brew install "${pkg}"; then
-        print_msg "Package ${pkg} installed.\n"
+        echo "Package ${pkg} installed.\n"
       else
-        print_msg "Package ${pkg} install failed.\n"
+        echo "Package ${pkg} install failed.\n"
       fi
     fi
   done
-  # print_msg "\nInstalling brew cask packages..."
+  # echo "\nInstalling brew cask packages..."
   for cask in ${cask_list}; do
-    print_msg "Checking for cask package > ${cask}"
+    echo "Checking for cask package > ${cask}"
     if brew list --cask "${cask}" >/dev/null 2>&1; then
-      print_msg "Package ${cask} already installed."
+      echo "Package ${cask} already installed."
     else
-      print_msg "\n"
-      print_msg "Attempting to install ${cask}..."
+      echo "\n"
+      echo "Attempting to install ${cask}..."
       if brew install --cask "${cask}"; then
-          print_msg "Package ${cask} installed.\n"
+          echo "Package ${cask} installed.\n"
       else
-          print_msg "Package ${cask} install failed.\n"
+          echo "Package ${cask} install failed.\n"
       fi
     fi
   done
@@ -350,10 +407,11 @@ function install_evince() {
   if command_exists "brew"; then
     brew install evince
   else
-    print_msg "Homebrew is not installed. Not installing evince."
+    echo "Homebrew is not found. Installing Homebrew and evince."
+    install_homebrew
+    brew install evince
   fi
 }
-
 
 function exit_msg() {
   echo "Previous step failed... exiting"
@@ -362,23 +420,23 @@ function exit_msg() {
 
 function install_miniconda() {
   if [[ -d "${HOME}"/miniconda ]]; then
-    print_msg "Miniconda already installed? ${HOME}/miniconda/ already exists."
+    echo "Miniconda already installed? ${HOME}/miniconda/ already exists."
   else
     case "$OSTYPE" in
       linux*)
-        print_msg "Detected linux... assuming x86_64"
+        echo "Detected linux... assuming x86_64"
         curl https://repo.anaconda.com/miniconda/Miniconda2-latest-Linux-x86_64.sh > miniconda.sh
         ;;
       darwin*)
-        print_msg "Detected OSX... assuming x86_64"
+        echo "Detected OSX... assuming x86_64"
         curl https://repo.anaconda.com/miniconda/Miniconda2-latest-MacOSX-x86_64.sh >  miniconda.sh
       ;;
     esac
     if [[ -s ./miniconda.sh ]]; then
-      print_msg "Executing miniconda installation script..."
+      echo "Executing miniconda installation script..."
       bash ./miniconda.sh -b -p $HOME/miniconda
     else
-      print_msg "Could not execute miniconda.sh... exiting"
+      echo "Could not execute miniconda.sh... exiting"
       exit 1
     fi
   fi
@@ -390,58 +448,46 @@ function miniconda_deps() {
     echo "Running conda hook..."
     eval $("${HOME}"/miniconda/bin/conda shell.bash hook)
 
-    print_msg "Updating conda..."
+    echo "Updating conda..."
 
     conda update -n base -c defaults conda
 
-    print_msg "Activating conda..."
+    echo "Activating conda..."
     conda activate || exit_msg
 
-    print_msg "Initializing conda to use bash..."
+    echo "Initializing conda to use bash..."
     conda init bash || exit_msg
 
-    print_msg "Creating tectoplot environment..."
+    echo "Creating tectoplot environment..."
     conda create --name tectoplot || exit_msg
 
-    print_msg "Activating tectoplot environment..."
+    echo "Activating tectoplot environment..."
     conda activate tectoplot || exit_msg
 
-    print_msg "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
+    echo "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
     conda install python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
 
     case "$OSTYPE" in
       linux*)
-        print_msg "Detected linux... assuming x86_64"
+        echo "Detected linux... assuming x86_64"
         conda install gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
-        print_msg "Detected OSX... assuming x86_64"
+        echo "Detected OSX... assuming x86_64"
         conda install clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
     esac
 
-    print_msg "After installation, from the command line run this command to"
-    print_msg "use the installed tectoplot environment:"
-    print_msg "conda activate tectoplot"
+    echo "After installation, from the command line run this command to"
+    echo "use the installed tectoplot environment:"
+    echo "conda activate tectoplot"
   else
-    print_msg "Cannot call miniconda from ./miniconda/bin/conda. Exiting"
+    echo "Cannot call miniconda from ./miniconda/bin/conda. Exiting"
     exit 1
   fi
 }
 
-function clone_tectoplot() {
-  if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
-    if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
-      print_msg "Folder ./tectoplot already exists... not cloning"
-    else
-      if git clone https://github.com/kyleedwardbradley/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
-        print_msg "tectoplot git repository cloned to ${tectoplot_folder_dir}/tectoplot"
-      else
-        print_msg "Could not clone tectoplot repository to ${tectoplot_folder_dir}/tectoplot"
-      fi
-    fi
-  fi
-}
+
 
 function install_evince_anyway() {
   while true; do
@@ -458,15 +504,234 @@ function install_evince_anyway() {
   done
 }
 
-function clone_tectoplot_examples() {
-  if [[ -d ${tectoplot_folder_dir}/tectoplot-examples/ ]]; then
-    print_msg "Folder ./tectoplot already exists... not cloning repository"
+# This function tests for the presence of required software
+
+function check_dependencies() {
+
+  echo "Checking dependencies..."
+  NEED_GIT=0
+  unset needed
+
+  # Check bash major version
+  if [[ $(echo ${BASH_VERSION} $BASHREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+    echo "bash version $BASHREQ or greater is required (detected ${BASH_VERSION})"
+    echo "Please manually upgrade bash"
+    exit 1
   else
-    if git clone https://github.com/kyleedwardbradley/tectoplot-examples ${tectoplot_folder_dir}/tectoplot-examples; then
-      print_msg "tectoplot-examples git repository cloned to ${tectoplot_folder_dir}/tectoplot-examples"
-    else
-      print_msg "Could not clone tectoplot examples repository to ${tectoplot_folder_dir}/tectoplot-examples"
+    echo "Found bash: $(which bash) ${BASH_VERSION}"
+  fi
+
+  # Check gmt version
+  if [ `which git` ]; then
+    echo -n "Found git: " && which git | gawk '{ printf("%s ", $0)}' && git --version
+  else
+    echo "Error: git is not found"
+    needed+=("git")
+    NEED_GIT=1
+  fi
+
+  # Check gmt version
+  if [ `which gmt` ]; then
+  	GMT_VERSION=$(gmt --version)
+  	if [[ $(echo ${GMT_VERSION} $GMTREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+  		echo "gmt version $GMTREQ or greater is required (detected ${GMT_VERSION})"
+      needed+=("gmt")
+  	else
+      echo "Found gmt ${GMT_VERSION}: $(which gmt | gawk '{ printf("%s ", $0)}')"
+      GSHHG_DIR=$(gmt gmtget DIR_GSHHG)
+      if [[ -d "${GSHHG_DIR}" ]]; then
+         echo "  GSHHG data are present in ${GSHHG_DIR}"
+      else
+        needed+=("ghssg")
+      fi
     fi
+  else
+  	echo "Error: gmt is not found"
+    needed+=("gmt")
+  fi
+
+  if [ `which gawk` ]; then
+  	GAWK_VERSION=$(gawk --version | gawk '(NR==1) { print substr($0,9,1) }')
+  	if [[  $(echo ${GAWK_VERSION} $GAWKREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+  		echo "gawk version $GAWKREQ or greater is required (detected ${GAWK_VERSION})"
+      needed=+=("gawk")
+    else
+      echo -n "Found gawk: " && which gawk | gawk '{ printf("%s ", $0)}' && gawk --version | head -n 1
+  	fi
+  else
+  	echo "Error: gawk is not found"
+    needed=+=("gawk")
+  fi
+
+  if [ `which ${CCOMPILER}` ]; then
+    echo -n "Found C compiler: " && which ${CCOMPILER} | gawk '{ printf("%s ", $0)}' && ${CCOMPILER} -dumpversion
+  else
+  	echo "Error: Cannot call C compiler ${CCOMPILER}"
+    needed+=("gcc")
+  fi
+
+  if [ `which ${CXXCOMPILER}` ]; then
+    echo -n "Found C++ compiler: " && which ${CXXCOMPILER} | gawk '{ printf("%s ", $0)}' && ${CXXCOMPILER} -dumpversion
+  else
+  	echo "Error: Cannot call C++ compiler ${CXXCOMPILER}."
+    needed+=("g++")
+  fi
+
+  if [ `which ${F90COMPILER}` ]; then
+    echo -n "Found fortran compiler: " && which ${F90COMPILER}
+  else
+  	echo "Error: Cannot call fortran compiler ${F90COMPILER}"
+    needed+=("gfortran")
+  fi
+
+  if [ `which geod` ]; then
+    echo -n "Found geod: " && which geod | gawk '{ printf("%s ", $0)}' && geod 2>&1 | head -n 1
+  else
+  	echo "Error: geod not found"
+    needed+=("geod")
+  fi
+
+  if [ `which gdalinfo` ]; then
+    echo -n "Found gdalinfo: " && which gdalinfo | gawk '{ printf("%s ", $0)}' && gdalinfo --version
+    GDAL_VERSION=$(gdalinfo --version | gawk -F, '{split($1, tr, " "); print tr[2]}')
+
+    if [[ $(echo ${GDAL_VERSION} $GDALREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+      echo "GDAL version ${GDAL_VERSION} is not up to date (requires ${GDALREQ})"
+      needed+=("gdal")
+    else
+      if [ `which gdal_calc.py` ]; then
+        echo -n "   Found gdal_calc.py: " && which gdal_calc.py
+      else
+        echo "   gdal_calc.py not found"
+        need_gdal=1
+      fi
+
+      if [ `which gdalwarp` ]; then
+        if [ `which gdaldem` ]; then
+            echo -n "   Found gdalwarp: "
+            which gdalwarp
+        else
+          echo "   gdalwarp not found"
+          need_gdal=1
+        fi
+      fi
+
+      if [ `which gdaldem` ]; then
+          echo -n "   Found gdaldem: "
+          which gdaldem
+      else
+        echo "   gdaldem not found"
+        need_gdal=1
+      fi
+    fi
+
+  else
+  	echo "Error: gdalinfo not found"
+    need_gdal=1
+  fi
+
+  [[ $need_gdal -eq 1 ]] && needed+=("gdal")
+
+  if [[ -z ${needed[@]} ]]; then
+    echo
+    echo "All dependencies are present. Nothing needs to be installed/upgraded."
+    echo
+  else
+    echo
+    echo "These packages need to be updated or installed: ${needed[@]}"
+    echo
+  fi
+
+}
+
+function configure_tectoplot() {
+  while true; do
+    read -r -p "Configure (or reconfigure) tectoplot? Default is yes [Yy|Nn] " response
+    case "${response}" in
+    Y|y|"")
+      echo
+      CONFIGURE_TECTOPLOT=1
+      ;;
+    *)
+      ;;
+    esac
+  done
+
+  if [[ $CONFIGURE_TECTOPLOT -eq 1 && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
+
+    cd ~/
+    echo "Adding tectoplot to PATH variable in ~/.profile."
+    echo
+
+    ${tectoplot_folder_dir}/tectoplot/tectoplot -addpath
+    source ~/.profile
+
+    while true; do
+      read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [Yy|Nn] " response
+      case "${response}" in
+        Y|y|"")
+          read -r -p "Enter directory path (default is ${HOME}/TectoplotData/)" response2
+          case "${response2}" in
+            "")
+              response2="${HOME}/TectoplotData/"
+            ;;
+          esac
+          ${tectoplot_folder_dir}/tectoplot -setdatadir "${response2}/"
+          break
+          ;;
+        N|n)
+          echo
+          break
+          ;;
+        *)
+          echo Response ${response} not recognized. Try again.
+        ;;
+      esac
+    done
+
+    while true; do
+      read -r -p "Set PDF viewer? Default is yes. [Yy|nn] " response
+      case "${response}" in
+        Y|y|"")
+
+
+          if [[ $(grep microsoft /proc/version) ]]; then
+            echo "Detected Windows Subsystem for Linux. Setting wslview as default viewer."
+            ${tectoplot_folder_dir}/tectoplot -setopen wslview
+          else
+            read -r -p "OSX/Linux: Choose from evince, mupdf-gl, Preview, or name another program: " pdfviewer
+            ${tectoplot_folder_dir}/tectoplot -setopen $pdfviewer
+          fi
+          ;;
+        N|n)
+          echo
+          break
+          ;;
+        *)
+          echo Response ${response} not recognized. Try again.
+        ;;
+      esac
+    done
+
+    while true; do
+      read -r -p "Compile companion codes? [Yy|Nn] " response
+      case "${response}" in
+        Y|y|"")
+          ${tectoplot_folder_dir}/tectoplot -compile
+          break
+          ;;
+        N|n)
+          echo
+          break
+          ;;
+        *)
+          echo Response ${response} not recognized. Try again.
+        ;;
+      esac
+    done
+
+    echo "IMPORTANT: Run tectoplot -getdata and tectoplot -scrapedata to download datasets."
+
   fi
 }
 
@@ -475,55 +740,15 @@ main() {
   clear
   script_info
 
-  check_tectoplot
+  check_dependencies
 
-  if [[ ${INSTALL_TECTOPLOT_NONE} != "true" ]]; then
-
-    DO_INSTALL_TECTOPLOT="false"
-    report_storage $tectoplot_folder_dir
-
-    while true; do
-      read -r -p "Install selected repositories? [ default=y | n ]  " response
-      case "${response}" in
-      Y|y|"")
-        echo
-        DO_INSTALL_TECTOPLOT="true"
-        break
-        ;;
-      n)
-        echo
-        DO_INSTALL_TECTOPLOT="false"
-        break
-        ;;
-      *)
-        echo
-        print_msg "Unrecognized input ${response}. Not installing."
-        DO_INSTALL_TECTOPLOT="false"
-        break
-        ;;
-      esac
-    done
-
-    if [[ $DO_INSTALL_TECTOPLOT =~ "true" ]]; then
-
-      if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
-        clone_tectoplot
-        query_setup_tectoplot
-      fi
-
-      if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
-        clone_tectoplot_examples
-      fi
-    fi
-
-    check_dependencies
-  fi
+  select_manager
 
   case $INSTALLTYPE in
     homebrew)
       case "$OSTYPE" in
         darwin*)
-          print_msg "Checking for Xcode command line tools"
+          echo "Checking for Xcode command line tools"
           check_xcode
         ;;
       esac
@@ -539,46 +764,34 @@ main() {
     ;;
   esac
 
-  if [[ $INSTALL_TECTOPLOT_REPO =~ "true" && $SETUP_TECTOPLOT =~ "true" ]]; then
-    if [[ -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
-
-      cd ~/
-
-      print_msg "Setting up tectoplot..."
-
-      print_msg "tectoplot -addpath"
-
-      ${tectoplot_folder_dir}/tectoplot/tectoplot -addpath
-      source ~/.profile
-
-      while true; do
-        read -r -p "Data directory (will be created if it doesn't exist): [ ${HOME}/TectoplotData/ | /Your/path/ | none ] " response
-        case "${response}" in
-        "")
-          echo
-          ${tectoplot_folder_dir}/tectoplot -setdatadir "${HOME}/TectoplotData/"
-          break
-          ;;
-        none)
-          echo
-          break
-          ;;
-        *)
-          echo
-          ${tectoplot_folder_dir}/tectoplot -setdatadir "${response}/"
-          break
-          ;;
-        esac
-      done
-
+  # If we ran an installation, check dependencies again!
+  if [[ ! -z ${INSTALLTYPE} ]]; then
+    check_dependencies
+    if [[ ! -z ${needed[@]} ]]; then
+      echo "Remaining dependencies are not sufficient: ${needed[@]}"
+      echo "Please manually fix using homebrew/miniconda or retry install_tectoplot.sh"
+      exit 1
     fi
   fi
 
-  if ! command_exists "evince"; then
-    install_evince_anyway
+  # Determine what components of tectoplot should be installed, and where
+  check_tectoplot
+
+  if [[ $INSTALL_TECTOPLOT_REPO =~ "true" ]]; then
+    clone_tectoplot
   fi
 
-  print_msg "Script completed.\n"
+  if [[ $INSTALL_TECTOPLOT_EXAMPLES =~ "true" ]]; then
+    clone_tectoplot_examples
+  fi
+
+  configure_tectoplot
+
+  # if ! command_exists "evince"; then
+  #   install_evince_anyway
+  # fi
+
+  echo "Script completed.\n"
 }
 
 main "${@}"

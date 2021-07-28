@@ -238,7 +238,7 @@ source gmt_shell_functions.sh
 
 THISDIR=$(pwd)
 
-GMTREQ="6"
+GMTREQ="6.1"
 GAWKREQ="5"
 
 RJOK="-R -J -O -K"
@@ -6184,7 +6184,6 @@ fi
       else
         if command open -a ${OPENPROGRAM}; then
           echo "open -a ${OPENPROGRAM}" > ${OPTDIR}"tectoplot.pdfviewer"
-
         else
           echo "Program ${OPENPROGRAM} cannot be called using open -a! Not setting."
         fi
@@ -15881,82 +15880,82 @@ if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
     fi
 fi
 
-plotbinprojflag=1
-
-# grdtrack an XY line on a grid, and plot box-and-whisker diagrams of the resulting values
-PROJXY_TRACKFILE="/Users/kylebradley/Dropbox/regionalplots/ecuador/badtrench.kml"
-PROJXY_GRIDFILE="/Users/kylebradley/Dropbox/TectoplotData/SRTM30_plus/topo30.grd"
-PROJXY_WIDTH=50k
-PROJXY_SPACING=2k
-PROJXY_SAMPLING=40k
-SEISPROJHEIGHT_X=2
-
-if [[ $plotbinprojflag -eq 1 ]]; then
-
-
-  kml_to_first_xy ${PROJXY_TRACKFILE} track.txt
-
-  gmt grdtrack track.txt -G${PROJXY_GRIDFILE} -C${PROJXY_WIDTH}/${PROJXY_SPACING}/${PROJXY_SAMPLING} -Ar -Sm+sstack.txt > proj_table.txt
-
-  # Assemble the data samples from the grdtrack table
-  gawk '{
-    if ($1 == ">") {
-      printf("\n")
-    } else {
-      printf("%g ", $5)
-    }
-  }' < proj_table.txt | sed '1d' > proj_data.txt
-
-  # These are the lon/lat locations of the crossline intersections with the profile line
-  gawk '{
-    if ($1 == ">") {
-      printf("\n%s ", $7)
-    }
-  }' < proj_table.txt | sed '1d' | tr '/' ' ' > proj_pts.txt
-
-  # projstats contains the quantile information for each crossline
-  while read p; do
-    echo "$p" | tr ' ' '\n' | st --summary | tail -n 1 >> proj_stats.txt
-  done <  proj_data.txt
-
-  GRID_RANGE=($(gawk < proj_table.txt '
-    BEGIN {
-      getline
-      min=$5
-      max=$5
-    }
-    {
-      min=(min<$5)?min:$5
-      max=(max>$5)?max:$5
-    }
-    END {
-      range=max-min
-      print  min-range/20, max+range/20
-    }'))
-
-    echo Data range is ${GRID_RANGE[@]}
-
-  # Project the data points into the Cartesian XY space
-  gmt mapproject ${RJSTRING[@]} proj_pts.txt > proj_xy.txt
-
-  paste proj_xy.txt proj_stats.txt | tr '\t' ' ' > proj_box.txt
-
-  cat proj_box.txt | gawk '{print $1, $5, $5, $3, $4, $6, $7}' > long_box.txt
-
-  gmt psxy track.txt -W1p,red ${RJOK} ${VERBOSE} >> map.ps
-  gmt psxy proj_table.txt -W0.5p,black ${RJOK} ${VERBOSE} >> map.ps
-
-      gmt_init_tmpdir
-
-      gmt psbasemap -R${MINPROJ_X}/${MAXPROJ_X}/${GRID_RANGE[0]}/${GRID_RANGE[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Btlbr $VERBOSE > ${TMP}proj_fake.ps
-      PS_DIM=$(gmt psconvert proj_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54 + 0.15}')
-
-      gmt psxy long_box.txt -Ya-${PS_HEIGHT_IN_NOLABELS}i -R${MINPROJ_X}/${MAXPROJ_X}/${GRID_RANGE[0]}/${GRID_RANGE[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -EY+p0.1p+w2p -Sp -C${F_CPTS}topo.cpt -Bxaf -Byaf -BEbWt -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
-
-      gmt_remove_tmpdir
-fi
-
+# plotbinprojflag=1
+#
+# # grdtrack an XY line on a grid, and plot box-and-whisker diagrams of the resulting values
+# PROJXY_TRACKFILE="/Users/kylebradley/Dropbox/regionalplots/ecuador/badtrench.kml"
+# PROJXY_GRIDFILE="/Users/kylebradley/Dropbox/TectoplotData/SRTM30_plus/topo30.grd"
+# PROJXY_WIDTH=50k
+# PROJXY_SPACING=2k
+# PROJXY_SAMPLING=40k
+# SEISPROJHEIGHT_X=2
+#
+# if [[ $plotbinprojflag -eq 1 ]]; then
+#
+#
+#   kml_to_first_xy ${PROJXY_TRACKFILE} track.txt
+#
+#   gmt grdtrack track.txt -G${PROJXY_GRIDFILE} -C${PROJXY_WIDTH}/${PROJXY_SPACING}/${PROJXY_SAMPLING} -Ar -Sm+sstack.txt > proj_table.txt
+#
+#   # Assemble the data samples from the grdtrack table
+#   gawk '{
+#     if ($1 == ">") {
+#       printf("\n")
+#     } else {
+#       printf("%g ", $5)
+#     }
+#   }' < proj_table.txt | sed '1d' > proj_data.txt
+#
+#   # These are the lon/lat locations of the crossline intersections with the profile line
+#   gawk '{
+#     if ($1 == ">") {
+#       printf("\n%s ", $7)
+#     }
+#   }' < proj_table.txt | sed '1d' | tr '/' ' ' > proj_pts.txt
+#
+#   # projstats contains the quantile information for each crossline
+#   while read p; do
+#     echo "$p" | tr ' ' '\n' | st --summary | tail -n 1 >> proj_stats.txt
+#   done <  proj_data.txt
+#
+#   GRID_RANGE=($(gawk < proj_table.txt '
+#     BEGIN {
+#       getline
+#       min=$5
+#       max=$5
+#     }
+#     {
+#       min=(min<$5)?min:$5
+#       max=(max>$5)?max:$5
+#     }
+#     END {
+#       range=max-min
+#       print  min-range/20, max+range/20
+#     }'))
+#
+#     echo Data range is ${GRID_RANGE[@]}
+#
+#   # Project the data points into the Cartesian XY space
+#   gmt mapproject ${RJSTRING[@]} proj_pts.txt > proj_xy.txt
+#
+#   paste proj_xy.txt proj_stats.txt | tr '\t' ' ' > proj_box.txt
+#
+#   cat proj_box.txt | gawk '{print $1, $5, $5, $3, $4, $6, $7}' > long_box.txt
+#
+#   gmt psxy track.txt -W1p,red ${RJOK} ${VERBOSE} >> map.ps
+#   gmt psxy proj_table.txt -W0.5p,black ${RJOK} ${VERBOSE} >> map.ps
+#
+#       gmt_init_tmpdir
+#
+#       gmt psbasemap -R${MINPROJ_X}/${MAXPROJ_X}/${GRID_RANGE[0]}/${GRID_RANGE[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Btlbr $VERBOSE > ${TMP}proj_fake.ps
+#       PS_DIM=$(gmt psconvert proj_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+#       PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54 + 0.15}')
+#
+#       gmt psxy long_box.txt -Ya-${PS_HEIGHT_IN_NOLABELS}i -R${MINPROJ_X}/${MAXPROJ_X}/${GRID_RANGE[0]}/${GRID_RANGE[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -EY+p0.1p+w2p -Sp -C${F_CPTS}topo.cpt -Bxaf -Byaf -BEbWt -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+#
+#       gmt_remove_tmpdir
+# fi
+#
 
 
 #### Plot seismicty vs depth in a projected (Y) frame to the right of the map frame

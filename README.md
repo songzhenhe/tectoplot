@@ -28,7 +28,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-### PLASE NOTE:
+### PLEASE NOTE:
 
 This script and its associated code is being actively developed during my spare time to support my own research projects, and large changes can occur that can accidentally break functionality. The code isn't really intended for release, but since people are finding it useful I have opened the repository. There are definitely bugs and significant oversights here and there, which will be worked out over time. Eventually the code will be more robust and will be more thoroughly tested and documented. I am updating the code fairly often as of July 2021, and a small group of users are now helping to find the many issues that need to be fixed.
 
