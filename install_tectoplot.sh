@@ -370,22 +370,27 @@ function brew_packages() {
   cask_list=""
 
   # Install gmt 6.1.1 instead of GMT 6.2 until tectoplot is stable with 6.2
-
-  homebrew_gmt=$(brew list --versions gmt)
-  if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
-    read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes [Yy|Nn] " douninstall
-    case $douninstall in
-      Y|y|"")
-        brew uninstall gmt
-        ;;
-      N|n)
-        exit 1
-        ;;
-      *)
-        echo "Response $douninstall not recognized. Exiting"
-        exit 1
-        ;;
-    esac
+  if command -v gmt --version; then
+	GMTVERSION=$(gmt --version)
+	if brew list --versions gmt; then
+		homebrew_gmt=$(brew list --versions gmt)
+		if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
+			read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes [Yy|Nn] " douninstall
+			case $douninstall in
+			  Y|y|"")
+				brew uninstall gmt
+				;;
+			  N|n)
+			  echo exiting
+				break
+				;;
+			  *)
+				echo "Response $douninstall not recognized. Exiting"
+				exit 1
+				;;
+			esac
+		fi
+	fi
   fi
 
   echo "Installing GMT 6.1.1_6 using homebrew"

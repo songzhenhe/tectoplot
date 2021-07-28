@@ -104,8 +104,8 @@ tectoplot includes source redistributions of:
   (OSX): python=3.9 git gmt gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_osx-64
   (Linux): python=3.9 git gmt gawk ghostscript gcc_linux-64 gxx_linux-64 gfortran_linux-64
 
-  During installation, tectoplot will compile several helper programs written in C/C++/Fortran and
-  will use gcc, g++, and gfortran by default. If this process fails or if you install tectoplot manually, you will need to run 'tectoplot -compile' from the command line.
+  tectoplot will try to compile several helper programs written in C/C++/Fortran. It will attempt to
+  identify the location of these compilers during installation and using tectoplot -checkdep.
 
 ## Cloning the repository directly
 
