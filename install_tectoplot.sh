@@ -561,7 +561,7 @@ function check_dependencies() {
   	fi
   else
   	echo "Error: gawk is not found"
-    needed=+=("gawk")
+    needed+=("gawk")
   fi
 
   if [ `which ${CCOMPILER}` ]; then
