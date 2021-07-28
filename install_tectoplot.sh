@@ -277,18 +277,28 @@ function command_exists() {
 }
 
 function check_xcode() {
-  echo "Checking for setup dependencies..."
-  echo "Checking for Xcode command line tools..."
   if command -v xcode-select --version >/dev/null 2>&1; then
-    echo "Xcode command line tools are installed."
+    echo "OSX: Xcode command line tools are already installed."
   else
-    echo
-    echo "Attempting to install Xcode command line tools..."
-    if xcode-select --install  >/dev/null 2>&1; then
-        echo "Re-run script after Xcode command line tools have finished installing."
-    else
-        echo "Xcode command line tools install failed."
-    fi
+    read -r -p "Installation on OSX requires Xcode command line tools. Install? Default=yes [Yy|Nn] " installxcode
+    case $installxcode in
+      Y|y|"")
+        if xcode-select --install >/dev/null 2>&1; then
+            echo "Re-run script after Xcode command line tools have finished installing."
+            exit 1
+        else
+            echo "Xcode command line tools install failed."
+            exit 1
+        fi
+        break
+        ;;
+      N|n)
+        break
+        ;;
+      *)
+        echo "Response ${installxcode} not recognized. Try again."
+        ;;
+    esac
     exit 1
   fi
 }
@@ -533,6 +543,13 @@ function check_dependencies() {
   NEED_GIT=0
   unset needed
 
+  case "$OSTYPE" in
+    darwin*)
+      check_xcode
+    ;;
+  esac
+
+
   # Check bash major version
   if [[ $(echo ${BASH_VERSION} $BASHREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
     echo "bash version $BASHREQ or greater is required (detected ${BASH_VERSION})"
@@ -767,12 +784,6 @@ main() {
 
   case $INSTALLTYPE in
     homebrew)
-      case "$OSTYPE" in
-        darwin*)
-          echo "Checking for Xcode command line tools"
-          check_xcode
-        ;;
-      esac
       install_homebrew
       brew_packages
     ;;
