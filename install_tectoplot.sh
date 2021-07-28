@@ -555,7 +555,7 @@ function check_dependencies() {
   	GAWK_VERSION=$(gawk --version | gawk '(NR==1) { print substr($0,9,1) }')
   	if [[  $(echo ${GAWK_VERSION} $GAWKREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
   		echo "gawk version $GAWKREQ or greater is required (detected ${GAWK_VERSION})"
-      needed=+=("gawk")
+      needed+=("gawk")
     else
       echo -n "Found gawk: " && which gawk | gawk '{ printf("%s ", $0)}' && gawk --version | head -n 1
   	fi
