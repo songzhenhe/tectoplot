@@ -722,7 +722,7 @@ function configure_tectoplot() {
       case "${response}" in
       Y|y|"")
         echo
-        conda init bash
+        eval "$(conda shell.bash hook)"
         conda activate tectoplot
         break
         ;;
