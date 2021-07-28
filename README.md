@@ -84,25 +84,31 @@ tectoplot includes source redistributions of:
 
   /usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
 
-  This script will prompt for options and paths, and then clone the tectoplot and tectoplot-example
-  repositories, download homebrew + dependencies, or download miniconda+dependencies.
+  Stage 1: Ensuring the right environment for tectoplot
 
-  1. Decide what you want to install and where you want to install it:
+  This script will first check your operating environment for tectoplot's dependencies. If dependencies are missing, it will offer two different options to install them: via homebrew or miniconda.
 
-  - (recommended) tectoplot   
-  - (recommended) tectoplot-examples
-  - dependencies installed via homebrew (install if necessary)
-  - (recommended) dependencies installed via miniconda (install if necessary)
+  If OSX is detected, the script will prompt for installation of Xcode command line tools.
 
-  Installing via homebrew will try to install the following packages and their
-  dependencies:
-  (OSX + Linux): git gawk proj gcc gmt@6 ghostscript
+  Installing dependencies via homebrew will try to install the following packages and their own dependencies:
+  (OSX + Linux): git gawk proj gcc gmt@6 ghostscript evince
 
-  Installing via miniconda will try to install the following packages and their
-  dependencies from conda-forge, and will configure tectoplot to use the miniconda
-  compilers when a conda environment is active:
+  Installing dependencies via miniconda will try to install the following packages and their own dependencies from conda-forge, and will configure tectoplot to use the miniconda compilers when a conda environment is active:
+
   (OSX): python=3.9 git gmt gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_osx-64
   (Linux): python=3.9 git gmt gawk ghostscript gcc_linux-64 gxx_linux-64 gfortran_linux-64
+
+  After any installation via homebrew or miniconda, the script will test whether the dependencies are installed. If not, it will exit with an error and you will have to try to resolve the problems yourself.
+
+  Stage 2: Cloning the repositories
+
+  The script will then ask whether you want to clone the tectoplot and tectoplot-example repositories, and if so will prompt for an installation base directory. It will refuse to install over existing tectoplot/ or tectoplot-examples/ directories in the specified base directory.
+
+  Step 3: Configuring tectoplot
+
+  The final step of installation is setting up some configuration files.
+
+  The script will add the tectoplot repository folder to your PATH variable stored in ~/.profile. After the script is complete, you must restart your terminal or source ~/.profile to set the path. 
 
   tectoplot will try to compile several helper programs written in C/C++/Fortran. It will attempt to
   identify the location of these compilers during installation and using tectoplot -checkdep.
