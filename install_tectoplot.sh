@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# UPDATE 8
+# UPDATE 9
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
@@ -395,7 +395,7 @@ function brew_packages() {
 
   echo "Installing GMT 6.1.1_6 using homebrew"
   # This is the formula for GMT 6.1.1_6
-  curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
+  curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && HOMEBREW_NO_AUTO_UPDATE=1 brew install gmt.rb && rm -f gmt.rb
 
   echo "Pinning GMT 6.1.1"
   brew pin gmt
