@@ -773,10 +773,10 @@ function configure_tectoplot() {
 
           if [[ $(grep microsoft /proc/version) ]]; then
             echo "Detected Windows Subsystem for Linux. Setting wslview as default viewer."
-            ${tectoplot_folder_dir}/tectoplot -setopen wslview
+            ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen wslview
           else
             read -r -p "OSX/Linux: Choose from evince, mupdf-gl, Preview, or name another program: " pdfviewer
-            ${tectoplot_folder_dir}/tectoplot -setopen $pdfviewer
+            ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen $pdfviewer
           fi
           ;;
         N|n)
@@ -793,7 +793,7 @@ function configure_tectoplot() {
       read -r -p "Compile companion codes? [Yy|Nn] " response
       case "${response}" in
         Y|y|"")
-          ${tectoplot_folder_dir}/tectoplot -compile
+          ${tectoplot_folder_dir}/tectoplot/tectoplot -compile
           break
           ;;
         N|n)
