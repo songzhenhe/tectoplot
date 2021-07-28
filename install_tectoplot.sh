@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# UPDATE 6
+# UPDATE 7
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
@@ -642,13 +642,14 @@ function check_dependencies() {
     needed+=("geod")
   fi
 
+  need_gdal=0
   if [ `which gdalinfo` ]; then
     echo -n "Found gdalinfo: " && which gdalinfo | awk '{ printf("%s ", $0)}' && gdalinfo --version
     GDAL_VERSION=$(gdalinfo --version | awk -F, '{split($1, tr, " "); print tr[2]}')
 
     if [[ $(echo ${GDAL_VERSION} $GDALREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
       echo "GDAL version ${GDAL_VERSION} is not up to date (requires ${GDALREQ})"
-      needed+=("gdal")
+      need_gdal=1
     else
       if [ `which gdal_calc.py` ]; then
         echo -n "   Found gdal_calc.py: " && which gdal_calc.py
