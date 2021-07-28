@@ -808,11 +808,36 @@ main() {
 
   # If we ran an installation, check dependencies again!
   if [[ ! -z ${INSTALLTYPE} ]]; then
+
+    # Try to set up path to compilers again
+    if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
+      [[ ! -z ${CC} ]] && CCOMPILER=$(which ${CC})
+      [[ ! -z ${CXX} ]] && CXXCOMPILER=$(which ${CXX})
+      [[ ! -z ${F90} ]] && F90COMPILER=$(which ${F90})
+    fi
+
     check_dependencies
+
     if [[ ! -z ${needed[@]} ]]; then
       echo "Remaining dependencies are not sufficient: ${needed[@]}"
       echo "Please manually fix using homebrew/miniconda or retry install_tectoplot.sh"
-      exit 1
+
+      while true; do
+        read -r -p "Exit before cloning tectoplot? Default=yes [Yy|Nn] " response
+        case "${response}" in
+          Y|y|"")
+            exit
+            break
+            ;;
+          N|n)
+            break
+            ;;
+          *)
+            echo Response ${response} not recognized. Try again.
+          ;;
+        esac
+      done
+
     fi
   fi
 
