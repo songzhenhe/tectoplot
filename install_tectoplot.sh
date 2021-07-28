@@ -752,7 +752,7 @@ function configure_tectoplot() {
               response2="${HOME}/TectoplotData/"
             ;;
           esac
-          ${tectoplot_folder_dir}/tectoplot -setdatadir "${response2}/"
+          ${tectoplot_folder_dir}/tectoplot/tectoplot -setdatadir "${response2}/"
           break
           ;;
         N|n)
