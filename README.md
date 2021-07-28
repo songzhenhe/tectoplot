@@ -101,7 +101,7 @@ tectoplot includes source redistributions of:
   Installing via miniconda will try to install the following packages and their
   dependencies from conda-forge, and will configure tectoplot to use the miniconda
   compilers when a conda environment is active:
-  (OSX): python=3.9 git gmt gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_linux-64
+  (OSX): python=3.9 git gmt gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_osx-64
   (Linux): python=3.9 git gmt gawk ghostscript gcc_linux-64 gxx_linux-64 gfortran_linux-64
 
   During installation, tectoplot will compile several helper programs written in C/C++/Fortran and

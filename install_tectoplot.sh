@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# UPDATING 3?
+# UPDATE 4
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
@@ -282,19 +282,19 @@ function check_xcode() {
   if command -v xcode-select --version >/dev/null 2>&1; then
     echo "Xcode command line tools are installed."
   else
-    echo "\n"
+    echo
     echo "Attempting to install Xcode command line tools..."
     if xcode-select --install  >/dev/null 2>&1; then
-        echo "Re-run script after Xcode command line tools have finished installing.\n"
+        echo "Re-run script after Xcode command line tools have finished installing."
     else
-        echo "Xcode command line tools install failed.\n"
+        echo "Xcode command line tools install failed."
     fi
     exit 1
   fi
 }
 
 function install_homebrew() {
-  echo "\nInstalling Homebrew..."
+  echo "Installing Homebrew..."
   echo "Checking for Homebrew..."
   if command_exists "brew"; then
     echo "Homebrew is already installed."
@@ -319,13 +319,23 @@ function install_homebrew() {
       fi
     fi
   else
-    echo "\n"
+    echo
     echo "Homebrew is not found. Attempting to install via curl..."
     if command_exists "curl"; then
       if /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
-        echo "Homebrew was installed.\n"
+        echo "Homebrew was installed."
+
+        # Linux / WSL
+        if [[ -d /home/linuxbrew/ ]]; then
+          echo "/home/linuxbrew/ exists: Adding brew to ~/.profile and activating brew in current environment"
+          echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ${HOME}/.profile
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+        fi
+
+        # Other cases not yet known! E.g. OSX
+
       else
-        echo "Homebrew install failed.\n"
+        echo "Homebrew install failed."
         exit 1
       fi
     else
@@ -357,48 +367,47 @@ function brew_packages() {
     curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
   fi
 
-  # echo "\nAdding additional Homebrew taps..."
   for tap in ${tap_list}; do
     echo "Checking for tap > ${tap}"
     if brew tap | grep "${tap}" >/dev/null 2>&1 || command_exists "${tap}"; then
       echo "Tap ${tap} already added."
     else
-      echo "\n"
+      echo
       print_msg"Attempting to add tap ${tap}..."
       if brew tap "${tap}"; then
-        echo "Tap ${tap} added.\n"
+        echo "Tap ${tap} added."
       else
-        echo "Unable to add tap ${tap}.\n"
+        echo "Unable to add tap ${tap}."
       fi
     fi
   done
-  # echo "\nInstalling brew core packages..."
+
   for pkg in ${term_list}; do
     echo "Checking for package > ${pkg}"
     if brew list "${pkg}" >/dev/null 2>&1 || command_exists "${pkg}"; then
       echo "Package ${pkg} already installed."
     else
-      echo "\n"
+      echo
       echo "Attempting to install ${pkg}..."
       if brew install "${pkg}"; then
-        echo "Package ${pkg} installed.\n"
+        echo "Package ${pkg} installed."
       else
-        echo "Package ${pkg} install failed.\n"
+        echo "Package ${pkg} install failed."
       fi
     fi
   done
-  # echo "\nInstalling brew cask packages..."
+  # echo "Installing brew cask packages..."
   for cask in ${cask_list}; do
     echo "Checking for cask package > ${cask}"
     if brew list --cask "${cask}" >/dev/null 2>&1; then
       echo "Package ${cask} already installed."
     else
-      echo "\n"
+      echo
       echo "Attempting to install ${cask}..."
       if brew install --cask "${cask}"; then
-          echo "Package ${cask} installed.\n"
+          echo "Package ${cask} installed."
       else
-          echo "Package ${cask} install failed.\n"
+          echo "Package ${cask} install failed."
       fi
     fi
   done
@@ -792,7 +801,7 @@ main() {
   #   install_evince_anyway
   # fi
 
-  echo "Script completed.\n"
+  echo "Script completed."
 }
 
 main "${@}"
