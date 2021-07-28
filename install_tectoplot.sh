@@ -354,19 +354,30 @@ function brew_packages() {
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
 
-  # Install gmt 6.1.1 instead of GMT 6.2 until stable with tectoplot
-  #
-  echo "First, install GMT 6.1.1 instead of 6.2.0 until tectoplot is stable with 6.2.0"
+  # Install gmt 6.1.1 instead of GMT 6.2 until tectoplot is stable with 6.2
 
-  GMTVERSION=$(gmt --version)
-  if [[ -z ${GMTVERSION} && ${GMTVERSION} == 6.2* ]]; then
-    echo "GMT 6.2 already installed. Run 'brew uninstall gmt' before running this script."
-    exit 1
-  else
-    # This is the formula for GMT 6.1.1_6
-    curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
+  homebrew_gmt=$(brew list --versions gmt)
+  if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
+    read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes [Yy|Nn] " douninstall
+    case $douninstall in
+      Y|y|"")
+        brew uninstall gmt
+        ;;
+      N|n)
+        exit 1
+        ;;
+      *)
+        echo "Response $douninstall not recognized. Exiting"
+        exit 1
+        ;;
+    esac
   fi
 
+  echo "Installing GMT 6.1.1_6 using homebrew"
+  # This is the formula for GMT 6.1.1_6
+  curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && brew install gmt.rb && rm -f gmt.rb
+
+  echo "Installing other packages"
   for tap in ${tap_list}; do
     echo "Checking for tap > ${tap}"
     if brew tap | grep "${tap}" >/dev/null 2>&1 || command_exists "${tap}"; then
@@ -523,7 +534,7 @@ function check_dependencies() {
   unset needed
 
   # Check bash major version
-  if [[ $(echo ${BASH_VERSION} $BASHREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+  if [[ $(echo ${BASH_VERSION} $BASHREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
     echo "bash version $BASHREQ or greater is required (detected ${BASH_VERSION})"
     echo "Please manually upgrade bash"
     exit 1
@@ -533,7 +544,7 @@ function check_dependencies() {
 
   # Check gmt version
   if [ `which git` ]; then
-    echo -n "Found git: " && which git | gawk '{ printf("%s ", $0)}' && git --version
+    echo -n "Found git: " && which git | awk '{ printf("%s ", $0)}' && git --version
   else
     echo "Error: git is not found"
     needed+=("git")
@@ -543,11 +554,11 @@ function check_dependencies() {
   # Check gmt version
   if [ `which gmt` ]; then
   	GMT_VERSION=$(gmt --version)
-  	if [[ $(echo ${GMT_VERSION} $GMTREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+  	if [[ $(echo ${GMT_VERSION} $GMTREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
   		echo "gmt version $GMTREQ or greater is required (detected ${GMT_VERSION})"
       needed+=("gmt")
   	else
-      echo "Found gmt ${GMT_VERSION}: $(which gmt | gawk '{ printf("%s ", $0)}')"
+      echo "Found gmt ${GMT_VERSION}: $(which gmt | awk '{ printf("%s ", $0)}')"
       GSHHG_DIR=$(gmt gmtget DIR_GSHHG)
       if [[ -d "${GSHHG_DIR}" ]]; then
          echo "  GSHHG data are present in ${GSHHG_DIR}"
@@ -574,14 +585,14 @@ function check_dependencies() {
   fi
 
   if [ `which ${CCOMPILER}` ]; then
-    echo -n "Found C compiler: " && which ${CCOMPILER} | gawk '{ printf("%s ", $0)}' && ${CCOMPILER} -dumpversion
+    echo -n "Found C compiler: " && which ${CCOMPILER} | awk '{ printf("%s ", $0)}' && ${CCOMPILER} -dumpversion
   else
   	echo "Error: Cannot call C compiler ${CCOMPILER}"
     needed+=("gcc")
   fi
 
   if [ `which ${CXXCOMPILER}` ]; then
-    echo -n "Found C++ compiler: " && which ${CXXCOMPILER} | gawk '{ printf("%s ", $0)}' && ${CXXCOMPILER} -dumpversion
+    echo -n "Found C++ compiler: " && which ${CXXCOMPILER} | awk '{ printf("%s ", $0)}' && ${CXXCOMPILER} -dumpversion
   else
   	echo "Error: Cannot call C++ compiler ${CXXCOMPILER}."
     needed+=("g++")
@@ -595,17 +606,17 @@ function check_dependencies() {
   fi
 
   if [ `which geod` ]; then
-    echo -n "Found geod: " && which geod | gawk '{ printf("%s ", $0)}' && geod 2>&1 | head -n 1
+    echo -n "Found geod: " && which geod | awk '{ printf("%s ", $0)}' && geod 2>&1 | head -n 1
   else
   	echo "Error: geod not found"
     needed+=("geod")
   fi
 
   if [ `which gdalinfo` ]; then
-    echo -n "Found gdalinfo: " && which gdalinfo | gawk '{ printf("%s ", $0)}' && gdalinfo --version
-    GDAL_VERSION=$(gdalinfo --version | gawk -F, '{split($1, tr, " "); print tr[2]}')
+    echo -n "Found gdalinfo: " && which gdalinfo | awk '{ printf("%s ", $0)}' && gdalinfo --version
+    GDAL_VERSION=$(gdalinfo --version | awk -F, '{split($1, tr, " "); print tr[2]}')
 
-    if [[ $(echo ${GDAL_VERSION} $GDALREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+    if [[ $(echo ${GDAL_VERSION} $GDALREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
       echo "GDAL version ${GDAL_VERSION} is not up to date (requires ${GDALREQ})"
       needed+=("gdal")
     else
