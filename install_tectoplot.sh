@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# UPDATING?
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
