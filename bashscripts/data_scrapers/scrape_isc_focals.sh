@@ -88,7 +88,9 @@ if [[ -e ${ISCDIR}"isc_extract.cat" ]]; then
     echo "Here we add the events"
     BEFORE=$(wc -l < ${ISCDIR}"isc_extract.cat")
     cat isc_focals_uptodate.dat | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
-                    grep -v "PNSN" | grep -v "EVBIB" | ${CMTTOOLS} - I I >> ${ISCDIR}"isc_extract.cat"
+                    grep -v "PNSN" | grep -v "EVBIB" > ${ISCDIR}isc.toadd
+    ${CMTTOOLS} ${ISCDIR}isc.toadd I I >> ${ISCDIR}"isc_extract.cat"
+    rm -f ${ISCDIR}isc.toadd
     AFTER=$(wc -l < ${ISCDIR}"isc_extract.cat")
     ADDED=$(echo "$AFTER - $BEFORE" | bc)
     echo "Added $ADDED events to catalog."
@@ -140,6 +142,8 @@ else
   for foc_file in isc_focals_*.dat; do
     echo "$foc_file: Removing EVBIB and PNSN mechanisms and extracting catalog."
     cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
-                    grep -v "PNSN" | grep -v "EVBIB" | ${CMTTOOLS} - I I >> ${ISCDIR}"isc_extract.cat"
+                    grep -v "PNSN" | grep -v "EVBIB" > ${ISCDIR}isc.toadd
+    ${CMTTOOLS} ${ISCDIR}isc.toadd I I >> ${ISCDIR}"isc_extract.cat"
   done
+  rm -f ${ISCDIR}isc.toadd
 fi

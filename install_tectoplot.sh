@@ -43,7 +43,7 @@ Author:         Kyle Bradley, Nanyang Technological University
 Tested:         MacOS Catalina, Mojave, Big Sur, Ubuntu Linux (regular + WSL)
 Usage:          /usr/bin/env bash install_tectoplot.sh
 
-The following directories need to be defined       :   Default location
+The following directories will be created          :   Default location
 Home directory of tectoplot and tectoplot-examples :   ${HOME}/tectoplot/
 Miniconda directory (if installing)                :   ${HOME}/miniconda/
 tectoplot data directory                           :   ${HOME}/TectoplotData/
@@ -572,7 +572,7 @@ function check_dependencies() {
     echo "Found bash: $(which bash) ${BASH_VERSION}"
   fi
 
-  # Check gmt version
+  # Check git version
   if [ `which git` ]; then
     echo -n "Found git: " && which git | awk '{ printf("%s ", $0)}' && git --version
   else
