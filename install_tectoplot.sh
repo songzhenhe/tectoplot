@@ -769,8 +769,6 @@ function configure_tectoplot() {
       read -r -p "Set PDF viewer? Default is yes. [Yy|nn] " response
       case "${response}" in
         Y|y|"")
-
-
           if [[ $(grep microsoft /proc/version) ]]; then
             echo "Detected Windows Subsystem for Linux. Setting wslview as default viewer."
             ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen wslview
@@ -778,6 +776,7 @@ function configure_tectoplot() {
             read -r -p "OSX/Linux: Choose from evince, mupdf-gl, Preview, or name another program: " pdfviewer
             ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen $pdfviewer
           fi
+          break
           ;;
         N|n)
           echo

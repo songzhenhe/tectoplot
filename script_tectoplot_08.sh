@@ -857,7 +857,7 @@ do
 
       echo "Compiling Reasenberg declustering tool"
       if [[ -x $(which ${F90COMPILER}) ]]; then
-        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -o ${REASENBERG_EXEC}
+        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -lrt -std=legacy -o ${REASENBERG_EXEC}
       fi
 
       echo "Compiling LITHO1 extract tool"
@@ -919,17 +919,17 @@ do
       # CHECKFILE path needs to include DESTDIR
       # check_and_download_dataset "IDCODE" $SOURCEURL "yes" $DESTDIR $CHECKFILE $DESTDIR"data.zip" $CHECKFILE_BYTES $ZIP_BYTES
 
-      # First do the EarthByte datasets
-      check_and_download_dataset "EB-ISO" $EARTHBYTE_ISOCHRONS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_ISOCHRONS_SHP $TECTFABRICSDIR"iso.zip" $EARTHBYTE_ISOCHRONS_SHP_BYTES $EARTHBYTE_ISOCHRONS_ZIP_BYTES
-      # Convert EB_ISO shapefile to GMT format for psxy usage
-      [[ ! -s $EARTHBYTE_ISOCHRONS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_ISOCHRONS_GMT $EARTHBYTE_ISOCHRONS_SHP
-
-      check_and_download_dataset "EB-HOT" $EARTHBYTE_HOTSPOTS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_HOTSPOTS_SHP $TECTFABRICSDIR"hot.zip" $EARTHBYTE_HOTSPOTS_SHP_BYTES $EARTHBYTE_HOTSPOTS_ZIP_BYTES
-      # Convert EB_ISO shapefile to GMT format for psxy usage
-      [[ ! -s $EARTHBYTE_HOTSPOTS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_HOTSPOTS_GMT $EARTHBYTE_HOTSPOTS_SHP
-
-      # Download GSFML seafloor data
-      check_and_download_dataset "GSFML" $GSFML_SOURCEURL "yes" $GSFMLDIR $GSFML_CHECK $GSFMLDIR"gsfml.tbz" $GSFML_CHECK_BYTES $GSFML_ZIP_BYTES
+      # # First do the EarthByte datasets
+      # check_and_download_dataset "EB-ISO" $EARTHBYTE_ISOCHRONS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_ISOCHRONS_SHP $TECTFABRICSDIR"iso.zip" $EARTHBYTE_ISOCHRONS_SHP_BYTES $EARTHBYTE_ISOCHRONS_ZIP_BYTES
+      # # Convert EB_ISO shapefile to GMT format for psxy usage
+      # [[ ! -s $EARTHBYTE_ISOCHRONS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_ISOCHRONS_GMT $EARTHBYTE_ISOCHRONS_SHP
+      #
+      # check_and_download_dataset "EB-HOT" $EARTHBYTE_HOTSPOTS_SOURCEURL "yes" $TECTFABRICSDIR $EARTHBYTE_HOTSPOTS_SHP $TECTFABRICSDIR"hot.zip" $EARTHBYTE_HOTSPOTS_SHP_BYTES $EARTHBYTE_HOTSPOTS_ZIP_BYTES
+      # # Convert EB_ISO shapefile to GMT format for psxy usage
+      # [[ ! -s $EARTHBYTE_HOTSPOTS_GMT ]] && ogr2ogr -f "OGR_GMT" $EARTHBYTE_HOTSPOTS_GMT $EARTHBYTE_HOTSPOTS_SHP
+      #
+      # # Download GSFML seafloor data
+      # check_and_download_dataset "GSFML" $GSFML_SOURCEURL "yes" $GSFMLDIR $GSFML_CHECK $GSFMLDIR"gsfml.tbz" $GSFML_CHECK_BYTES $GSFML_ZIP_BYTES
 
       check_and_download_dataset "GEBCO1" $GEBCO1_SOURCEURL "yes" $GEBCO1DIR $GEBCO1FILE $GEBCO1DIR"data.zip" $GEBCO1_BYTES $GEBCO1_ZIP_BYTES
       check_and_download_dataset "EMAG_V2" $EMAG_V2_SOURCEURL "no" $EMAG_V2_DIR $EMAG_V2 "none" $EMAG_V2_BYTES "none"
@@ -8750,10 +8750,16 @@ fi
   -seisproj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--seisproj:     create a seismicity (X) vs depth (Y) projected panel
--seisproj [[height_in]]
+-seisproj:     create a seismicity (X) vs depth (Y) projected panel below or to right of map
+-seisproj [dim1=${SEISPROJ_DIM1} size1=${SEISPROJHEIGHT_DIM1}] [[dim2 size2]]
 
-  Output is seisproj.pdf
+  Use -noframe bottom, -noframe right, or -noframe bottom right to avoid overlapping labels
+
+  dim1 and dim2 can be X or Y
+
+  SEISPROJ_DIMS="X"           # Can be X, Y, or XY
+  SEISPROJHEIGHT_X=3          # Height in inches of -seisproj panel (X dimension)
+  SEISPROJWIDTH_Y=3           # Width in inches of -seisproj panel (Y dimension)
 
 Example: None
 --------------------------------------------------------------------------------
@@ -8761,10 +8767,24 @@ EOF
 shift && continue
 fi
 
-  if arg_is_positive_float "${2}"; then
-    SEISPROJHEIGHT_X="${2}"
-    shift
-  fi
+  while ! arg_is_flag "${2}"; do
+    if [[ $2 == "X" ]]; then
+      plotseisprojflag_x=1
+      shift
+      if arg_is_positive_float "${2}"; then
+        SEISPROJHEIGHT_X="${2}"
+        shift
+      fi
+    fi
+    if [[ $2 == "Y" ]]; then
+      plotseisprojflag_y=1
+      shift
+      if arg_is_positive_float "${2}"; then
+        SEISPROJWIDTH_Y="${2}"
+        shift
+      fi
+    fi
+  done
 
   plotseisprojflag=1
   ;;
@@ -9301,62 +9321,106 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
 fi
 
 
+# Estimate the AOI by sampling a grid of lon/lat points
+
 if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
-# We want a method to determine the visible region -R MINLON MAXLON MINLAT MAXLAT for a given map e.g -JG130/0/90/7i
+  # Check if the box is very small, and if so don't expand the AOI
 
-# Get the bounds using a grid of points. For some reason, sometimes gmtselect will return
-# lon+360 (e.g. 276 instead of -84), so fix that as needed...
-  gawk '
-  BEGIN {
-    for(i=-90;i<=90;i++) {
-      for(j=-180;j<=180;j++) {
-        print j, i
-      }
-    }
-  }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} | gawk '{ if ($1>180) { $1=$1-360 } else if ($1<-180) { $1=$1+360}; print }'> selectbounds.txt
-
-  NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
-    BEGIN {
-      found_m180=0
-      found_180=0
-      getline
-      minlon=$1
-      maxlon=$1
-      minlat=$2
-      maxlat=$2
-      maxneglon=-180
-      minposlon=180
-    }
+  MAPDEGSQ=$(echo ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} | gawk '
     {
+      lonrange=$2-$1
+      latrange=$4-$3
+      print (lonrange < 1.5 || latrange < 1.5)?1:0
+    }')
 
-      minlon=($1<minlon)?$1:minlon
-      maxlon=($1>maxlon)?$1:maxlon
-      minlat=($2<minlat)?$2:minlat
-      maxlat=($2>maxlat)?$2:maxlat
-      maxneglon=($1>maxneglon && $1<=0)?$1:maxneglon
-      minposlon=($1<minposlon && $1>=0)?$1:minposlon
+  if [[ $MAPDEGSQ -eq 0 ]]; then
 
-      # if ($1==-180) {
-      #   found_m180=1
-      # } else if ($1==180) {
-      #   found_180=1
-      # }
+  # Get the bounds using a grid of points. For some reason, sometimes gmtselect will return
+  # lon+360 (e.g. 276 instead of -84), so fix that as needed...
+    gawk '
+    BEGIN {
+      for(i=-90;i<=90;i++) {
+        for(j=-180;j<=180;j++) {
+          print j, i
+        }
+      }
+    }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} | gawk '{ if ($1>180) { $1=$1-360 } else if ($1<-180) { $1=$1+360}; print }'> selectbounds.txt
 
-      foundlon[$1]=1
-      lon[NR]=$1
-      lat[NR]=$2
-    }
-    END {
+    NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
+      BEGIN {
+        found_m180=0
+        found_180=0
+        getline
+        minlon=$1
+        maxlon=$1
+        minlat=$2
+        maxlat=$2
+        maxneglon=-180
+        minposlon=180
+      }
+      {
 
-      # print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
-      # print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
-      if (minlon==-180 && maxlon==180) {
-        crosses_meridian=0
-        # Either it is a global extent, or crosses the antimeridian
+        minlon=($1<minlon)?$1:minlon
+        maxlon=($1>maxlon)?$1:maxlon
+        minlat=($2<minlat)?$2:minlat
+        maxlat=($2>maxlat)?$2:maxlat
+        maxneglon=($1>maxneglon && $1<=0)?$1:maxneglon
+        minposlon=($1<minposlon && $1>=0)?$1:minposlon
 
-        if (length(foundlon)==361) {
-          # print "Detected global longitude range"  > "/dev/stderr"
+        # if ($1==-180) {
+        #   found_m180=1
+        # } else if ($1==180) {
+        #   found_180=1
+        # }
+
+        foundlon[$1]=1
+        lon[NR]=$1
+        lat[NR]=$2
+      }
+      END {
+
+        # print "minlon/maxlon/minlat/maxlat", minlon, maxlon, minlat, maxlat > "/dev/stderr"
+        # print "maxneglon/minposlon", maxneglon, minposlon > "/dev/stderr"
+        if (minlon==-180 && maxlon==180) {
+          crosses_meridian=0
+          # Either it is a global extent, or crosses the antimeridian
+
+          if (length(foundlon)==361) {
+            # print "Detected global longitude range"  > "/dev/stderr"
+            if (minlon >= -180+buffer_d) {
+              minlon-=buffer_d
+            }
+            if (maxlon <= 180-buffer_d ) {
+              maxlon += buffer_d
+            }
+            if (minlat >= -90+buffer_d) {
+              minlat-=buffer_d
+            }
+            if (maxlat <= 90-buffer_d) {
+              maxlat+=buffer_d
+            }
+            print minlon, maxlon, minlat, maxlat
+          } else {
+            # print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
+            maxneglon+=360
+            if (minposlon >= buffer_d+0) {
+              minposlon-=buffer_d
+            }
+            if (maxneglon <= 180-buffer_d ) {
+              maxneglon += buffer_d
+            }
+            if (minlat >= -90+buffer_d) {
+              minlat-=buffer_d
+            }
+            if (maxlat <= 90-buffer_d) {
+              maxlat+=buffer_d
+            }
+            print minposlon, maxneglon, minlat, maxlat
+
+          }
+        } else {
+          # print "Detected reasonable longitude range"  > "/dev/stderr"
           if (minlon >= -180+buffer_d) {
             minlon-=buffer_d
           }
@@ -9370,51 +9434,21 @@ if [[ $recalcregionflag_lonlat -eq 1 ]]; then
             maxlat+=buffer_d
           }
           print minlon, maxlon, minlat, maxlat
-        } else {
-          # print "Detected non-global longitude range crossing antimeridian"  > "/dev/stderr"
-          maxneglon+=360
-          if (minposlon >= buffer_d+0) {
-            minposlon-=buffer_d
-          }
-          if (maxneglon <= 180-buffer_d ) {
-            maxneglon += buffer_d
-          }
-          if (minlat >= -90+buffer_d) {
-            minlat-=buffer_d
-          }
-          if (maxlat <= 90-buffer_d) {
-            maxlat+=buffer_d
-          }
-          print minposlon, maxneglon, minlat, maxlat
-
         }
-      } else {
-        # print "Detected reasonable longitude range"  > "/dev/stderr"
-        if (minlon >= -180+buffer_d) {
-          minlon-=buffer_d
-        }
-        if (maxlon <= 180-buffer_d ) {
-          maxlon += buffer_d
-        }
-        if (minlat >= -90+buffer_d) {
-          minlat-=buffer_d
-        }
-        if (maxlat <= 90-buffer_d) {
-          maxlat+=buffer_d
-        }
-        print minlon, maxlon, minlat, maxlat
-      }
 
-    }'))
+      }'))
 
-  # range=$(xy_range selectbounds.txt)
-  # Points at -180 and 180 indicates crossing of the antimeridian. In that case, we choose the positive longitude
+    # range=$(xy_range selectbounds.txt)
+    # Points at -180 and 180 indicates crossing of the antimeridian. In that case, we choose the positive longitude
 
-  MINLON=${NEWRANGE[0]}
-  MAXLON=${NEWRANGE[1]}
-  MINLAT=${NEWRANGE[2]}
-  MAXLAT=${NEWRANGE[3]}
+    MINLON=${NEWRANGE[0]}
+    MAXLON=${NEWRANGE[1]}
+    MINLAT=${NEWRANGE[2]}
+    MAXLAT=${NEWRANGE[3]}
 
+  else
+    info_msg "[lonlat]: Map area is too small for lonlat AOI determination... using original AOI"
+  fi # End of MAPDEGSQ >= 5
 fi
 
 # The default region box is the bounding longitude and latitude
@@ -15827,7 +15861,7 @@ done
 
 #### Plot seismicty vs depth in a projected (X) frame below the map frame
 
-if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
 
   depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
     BEGIN {
@@ -15968,7 +16002,8 @@ fi
 
 #### Plot seismicty vs depth in a projected (Y) frame to the right of the map frame
 
-if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+if [[ $plotseisprojflag_y -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+
 
   depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
     BEGIN {
@@ -15984,6 +16019,9 @@ if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       range=maxdepth-mindepth
       print -(maxdepth+range/20), -(mindepth-range/10)
     }'))
+
+    info_msg "[-seisproj Y]: ${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y}"
+
 
     gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
     gawk '
@@ -16011,7 +16049,6 @@ if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       SEIS_CPT=$SEISDEPTH_CPT
     fi
 
-
     if [[ $SCALEEQS -eq 1 ]]; then
       gmt_init_tmpdir
 
@@ -16028,11 +16065,8 @@ if [[ $plotseisprojflag -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
 
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
-      echo ${RJSTRING[@]}
-      # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
-      echo       gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_X}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNES -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain
 
-      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_X}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNrS -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNrS -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
       gmt_remove_tmpdir
