@@ -90,7 +90,7 @@ function check_tectoplot() {
   while true; do
     read -r -p "Do you want to install tectoplot and/or tectoplot-examples from Github? Default is yes. [Yy|Nn] " response1
     case $response1 in
-      Y|y|yes|"")
+      Y|y|Yy|yY|yes|"")
         read -r -p "Which components do you want to install? Default is both. [ tectoplot | examples | both ] " response
         case $response in
           tectoplot)
@@ -193,7 +193,7 @@ function check_tectoplot() {
       while true; do
         read -r -p "Install selected repositories into ${tectoplot_folder_dir}/ ? Default is yes. [Yy|Nn] " response
         case "${response}" in
-        Y|y|"")
+        Y|y|Yy|yY|yes|"")
           break
           ;;
         N|n|*)
@@ -247,7 +247,7 @@ function select_manager() {
   while true; do
     read -r -p "Do you want to use homebrew or miniconda to install/upgrade the dependencies? Default is no. [Yy|Nn] " response1
     case "${response1}" in
-      Y|y)
+      Y|y|Yy|yY|yes)
         read -r -p "Which package manager do you want to install? Default is miniconda. [ homebrew | miniconda ] " response2
         case "${response2}" in
           homebrew)
@@ -285,7 +285,7 @@ function check_xcode() {
   else
     read -r -p "Installation on OSX requires Xcode command line tools. Install? Default=yes [Yy|Nn] " installxcode
     case $installxcode in
-      Y|y|"")
+      Y|y|Yy|yY|yes|"")
         if xcode-select --install >/dev/null 2>&1; then
             echo "Re-run script after Xcode command line tools have finished installing."
             exit 1
@@ -295,7 +295,7 @@ function check_xcode() {
         fi
         break
         ;;
-      N|n)
+      N|n|Nn|no)
         break
         ;;
       *)
@@ -377,10 +377,10 @@ function brew_packages() {
 		if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
 			read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes [Yy|Nn] " douninstall
 			case $douninstall in
-			  Y|y|"")
+			  Y|y|Yy|yY|yes|"")
 				brew uninstall gmt
 				;;
-			  N|n)
+			  N|n|Nn|no)
 			  echo exiting
 				break
 				;;
@@ -537,7 +537,7 @@ function install_evince_anyway() {
   while true; do
     read -r -p "PDF viewer evince cannot be installed using conda. Use homebrew to install? " response
     case "${response}" in
-    Y|y|"")
+    Y|y|Yy|yY|yes|"")
       echo
       install_homebrew
       install_evince
@@ -700,12 +700,12 @@ function configure_tectoplot() {
   while true; do
     read -r -p "Configure (or reconfigure) tectoplot? Default is yes [Yy|Nn] " response
     case "${response}" in
-    Y|y|"")
+    Y|y|Yy|yY|yes|"")
       echo
       CONFIGURE_TECTOPLOT=1
       break
       ;;
-    N|n)
+    N|n|Nn|no)
       break
       ;;
     *)
@@ -720,15 +720,14 @@ function configure_tectoplot() {
     while true; do
       read -r -p "Activate tectoplot conda environment before configuring? Default is no [Yy|Nn] " response
       case "${response}" in
-      Y|y|"")
+      Y|y|Yy|yY|yes|"")
         echo
         eval "$(conda shell.bash hook)"
         conda activate tectoplot
         break
         ;;
-      N|n)
+      N|n|Nn|no)
         break
-        exit
         ;;
       *)
         ;;
@@ -745,7 +744,7 @@ function configure_tectoplot() {
     while true; do
       read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [Yy|Nn] " response
       case "${response}" in
-        Y|y|"")
+        Y|y|Yy|yY|yes|"")
           read -r -p "Enter directory path (default is ${HOME}/TectoplotData/)" response2
           case "${response2}" in
             "")
@@ -755,7 +754,7 @@ function configure_tectoplot() {
           ${tectoplot_folder_dir}/tectoplot/tectoplot -setdatadir "${response2}/"
           break
           ;;
-        N|n)
+        N|n|Nn|no)
           echo
           break
           ;;
@@ -768,7 +767,7 @@ function configure_tectoplot() {
     while true; do
       read -r -p "Set PDF viewer? Default is yes. [Yy|nn] " response
       case "${response}" in
-        Y|y|"")
+        Y|y|Yy|yY|yes|"")
           if [[ $(grep microsoft /proc/version) ]]; then
             echo "Detected Windows Subsystem for Linux. Setting wslview as default viewer."
             ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen wslview
@@ -778,7 +777,7 @@ function configure_tectoplot() {
           fi
           break
           ;;
-        N|n)
+        N|n|Nn|no)
           echo
           break
           ;;
@@ -791,11 +790,11 @@ function configure_tectoplot() {
     while true; do
       read -r -p "Compile companion codes? [Yy|Nn] " response
       case "${response}" in
-        Y|y|"")
+        Y|y|Yy|yY|yes|"")
           ${tectoplot_folder_dir}/tectoplot/tectoplot -compile
           break
           ;;
-        N|n)
+        N|n|Nn|no)
           echo
           break
           ;;
@@ -852,11 +851,11 @@ main() {
       while true; do
         read -r -p "Exit before cloning tectoplot? Default=yes [Yy|Nn] " response
         case "${response}" in
-          Y|y|"")
+          Y|y|Yy|yY|yes|"")
             exit
             break
             ;;
-          N|n)
+          N|n|Nn|no)
             break
             ;;
           *)
