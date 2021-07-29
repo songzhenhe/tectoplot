@@ -360,6 +360,10 @@ if [[ ! -s ${OPTDIR}"tectoplot.dataroot" ]]; then
   DATAROOT="/dev/null/"
 else
   DATAROOT=$(head -n 1 ${OPTDIR}"tectoplot.dataroot")
+  if [[ ! -d ${DATAROOT} ]]; then
+    echo "Data directory ${DATAROOT} does not exist... using /dev/null/ for safety"
+    DATAROOT="/dev/null/"
+  fi
 fi
 
 CUSTOMREGIONSDIR=$OPTDIR"customregions/"
@@ -930,6 +934,10 @@ do
       #
       # # Download GSFML seafloor data
       # check_and_download_dataset "GSFML" $GSFML_SOURCEURL "yes" $GSFMLDIR $GSFML_CHECK $GSFMLDIR"gsfml.tbz" $GSFML_CHECK_BYTES $GSFML_ZIP_BYTES
+
+
+      check_and_download_dataset "MULLER_OCAGE" $MULLER_OCAGE_SOURCEURL "no" $MULLER_DIR $MULLER_OCAGE "none" $MULLER_OCAGE_BYTES "none"
+
 
       check_and_download_dataset "GEBCO1" $GEBCO1_SOURCEURL "yes" $GEBCO1DIR $GEBCO1FILE $GEBCO1DIR"data.zip" $GEBCO1_BYTES $GEBCO1_ZIP_BYTES
       check_and_download_dataset "EMAG_V2" $EMAG_V2_SOURCEURL "no" $EMAG_V2_DIR $EMAG_V2 "none" $EMAG_V2_BYTES "none"

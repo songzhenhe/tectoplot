@@ -387,35 +387,33 @@ SANDWELL2019_CURV_bytes="829690416"
 
 ##### EarthByte Data provided with GPlates
 
-TECTFABRICSDIR=$DATAROOT"EarthByte/"
+#TECTFABRICSDIR=$DATAROOT"EarthByte/"
 
-EARTHBYTE_ISOCHRONS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPlates/SampleData_GPlates2.2/Individual/FeatureCollections/Isochrons.zip"
-EARTHBYTE_ISOCHRONS_SHP_BYTES=310048
-EARTHBYTE_ISOCHRONS_ZIP_BYTES=714027
+#EARTHBYTE_ISOCHRONS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPlates/SampleData_GPlates2.2/Individual/FeatureCollections/Isochrons.zip"
+#EARTHBYTE_ISOCHRONS_SHP_BYTES=310048
+#EARTHBYTE_ISOCHRONS_ZIP_BYTES=714027
 
-EARTHBYTE_ISOCHRONS_SHP=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.shp"
-EARTHBYTE_ISOCHRONS_GMT=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.gmt"
+#EARTHBYTE_ISOCHRONS_SHP=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.shp"
+#EARTHBYTE_ISOCHRONS_GMT=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.gmt"
 
-EARTHBYTE_ISOCHRONS_SOURCESTRING="Müller, R.D., Seton, M., Zahirovic, S., Williams, S.E., Matthews, K.J., Wright, N.M., Shephard, G.E., Maloney, K.T., Barnett-Moore, N., Hosseinpour, M., Bower, D.J. & Cannon, J. 2016. Ocean Basin Evolution and Global-Scale Plate Reorganization Events Since Pangea Breakup, Annual Review of Earth and Planetary Sciences, vol. 44, pp. 107 . DOI: 10.1146/annurev-earth-060115-012211."
-EARTHBYTE_ISOCHRONS_SHORT_SOURCESTRING="EarthByte"
-
-
-EARTHBYTE_HOTSPOTS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPlates/SampleData_GPlates2.2/Individual/FeatureCollections/Hotspots.zip"
-EARTHBYTE_HOTSPOTS_SHP_BYTES=2004
-EARTHBYTE_HOTSPOTS_ZIP_BYTES=31660
-
-EARTHBYTE_HOTSPOTS_SHP=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.shp"
-EARTHBYTE_HOTSPOTS_GMT=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.gmt"
-
-EARTHBYTE_HOTSPOTS_SOURCESTRING="Whittaker, J., Afonso, J., Masterton, S., Müller, R., Wessel, P., Williams, S., and Seton, M., 2015, Long-term interaction between mid-ocean ridges and mantle plumes: Nature Geoscience, v. 8, no. 6, p. 479-483, doi: 10.1038/ngeo2437"
-EARTHBYTE_HOTSPOTS_SHORT_SOURCESTRING="EarthByte"
+#EARTHBYTE_ISOCHRONS_SOURCESTRING="Müller, R.D., Seton, M., Zahirovic, S., Williams, S.E., Matthews, K.J., Wright, N.M., Shephard, G.E., Maloney, K.T., Barnett-Moore, N., Hosseinpour, M., Bower, D.J. & Cannon, J. 2016. Ocean Basin Evolution and Global-Scale Plate Reorganization Events Since Pangea Breakup, Annual Review of Earth and Planetary Sciences, vol. 44, pp. 107 . DOI: 10.1146/annurev-earth-060115-012211."
+#EARTHBYTE_ISOCHRONS_SHORT_SOURCESTRING="EarthByte"
 
 
-MULLERDIR=${DATAROOT}"Muller2016/"
-MULLER_OCAGE=${MULLERDIR}"Muller_etal_2019_Tectonics_v2.0_PresentDay_AgeGrid.nc"
+#EARTHBYTE_HOTSPOTS_SOURCEURL="https://www.earthbyte.org/webdav/ftp/earthbyte/GPlates/SampleData_GPlates2.2/Individual/FeatureCollections/Hotspots.zip"
+#EARTHBYTE_HOTSPOTS_SHP_BYTES=2004
+#EARTHBYTE_HOTSPOTS_ZIP_BYTES=31660
 
+#EARTHBYTE_HOTSPOTS_SHP=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.shp"
+#EARTHBYTE_HOTSPOTS_GMT=${TECTFABRICSDIR}"Hotspots/SHP/Hotspots_Compilation_Whittaker_etal.gmt"
 
+#EARTHBYTE_HOTSPOTS_SOURCESTRING="Whittaker, J., Afonso, J., Masterton, S., Müller, R., Wessel, P., Williams, S., and Seton, M., 2015, Long-term interaction between mid-ocean ridges and mantle plumes: Nature Geoscience, v. 8, no. 6, p. 479-483, doi: 10.1038/ngeo2437"
+#EARTHBYTE_HOTSPOTS_SHORT_SOURCESTRING="EarthByte"
 
+MULLER_DIR=${DATAROOT}"Muller2016/"
+MULLER_OCAGE=${MULLER_DIR}"Muller_etal_2019_Tectonics_v2.0_PresentDay_AgeGrid.nc"
+MULLER_OCAGE_SOURCEURL="https://www.earthbyte.org/webdav/ftp/Data_Collections/Muller_etal_2019_Tectonics/Muller_etal_2019_Agegrids/Muller_etal_2019_Tectonics_v2.0_PresentDay_AgeGrid.nc"
+MULLER_OCAGE_BYTES=25985584
 
 ##### Global Curie Depth Map
 GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"
