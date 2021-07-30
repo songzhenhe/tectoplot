@@ -245,11 +245,12 @@ function tecto_tac() {
 # Check if we mistakenly didn't activate conda in the tectoplot environment and
 # if we think so, query and activate
 
-if ! command -v gmt && command -v conda; then
+if ! command -v gmt >/dev/null && command -v conda > /dev/null; then
   if [[ -d ${HOME}/miniconda/ ]]; then
     read -r -p "Can't find gmt but conda environment exists. Activate? [y|n] " actresponse
     case actresponse in
       Y|y|yes|"")
+        eval "$(conda shell.bash hook)"
         conda activate tectoplot
         ;;
       *)
