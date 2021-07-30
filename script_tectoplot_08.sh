@@ -250,6 +250,7 @@ if ! command -v gmt >/dev/null && command -v conda > /dev/null; then
     read -r -p "Can't find gmt but conda environment exists. Activate? [y|n] " actresponse
     case actresponse in
       Y|y|yes|"")
+        echo activating...
         eval "$(conda shell.bash hook)"
         conda activate tectoplot
         ;;
