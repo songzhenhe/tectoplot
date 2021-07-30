@@ -5599,6 +5599,8 @@ fi
           exit 1
         fi
 
+        [[ ! -s $CUSTOMREGIONS ]] && touch $CUSTOMREGIONS
+
         ISCUSTOMREGION=($(grep "^${2} " $CUSTOMREGIONS))
 
         # If the ID is not found in the custom regions file
