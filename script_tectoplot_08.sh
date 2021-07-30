@@ -215,6 +215,20 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
 
 # if ((maxlon < 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon)))
 
+# Replacement for tac and tail -r (bad compliance across different systems!)
+# Outputs the input file in reverse line order
+function tecto_tac() {
+  gawk '{
+    data[NR]=$0
+  }
+  END {
+    num=NR
+    for(i=num;i>=1;i--) {
+      print data[i]
+    }
+  }' "$@"
+}
+
 
 
 # Strategy for overlaying map elements on 3D Sketchfab model
@@ -955,7 +969,7 @@ do
             echo "Delete $(pwd)/EarthquakeData.zip and call tectoplot -getdata dropbox again to re-download"
           else
             echo "Getting earthquake data from Dropbox link"
-            if curl https://dl.dropboxusercontent.com/s/e4gc6g0tlrfziy0/EarthquakeData_30July2021.zip -o EarthquakeData.zip; then
+            if curl https://dl.dropboxusercontent.com/s/0jt228tmcgy2cfz/EarthquakeData_30July2021.zip -o EarthquakeData.zip; then
               echo "Earthquake archive downloaded. Testing..."
               if unzip -t EarthquakeData.zip >/dev/null; then
                 echo "Earthquake data archive is OK"
@@ -1020,6 +1034,7 @@ do
 
         # Save the biggest downloads for last.
         check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
+
         check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
         exit 0
       fi

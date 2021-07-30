@@ -73,14 +73,14 @@ function check_and_download_dataset() {
       # If we need to download a ZIP file, check if we have the ZIP file already
       if [[ -e ${DOWNLOADZIP} ]]; then
 
-        # If we already have a ZIP file, check whether its size matches the
+        # If we already have a ZIP file, check whether its size matches the listed value
         if [[ ! $DOWNLOADZIP_BYTES =~ "none" ]]; then
 
           # If the size of the zip is not labeled as 'none', measure its size
           filebytes=$(wc -c < "${DOWNLOADZIP}")
           if [[ $(echo "$filebytes == ${DOWNLOADZIP_BYTES}" | bc) -eq 1 ]]; then
 
-            # If the ZIP file matches the expecte size, we are OK
+            # If the ZIP file matches the expected size, we are OK
              info_msg "${DOWNLOADNAME} archive file exists and is complete"
           else
             # If the ZIP file doesn't match in size, try to continue its download from its present state
