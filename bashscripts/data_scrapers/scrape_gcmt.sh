@@ -39,6 +39,8 @@
 
 cd $GCMTDIR
 
+BEFORE=$(wc -l < gcmt_extract.cat)
+
 [[ ! -e jan76_dec17.ndk ]] && curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/jan76_dec17.ndk" > jan76_dec17.ndk
 
 years=("2018" "2019" "2020")
@@ -47,16 +49,16 @@ months=("jan" "feb" "mar" "apr" "may" "jun" "jul" "aug" "sep" "oct" "nov" "dec")
 for year in ${years[@]}; do
   YY=$(echo $year | tail -c 3)
   for month in ${months[@]}; do
-    [[ ! -e ${month}${YY}.ndk ]] && curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_MONTHLY/${year}/${month}${YY}.ndk" > ${month}${YY}.ndk
+    if [[ ! -s ${month}${YY}.ndk ]]; then
+      if curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_MONTHLY/${year}/${month}${YY}.ndk" > ${month}${YY}.ndk; then
+        echo ${month}${YY}.ndk >> gcmt_complete_ndk.txt
+      fi
+    fi
   done
 done
 
-echo "Downloading Quick CMTs"
-
-curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk
-
-rm -f gcmt_extract_pre.cat
-echo "Extracting GCMT focal mechanisms from NDK to tectoplot format"
+# Delete the Quick CMT file
+rm -f gcmt_quick.cmt
 
 for ndkfile in *.ndk; do
   res=$(grep 404 $ndkfile)
@@ -64,14 +66,27 @@ for ndkfile in *.ndk; do
     echo "ndk file $ndkfile was not correctly downloaded... deleting."
     rm -f $ndkfile
   else
-    echo "Extracting $ndkfile"
-    ${CMTTOOLS} $ndkfile K G >> gcmt_extract_pre.cat
+    if ! grep $ndkfile gcmt_extracted.txt > /dev/null; then
+      echo "Extracting $ndkfile to pre-catalog"
+      ${CMTTOOLS} $ndkfile K G >> gcmt_extract_pre.cat
+      echo $ndkfile >> gcmt_extracted.txt
+    fi
   fi
 done
 
-# Go through the catalog and remove Quick CMTs (PDEQ) that have a PDEW equivalent
+echo "Downloading Quick CMTs"
 
-gawk < gcmt_extract_pre.cat '
+if ! curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk; then
+  echo "Quick CMT download failed... deleting partial file"
+  rm quick.ndk
+else
+  echo "Extracting Quick CMT file"
+  ${CMTTOOLS} quick.ndk K G > gcmt_quick.cat
+fi
+
+# Go through the catalog and remove Quick CMTs (PDEQ) that have a PDEW equivalent
+echo "Combining catalogs and filtering out PDEQ QuickCMTs with equivalent PDEW solutions"
+cat gcmt_extract_pre.cat gcmt_quick.cat | gawk '
  {
    seen[$2]++
    id[NR]=$2
@@ -87,3 +102,7 @@ gawk < gcmt_extract_pre.cat '
      }
    }
  }' > gcmt_extract.cat
+
+AFTER=$(wc -l < gcmt_extract.cat)
+GCMT_ADDED=$(echo "$BEFORE - $AFTER" | bc)
+echo "Added $GCMT_ADDED GCMT focal mechanisms"

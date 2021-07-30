@@ -63,55 +63,6 @@ function lastday_of_month() {
   echo $days
 }
 
-function iso8601_to_epoch() {
-  TZ=UTC
-
-  gawk '{
-    # printf("%s ", $0)
-    for(i=1; i<=NF; i++) {
-      done=0
-      timecode=substr($(i), 1, 19)
-      split(timecode, a, "-")
-      year=a[1]
-      if (year < 1900) {
-        print -2209013725
-        done=1
-      }
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
-
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-
-      if (year == 1982 && month == 01 && day == 01) {
-        printf("%s ", 378691200 + second + 60*minute * 60*60*hour)
-        done=1
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        printf("%s ", -895153699 + second + 60*minute * 60*60*hour)
-        done=1
-
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        printf("%s ", -879638400 + second + 60*minute * 60*60*hour)
-        done=1
-      }
-
-      if (done==0) {
-        the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-        # print the_time > "/dev/stderr"
-        epoch=mktime(the_time);
-        printf("%s ", epoch)
-      }
-    }
-    printf("\n")
-  }'
-}
-
-
 function has_a_line() {
   if [[ -e $1 ]]; then
     gawk '
@@ -211,10 +162,13 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
   if [[ -e anss_last_downloaded_event.txt ]]; then
     lastevent_epoch=$(tail -n 1 anss_last_downloaded_event.txt | gawk -F, '{print substr($1,1,19)}' | iso8601_to_epoch)
+    lastevent_date=$(tail -n 1 anss_last_downloaded_event.txt | gawk -F, '{print substr($1,1,19)}')
   else
     lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+    lastevent_date="1900-01-01T00:00:01"
   fi
   echo "Last event from previous scrape has epoch $lastevent_epoch"
+  echo "Last event from previous scrape has data $lastevent_date"
 
 
   this_year=$(date -u +"%Y")
@@ -304,11 +258,16 @@ if ! [[ $2 =~ "rebuild" ]]; then
   done
 
 else
-  # Rebuild the tile from the downloaded
-  echo "Rebuilding tiles from complete files"
+  # Completely rebuild the tiles directory from the downloaded catalog datasets
+  echo "Rebuilding tiles from downloaded files"
   rm -f ${ANSSTILEDIR}tile*.cat
+
+  # Set all catalog files to be just downloaded, but don't change complete vs. incomplete status
+
   cp anss_complete.txt anss_just_downloaded.txt
+  # cat anss_incomplete.txt >> anss_just_downloaded.txt
   lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+  lastevent_data="1900-01-01T00:00:01"
 
   for long in $(seq -180 5 175); do
     for lati in $(seq -90 5 85); do
@@ -332,58 +291,15 @@ if [[ -e anss_just_downloaded.txt ]]; then
 
   for anss_file in $selected_files; do
     echo "Processing file $anss_file into tile files"
-    gawk < $anss_file -F, -v tiledir=${ANSSTILEDIR} -v minepoch=$lastevent_epoch '
+
+    gawk < $anss_file -F, -v tiledir=${ANSSTILEDIR} -v mindate=$lastevent_date '
     @include "tectoplot_functions.awk"
-    # function rd(n, multipleOf)
-    # {
-    #   if (n % multipleOf == 0) {
-    #     num = n
-    #   } else {
-    #      if (n > 0) {
-    #         num = n - n % multipleOf;
-    #      } else {
-    #         num = n + (-multipleOf - n % multipleOf);
-    #      }
-    #   }
-    #   return num
-    # }
+
     BEGIN { added=0 }
     (NR>1) {
-      timecode=substr($1,1,19)
-      split(timecode, a, "-")
-      year=a[1]
-      if (year < 1900) {
-        print -2209013725
-        done=1
-      }
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
+      eventdate=substr($1, 1, 19)
 
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-
-      if (year == 1982 && month == 01 && day == 01) {
-        epoch=378691200 + second + 60*minute * 60*60*hour
-        done=1
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        epoch=-895153699 + second + 60*minute * 60*60*hour
-        done=1
-
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        epoch=-879638400 + second + 60*minute * 60*60*hour
-        done=1
-      }
-      if (done==0) {
-        the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-        epoch=mktime(the_time);
-      }
-
-      if (epoch > minepoch) {
+      if (eventdate > mindate) {
         tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($3,5), rd($2,5));
         print $0 >> tilestr
         added++
@@ -394,6 +310,7 @@ if [[ -e anss_just_downloaded.txt ]]; then
     END {
       print "Added", added, "events to ANSS tiles."
     }'
+
   done
 
   # not_tiled.cat is a file containing old events that have alread been tiled
@@ -403,8 +320,16 @@ if [[ -e anss_just_downloaded.txt ]]; then
   last_downloaded_event=$(tail -n 1 $last_downloaded_file)
 
   # Update last_downloaded_event.txt
-  echo "Marking last downloaded event: $last_downloaded_event"
-  echo $last_downloaded_event > anss_last_downloaded_event.txt
+
+  # Should we perform a sanity check here for last downloaded event?
+
+  # Check whether the event latest event exists and if so, mark it
+  if [[ ! -z ${last_downloaded_event} ]]; then
+    echo "Marking last downloaded event: $last_downloaded_event"
+    echo $last_downloaded_event > anss_last_downloaded_event.txt
+    # Update last_downloaded_event.txt
+  fi
+
 fi
 
 # Done

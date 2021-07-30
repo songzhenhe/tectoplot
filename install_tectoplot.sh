@@ -88,7 +88,7 @@ function clone_tectoplot_examples() {
 
 function check_tectoplot() {
   while true; do
-    read -r -p "Do you want to install tectoplot and/or tectoplot-examples from Github? Default is yes. [Yy|Nn] " response1
+    read -r -p "Do you want to install tectoplot and/or tectoplot-examples from Github? Default is yes. [y|n] " response1
     case $response1 in
       Y|y|Yy|yY|yes|"")
         read -r -p "Which components do you want to install? Default is both. [ tectoplot | examples | both ] " response
@@ -191,7 +191,7 @@ function check_tectoplot() {
     if [[ ${INSTALL_TECTOPLOT_EXAMPLES} =~ "true" || ${INSTALL_TECTOPLOT_REPO} =~ "true" ]]; then
       report_storage ${tectoplot_folder_dir}
       while true; do
-        read -r -p "Install selected repositories into ${tectoplot_folder_dir}/ ? Default is yes. [Yy|Nn] " response
+        read -r -p "Install selected repositories into ${tectoplot_folder_dir}/ ? Default is yes. [y|n] " response
         case "${response}" in
         Y|y|Yy|yY|yes|"")
           break
@@ -245,7 +245,7 @@ function set_miniconda_folder() {
 function select_manager() {
   local response
   while true; do
-    read -r -p "Do you want to use homebrew or miniconda to install/upgrade the dependencies? Default is no. [Yy|Nn] " response1
+    read -r -p "Do you want to use homebrew or miniconda to install/upgrade the dependencies? Default is no. [y|n] " response1
     case "${response1}" in
       Y|y|Yy|yY|yes)
         read -r -p "Which package manager do you want to install? Default is miniconda. [ homebrew | miniconda ] " response2
@@ -283,7 +283,7 @@ function check_xcode() {
   if command -v xcode-select --version >/dev/null 2>&1; then
     echo "OSX: Xcode command line tools are already installed."
   else
-    read -r -p "Installation on OSX requires Xcode command line tools. Install? Default=yes [Yy|Nn] " installxcode
+    read -r -p "Installation on OSX requires Xcode command line tools. Install? Default=yes. [y|n] " installxcode
     case $installxcode in
       Y|y|Yy|yY|yes|"")
         if xcode-select --install >/dev/null 2>&1; then
@@ -375,7 +375,7 @@ function brew_packages() {
 	if brew list --versions gmt; then
 		homebrew_gmt=$(brew list --versions gmt)
 		if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
-			read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes [Yy|Nn] " douninstall
+			read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes. [y|n] " douninstall
 			case $douninstall in
 			  Y|y|Yy|yY|yes|"")
 				brew uninstall gmt
@@ -698,7 +698,7 @@ function check_dependencies() {
 
 function configure_tectoplot() {
   while true; do
-    read -r -p "Configure (or reconfigure) tectoplot? Default is yes [Yy|Nn] " response
+    read -r -p "Configure (or reconfigure) tectoplot? Default is yes [y|n] " response
     case "${response}" in
     Y|y|Yy|yY|yes|"")
       echo
@@ -718,7 +718,7 @@ function configure_tectoplot() {
   if [[ $CONFIGURE_TECTOPLOT -eq 1 && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
 
     while true; do
-      read -r -p "Activate tectoplot conda environment before configuring? Default is no [Yy|Nn] " response
+      read -r -p "Are you using miniconda? If yes, activate before configuring tectoplot? Default is no. [y|n] " response
       case "${response}" in
       Y|y|Yy|yY|yes|"")
         echo
@@ -742,7 +742,7 @@ function configure_tectoplot() {
     source ~/.profile
 
     while true; do
-      read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [Yy|Nn] " response
+      read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [y|n] " response
       case "${response}" in
         Y|y|Yy|yY|yes|"")
           read -r -p "Enter directory path (default is ${HOME}/TectoplotData/)" response2
@@ -765,14 +765,14 @@ function configure_tectoplot() {
     done
 
     while true; do
-      read -r -p "Set PDF viewer? Default is yes. [Yy|nn] " response
+      read -r -p "Set PDF viewer? Default is yes. [y|n] " response
       case "${response}" in
         Y|y|Yy|yY|yes|"")
           if [[ $(grep microsoft /proc/version) ]]; then
             echo "Detected Windows Subsystem for Linux. Setting wslview as default viewer."
             ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen wslview
           else
-            read -r -p "OSX/Linux: Choose from evince, mupdf-gl, Preview, or name another program: " pdfviewer
+            read -r -p "OSX/Linux: Choose from evince, mupdf-gl, Preview, or name any other program: " pdfviewer
             ${tectoplot_folder_dir}/tectoplot/tectoplot -setopen $pdfviewer
           fi
           break
@@ -788,7 +788,7 @@ function configure_tectoplot() {
     done
 
     while true; do
-      read -r -p "Compile companion codes? [Yy|Nn] " response
+      read -r -p "Compile companion codes? [y|n] " response
       case "${response}" in
         Y|y|Yy|yY|yes|"")
           ${tectoplot_folder_dir}/tectoplot/tectoplot -compile
@@ -849,7 +849,7 @@ main() {
       echo "Please manually fix using homebrew/miniconda or retry install_tectoplot.sh"
 
       while true; do
-        read -r -p "Exit before cloning tectoplot? Default=yes [Yy|Nn] " response
+        read -r -p "Exit before cloning tectoplot? Default=yes. [y|n] " response
         case "${response}" in
           Y|y|Yy|yY|yes|"")
             exit

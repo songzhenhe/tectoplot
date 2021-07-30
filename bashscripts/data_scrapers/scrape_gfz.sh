@@ -31,6 +31,11 @@
 
 # Scrape the GFZ focal mechanism catalog
 
+# GFZ web scrape returns latest events first, so we have to scrape until we
+# encounter an event that already exists on the disk. Then, we need to add
+# all earlier events to the local catalog and download their moment tensor
+# file.
+
 GFZDIR=${1}
 
 [[ ! -d $GFZDIR ]] && mkdir -p $GFZDIR
@@ -39,48 +44,79 @@ cd $GFZDIR
 
 GFZCATALOG=${GFZDIR}"gfz_extract.cat"
 
+GFZ_LATESTEVENT=${GFZDIR}"gfz_latest.txt"
+
+# Set up a fake string that won't be matchable
+[[ ! -s ${GFZ_LATESTEVENT} ]] && echo "noevents00000noevents" > ${GFZ_LATESTEVENT}
 [[ ! -e ${GFZCATALOG} ]] && touch ${GFZCATALOG}
 
 if [[ $2 =~ "rebuild" ]]; then
   echo "Rebuilding GFZ focal mechanism catalog from downloaded _mt files..."
   rm -f ${GFZCATALOG}
+  rm -f gfz_rebuild.txt
+
   for gfz_file in gfz*_mt.txt; do
-    ${CMTTOOLS} ${gfz_file} Z Z >> ${GFZCATALOG}
-    echo -n "${gfz_file} "
+    echo "${gfz_file%_*}" >> gfz_rebuild.txt
   done
+  sort -r gfz_rebuild.txt > gfz_latest_sort.txt
+  head -n 1 gfz_latest_sort.txt > ${GFZ_LATESTEVENT}
+
+  echo "Rebuilding... "
+  while read mtfile; do
+    echo -n "$mtfile "
+    ${CMTTOOLS} ${gfz_file} Z Z >> ${GFZCATALOG}
+  done < gfz_latest_sort.txt
+
+  echo
+  echo -n "Note: scraping will not download any missing MT files earlier than: " ${GFZ_LATESTEVENT}
+  rm gfz_latest_sort.txt gfz_rebuild.txt
+
   exit
 fi
 
 echo "Downloading GFZ catalog using stored MT files as basis"
 
-# gfz_complete.txt contains file names of downloaded HTML pages
-# marked complete when a following file is successfully downloaded
+# gfz_complete.txt contains file names of downloaded HTML pages that have
+# been marked complete when a following file was successfully downloaded
+rm -f gfz_list_*.txt
 
 pagenum=1
 while : ; do
-    if ! [[ -e gfz_list_${pagenum}.txt ]]; then
-      echo "Scraping GFZ moment tensor page $pagenum"
-      curl "https://geofon.gfz-potsdam.de/eqinfo/list.php?page=${pagenum}&datemin=&datemax=&latmax=&lonmin=&lonmax=&latmin=&magmin=&mode=mt&fmt=txt&nmax=1000" > gfz_list_$pagenum.txt
-      result=$(wc -l < gfz_list_$pagenum.txt)
-      if [[ $result -eq 0 ]]; then
-        rm -f gfz_list_$pagenum.txt
-        break
-      fi
-        # We will delete on end to reset downloading of this file each time
-    else
-      echo "Skipping download of GFZ page list ${pagenum}"
-    fi
-    pagenum=$(echo "$pagenum + 1 " | bc)
+  echo "Scraping GFZ moment tensor page $pagenum"
+  curl "https://geofon.gfz-potsdam.de/eqinfo/list.php?page=${pagenum}&datemin=&datemax=&latmax=&lonmin=&lonmax=&latmin=&magmin=&mode=mt&fmt=txt&nmax=1000" > gfz_list_$pagenum.txt
+  result=$(wc -l < gfz_list_$pagenum.txt)
+  if [[ $result -eq 0 ]]; then
+    rm -f gfz_list_$pagenum.txt
+    break
+  fi
+
+  # Find a list of new events (more recent than the last stored event)
+  if gawk '
+    # Load the latest event
+    (NR==FNR) {
+      searchfor=$1
+    }
+    (NR != FNR) {
+      if ($1 == searchfor) {
+        print "Found event", searchfor > "/dev/stderr"
+        exit 1
+      } else {
+        print $1
+      }
+    }
+    ' "${GFZ_LATESTEVENT}" gfz_list_$pagenum.txt >> gfz_list_newevents.txt
+  then
+    echo "File gfz_list_$pagenum.txt completely downloaded and included"
+  else
+    echo "Found event in gfz_list_$pagenum.txt... stopping download"
+    break
+  fi
+  pagenum=$(echo "$pagenum + 1 " | bc)
 done
 pagenum=$(echo "$pagenum - 1 " | bc)
 
-last_gfz="gfz_list_$pagenum.txt"
-
-# Make a list of all existing moment tensors
-cat gfz_list_*.txt | gawk '{print $1}' > exists_on_server.txt
-
-# Find any moment tensors that are not downloaded already as _mt.txt files
-
+# Download the _mt.txt files of the new events
+added=0
 while read p; do
   if ! [[ -s "${p}_mt.txt" ]]; then
     echo "Trying to download missing file ${p}_mt.txt"
@@ -94,12 +130,12 @@ while read p; do
       mv ${event_id}_mt.txt ${event_id}_mtbad.txt
     else
       ${CMTTOOLS} ${event_id}_mt.txt Z Z >> ${GFZCATALOG}
+      ((added++))
     fi
   fi
-done < exists_on_server.txt
+done < gfz_list_newevents.txt
+echo "Added ${added} events."
 
-echo "Deleting last GFZ page list: $last_gfz"
-rm -f ${last_gfz}
 
 # Example GFZ event report (line numbers added)
 # https://geofon.gfz-potsdam.de/data/alerts/2020/gfz2020xnmx/mt.txt

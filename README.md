@@ -88,6 +88,8 @@ tectoplot includes source redistributions of:
 
   This script will first check your operating environment for tectoplot's dependencies. If dependencies are missing, it will offer two different options to install them: via homebrew or miniconda.
 
+  miniconda installation seems to be ea
+
   If OSX is detected, the script will prompt for installation of Xcode command line tools.
 
   Installing dependencies via homebrew will try to install the following packages and their own dependencies:
@@ -108,7 +110,7 @@ tectoplot includes source redistributions of:
 
   The final step of installation is setting up some configuration files.
 
-  The script will add the tectoplot repository folder to your PATH variable stored in ~/.profile. After the script is complete, you must restart your terminal or source ~/.profile to set the path. 
+  The script will add the tectoplot repository folder to your PATH variable stored in ~/.profile. After the script is complete, you must restart your terminal or source ~/.profile to set the path.
 
   tectoplot will try to compile several helper programs written in C/C++/Fortran. It will attempt to
   identify the location of these compilers during installation and using tectoplot -checkdep.

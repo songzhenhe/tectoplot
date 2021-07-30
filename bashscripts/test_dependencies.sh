@@ -48,7 +48,6 @@ if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
   [[ ! -z ${F90} ]] && F90COMPILER=$(which ${F90})
 fi
 
-
 # Check bash major version
 if [[ $(echo ${BASH_VERSION} $BASHREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
   echo "bash version $BASHREQ or greater is required (detected ${BASH_VERSION})"

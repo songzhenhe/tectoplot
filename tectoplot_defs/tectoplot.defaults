@@ -44,7 +44,6 @@ DEM_QUANTILE=0.1            # Nth quantile
 QUANTILE_FACT=0.7           # Fraction
 
 
-
 FONT_ANNOT_COLORBAR="8p,AvantGarde-Book,black"
 
 LEGEND_V_OFFSET=12/72   # Distance in inches separating top of map from bottom of legend; title goes in between

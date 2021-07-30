@@ -71,45 +71,54 @@ done
 # FEQMo17 12 31  20 27 48.77   -8.132  68.047  10.0  13.3 4.8 4.3 5.1 242 239   1 426    0.91    4.23    0.00  13.0  46.0  58.6  28  45 118  32  2.9 611613251
 # 1 3 2 2 3 3 1 3 3 6 1 8 8 6 6 4 4 4 4 4 4 4 4 8 8 8 6 6 6 4 4 4 4 5 10
 # iyr =
-rm -f ehb_events.cat
-for ehbfile in *.hdf; do
-  gawk < $ehbfile '
-    @include "tectoplot_functions.awk"
-    BEGIN  {
-      FIELDWIDTHS = "1 3 2 2 3 3 1 3 3 6 1 8 8 6 6 4 4 4 4 4 4 4 8 8 8 6 6 6 4 4 4 4 5 10"
-    }
-    {
-        decade=$4
-        if (decade<64) {
-          year=decade+2000
-        } else {
-          year=decade+1900
-        }
-        month=$5+0
-        day=$6+0
-        hour=$7+0
-        minute=$8+0
-        second=$9+0
-        lat=$12+0
-        lon=$13+0
-        depth=$14+0
 
-        # ISC-EHB: use MW, MS, MB in that order
-        if ($17+0>0) {
-          mag=$17+0
-          type="mw"
-        } else if ($16>0) {
-          mag=$16+0
-          type="ms"
-        } else {
-          mag=$15+0
-          type="mb"
-        }
-        id=trim($34)
-        the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-        epoch=mktime(the_time);
-        timestring=sprintf("%4d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute, second)
-        print lon, lat, depth, mag, timestring, id, epoch, type
-    }
-    ' >> ehb_events.cat
-done
+if [[ $1 == "rebuild" || ! -s ehb_events.cat ]]; then
+
+  rm -f ehb_events.cat
+
+  echo "Assembling ISC-EHB catalog from HDF files"
+
+  for ehbfile in *.hdf; do
+    gawk < $ehbfile '
+      @include "tectoplot_functions.awk"
+      BEGIN  {
+        FIELDWIDTHS = "1 3 2 2 3 3 1 3 3 6 1 8 8 6 6 4 4 4 4 4 4 4 8 8 8 6 6 6 4 4 4 4 5 10"
+      }
+      {
+          decade=$4
+          if (decade<64) {
+            year=decade+2000
+          } else {
+            year=decade+1900
+          }
+          month=$5+0
+          day=$6+0
+          hour=$7+0
+          minute=$8+0
+          second=$9+0
+          lat=$12+0
+          lon=$13+0
+          depth=$14+0
+
+          # ISC-EHB: use MW, MS, MB in that order
+          if ($17+0>0) {
+            mag=$17+0
+            type="mw"
+          } else if ($16>0) {
+            mag=$16+0
+            type="ms"
+          } else {
+            mag=$15+0
+            type="mb"
+          }
+          id=trim($34)
+          the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
+          epoch=mktime(the_time);
+          timestring=sprintf("%4d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute, second)
+          print lon, lat, depth, mag, timestring, id, epoch, type
+      }
+      ' >> ehb_events.cat
+  done
+else
+  echo "ISC-EHB catalog already exists; to remake catalog, use -scrapedata e rebuild"
+fi

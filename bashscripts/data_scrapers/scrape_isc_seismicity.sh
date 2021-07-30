@@ -29,23 +29,26 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Download the entire global ISC seismicity
-# catalog and store in weekly data files, then process into 5 degree tiles.
+# Download the entire global ISC seismicity catalog and store in weekly data files,
+# then process into 5x5 degree tiles for quicker plotting.
 
 # Most of the download time is the pull request, but making larger chunks leads
 # to some failures due to number of events. The script can be run multiple times
 # and will not re-download files that already exist. Some error checking is done
 # to look for empty files and delete them.
+# The
 
-# Example curl command:
-## curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=7&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > isc_seis_2019_01_week1.dat
-# curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=31&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > isc_seis_${year}_${month}.dat
+# Example curl command (broken onto multiple lines)
+# curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV
+#       &searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180
+#       &ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}
+#       &start_month=${month}&start_day=01&start_time=00%3A00%3A00&end_year=${year}
+#       &end_month=${month}&end_day=7&end_time=23%3A59%3A59&min_dep=&max_dep=
+#       &min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > isc_seis_2019_01_week1.dat
 
-# Strategy: Download from 1900-1950 as single file
-#           Download from 1950-1980 as yearly files
-#           Download from 1981-present as weekly files
+# Note that ISC queries require the correct final day of the month, including leap years!
 
-# tac not available in all environments but tail usually is
+# tac not available in all environments but tail usually is.
 
 function tac() {
   tail -r -- "$@";
@@ -99,11 +102,6 @@ function download_and_check() {
 
     # Test whether the file time spans the current date. If so, delete it so we can redownload.
 
-    # if [[ $s_year -le $this_year && $s_month -ge $this_month && $s_day -gt $this_day ]]; then
-    #   if [[ $s_year -ge $this_year && $s_month -ge $this_month && $s_day -gt $this_day ]]; then
-    #     echo "Requested range is beyond current date. Not downloading anything."
-    #   echo "Requested range is beyond current date. Not downloading anything."
-
     # Check if this is a valid ISC_SEIS file by looking for the terminating STOP command
     if [[ -e "$OUTFILE" ]]; then
         # echo "Requested file $OUTFILE already exists"
@@ -126,54 +124,6 @@ function download_and_check() {
       fi
     fi
   fi
-}
-
-function iso8601_to_epoch() {
-  TZ=UTC
-
-  gawk '{
-    # printf("%s ", $0)
-    for(i=1; i<=NF; i++) {
-      done=0
-      timecode=substr($(i), 1, 19)
-      split(timecode, a, "-")
-      year=a[1]
-      if (year < 1900) {
-        print -2209013725
-        done=1
-      }
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
-
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-
-      if (year == 1982 && month == 01 && day == 01) {
-        printf("%s ", 378691200 + second + 60*minute * 60*60*hour)
-        done=1
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        printf("%s ", -895153699 + second + 60*minute * 60*60*hour)
-        done=1
-
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        printf("%s ", -879638400 + second + 60*minute * 60*60*hour)
-        done=1
-      }
-
-      if (done==0) {
-        the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-        # print the_time > "/dev/stderr"
-        epoch=mktime(the_time);
-        printf("%s ", epoch)
-      }
-    }
-    printf("\n")
-  }'
 }
 
 function has_a_line() {
@@ -274,10 +224,13 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
   if [[ -e isc_last_downloaded_event.txt ]]; then
     lastevent_epoch=$(tail -n 1 isc_last_downloaded_event.txt | gawk -F, '{ printf("%sT%s", $3, substr($4, 1, 8)) }' | iso8601_to_epoch)
+    lastevent_date=$(tail -n 1 isc_last_downloaded_event.txt | gawk -F, '{ printf("%sT%s", $3, substr($4, 1, 8)) }')
   else
     lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+    lastevent_date="1900-01-01T00:00:01"
   fi
   echo "Last event from previous scrape has epoch $lastevent_epoch"
+  echo "Last event from previous scrape has date $lastevent_date"
 
   this_year=$(date -u +"%Y")
   this_month=$(date -u +"%m")
@@ -373,6 +326,7 @@ else
   rm -f ${ISCTILEDIR}tile*.cat
   cp isc_complete.txt isc_just_downloaded.txt
   lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+  lastevent_date="1900-01-01T00:00:01"
 
   for long in $(seq -180 5 175); do
     for lati in $(seq -90 5 85); do
@@ -396,45 +350,15 @@ if [[ -e isc_just_downloaded.txt ]]; then
 
   for isc_file in $selected_files; do
     echo "Processing file $isc_file into tile files"
-    cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCTILEDIR} -v minepoch=$lastevent_epoch '
+
+
+    cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCTILEDIR} -v mindate=$lastevent_date '
     @include "tectoplot_functions.awk"
     BEGIN { added=0 }
     {
-      timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
-      split(timecode, a, "-")
-      year=a[1]
-      if (year < 1900) {
-        print -2209013725
-        done=1
-      }
-      month=a[2]
-      split(a[3],b,"T")
-      day=b[1]
-      split(b[2],c,":")
+      thisdate=sprintf("%sT%s", $3, substr($4, 1, 8))
 
-      hour=c[1]
-      minute=c[2]
-      second=c[3]
-
-      if (year == 1982 && month == 01 && day == 01) {
-        epoch=378691200 + second + 60*minute * 60*60*hour
-        done=1
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        epoch=-895153699 + second + 60*minute * 60*60*hour
-        done=1
-
-      }
-      if (year == 1941 && month == 09 && day == 01) {
-        epoch=-879638400 + second + 60*minute * 60*60*hour
-        done=1
-      }
-      if (done==0) {
-        the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-        epoch=mktime(the_time);
-      }
-
-      if (epoch > minepoch) {
+      if (thisdate > mindate) {
         tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($6,5), rd($5,5));
         print $0 >> tilestr
         added++
@@ -445,6 +369,7 @@ if [[ -e isc_just_downloaded.txt ]]; then
     END {
       print "Added", added, "events to ISC tiles."
     }'
+
   done
 
   # not_tiled.cat is a file containing old events that have alread been tiled
@@ -453,7 +378,7 @@ if [[ -e isc_just_downloaded.txt ]]; then
   last_downloaded_file=$(tail -n 1 isc_just_downloaded.txt)
   last_downloaded_event=$(cat $last_downloaded_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | tail -n 1)
 
-  # Check whether the event has the correct format
+  # Check whether the latest event exists, and if so mark it
   if [[ ! -z ${last_downloaded_event} ]]; then
     echo "Marking last downloaded event: $last_downloaded_event"
     echo $last_downloaded_event > isc_last_downloaded_event.txt

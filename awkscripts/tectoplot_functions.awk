@@ -46,11 +46,12 @@ function acos(x)       { return atan2(sqrt(1-x*x), x)   }
 function rad2deg(rad)  { return (180 / getpi()) * rad   }
 function deg2rad(deg)  { return (getpi() / 180) * deg   }
 function hypot(x,y)    { return sqrt(x*x+y*y)           }
-function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
 function ddiff(u)      { return u > 180 ? 360 - u : u   }
 function ceil(x)       { return int(x)+(x>int(x))       }
 function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
+function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
+
 
 # Rescale a value val that comes from data with range [xmin, xmax] into range [ymin, ymax]
 
@@ -58,14 +59,18 @@ function rescale_value(val, xmin, xmax, ymin, ymax) {
   return (val-xmin)/(xmax-xmin)*(ymax-ymin)+ymin
 }
 
-# Some string functions
-
+# Trim whitespace at beginning of string
 function ltrim(s)       { sub(/^[ \t\r\n]+/, "", s); return s }
+
+# Trim whitespace at end of string
 function rtrim(s)       { sub(/[ \t\r\n]+$/, "", s); return s }
+
+# Trim whitespace around string
 function trim(s)        { return rtrim(ltrim(s)); }
 
-# 3 vector math operations
+# Various 3-vector math operations
 
+# The normalized cross product
 # Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v, normalized
 
 function v_cross(u1,u2,u3,v1,v2,v3) {
@@ -78,6 +83,7 @@ function v_cross(u1,u2,u3,v1,v2,v3) {
   w_cross_3 = w_cross_3 / v_cross_l
 }
 
+# The non-normalized (regular) cross product
 # Set global variables w_cross_1, w_cross_2, w_cross_3 as the resultant of u cross v, not normalized
 
 function v_cross_nonorm(u1,u2,u3,v1,v2,v3) {
@@ -86,7 +92,6 @@ function v_cross_nonorm(u1,u2,u3,v1,v2,v3) {
   w_cross_3 = u1*v2 - u2*v1
 }
 
-
 # Set global variables w_sub_1, w_sub_2, and w_sub_3 as the resultant of u - v
 function v_subtract(u1,u2,u3,v1,v2,v3) {
   w_sub_1 = u1-v1
@@ -94,6 +99,7 @@ function v_subtract(u1,u2,u3,v1,v2,v3) {
   w_sub_3 = u3-v3
 }
 
+# Dot product
 # Set global variables w_dot
 
 function v_dot(u1,u2,u3,v1,v2,v3) {
@@ -392,7 +398,7 @@ function azimuth_from_en(east, north,      res) {
 
 # The following function will take a string in the (approximate) form
 # +-[deg][chars][min][chars][sec][chars][north|*n*]|[south|*s*]|[east|*e*]|[west|*w*][chars]
-# and return the appropriately signed decimal degree
+# and return the appropriately signed decimal degree value
 # -125°12'18" -> -125.205
 # 125 12 18 WEST -> -125.205
 
@@ -464,8 +470,6 @@ function test_lon(minlon, maxlon, lon) {
 # r_rotated[0-2][0-2]: Rotated matrix
 # r_Mxx, r_Myy, r_Mzz, r_Mxy, r_Mxz, r_Myz: Rotated moment tensor components
 # ------------------------------------------------------------------------------
-
-# Verified against rotate_6comp.pl
 
 function moment_tensor_rotate(Mxx,Myy,Mzz,Mxy,Mxz,Myz, r_trend, r_plunge, r_alpha,            i,j,u) {
 
@@ -640,7 +644,6 @@ function sdr_to_tnp(strike_d, dip_d, rake_d, TNP) {
 
 # mechanism_type_from_TNP()
 # Calculate the focal mechanism type
-# Following the basic classification scheme of FMC; Jose-Alvarez, 2019 https://github.com/Jose-Alvarez/FMC
 # Returns: mechanism class (N=normal, S=strike slip, T=thrust)
 
 function mechanism_type_from_TNP(Tinc, Ninc, Pinc) {
@@ -783,7 +786,7 @@ function ntp_to_sdr(Taz, Tinc, Paz, Pinc, SDR) {
   SDR[6]=rake2
 }
 
-# Check if ID is in tectoplot YYYY:MM:DDTHH:MM:SS format. If not, return a dummy ID with an impossible time
+# Check if ID is in tectoplot YYYY:MM:DDTHH:MM:SS format. If not, return a dummy ID with a 0 date/time
 
 function make_tectoplot_id(proposed_id) {
   if (proposed_id ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/) {
@@ -817,6 +820,9 @@ function iso8601_to_epoch(timestring) {
   hour=c[1]
   minute=c[2]
   second=c[3]
+
+  # These corrections are for a strange bug in OSX Catalina (at least) where only these
+  # specific days return wacky epoch times...
 
   if (year == 1982 && month == 01 && day == 01) {
     return 378691200 + second + 60*minute * 60*60*hour;
@@ -978,7 +984,8 @@ function multiply_ecef_matrix(x, y, z,    i,j) {
   }
 }
 
-# Returns distance in meters, inputs are in degrees
+# Returns distance across earth's spherical surface in meters, inputs are in degrees
+# Earth radius is 6371000 meters
 
 function haversine_m(lon1, lat1, lon2, lat2) {
   hav_lon1_r=deg2rad(lon1)

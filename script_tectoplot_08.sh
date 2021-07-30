@@ -861,15 +861,16 @@ do
 
       echo "Compiling Reasenberg declustering tool"
       if [[ -x $(which ${F90COMPILER}) ]]; then
-        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -lrt -std=legacy -o ${REASENBERG_EXEC}
+        # This seems to work with OSX gfortran but not with GCC on miniconda/Linux...
+        ${F90COMPILER} ${REASENBERG_SCRIPT} -w -std=legacy -o ${REASENBERG_EXEC}
       fi
 
-      echo "Compiling LITHO1 extract tool"
-
-      ${CXXCOMPILER} -c ${CSCRIPTDIR}access_litho.cc -DMODELLOC=\"${LITHO1DIR_2}\" -o ${CSCRIPTDIR}access_litho.o
-      ${CXXCOMPILER}  ${CSCRIPTDIR}access_litho.o -lm -DMODELLOC=\"${LITHO1DIR_2}\" -o ${LITHO1_PROG}
-
       if [[ -s ${LITHO1FILE} ]]; then
+
+        echo "Compiling LITHO1 extract tool"
+        ${CXXCOMPILER} -c ${CSCRIPTDIR}access_litho.cc -DMODELLOC=\"${LITHO1DIR_2}\" -o ${CSCRIPTDIR}access_litho.o
+        ${CXXCOMPILER}  ${CSCRIPTDIR}access_litho.o -lm -DMODELLOC=\"${LITHO1DIR_2}\" -o ${LITHO1_PROG}
+
         echo "Testing LITHO1 extract tool"
         res=$(${LITHO1_PROG} -p 20 20 2>/dev/null | gawk  '(NR==1) { print $3 }')
         if [[ $(echo "$res == 8060.22" | bc) -eq 1 ]]; then
@@ -879,6 +880,8 @@ do
           rm -f ${LITHO1_PROG}
         fi
         exit 0
+      else
+        echo "LITHO1 file cannot be found at ${LITHO1FILE}. Not compiling access code."
       fi
     fi
     ;;
@@ -952,9 +955,8 @@ do
             echo "Delete $(pwd)/EarthquakeData.zip and call tectoplot -getdata dropbox again to re-download"
           else
             echo "Getting earthquake data from Dropbox link"
-            if curl https://dl.dropboxusercontent.com/s/4ip1xdpq20f6x8f/EarthquakeData_July2021.zip -o EarthquakeData.zip; then
+            if curl https://dl.dropboxusercontent.com/s/e4gc6g0tlrfziy0/EarthquakeData_30July2021.zip -o EarthquakeData.zip; then
               echo "Earthquake archive downloaded. Testing..."
-
               if unzip -t EarthquakeData.zip >/dev/null; then
                 echo "Earthquake data archive is OK"
                 if unzip EarthquakeData.zip -d ${DATAROOT}/; then
@@ -4002,11 +4004,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -legend:       plot a map legend above the main map area
--legend [width_in]
+-legend [width_in] [[onmap]]
 
   Plots colorbars and various map elements depending on what has been plotted on
   the map. Also printes the short data source tags of included data.
   width_in: width of color bars
+  onmap: Place the legend above the map
+
 
 Example: Plot a map of Kosovo with large cities and CMT, with a basic legend
    tectoplot -r XK -t -pp -ppl 100000 -c -legend -g
@@ -6490,7 +6494,7 @@ fi
     fi
     if [[ ${SCRAPESTRING} =~ .*e.* ]]; then
       info_msg "Scraping ISC-EHB seismic data"
-      source $SCRAPE_ISCEHB
+      source $SCRAPE_ISCEHB ${REBUILD}
     fi
     if [[ ${SCRAPESTRING} =~ .*i.* ]]; then
       info_msg "Scraping ISC focal mechanisms"
