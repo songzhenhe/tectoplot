@@ -89,7 +89,88 @@ if [[ -e ${ISCDIR}"isc_extract.cat" ]]; then
     BEFORE=$(wc -l < ${ISCDIR}"isc_extract.cat")
     cat isc_focals_uptodate.dat | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
                     grep -v "PNSN" | grep -v "EVBIB" > ${ISCDIR}isc.toadd
-    ${CMTTOOLS} ${ISCDIR}isc.toadd I I >> ${ISCDIR}"isc_extract.cat"
+    ${CMTTOOLS} ${ISCDIR}isc.toadd I I > ${ISCDIR}"to_clean.cat"
+
+    # Cleanup the ISC events that we are adding and add them to the catalog
+
+    # Clean up ISC catalog to yield unique events per EQ.
+    # Select the largest magnitude from the alternative magnitudes
+    # Match CENTROID+ORIGIN for some non-GCMT events.
+    # Keep only the last event out of a group.
+    echo "Cleaning up newly downloaded ISC data."
+
+    gawk < ${ISCDIR}"to_clean.cat" 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind=1; groupnum=1}
+    {
+      newid=$2
+
+      if ($2!=lastid) {     # If we encounter a new ID code
+        # print "Group", lastid, "--->"
+        for (i=0; i<groupind; i++) {  # test the previous group for centroid=GCMT.
+          if (NR != 1) {
+            if (centroidauthorid[i]=="GCMT") {
+              isgcmt=1
+            }
+            # print i, centroidauthorid[i]
+
+          }
+        }
+
+        # Only print out the group if it has no GCMT member
+        if (isgcmt==0) {
+
+          # Now we need to prioritize the solutions so we can print a single solution
+          has_cmt=0
+          has_origin=0
+          for (i=0; i<groupind; i++) {
+            split(storage[i], tmplist, " ")
+            if (tmplist[11]!="none") { has_cmt=1; cmttmp=storage[i] }
+            if (tmplist[10]!="none") { has_origin=1; origintmp=storage[i] }
+          }
+          if (NR != 1) {
+            if (has_origin==1 && has_cmt==1) {
+              split(cmttmp, cmtlist, " ")
+              split(origintmp, originlist, " ")
+              cmtlist[8]=originlist[8]
+              cmtlist[9]=originlist[9]
+              cmtlist[10]=originlist[10]
+              cmtlist[12]=originlist[12]
+              for (j=1; j<=NF; j++) {
+                printf "%s ", cmtlist[j]
+              }
+              printf("\n")
+            }
+            if (has_origin==1 && has_cmt==0) {
+              print origintmp
+            }
+            if (has_cmt==1 && has_origin==0) {
+              print cmttmp
+            }
+          }
+        }
+
+        groupnum=groupnum+1
+        # print "End group", lastid, "<-----"
+        # the new group starts with an index of 0 which will pre-increment to 1
+        storage[0]=$0
+        centroidauthorid[0]=$11
+        if ($11=="GCMT") {
+          isgcmt=1
+        } else {
+          isgcmt=0
+        }
+        groupind=1
+      }
+
+      if ($2==lastid) {   # if the current ID is the same as the lastid, add to the new group
+        storage[groupind]=$0
+        centroidauthorid[groupind]=$11
+        groupind=groupind+1
+      }
+      lastlastid=lastid
+      lastid=$2
+    }' > ${ISCDIR}"isc_cleaned.cat"
+    cat ${ISCDIR}"isc_cleaned.cat" >> ${ISCDIR}"isc_extract.cat"
+
     rm -f ${ISCDIR}isc.toadd
     AFTER=$(wc -l < ${ISCDIR}"isc_extract.cat")
     ADDED=$(echo "$AFTER - $BEFORE" | bc)
@@ -128,7 +209,7 @@ else
   done
 
   # Label GCMT solutions earlier than 1976 so we don't delete them later.
-  echo "Changing GCMT to G_CMTpre in files before 1976 (in place)"
+  # echo "Changing GCMT to G_CMTpre in files before 1976 (in place)"
   for year in $(seq $earliest_year 1976); do
       sed -i '' 's/GCMT     /G_CMTpre  /g' isc_focals_${year}_01to04.dat
       sed -i '' 's/GCMT     /G_CMTpre  /g' isc_focals_${year}_05to08.dat
@@ -140,10 +221,96 @@ else
 
   rm -f isc_extract.cat
   for foc_file in isc_focals_*.dat; do
-    echo "$foc_file: Removing EVBIB and PNSN mechanisms and extracting catalog."
+    # echo "$foc_file: Removing EVBIB and PNSN mechanisms and extracting catalog."
     cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
                     grep -v "PNSN" | grep -v "EVBIB" > ${ISCDIR}isc.toadd
-    ${CMTTOOLS} ${ISCDIR}isc.toadd I I >> ${ISCDIR}"isc_extract.cat"
+    # echo   ${CMTTOOLS} ${ISCDIR}isc.toadd I I
+    ${CMTTOOLS} ${ISCDIR}isc.toadd I I > ${ISCDIR}"to_clean.cat"
+
+  # Cleanup the ISC events that we are adding and add them to the catalog
+
+  # Clean up ISC catalog to yield unique events per EQ.
+  # Select the largest magnitude from the alternative magnitudes
+  # Match CENTROID+ORIGIN for some non-GCMT events.
+  # Keep only the last event out of a group.
+  # echo "Cleaning up newly downloaded ISC data."
+  # wc -l < ${ISCDIR}"to_clean.cat"
+
+  # cleanup_isc ${ISCDIR}"to_clean.cat" ${ISCDIR}"isc_clean.cat"
+
+  gawk < ${ISCDIR}"to_clean.cat" 'BEGIN{lastlastid="YYY"; lastid="XXX"; storage[1]=""; groupind=1; groupnum=1}
+  {
+    newid=$2
+
+    if ($2!=lastid) {     # If we encounter a new ID code
+      # print "Group", lastid, "--->"
+      for (i=0; i<groupind; i++) {  # test the previous group for centroid=GCMT.
+        if (NR != 1) {
+          if (centroidauthorid[i]=="GCMT") {
+            isgcmt=1
+          }
+          # print i, centroidauthorid[i]
+
+        }
+      }
+
+      # Only print out the group if it has no GCMT member
+      if (isgcmt==0) {
+
+        # Now we need to prioritize the solutions so we can print a single solution
+        has_cmt=0
+        has_origin=0
+        for (i=0; i<groupind; i++) {
+          split(storage[i], tmplist, " ")
+          if (tmplist[11]!="none") { has_cmt=1; cmttmp=storage[i] }
+          if (tmplist[10]!="none") { has_origin=1; origintmp=storage[i] }
+        }
+        if (NR != 1) {
+          if (has_origin==1 && has_cmt==1) {
+            split(cmttmp, cmtlist, " ")
+            split(origintmp, originlist, " ")
+            cmtlist[8]=originlist[8]
+            cmtlist[9]=originlist[9]
+            cmtlist[10]=originlist[10]
+            cmtlist[12]=originlist[12]
+            for (j=1; j<=NF; j++) {
+              printf "%s ", cmtlist[j]
+            }
+            printf("\n")
+          }
+          if (has_origin==1 && has_cmt==0) {
+            print origintmp
+          }
+          if (has_cmt==1 && has_origin==0) {
+            print cmttmp
+          }
+        }
+      }
+
+      groupnum=groupnum+1
+      # print "End group", lastid, "<-----"
+      # the new group starts with an index of 0 which will pre-increment to 1
+      storage[0]=$0
+      centroidauthorid[0]=$11
+      if ($11=="GCMT") {
+        isgcmt=1
+      } else {
+        isgcmt=0
+      }
+      groupind=1
+    }
+
+    if ($2==lastid) {   # if the current ID is the same as the lastid, add to the new group
+      storage[groupind]=$0
+      centroidauthorid[groupind]=$11
+      groupind=groupind+1
+    }
+    lastlastid=lastid
+    lastid=$2
+  }' > ${ISCDIR}"isc_clean.cat"
+  # wc -l < ${ISCDIR}"isc_clean.cat"
+  cat ${ISCDIR}"isc_clean.cat" >> ${ISCDIR}"isc_extract.cat"
+
   done
   rm -f ${ISCDIR}isc.toadd
 fi

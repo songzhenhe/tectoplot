@@ -568,7 +568,7 @@ function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, ma
 # TNP[1]-TNP[6]: Taz, Tinc, Naz, Ninc, Paz, Pinc (all in degrees)
 # ------------------------------------------------------------------------------
 
-function sdr_to_tnp(strike_d, dip_d, rake_d, TNP) {
+function sdr_to_tnp(strike_d, dip_d, rake_d, TNP,      n,N,T,P,l) {
   strike=deg2rad(strike_d)
   dip=deg2rad(dip_d)
   rake=deg2rad(rake_d)

@@ -494,7 +494,7 @@ function miniconda_deps() {
 
     echo "Updating conda..."
 
-    conda update -n base -c defaults conda
+    conda update -y -n base -c defaults conda
 
     echo "Activating conda..."
     conda activate || exit_msg
@@ -509,22 +509,28 @@ function miniconda_deps() {
     conda activate tectoplot || exit_msg
 
     echo "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
-    conda install python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
+    # conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
 
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        conda install gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        conda install clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+      ;;
+      *)
+        echo "Unrecognized system type ${OSTYPE}. Only installing non-system-specific packages."
+        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
       ;;
     esac
 
-    echo "After installation, from the command line run this command to"
-    echo "use the installed tectoplot environment:"
+    echo "!-----------------------------------------------------------------------------!"
+    echo "After installation, run this command to activate the tectoplot environment:"
     echo "conda activate tectoplot"
+    echo "!-----------------------------------------------------------------------------!"
+
   else
     echo "Cannot call miniconda from ./miniconda/bin/conda. Exiting"
     exit 1

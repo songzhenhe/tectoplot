@@ -117,7 +117,7 @@ BEGIN {
   calc_epoch=0
 
   # Aki and Richard  psmeca -Sa
-  if (FMT=="a") {
+  if (FMT=="a"||FMT=="A") {
     calc_ntp_from_moment_tensor=0
     calc_mantissa_from_exp_and_mt=0
     calc_sdr_from_ntp=0
@@ -132,7 +132,7 @@ BEGIN {
 
   #  X Y depth strike1 dip1 rake1 aux_strike dip2 rake2 mantissa exponent [newX newY] [event_title]
   # Global CMT   psmeca -Sc
-  if (FMT=="c") {
+  if (FMT=="c"||FMT=="C") {
     calc_ntp_from_moment_tensor=0
     calc_mantissa_from_exp_and_mt=0
     calc_sdr_from_ntp=0
@@ -148,7 +148,7 @@ BEGIN {
 
   #  X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title] [newdepth] [timecode]
   # Moment tensor   psmeca -Sm
-  if (FMT=="m") {
+  if (FMT=="m"||FMT=="M") {
     calc_ntp_from_moment_tensor=1
     calc_mantissa_from_exp_and_mt=1
     calc_sdr_from_ntp=1
@@ -288,54 +288,136 @@ BEGIN {
     ##### Read the input lines based on the input format
 
     # ------------------------------#
-    # FMT=a is Aki and Richards
-    if (FMT=="a") {
-      # X Y depth strike dip rake mag [newX newY] [event_title] [depth_centroid]
-      lon_origin=$1
-      lat_origin=$2
-      depth_origin=$3
+    # FMT=a or FMT==A is Aki and Richards (a=ORIGIN, A=CENTROID)
+    if (FMT=="a"||FMT=="A") {
+      # X Y depth strike dip rake mag [newX newY] [event_title] [newZ]
+      if (FMT=="a") {
+        lon_origin=$1
+        lat_origin=$2
+        depth_origin=$3
+
+        ### Optional fields
+        if (NF > 7) {
+          lon_centroid=$8
+        } else {
+          lon_centroid="none"
+        }
+        if (NF > 8) {
+          lat_centroid=$9
+        } else {
+          lat_centroid="none"
+        }
+        if (NF > 10) {
+          depth_centroid=$11
+        } else {
+          depth_centroid="none"
+        }
+      } else {
+        lon_centroid=$1
+        lat_centroid=$2
+        depth_centroid=$3
+
+        ### Optional fields
+        if (NF > 7) {
+          lon_origin=$8
+        } else {
+          lon_origin="none"
+        }
+        if (NF > 8) {
+          lat_origin=$9
+        } else {
+          lat_origin="none"
+        }
+        if (NF > 10) {
+          depth_origin=$11
+        } else {
+          depth_origin="none"
+        }
+      }
       strike1=$4
       dip1=$5
       rake1=$6
       MW=$7
 
       ### Optional fields
-      if (NF > 7) {
-        lon_centroid=$8
-      } else {
-        lon_centroid="none"
-      }
-      if (NF > 8) {
-        lat_centroid=$9
-      } else {
-        lat_centroid="none"
-      }
+      # if (NF > 7) {
+      #   lon_centroid=$8
+      # } else {
+      #   lon_centroid="none"
+      # }
+      # if (NF > 8) {
+      #   lat_centroid=$9
+      # } else {
+      #   lat_centroid="none"
+      # }
+      # if (NF > 10) {
+      #   depth_centroid=$11
+      # } else {
+      #   depth_centroid="none"
+      # }
+
       if (NF > 9) {
         event_code=$10
       } else {
         event_code="nocode"
       }
-      if (NF > 10) {
-        depth_centroid=$11
-      } else {
-        depth_centroid="none"
-      }
+
       if (NF > 11) {
         id=make_tectoplot_id($12)
       } else {
         id=make_tectoplot_id("")
       }
       ### End optional fields
-    } # FMT = a
+    } # FMT = a|A
     # ------------------------------#
 
     # ------------------------------#
     # FMT=c is GCMT
-    if (FMT=="c") {
+    if (FMT=="c"||FMT=="C") {
       # X Y depth strike1 dip1 rake1 strike2 dip2 rake2 mantissa exponent [newX newY] [event_title] [depth_centroid]
-      lon_origin=$1
-      lat_origin=$2
-      depth_origin=$3
+
+      if (FMT=="c") {
+        lon_origin=$1
+        lat_origin=$2
+        depth_origin=$3
+        if (NF > 11) {
+          lon_centroid=$12
+        } else {
+          lon_centroid="none"
+        }
+        if (NF > 12) {
+          lat_centroid=$13
+        } else {
+          lat_centroid="none"
+        }
+        if (NF > 14) {
+          depth_centroid=$15
+        } else {
+          depth_centroid="none"
+        }
+
+
+      } else {
+        lon_centroid=$1
+        lat_centroid=$2
+        depth_centroid=$3
+        if (NF > 11) {
+          lon_origin=$12
+        } else {
+          lon_origin="none"
+        }
+        if (NF > 12) {
+          lat_origin=$13
+        } else {
+          lat_origin="none"
+        }
+        if (NF > 14) {
+          depth_origin=$15
+        } else {
+          depth_origin="none"
+        }
+
+      }
       strike1=$4
       dip1=$5
       rake1=$6
@@ -346,26 +428,26 @@ BEGIN {
       exponent=$11
 
       ### Optional fields
-      if (NF > 11) {
-        lon_centroid=$12
-      } else {
-        lon_centroid="none"
-      }
-      if (NF > 12) {
-        lat_centroid=$13
-      } else {
-        lat_centroid="none"
-      }
+      # if (NF > 11) {
+      #   lon_centroid=$12
+      # } else {
+      #   lon_centroid="none"
+      # }
+      # if (NF > 12) {
+      #   lat_centroid=$13
+      # } else {
+      #   lat_centroid="none"
+      # }
       if (NF > 13) {
         event_code=$14
       } else {
         event_code="nocode"
       }
-      if (NF > 14) {
-        depth_centroid=$15
-      } else {
-        depth_centroid="none"
-      }
+      # if (NF > 14) {
+      #   depth_centroid=$15
+      # } else {
+      #   depth_centroid="none"
+      # }
       if (NF > 15) {
         id=make_tectoplot_id($16)
       } else {
@@ -377,10 +459,48 @@ BEGIN {
     #----------------------------------#
     # X Y depth mrr mtt mpp mrt mrp mtp exp [newX newY] [event_title] [newdepth]
     # FMT=m is moment tensor   psmeca -Sm
-    if (FMT=="m") {
-      lon_origin=$1
-      lat_origin=$2
-      depth_origin=$3
+    if (FMT=="m"||FMT=="M") {
+      if (FMT=="m") {
+        lon_origin=$1
+        lat_origin=$2
+        depth_origin=$3
+        if (NF > 10) {
+          lon_centroid=$11
+        } else {
+          lon_centroid="none"
+        }
+        if (NF > 11) {
+          lat_centroid=$12
+        } else {
+          lat_centroid="none"
+        }
+        if (NF > 13) {
+          depth_centroid=$14
+        } else {
+          depth_centroid="none"
+        }
+
+      } else {
+        lon_centroid=$1
+        lat_centroid=$2
+        depth_centroid=$3
+        if (NF > 10) {
+          lon_origin=$11
+        } else {
+          lon_origin="none"
+        }
+        if (NF > 11) {
+          lat_origin=$12
+        } else {
+          lat_origin="none"
+        }
+        if (NF > 13) {
+          depth_origin=$14
+        } else {
+          depth_origin="none"
+        }
+
+      }
       Mrr=$4
       Mtt=$5
       Mpp=$6
@@ -390,26 +510,26 @@ BEGIN {
       exponent=$10
 
       ### Optional fields
-      if (NF > 10) {
-        lon_centroid=$11
-      } else {
-        lon_centroid="none"
-      }
-      if (NF > 11) {
-        lat_centroid=$12
-      } else {
-        lat_centroid="none"
-      }
+      # if (NF > 10) {
+      #   lon_centroid=$11
+      # } else {
+      #   lon_centroid="none"
+      # }
+      # if (NF > 11) {
+      #   lat_centroid=$12
+      # } else {
+      #   lat_centroid="none"
+      # }
       if (NF > 12) {
         event_code=$13
       } else {
         event_code="nocode"
       }
-      if (NF > 13) {
-        depth_centroid=$14
-      } else {
-        depth_centroid="none"
-      }
+      # if (NF > 13) {
+      #   depth_centroid=$14
+      # } else {
+      #   depth_centroid="none"
+      # }
       if (NF > 14) {
         id=make_tectoplot_id($15)
       } else {

@@ -477,8 +477,13 @@ FOCALCATALOG=$FOCALDIR"focals.cat"
 GFZDIR=$DATAROOT"GFZ/"
 GFZCATALOG=$GFZDIR"gfz_extract.cat"
 
+GFZ_SOURCESTRING="Focal mechanisms from GFZ, https://geofon.gfz-potsdam.de/eqinfo/list.php"
+GFZ_SHORT_SOURCESTRING="GFZ"
+
 GCMTDIR=$DATAROOT"GCMT/"
 GCMTCATALOG=$GCMTDIR"gcmt_extract.cat"
+
+
 
 # Change this to switch the server that we scrape data from
 #ISC_MIRROR="http://www.isc.ac.uk"

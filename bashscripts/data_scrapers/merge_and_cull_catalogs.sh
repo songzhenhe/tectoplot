@@ -53,7 +53,7 @@ if [[ ! -d $FOCALDIR ]]; then
   mkdir -p $FOCALDIR
 fi
 
-# Clean up ISC catalog to yield unique events per EQ. 
+# Clean up ISC catalog to yield unique events per EQ.
 # Select the largest magnitude from the alternative magnitudes
 # Match CENTROID+ORIGIN for some non-GCMT events.
 # Keep only the last event out of a group.

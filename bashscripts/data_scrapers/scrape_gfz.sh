@@ -64,7 +64,7 @@ if [[ $2 =~ "rebuild" ]]; then
   echo "Rebuilding... "
   while read mtfile; do
     echo -n "$mtfile "
-    ${CMTTOOLS} ${gfz_file} Z Z >> ${GFZCATALOG}
+    ${CMTTOOLS} ${mtfile}_mt.txt Z Z >> ${GFZCATALOG}
   done < gfz_latest_sort.txt
 
   echo

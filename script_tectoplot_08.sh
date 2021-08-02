@@ -229,7 +229,14 @@ function tecto_tac() {
   }' "$@"
 }
 
-
+# $1 is the program call, $2 is the file path
+function open_pdf() {
+  if [[ "${1}" == "wslview" ]]; then
+    nohup wslview $(wslpath -w $2) &>/dev/null &
+  else
+    nohup ${OPENPROGRAM} $1 &>/dev/null &
+  fi
+}
 
 # Strategy for overlaying map elements on 3D Sketchfab model
 # 1. make map with a specific color background, output as TIF
@@ -485,10 +492,10 @@ cprofnum=0
 # MAIN BODY OF SCRIPT
 
 # Startup code that runs every time the script is called
-
-function open_prog() {
-  nohup ${OPENPROGRAM} "${1}" &>/dev/null &
-}
+#
+# function open_prog() {
+#   nohup ${OPENPROGRAM} "${1}" &>/dev/null &
+# }
 
 # Declare the associative array of items to be removed on exit
 # Those files are declared with the cleanup function
@@ -573,6 +580,14 @@ topoargs=()
 COMMANDBASE=$(basename $0)
 C2=${@}
 COMMAND="${COMMANDBASE} ${C2}"
+
+# Load modules
+# this loop will source in the modules
+for f in ${TECTOPLOTDIR}modules/module_*.sh; do
+  # echo "Loading module ${f}"
+  source "$f"
+done
+
 
 # Exit if no arguments are given
 if [[ $# -eq 0 ]]; then
@@ -920,7 +935,11 @@ do
 
   -countryid)
     if [[ ! $USAGEFLAG -eq 1 ]]; then
-      gawk -F, < $COUNTRY_CODES '{ print $1, $4 }'
+      if arg_is_flag $2; then
+        gawk -F, < $COUNTRY_CODES '{ print $1, $4 }'
+      else
+        gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
+      fi
       exit
     fi
     ;;
@@ -1338,7 +1357,7 @@ shift && continue
   -variables)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--variables:      print information about tectoplot variables
+-variables:    print information about tectoplot variables
 -variables
 --------------------------------------------------------------------------------
 EOF
@@ -1387,6 +1406,12 @@ USAGEFLAG=1
    shift
    SCRIPTFILE="${BASH_SOURCE[0]}"
    grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) == ":") { print }' | uniq | sort -f
+
+   echo "Modules:"
+   for f in ${TECTOPLOTDIR}modules/module_*.sh; do
+     grep "^-" ${f} | grep -v -- "---" | gawk '(substr($1,length($1),1) == ":") { print }' | uniq | sort -f
+   done
+
    exit
  elif [[ $2 =~ "args" ]]; then
    shift
@@ -1801,7 +1826,7 @@ fi
   -bigbar)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--bigbar:        plot a single large colorbar beneath the map
+-bigbar:       plot a single large colorbar beneath the map
 -bigbar [cpt_name] [["Explanation string"]]
 --------------------------------------------------------------------------------
 EOF
@@ -1996,7 +2021,7 @@ fi
   -arrow)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--arrow:     change the width of arrow vectors
+-arrow:        change the width of arrow vectors
 -arrow [narrower | narrow | normal | wide | wider]
 
 Example: Plot GPS velocities with wide arrows
@@ -2036,7 +2061,7 @@ fi
   -datareport)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--datareport:       plot footprints of downloaded data (DEM/Sentinel)
+-datareport:   plot footprints of downloaded data (DEM/Sentinel)
 -datareport
 
   GMRT: red
@@ -2055,8 +2080,8 @@ fi
   -regionreport)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--datareport:       plot and label footprints of custom regions / saved shaded relief
--datareport
+-regionreport: plot and label footprints of custom regions / saved shaded relief
+-regionreport
 
   Saved shaded relif: shaded gray
   Custom map region: red line
@@ -2221,7 +2246,7 @@ if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -c:            plot focal mechanism beach balls (cmt)
 -c [[TYPE=${CMTTYPE}]] [[scale=${CMTSCALE}]]
-  Plots focal mechanisms from combined catalog (or custom file with -cadd)
+  Plots focal mechanisms from combined catalog (or custom file using -ccat)
   Scraped catalog includes harmonized GCMT, ISC, and GFZ solutions
   TYPE: CENTROID or ORIGIN  (reflecting XYZ location)
   scale: multiplication factor on the default seismicity scale ${SEISSCALE}
@@ -2256,6 +2281,7 @@ fi
 
 		plots+=("cmt")
     cpts+=("seisdepth")
+
     echo $ISC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $ISC_SOURCESTRING >> ${LONGSOURCES}
     echo $GCMT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -2306,84 +2332,64 @@ fi
     plots+=("caxes")
     ;;
 
-  -cadd)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--cadd:         add custom focal mechanism data files in different formats
--cadd [filename1] [formatcode1] [[replace]] [[filename2]] [[formatcode2]] ...
-  replace: Don't plot global catalog data
-  formatcodes:
-  Code   GMT or other format info
-  ----   -----------------------------------------------------------------------
-    a    psmeca Aki and Richards format (mag= 28. MW)
-          X Y depth strike dip rake mag [newX newY] [event_title] [newdepth] ...
-          [timecode]
-    c    psmeca GCMT format
-          X Y depth strike1 dip1 rake1 aux_strike dip2 rake2 moment ...
-          [newX newY] [event_title] [newdepth] [timecode]
-    x    psmeca principal axes
-          X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value ...
-          P_azim P_plunge exp [newX newY] [event_title] [newdepth] [timecode]
-    m    psmeca moment tensor format
-          X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title] ...
-          [newdepth] [timecode]
-    I    ISC, CSV format without header/footer lines (e.g. from ISC website)
-         EVENT_ID,AUTHOR, DATE, TIME, LAT, LON, DEPTH, CENTROID, AUTHOR, EX, ...
-         MO, MW, EX,MRR, MTT, MPP, MRT, MTP, MPR, STRIKE1, DIP1, RAKE1, ...
-         STRIKE2, DIP2, RAKE2, EX,T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, ...
-         N_VAL, N_PL, N_AZM
-    K    NDK format (e.g. from GCMT website)
-
-Example: Plot a (fictitious) Aki&Richards format mechanism in Greece
-  echo "25 39 15 112 30 55 7.2" > foc.dat
-  tectoplot -r GR -a -c ORIGIN -cadd foc.dat a replace
-  rm foc.dat
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-    cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
-    if arg_is_flag $2; then
-      info_msg "[-cadd]: CMT file must be specified"
-    else
-      CMTADDFILE[$cmtfilenumber]=$(abs_path $2)
-      cmtfileexistsflag=1
-      shift
-
-      if [[ ! -e "${CMTADDFILE[$cmtfilenumber]}" ]]; then
-        info_msg "CMT file ${CMTADDFILE[$cmtfilenumber]} does not exist"
-        # Unwind
-        cmtfileexistsflag=0
-        cmtfilenumber=$(echo "$cmtfilenumber-1" | bc)
-      fi
-    fi
-    if [[ $cmtfileexistsflag -eq 1 ]]; then
-      if arg_is_flag $2; then
-        info_msg "[-cadd]: CMT format code not specified. Using a (Aki and Richards)"
-        CMTFORMATCODE[$cmtfilenumber]="a"
-      else
-        CMTFORMATCODE[$cmtfilenumber]="${2}"
-        shift
-      fi
-      if [[ "${2}" != "replace" ]]; then
-        info_msg "[-cadd]: CMT replace flag not specified. Not replacing catalog CMTs."
-        cmtreplaceflag=0
-      else
-        info_msg "[-cadd]: CMT replace flag specified."
-        cmtreplaceflag=1
-        shift
-      fi
-      CMTIDCODE[$cmtfilenumber]="c"   # custom ID
-      addcustomcmtsflag=1
-      calccmtflag=1
-    else
-      # If the file doesn't exist, undo the command by shifting until new command is found
-      while ! arg_is_flag $2; do
-        shift
-      done
-    fi
-    ;;
+#   -cadd)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -cadd:         add custom focal mechanism data files in different formats
+# -cadd [filename1] [formatcode1] [[replace]] [[filename2]] [[formatcode2]] ...
+#   replace: Don't plot global catalog data
+#   formatcodes:
+#
+# Example: Plot a (fictitious) Aki&Richards format mechanism in Greece
+#   echo "25 39 15 112 30 55 7.2" > foc.dat
+#   tectoplot -r GR -a -c ORIGIN -cadd foc.dat a replace
+#   rm foc.dat
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#
+#     cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
+#     if arg_is_flag $2; then
+#       info_msg "[-cadd]: CMT file must be specified"
+#     else
+#       CMTADDFILE[$cmtfilenumber]=$(abs_path $2)
+#       cmtfileexistsflag=1
+#       shift
+#
+#       if [[ ! -e "${CMTADDFILE[$cmtfilenumber]}" ]]; then
+#         info_msg "CMT file ${CMTADDFILE[$cmtfilenumber]} does not exist"
+#         # Unwind
+#         cmtfileexistsflag=0
+#         cmtfilenumber=$(echo "$cmtfilenumber-1" | bc)
+#       fi
+#     fi
+#     if [[ $cmtfileexistsflag -eq 1 ]]; then
+#       if arg_is_flag $2; then
+#         info_msg "[-cadd]: CMT format code not specified. Using a (Aki and Richards)"
+#         CMTFORMATCODE[$cmtfilenumber]="a"
+#       else
+#         CMTFORMATCODE[$cmtfilenumber]="${2}"
+#         shift
+#       fi
+#       if [[ "${2}" != "replace" ]]; then
+#         info_msg "[-cadd]: CMT replace flag not specified. Not replacing catalog CMTs."
+#         cmtreplaceflag=0
+#       else
+#         info_msg "[-cadd]: CMT replace flag specified."
+#         cmtreplaceflag=1
+#         shift
+#       fi
+#       CMTIDCODE[$cmtfilenumber]="c"   # custom ID
+#       addcustomcmtsflag=1
+#       calccmtflag=1
+#     else
+#       # If the file doesn't exist, undo the command by shifting until new command is found
+#       while ! arg_is_flag $2; do
+#         shift
+#       done
+#     fi
+#     ;;
 
   -cc) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -2401,54 +2407,54 @@ fi
     connectalternatelocflag=1
     ;;
 
-  -cf) # args: string
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--cf:           set gmt format of focal mechanism files and plotting method
--cf [[format=${CMTFORMAT}]]
-  Plots a line connecting focal mechanism to a dot at the alternate location,
-  on both map and cross section plots.
-  format=GlobalCMT|c       is GCMT SDR format
-  format=MomentTensor|m    is moment tensor (possibly derived)
-  format=TNP|y             is best double couple principal axes
-
-Example: Plot CMT data with MomentTensor method, New Zealand
-  tectoplot -r NZ -c -cf m -a
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    if arg_is_flag $2; then
-      info_msg "[-cf]: CMT format not specified (GlobalCMT, MomentTensor, PrincipalAxes). Using default ${CMTFORMAT}"
-    else
-      CMTFORMAT="${2}"
-      shift
-      #CMTFORMAT="PrincipalAxes"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
-      case $CMTFORMAT in
-      GlobalCMT|c)
-        CMTFORMAT="GlobalCMT"
-        CMTLETTER="c"
-        CMTEXTRA=""
-        ;;
-      MomentTensor|m)
-        CMTFORMAT="MomentTensor"
-        CMTLETTER="m"
-        CMTEXTRA="-Fz"
-        ;;
-
-      TNP|y)
-        CMTFORMAT="TNP"
-        CMTLETTER="y"
-        CMTEXTRA=""
-        ;;
-      *)
-        info_msg "[-cf]: CMT format ${CMTFORMAT} not recognized. Using GlobalCMT"
-        CMTFORMAT="GlobalCMT"
-        CMTLETTER="c"
-        ;;
-      esac
-    fi
-    ;;
+#   -cf) # args: string
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -cf:           set gmt format of focal mechanism files and plotting method
+# -cf [[format=${CMTFORMAT}]]
+#   Plots a line connecting focal mechanism to a dot at the alternate location,
+#   on both map and cross section plots.
+#   format=GlobalCMT|c       is GCMT SDR format
+#   format=MomentTensor|m    is moment tensor (possibly derived)
+#   format=TNP|y             is best double couple principal axes
+#
+# Example: Plot CMT data with MomentTensor method, New Zealand
+#   tectoplot -r NZ -c -cf m -a
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     if arg_is_flag $2; then
+#       info_msg "[-cf]: CMT format not specified (GlobalCMT, MomentTensor, PrincipalAxes). Using default ${CMTFORMAT}"
+#     else
+#       CMTFORMAT="${2}"
+#       shift
+#       #CMTFORMAT="PrincipalAxes"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
+#       case $CMTFORMAT in
+#       GlobalCMT|c)
+#         CMTFORMAT="GlobalCMT"
+#         CMTLETTER="c"
+#         CMTEXTRA=""
+#         ;;
+#       MomentTensor|m)
+#         CMTFORMAT="MomentTensor"
+#         CMTLETTER="m"
+#         CMTEXTRA="-Fz"
+#         ;;
+#
+#       TNP|y)
+#         CMTFORMAT="TNP"
+#         CMTLETTER="y"
+#         CMTEXTRA=""
+#         ;;
+#       *)
+#         info_msg "[-cf]: CMT format ${CMTFORMAT} not recognized. Using GlobalCMT"
+#         CMTFORMAT="GlobalCMT"
+#         CMTLETTER="c"
+#         ;;
+#       esac
+#     fi
+#     ;;
 
 # Filter focal mechanisms by various criteria
 # maxdip: at least one nodal plane dip is lower than this value
@@ -2456,7 +2462,7 @@ fi
   -cfilter)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cfilter:         filter CMT by nodal plane dip or rake range
+-cfilter:      filter CMT by nodal plane dip or rake range
 -cfilter [command1] [arg1] [[command2]] [[arg2]] ...
 
 The criteria are evaluated separately, and an event is rejected only
@@ -2830,21 +2836,21 @@ fi
     shift
     ;;
 
-  -cs) # args: none
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--cs:           plot cmt axes on stereonet
--cs
-   Not currently working. Output file is stereo.pdf in temporary directory.
-
-Example:
-   tectoplot -r PY -c -cs
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    caxesstereonetflag=1
-    ;;
+#   -cs) # args: none
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -cs:           plot cmt axes on stereonet
+# -cs
+#    Not currently working. Output file is stereo.pdf in temporary directory.
+#
+# Example:
+#    tectoplot -r PY -c -cs
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     caxesstereonetflag=1
+#     ;;
 
 -cslab2)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4167,7 +4173,7 @@ fi
   -megadebug)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--megadebug:    Turn on set -x option in bash to see EVERYTHING
+-megadebug:    turn on set -x option in bash to see EVERYTHING
 -megadebug
 
 Example: None
@@ -4375,7 +4381,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profdepth:    set default depth range for profiles (can be overridden by auto)
--profdepth [mindepth] [maxdepth]
+-profdepth [maxdepth] [mindepth]
 
   Depths are negative into the Earth and require a unit [-30] [5]
 
@@ -5451,7 +5457,7 @@ Option 6: Rectangular area centered on lat/lon coordinate in flexible format.
 -r latlon [lat] [lon] [[mapwidth]]
 
 Option 7: Same as option 6 but lonlat format.
--r latlon [lat] [lon] [[mapwidth]]
+-r lonlon [lon] [lat] [[mapwidth]]
 
 Option 8: Flinn-Engdahl geographic or seismic region code
 -r feg IDnum(1-757)
@@ -5468,6 +5474,8 @@ fi
       # If first argument isn't a number, it is interpreted as a global extent (g), an earthquake event, an XY file, a raster file, or finally as a country code.
 # Option 1: Global extent from -180:180 longitude
 
+
+      # Flinn-Engdahl region, geographic
       if [[ "${2}" == "feg" ]]; then
         shift
         while arg_is_positive_float "${2}"; do
@@ -5487,7 +5495,7 @@ fi
           shift
         fi
 
-
+      # Flinn-Engdahl region, seismic
       elif [[ "${2}" == "fes" ]]; then
         shift
         while arg_is_positive_float "${2}"; do
@@ -5515,7 +5523,7 @@ fi
         downsampleslabflag=1   # Global AOI requires downsampled slab2.0 for makeply
         shift
 
-# Option 2: Centered on an earthquake event from CMT(preferred) or seismicity(second choice) catalogs.
+      # Centered on an earthquake event from CMT(preferred) or seismicity(second choice) catalogs.
       # Arguments are eq Event_ID [[degwidth]]
       elif [[ "${2}" == "eq" ]]; then
         setregionbyearthquakeflag=1
@@ -5533,7 +5541,8 @@ fi
           info_msg "[-r]: EQ region width is default ${EQ_REGION_WIDTH}"
         fi
         info_msg "[-r]: Region will be centered on EQ $REGION_EQ with width $EQ_REGION_WIDTH degrees"
-# Option 3: Set region to be the same as an input lat lon point plus width
+
+      # Set region to be the same as an input lat lon point plus width
       elif [[ "${2}" == "latlon" ]]; then
         LATLON_LAT=$(coordinate_parse "${3}")
         LATLON_LON=$(coordinate_parse "${4}")
@@ -5548,7 +5557,8 @@ fi
         MINLAT=$(echo "$LATLON_LAT - $LATLON_DEG" | bc -l)
         MAXLAT=$(echo "$LATLON_LAT + $LATLON_DEG" | bc -l)
        info_msg "[-r] latlon: Region is ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-# Option 4: Set region to be the same as an input lon lat point plus width
+
+      # Set region to be the same as an input lon lat point plus width
       elif [[ "${2}" == "lonlat" ]]; then
         LATLON_LAT=$(coordinate_parse "${3}")
         LATLON_LON=$(coordinate_parse "${4}")
@@ -5563,13 +5573,16 @@ fi
         MINLAT=$(echo "$LATLON_LAT - $LATLON_DEG" | bc -l)
         MAXLAT=$(echo "$LATLON_LAT + $LATLON_DEG" | bc -l)
         info_msg "[-r] lonlat: Region is ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-# Option 5: Set region to be the same as an input raster
+
+      # Set region to be the same as an input file (raster, XY file)
       elif [[ -e "${2}" ]]; then
         info_msg "[-r]: File specified; trying to determine extent."
         # First check if it is a text file with X Y coordinates in the first two columns
         case $(file "${2}") in
           (*\ text|*\ text\ *)
               info_msg "[-r]: Input file is text: assuming X Y data"
+
+              # Could add different file formats here, KML etc.
               XYRANGE=($(xy_range "${2}"))
               MINLON=${XYRANGE[0]}
               MAXLON=${XYRANGE[1]}
@@ -5606,13 +5619,12 @@ fi
           fi
         fi
 
-# Option 6: A single argument which doesn't match any of the above is a country ID OR a custom ID
+      # A single argument which doesn't match any of the above is a country ID OR a custom ID
       # Custom IDs override region IDs, so we search for that first
       else
 
         if arg_is_flag $2; then
-# Option 7: No arguments means no region
-
+          # Option 7: No arguments at all means no region
           info_msg "[-r]: No country code or custom region ID specified."
           exit 1
         fi
@@ -5629,14 +5641,11 @@ fi
           shift
 
 
-# ERROR? DOUBLED -WjTL has to be wrong, right?
           RCOUNTRYTL=($(gmt mapproject -R${COUNTRYID} -WjTL -WjTL ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
             echo "${COUNTRYID} is not a valid region" > /dev/stderr
             exit 1
           fi
-
-# ERROR? -WjTL -WjBR has to be wrong, right?
 
           RCOUNTRYBR=($(gmt mapproject -R${COUNTRYID} -WjTL -WjBR ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
@@ -5692,7 +5701,8 @@ fi
           fi
         fi
       fi
-# Option X: Four numbers in lonmin lonmax latmin latmax order
+
+    # Four numbers in lonmin lonmax latmin latmax order
     else
       if ! arg_is_float $3; then
         echo "MaxLon is malformed: $3"
@@ -6648,7 +6658,7 @@ fi
   -profileaxes)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--profileaxes:   set label strings for profile X, Y, Z axes
+-profileaxes:  set label strings for profile X, Y, Z axes
 -profileaxes [x=\"${PROFILE_X_LABEL}\"] [[y=\"${PROFILE_Y_LABEL}\"]] [[z=\"${PROFILE_Z_LABEL}\"]]
 
 Example: None
@@ -7502,7 +7512,7 @@ fi
   -tcpt)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tcpt:         Specify the color scheme for topography
+-tcpt:         specify the color scheme for topography
 -tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
 
   cpt = CPT file or builtin CPT name
@@ -7778,7 +7788,7 @@ fi
   -makeply)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--makeply:      Make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
+-makeply:      make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
 -makeply [[options]]
 
     Topo, seismicity, focal mechanisms, and Slab2 geometries will be generated
@@ -8031,7 +8041,7 @@ fi
   -addobj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--addobj:          add existing OBJ file and material file to 3D model
+-addobj:       add existing OBJ file and material file to 3D model
 -addobj [file.obj] [file.mtl] [file.jpg/png/etc]
 
   file.obj is added to 3d/
@@ -8205,7 +8215,7 @@ fi
   -tquant)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tquant:   Terrain intensity from height above local quantile elevation
+-tquant:       terrain intensity from height above local quantile elevation
 -tquant
 
 Example: None
@@ -8222,7 +8232,7 @@ fi
   -tca)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tca:   Set alpha value for DEM color stretch
+-tca:          set alpha value for DEM color stretch
 -tca [[alpha=${DEM_ALPHA}]]
 
   alpha is accomplished by blending with white before multiply overlay
@@ -8815,22 +8825,6 @@ fi
     fi
   ;;
 
--seistime)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--seistime:     create a seismicity vs. time plot, colored by depth OR cluster
--seistime
-
-  Output is seistime.pdf
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-  plotseistimeflag=1
-  ;;
-
   -seisproj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8924,7 +8918,7 @@ fi
   -zconland)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zconland:    select FMS/seismicity with origin epicenter beneath land
+-zconland:     select FMS/seismicity with origin epicenter beneath land
 -zconland
 
 Example: None
@@ -8941,8 +8935,8 @@ EOF
   -zconsea)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zconsea:    select FMS/seismicity with origin epicenter beneath the sea
--zconsea:
+-zconsea:      select FMS/seismicity with origin epicenter beneath the sea
+-zconsea
 
 Example: None
 --------------------------------------------------------------------------------
@@ -9044,6 +9038,126 @@ fi
       shift
     fi
     ;;
+
+
+    # GFZ)
+    #   EQ_CATALOG_TYPE+=("GFZ")
+    #   EQ_SOURCESTRING=$GFZ_SOURCESTRING
+    #   EQ_SHORT_SOURCESTRING=$GFZ_SHORT_SOURCESTRING
+    # ;;
+  -ccat) #
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-ccat:         select focal mechanism catalog(s) and add custom focal mechanism files
+-ccat [catalogID1] [[catalogfile1 code1 ]] ...  [[nocull]]
+
+  catalogID: GCMT | ISC | GFZ
+  catalogfile: Any file in a format importable by cmt_tools.sh
+
+  format codes:
+
+  Code   GMT or other format info
+  ----   -----------------------------------------------------------------------
+    a    psmeca Aki and Richards format (mag= 28. MW)
+          X Y depth strike dip rake mag [newX newY] [event_title] [newdepth] ...
+          [timecode]
+    c    psmeca GCMT format
+          X Y depth strike1 dip1 rake1 aux_strike dip2 rake2 moment ...
+          [newX newY] [event_title] [newdepth] [timecode]
+   /x    psmeca principal axes (Not implemented yet)
+   /       X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value ...
+   /       P_azim P_plunge exp [newX newY] [event_title] [newdepth] [timecode]
+    m    psmeca moment tensor format
+          X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title] ...
+          [newdepth] [timecode]
+
+    a,c,/x,m import as ORIGIN locations; use A,C,/X,M to import as CENTROID
+
+    I    ISC, CSV format without header/footer lines (e.g. from ISC website)
+         EVENT_ID,AUTHOR, DATE, TIME, LAT, LON, DEPTH, CENTROID, AUTHOR, EX, ...
+         MO, MW, EX,MRR, MTT, MPP, MRT, MTP, MPR, STRIKE1, DIP1, RAKE1, ...
+         STRIKE2, DIP2, RAKE2, EX,T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, ...
+         N_VAL, N_PL, N_AZM
+    K    NDK format (e.g. from GCMT website)
+    Z    GFZ MT format (e.g. from GFZ website)
+
+
+  By default, if multiple catalogs are specified, then the mechanisms will be
+  culled to remove likely duplicate events, with the event from the earlier
+  specified catalog being retained. [[nocull]] turns off this behavior.
+
+  Culled events are stored in ${F_FOC}culled_focal_mechanisms.txt
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    if arg_is_flag $2; then
+      info_msg "[-ccat]: No catalog specified. Using default $CMT_CATALOG_TYPE."
+    else
+      unset CCAT_STRING
+      # Everything except G, I, Z
+      CUSTOMCATSTR="ABCDEFHJKLMNOPQRSTUVWXYZ"
+      unset CMT_CATALOG_TYPE
+      while ! arg_is_flag ${2}; do
+        CCATARG="${2}"
+        shift
+        case $CCATARG in
+          ISC)
+            CMT_CATALOG_TYPE+=("ISC")
+            CCAT_STRING=${CCAT_STRING}"I"
+            # EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
+            # EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
+          ;;
+          GFZ)
+            CMT_CATALOG_TYPE+=("GFZ")
+            CCAT_STRING=${CCAT_STRING}"Z"
+            # EQ_SOURCESTRING=$ISCEHB_EQ_SOURCESTRING
+            # EQ_SHORT_SOURCESTRING=$ISCEHB_EQ_SHORT_SOURCESTRING
+          ;;
+          GCMT)
+            CMT_CATALOG_TYPE+=("GCMT")
+            CCAT_STRING=${CCAT_STRING}"G"
+            # EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
+            # EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+            ;;
+          nocull)
+            CULL_CMT_CATALOGS=0
+          ;;
+          cull) # Not used?
+            forcecmtcullflag=1
+            CULL_CMT_CATALOGS=1
+          ;;
+          replace)  # Not used?
+            cmtcatalogreplaceflag=1
+            ADD_CMT_SOURCESTRING=2
+          ;;
+          *)
+            if [[ -s "${CCATARG}" ]]; then
+
+              cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
+              CCAT_LETTER[$cmtfilenumber]=${CUSTOMCATSTR:${cmtfilenumber}:1}
+              CCAT_STRING=${CCAT_STRING}${CCAT_LETTER[$cmtfilenumber]}
+              # Add a custom catalog file
+              CMTADDFILE[$cmtfilenumber]=$(abs_path $CCATARG)
+
+              # Custom catalogs require a format code
+              CMTADDFILE_TYPE[$cmtfilenumber]="${2}"
+              shift
+              CMT_CATALOG_TYPE+=("custom")
+
+            else
+              info_msg "Seismicity file ${CMTADDFILE[$cmtfilenumber]} does not exist"
+            fi
+          ;;
+        esac
+      done
+    fi
+    useccatflag=1
+    info_msg "[-ccat]: CMT Catalogs are ${CMT_CATALOG_TYPE[@]}"
+    ;;
+
 
   -zcat) #            [ANSS or ISC OR custom seismicity files]
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9211,7 +9325,7 @@ fi
   -zcsort)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zcsort:        sort seismicity and focal mechanisms by a specified dimension
+-zcsort:       sort seismicity and focal mechanisms by a specified dimension
 -zcsort [[dimension]] [[direction]]
 
   dimension: depth | time | mag    (magnitude)
@@ -9240,7 +9354,26 @@ fi
     ;;
 
 	*)    # unknown option.
-    if [[ $usageskipflag -ne 1 ]]; then
+
+    # SECTION MODULE ARGS
+
+    for this_mod in ${TECTOPLOT_MODULES[@]}; do
+
+      if type "tectoplot_args_${this_mod}" >/dev/null; then
+        cmd="tectoplot_args_${this_mod}"
+        "$cmd" "$@"
+
+        # Shift away the arguments processed by the module
+        [[ $tectoplot_module_shift -gt 0 ]] && shift ${tectoplot_module_shift}
+        if [[ $tectoplot_module_caught -eq 1 ]]; then
+          TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
+          break
+        fi
+      fi
+    done
+
+    # If we aren't doing usage and we didn't catch the option in a module, it is unknown
+    if [[ $tectoplot_module_caught -eq 0 && $usageskipflag -ne 1 ]]; then
 		    echo "Unknown argument encountered: ${1}" 1>&2
         exit 1
     fi
@@ -10047,7 +10180,7 @@ if [[ $addinsetplotflag -eq 1 ]]; then
   plots+=("inset")
 fi
 
-info_msg ">>>>>>>>> Plotting order is ${plots[@]} <<<<<<<<<<<<<"
+info_msg ">>>>>>>>> Plotting order is" ${plots[@]} "<<<<<<<<<<<<<"
 info_msg ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<"
 
 #### END OF BOOKKEEPING SECTION
@@ -10992,55 +11125,53 @@ SYMSIZE2=$(echo "${KINSCALE} * 1" | bc -l)
 SYMSIZE3=$(echo "${KINSCALE} * 3.5" | bc -l)
 
 ##### FOCAL MECHANISMS
+
+
 if [[ $calccmtflag -eq 1 ]]; then
 
   [[ $CMTFORMAT =~ "GlobalCMT" ]]     && CMTLETTER="c"
   [[ $CMTFORMAT =~ "MomentTensor" ]]  && CMTLETTER="m"
   [[ $CMTFORMAT =~ "TNP" ]] && CMTLETTER="y"
 
-  # If we are plotting from a global database
-  if [[ $plotcmtfromglobal -eq 1 && $cmtreplaceflag -eq 0 ]]; then
-    echo "CMT/$CMTTYPE" >> ${SHORTSOURCES}
-    # Use an existing database file in tectoplot format
-    [[ $CMTFILE == "DefaultNOCMT" ]]    && CMTFILE=$FOCALCATALOG
+  # New code to process CMT
 
-    # Do the initial AOI scrape
-    gawk < $CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${CMT_MINMAG} -v maxmag=${CMT_MAXMAG} '
-    @include "tectoplot_functions.awk"
-    {
-      mag=$13
-      if (cent==1) {
-        lon=$5
-        lat=$6
-        depth=$7
-      } else {
-        lon=$8
-        lat=$9
-        depth=$10
-      }
-      if ((depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
-        if (test_lon(minlon, maxlon, lon) == 1) {
-          print
-        }
-      }
-    }' > ${F_CMT}cmt_global_aoi.dat
-    CMTFILE=$(abs_path ${F_CMT}cmt_global_aoi.dat)
-  fi
+  cmt_priority=1
+  for this_ccat in ${CMT_CATALOG_TYPE[@]}; do
+    info_msg "[-c]: Extracting CMT events from ${this_ccat}"
+    this_customcmtnum=1
+    case $this_ccat in
+      GCMT)
+        THIS_CMTFILE=${GCMTCATALOG}
+      ;;
+      ISC)
+        THIS_CMTFILE=${ISCCATALOG}
+      ;;
+      GFZ)
+        THIS_CMTFILE=${GFZCATALOG}
+      ;;
+      custom)  # Slurp the custom CMT file using the specified format and the alphabetical ID
 
-  # Perform an AOI scrape of any custom CMT databases
+        # THIS_CMTFILE=${CMTADDFILE[$this_customcmtnum]}
+        # THIS_CMTFORMAT=${CMTADDFILE_TYPE[$this_customcmtnum]}
+        # THIS_CMTLETTER=${CCAT_LETTER[$cmtfilenumber]}
+        # echo ${CMTSLURP} ${CMTADDFILE[$this_customcmtnum]} ${CMTADDFILE_TYPE[$this_customcmtnum]} ${CCAT_LETTER[$this_customcmtnum]}
 
-  touch ${F_CMT}cmt_local_aoi.dat
+        ${CMTSLURP} ${CMTADDFILE[$this_customcmtnum]} ${CMTADDFILE_TYPE[$this_customcmtnum]}  ${CCAT_LETTER[$this_customcmtnum]} > ${F_CMT}custom_cmt_${this_customcmtnum}.txt
 
-  if [[ $addcustomcmtsflag -eq 1 ]]; then
-    echo "CMT/$CMTTYPE" >> ${SHORTSOURCES}
+        THIS_CMTFILE=${F_CMT}custom_cmt_${this_customcmtnum}.txt
+      ;;
+      *)
+      ;;
+    esac
 
-    for i in $(seq 1 $cmtfilenumber); do
-      info_msg "Adding custom CMTs from ${CMTADDFILE[$i]}"
-      info_msg "${CMTSLURP} ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]}"
+    # Do the initial AOI scrape and filter events by CENTROID/ORIGIN location.
+    # We should have a cmt_tools.sh option to set events as centroid/origin when importing!
 
-      source "${CMTSLURP}" ${CMTADDFILE[$i]} ${CMTFORMATCODE[$i]} ${CMTIDCODE[$i]} | gawk -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+    if [[ -s $THIS_CMTFILE ]]; then
+      gawk < $THIS_CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${CMT_MINMAG} -v maxmag=${CMT_MAXMAG} '
       @include "tectoplot_functions.awk"
       {
+        mag=$13
         if (cent==1) {
           lon=$5
           lat=$6
@@ -11050,23 +11181,180 @@ if [[ $calccmtflag -eq 1 ]]; then
           lat=$9
           depth=$10
         }
-        if ((depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat)) {
+        if ((depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
           if (test_lon(minlon, maxlon, lon) == 1) {
-            print
+            if (lon!="none" && lat!="none") {
+              print
+            }
           }
         }
-      }' >> ${F_CMT}cmt_local_aoi.dat
-      highlightCMTs+=("${CMTIDCODE[$i]}")
-    done
-
-    # Concatenate the data
-    if [[ $cmtreplaceflag -eq 0 ]]; then
-      cat ${F_CMT}cmt_global_aoi.dat ${F_CMT}cmt_local_aoi.dat > ${F_CMT}cmt_combined_aoi.dat
-      CMTFILE=$(abs_path ${F_CMT}cmt_combined_aoi.dat)
-    else
-      CMTFILE=${F_CMT}cmt_local_aoi.dat
+      }' > ${F_CMT}sub_extract.cat
+      info_msg "Extracted $(wc -l < ${F_CMT}sub_extract.cat) CMT events from $THIS_CMTFILE"
+      cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
     fi
+  done
+
+  if [[ ${#CCAT_STRING} -gt 1 && ${CULL_CMT_CATALOGS} -eq 1 ]]; then
+
+    info_msg "[-c]: Sorting, finding clashes, and prioritizing using order of CCAT_STRING=${CCAT_STRING}"
+
+
+    before_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
+
+    # Column  Data              Units
+    # ------  ----              -----
+    # 1.      idcode            A source data letter (G=GCMT, I=ISC, Z=GFZ, etc) and a
+    #                           EQ type letter (N=Normal, T=Thrust, S=Strike slip)
+    # 2.      event_code	      Any event ID from the source catalog
+    # 3.      id	              YYYY-MM-DDTHH:MM:SS time string
+    # 4.      epoch             (seconds) since Jan 1, 1970
+    # 5.      lon_centroid	    (°)
+    # 6.      lat_centroid	    (°)
+    # 7.      depth_centroid	  (km)
+    # 8.      lon_origin	      (°)
+    # 9.      lat_origin	      (°)
+    # 10.     depth_origin	    (km)
+    # 11.     author_centroid	  string    (e.g. GCMT)
+    # 12.     author_origin	    string    (e.g. NEIC)
+    # 13.     MW	              number
+    # 14.     mantissa	        number
+    # 15.     exponent	        integer
+    # 16.     strike1	          (°)
+    # 17.     dip1	            (°)
+    # 18.     rake1	            (°)
+    # 19.     strike2	          (°)
+    # 20.     dip2	            (°)
+    # 21.     rake2	            (°)
+    # 22.     exponent	        same as field 15
+    # 23.     Tval	            number
+    # 24.     Taz	              (°) azimuth of T axis
+    # 25.     Tinc	            (°) plunge of T axis
+    # 26.     Nval	            number
+    # 27.     Naz	              (°)
+    # 28.     Ninc	            (°)
+    # 29.     Pval	            number
+    # 30.     Paz	              (°)
+    # 31.     Pinc	            (°)
+    # 32.     exponent	        same as 15
+    # 33.     Mrr	              number
+    # 34.     Mtt	              number
+    # 35.     Mpp	              number
+    # 36.     Mrt	              number
+    # 37.     Mrp	              number
+    # 38.     Mtp	              number
+    # 39.     centroid_dt       (seconds)   Time between origin and centroid
+
+    sort ${F_CMT}cmt_global_aoi.dat -k3,3 | uniq -u > ${F_CMT}cmt_presort.txt
+    gawk < ${F_CMT}cmt_presort.txt -v removedfile=${F_CMT}"cmt_removed_cull.cat" -v cent=$CENTROIDFLAG -v ccatstring=${CCAT_STRING} '
+    function abs(v) { return (v>0)?v:-v }
+    function build_index(ccstr) {
+      for(i=1; i<=length(ccstr); i++) {
+        ccindex[substr(ccstr, i, 1)]=i
+      }
+    }
+    BEGIN {
+      # Define the window for potentially equivalent earthquakes
+      delta_lon=2
+      delta_lat=2
+      delta_sec=15
+      delta_depth=30
+      delta_mag=0.5
+
+      # Build the priority index
+      build_index(ccatstring)
+    }
+    {
+      data[NR]=$0
+      date[NR]=substr($3,1,10)
+      epoch[NR]=$4
+      eventid[NR]=$2
+      numfields=NF
+      if (cent==1) {
+        lon[NR]=$5
+        lat[NR]=$6
+        depth[NR]=$7
+      } else {
+        lon[NR]=$8
+        lat[NR]=$9
+        depth[NR]=$10
+      }
+      mag[NR]=$13
+      idcode[NR]=substr($1,1,1)
+      prioritynum[NR]=ccindex[idcode[NR]]
+    }
+    END {
+      numentries=NR
+
+      # The strategy is to mark any event that is superceded by another event, and then output only
+      # the unmarked events
+
+      # For each entry (target event)
+      for(i=1;i<=numentries;i++) {
+        # If input event has no date, then obliterate any other events in the whole file that fall
+        # within the spatial-temporal-magnitude window. This takes a long time as we cannot sort
+        # the data and look at a sub-window.
+        if(date[i]=="0000-00-00") {
+          for(j=1;j<=numentries;j++) {
+            if (j != i && idcode[i] != idcode[j]) {
+              # Does the comparison event fall in the spatial-magnitude window of the target event?
+              if ( (abs(lon[i]-lon[j])<=delta_lon) && (abs(lat[i]-lat[j])<=delta_lat) &&
+                 (abs(depth[i]-depth[j])<=delta_depth) && (abs(mag[i]-mag[j])<=delta_mag) ) {
+                 # Is the target event higher priority?
+                 if (prioritynum[j] > prioritynum[i]) {
+                   markedfordeath_nodate[j]=1
+                   # print "Removing event",  j, eventid[j], idcode[j], "which is killed by no-date event", i, eventid[i], idcode[i] > "/dev/stderr"
+                 } else {
+                   markedfordeath_nodate[i]=1
+                  print "Removing nodate event:" > "/dev/stderr"
+                  print data[i] > "/dev/stderr"
+                  print "which is killed by event:" > "/dev/stderr"
+                  print data[j] > "/dev/stderr"
+
+                 }
+                 break
+              }
+            }
+          }
+        } else {
+          # For the two entries surrounding each entry (before and after)
+          for(j=i-3; j<=i+3; j++) {
+            if (j>=1 && j<=numentries && j != i && idcode[i] != idcode[j]) {
+              # Does the comparison event fall in the spatial-magnitude window of the target event?
+              if ( (abs(lon[i]-lon[j])<=delta_lon) && (abs(lat[i]-lat[j])<=delta_lat) &&
+                 (abs(depth[i]-depth[j])<=delta_depth) && (abs(mag[i]-mag[j])<=delta_mag) ) {
+                 # Does the comparison event fall in the time window OR an event has time 0000-00-00?
+                 if ( (abs(epoch[i]-epoch[j])<=delta_sec) || date[i]=="0000-00-00" || date[j] == "0000-00-00") {
+                   # Does the target event fall behind the comparison event in priority order?
+                   print "Event", i, eventid[i], idcode[i], "is in window of", j, eventid[j], idcode[j] > "/dev/stderr"
+                   if (prioritynum[i] > prioritynum[j]) {
+                     markedfordeath[i]=1
+                     # print "Removing event", i, eventid[i], idcode[i], "which is superceded by event", j eventid[j] idcode[j] > "/dev/stderr"
+                   }
+                   break
+                 }
+              }
+            }
+          }
+        }
+      }
+      for(i=1;i<=numentries;i++) {
+        if (markedfordeath[i]!=1 && markedfordeath_nodate[i]!=1) {
+          print data[i]
+        } else if (markedfordeath[i]==1) {
+          print "Removed using time-space-magnitude:", data[i] > removedfile
+        } else if (markedfordeath_nodate[i]==1) {
+          print "Removed due to collision with nodate:", data[i] > removedfile
+        }
+      }
+    }
+    ' > ${F_CMT}cmt_global_aoi.dat
+
+    after_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
+
+    echo "Before equivalent CMT culling: $before_e events ; after culling: $after_e events."
   fi
+
+  CMTFILE=${F_CMT}cmt_global_aoi.dat
 
   gawk < $CMTFILE -v dothrust=$cmtthrustflag -v donormal=$cmtnormalflag -v doss=$cmtssflag '{
     if (substr($1,2,1) == "T" && dothrust == 1) {
@@ -16182,8 +16470,13 @@ if [[ $makelegendflag -eq 1 ]]; then
   LEGMAP="maplegend.ps"
   gmt psxy -T ${RJSTRING[@]} -X$PLOTSHIFTX -Y$PLOTSHIFTY -K $VERBOSE > maplegend.ps
 
-  MSG="Updated legend commands are >>>>> ${legendwords[@]} <<<<<"
-  [[ $narrateflag -eq 1 ]] && echo $MSG
+
+  # Add the plot commands to the legend command list
+  for plot in ${plots[@]} ; do
+    legendwords+=("$plot")
+  done
+
+  info_msg "Updated legend commands are >>>>> ${legendwords[@]} <<<<<"
 
   echo "# Legend " > legendbars.txt
   barplotcount=0
@@ -16725,12 +17018,12 @@ if [[ $keepopenflag -eq 0 ]]; then
     # mv map.pdf "${OUTPUTDIRECTORY}/${MAPOUT}.pdf"
     # mv "$MAPOUT.history" $OUTPUTDIRECTORY"/"$MAPOUT".history"
     info_msg "Map is at ${OUTPUTDIRECTORY}${MAPOUT}.pdf"
-    [[ $openflag -eq 1 ]] && open_prog "$MAPOUT.pdf"
+    [[ $openflag -eq 1 ]] && open_pdf "$MAPOUT.pdf"
   else
     mv map.pdf "${THISDIR}/${MAPOUT}.pdf"
     mv "$MAPOUT.history" $THISDIR"/"$MAPOUT".history"
     info_msg "Map is at $THISDIR/$MAPOUT.pdf"
-    [[ $openflag -eq 1 ]] && open_prog "$THISDIR/$MAPOUT.pdf"
+    [[ $openflag -eq 1 ]] && open_pdf "$THISDIR/$MAPOUT.pdf"
   fi
 fi
 
@@ -16758,7 +17051,7 @@ if [[ $tifflag -eq 1 ]]; then
   # mv map.tfw "${THISDIR}/${MAPOUT}.tfw"
 
 
-  [[ $openflag -eq 1 ]] && open_prog "map.tif"
+  [[ $openflag -eq 1 ]] && open_pdf "map.tif"
 fi
 
 ##### Copy QGIS project into temporary directory
@@ -16868,65 +17161,15 @@ if [[ $kmlflag -eq 1 ]]; then
   # echo "$MAXLAT" >> map.tfw
 fi
 
-##### PLOT STEREONET OF FOCAL MECHANISM PRINCIPAL AXES
-if [[ $caxesstereonetflag -eq 1 ]]; then
-  info_msg "Making stereonet of focal mechanism axes"
-  gmt psbasemap -JA0/-89.999/3i -Rg -Bxa10fg10 -Bya10fg10 -K ${VERBOSE} > stereo.ps
-axestflag=1
-axespflag=1
-axesnflag=1
-axescmtthrustflag=1
-axescmtssflag=1
-axescmtnormalflag=1
-  if [[ $axescmtthrustflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc0.05i -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $30, -$31 }' | gmt psxy -Sc0.05i -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $27, -$28 }' | gmt psxy -Sc0.05i -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+# RUN MODULE POST-PROCESSING
+# Maybe this should be outside the if..fi $noplotflag -eq 1?
+for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
+  if type "tectoplot_post_${this_mod}" >/dev/null; then
+    echo "Running module post-processing for ${this_mod}"
+    cmd="tectoplot_post_${this_mod}"
+    "$cmd"
   fi
-  if [[ $axescmtnormalflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $24, -$25 }' | gmt psxy -Ss0.05i -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $30, -$31 }' | gmt psxy -Ss0.05i -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $27, -$28 }' | gmt psxy -Ss0.05i -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
-  fi
-  if [[ $axescmtssflag -eq 1 ]]; then
-    [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $24, -$25 }' | gmt psxy -St0.05i -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St0.05i -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-    [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St0.05i -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
-  fi
-  gmt psxy -T -R -J -O ${VERBOSE} >> stereo.ps
-  gmt psconvert stereo.ps -Tf -A0.5i ${VERBOSE}
-fi
-
-#### Plot seismicty vs time
-
-if [[ $plotseistimeflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
-  date_and_mag_range=($(gawk < ${F_SEIS}eqs.txt '
-    BEGIN {
-      getline
-      maxdate=$5
-      mindate=$5
-      maxmag=$4
-      minmag=$4
-    }
-    {
-      maxdate=($5>maxdate)?$5:maxdate
-      mindate=($5<mindate)?$5:mindate
-      if ($4>0) {
-        maxmag=($4>maxmag)?$4:maxmag
-        minmag=($4<minmag)?$4:minmag
-      }
-    }
-    END {
-      print mindate, maxdate, minmag-0.1, maxmag+0.1
-    }'))
-
-    if [[ $zcclusterflag -eq 1 ]]; then
-      gmt psxy ${F_SEIS}eqs.txt -i4,3,7 -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf > seistime.ps
-    else
-      gmt psxy ${F_SEIS}eqs.txt -i4,3,2 -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf > seistime.ps
-    fi
-    gmt psconvert seistime.ps -Tf -A+m0.5i
-fi
+done
 
 
 fi ### if [[ $noplotflag -ne 1 ]]; then....
@@ -16944,7 +17187,7 @@ fi
 if [[ $openflag -eq 1 ]]; then
   PDF_FILES=($(find . -type f -name "*.pdf"))
   for open_file in ${PDF_FILES[@]}; do
-    open_prog $open_file
+    open_pdf $open_file
   done
 fi
 
