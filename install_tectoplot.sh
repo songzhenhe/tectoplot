@@ -724,15 +724,15 @@ function configure_tectoplot() {
   if [[ $CONFIGURE_TECTOPLOT -eq 1 && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
 
     while true; do
-      read -r -p "Are you using miniconda? If yes, activate before configuring tectoplot? Default is no. [y|n] " response
+      read -r -p "If you are using miniconda, you need to activate before configuring tectoplot. Activate now? [y|n] " response
       case "${response}" in
-      Y|y|Yy|yY|yes|"")
+      Y|y|Yy|yY|yes)
         echo
         eval "$(conda shell.bash hook)"
         conda activate tectoplot
         break
         ;;
-      N|n|Nn|no)
+      N|n|Nn|no|"")
         break
         ;;
       *)

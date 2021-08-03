@@ -5,6 +5,10 @@ TECTOPLOT_MODULES+=("seistime")
 # zcclusterflag : flag to plot colors by cluster ID
 # SEIS_CPT      : CPT for plotting seismicity
 
+# function tectoplot_defaults_seistime() {
+# }
+
+
 function tectoplot_args_seistime()  {
   # The following line is required for all modules
   tectoplot_module_caught=0
@@ -25,7 +29,7 @@ Example: None
 --------------------------------------------------------------------------------
 EOF
 fi
-    tectoplot_module_shift=1
+    tectoplot_module_shift=0
     tectoplot_module_caught=1
     ;;
   esac

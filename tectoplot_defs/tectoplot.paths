@@ -59,7 +59,7 @@ INFO_SH=${BASHSCRIPTDIR}"info.sh"
 DECLUSTER_GK=${BASHSCRIPTDIR}"gk.sh"
 REASENBERG_SH=${BASHSCRIPTDIR}"reasenberg.sh"
 CMTTOOLS=${BASHSCRIPTDIR}"cmt_tools.sh"
-SWATH=${BASHSCRIPTDIR}"swath.sh"
+#SWATH=${BASHSCRIPTDIR}"swath.sh"
 MPROFILE_SH_SRC=${BASHSCRIPTDIR}"profile.sh"
 CMTSLURP=${BASHSCRIPTDIR}"cmt_tools.sh"
 FLOAT_TEXT=${BASHSCRIPTDIR}"textobj.sh"
@@ -509,15 +509,15 @@ GVP_PLEISTOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_pleistoc
 GVP_HOLOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_holocene_excel.cfm"
 
 # Output from Excel to tab delimited file, 2 header lines at start.
-GVP_PLEISTOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
-GVP_HOLOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
+#GVP_PLEISTOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
+#GVP_HOLOCENE_TABTXT="GVP_Volcano_List_Holocene.txt"
 
-VOLC_SOURCESTRING="Volcano data from Smithsonian GVP (https://volcano.si.edu/), Whelley et al. 2015 doi:10.1007/s00445-014-0893-8"
-VOLC_SHORT_SOURCESTRING="GVP"
+#VOLC_SOURCESTRING="Volcano data from Smithsonian GVP (https://volcano.si.edu/), Whelley et al. 2015 doi:10.1007/s00445-014-0893-8"
+#VOLC_SHORT_SOURCESTRING="GVP"
 
-SMITHVOLC=$DATAROOT"Smithsonian/GVP_4.8.8_lat_lon_elev.txt"
-WHELLEYVOLC=$DATAROOT"Smithsonian/Whelley_2015_volcanoes.txt"
-JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
+#SMITHVOLC=$DATAROOT"Smithsonian/GVP_4.8.8_lat_lon_elev.txt"
+#WHELLEYVOLC=$DATAROOT"Smithsonian/Whelley_2015_volcanoes.txt"
+#JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
 
 ##### Seismicity
 

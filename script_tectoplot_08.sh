@@ -581,13 +581,21 @@ COMMANDBASE=$(basename $0)
 C2=${@}
 COMMAND="${COMMANDBASE} ${C2}"
 
-# Load modules
-# this loop will source in the modules
+# Load modules by sourcing in their files
+#
 for f in ${TECTOPLOTDIR}modules/module_*.sh; do
   # echo "Loading module ${f}"
   source "$f"
 done
 
+# Load default variables from all modules
+
+for this_mod in ${TECTOPLOT_MODULES[@]}; do
+  if type "tectoplot_defaults_${this_mod}" >/dev/null 2>&1; then
+    cmd="tectoplot_defaults_${this_mod}"
+    "$cmd"
+  fi
+done
 
 # Exit if no arguments are given
 if [[ $# -eq 0 ]]; then
@@ -1158,7 +1166,6 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
   mkdir -p "${TMP}${F_SEIS}"
   mkdir -p "${TMP}${F_CPTS}"     # Defined in tectoplot.cpts
   mkdir -p "${TMP}${F_TOPO}"
-  mkdir -p "${TMP}${F_VOLC}"
   mkdir -p "${TMP}${F_GRAV}"
   mkdir -p "${TMP}${F_SLAB}"
   mkdir -p "${TMP}${F_PROFILES}"
@@ -1168,6 +1175,11 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
   mkdir -p "${TMP}${F_PLATES}"
   mkdir -p "${TMP}${F_3D}"
   mkdir -p "${TMP}rasters/"
+
+  # Create directories registered by modules
+  mkdir -p "${TMP}${F_VOLC}"
+
+
 fi
 
 ##### Parse main command line arguments
@@ -1193,6 +1205,15 @@ Example:
 EOF
   shift && continue
 fi
+  ;;
+
+  -whichutm)
+  if arg_is_float $2; then
+    AVELONp180o6=$(echo "(($2) + 180)/6" | bc -l)
+    UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
+    echo "UTM Zone for longitude ${2}: ${UTMZONE}"
+  fi
+  exit 0
   ;;
   -checkdep)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -5231,84 +5252,84 @@ fi
     shift
     ;;
 
-  -pt|--point)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--pt:           plot point dataset with specified size, fill, cpt
--pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[@ color]]
--pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[cpt_filename]]
-
-  symbol is a GMT psxy -S code:
-    +(plus), st(a)r, (b|B)ar, (c)ircle, (d)iamond, (e)llipse,
- 	  (f)ront, octa(g)on, (h)exagon, (i)nvtriangle, (j)rotated rectangle,
- 	  pe(n)tagon, (p)oint, (r)ectangle, (R)ounded rectangle, (s)quare,
-    (t)riangle, (x)cross, (y)dash,
-
-  Multiple calls to -pt can be made; they will plot in map layer order.
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    # COUNTER userpointfilenumber
-    # Required arguments
-    userpointfilenumber=$(echo "$userpointfilenumber + 1" | bc -l)
-    POINTDATAFILE[$userpointfilenumber]=$(abs_path $2)
-    shift
-    if [[ ! -e ${POINTDATAFILE[$userpointfilenumber]} ]]; then
-      info_msg "[-pt]: Point data file ${POINTDATAFILE[$userpointfilenumber]} does not exist."
-      exit 1
-    fi
-    # Optional arguments
-    # Look for symbol code
-    if arg_is_flag $2; then
-      info_msg "[-pt]: No symbol specified. Using $POINTSYMBOL."
-      POINTSYMBOL_arr[$userpointfilenumber]=$POINTSYMBOL
-    else
-      POINTSYMBOL_arr[$userpointfilenumber]="${2:0:1}"
-      shift
-      info_msg "[-pt]: Point symbol specified. Using ${POINTSYMBOL_arr[$userpointfilenumber]}."
-    fi
-
-    # Then look for size
-    if arg_is_flag $2; then
-      info_msg "[-pt]: No size specified. Using $POINTSIZE."
-      POINTSIZE_arr[$userpointfilenumber]=$POINTSIZE
-    else
-      POINTSIZE_arr[$userpointfilenumber]="${2}"
-      shift
-      info_msg "[-pt]: Point size specified. Using ${POINTSIZE_arr[$userpointfilenumber]}."
-    fi
-
-    # Finally, look for CPT file
-    if arg_is_flag $2; then
-      info_msg "[-pt]: No cpt specified. Using ${POINTCOLOR} fill for -G"
-      pointdatafillflag[$userpointfilenumber]=1
-      pointdatacptflag[$userpointfilenumber]=0
-    elif [[ ${2:0:1} == "@" ]]; then
-      shift
-      POINTCOLOR=${2}
-      info_msg "[-pt]: No cpt specified using @. Using POINTCOLOR for -G"
-      shift
-      pointdatafillflag[$userpointfilenumber]=1
-      pointdatacptflag[$userpointfilenumber]=0
-    else
-      POINTDATACPT[$userpointfilenumber]=$(abs_path $2)
-      shift
-      if [[ ! -e ${POINTDATACPT[$userpointfilenumber]} ]]; then
-        info_msg "[-pt]: CPT file $POINTDATACPT does not exist. Using default $POINTCPT"
-        POINTDATACPT[$userpointfilenumber]=$(abs_path $POINTCPT)
-      else
-        info_msg "[-pt]: Using CPT file $POINTDATACPT"
-      fi
-      pointdatacptflag[$userpointfilenumber]=1
-      pointdatafillflag[$userpointfilenumber]=0
-    fi
-
-    info_msg "[-pt]: PT${userpointfilenumber}: ${POINTDATAFILE[$userpointfilenumber]}"
-    plots+=("points")
-    ;;
+#   -pt|--point)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -pt:           plot point dataset with specified size, fill, cpt
+# -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[@ color]]
+# -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[cpt_filename]]
+#
+#   symbol is a GMT psxy -S code:
+#     +(plus), st(a)r, (b|B)ar, (c)ircle, (d)iamond, (e)llipse,
+#  	  (f)ront, octa(g)on, (h)exagon, (i)nvtriangle, (j)rotated rectangle,
+#  	  pe(n)tagon, (p)oint, (r)ectangle, (R)ounded rectangle, (s)quare,
+#     (t)riangle, (x)cross, (y)dash,
+#
+#   Multiple calls to -pt can be made; they will plot in map layer order.
+#
+# Example: None
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     # COUNTER userpointfilenumber
+#     # Required arguments
+#     userpointfilenumber=$(echo "$userpointfilenumber + 1" | bc -l)
+#     POINTDATAFILE[$userpointfilenumber]=$(abs_path $2)
+#     shift
+#     if [[ ! -e ${POINTDATAFILE[$userpointfilenumber]} ]]; then
+#       info_msg "[-pt]: Point data file ${POINTDATAFILE[$userpointfilenumber]} does not exist."
+#       exit 1
+#     fi
+#     # Optional arguments
+#     # Look for symbol code
+#     if arg_is_flag $2; then
+#       info_msg "[-pt]: No symbol specified. Using $POINTSYMBOL."
+#       POINTSYMBOL_arr[$userpointfilenumber]=$POINTSYMBOL
+#     else
+#       POINTSYMBOL_arr[$userpointfilenumber]="${2:0:1}"
+#       shift
+#       info_msg "[-pt]: Point symbol specified. Using ${POINTSYMBOL_arr[$userpointfilenumber]}."
+#     fi
+#
+#     # Then look for size
+#     if arg_is_flag $2; then
+#       info_msg "[-pt]: No size specified. Using $POINTSIZE."
+#       POINTSIZE_arr[$userpointfilenumber]=$POINTSIZE
+#     else
+#       POINTSIZE_arr[$userpointfilenumber]="${2}"
+#       shift
+#       info_msg "[-pt]: Point size specified. Using ${POINTSIZE_arr[$userpointfilenumber]}."
+#     fi
+#
+#     # Finally, look for CPT file
+#     if arg_is_flag $2; then
+#       info_msg "[-pt]: No cpt specified. Using ${POINTCOLOR} fill for -G"
+#       pointdatafillflag[$userpointfilenumber]=1
+#       pointdatacptflag[$userpointfilenumber]=0
+#     elif [[ ${2:0:1} == "@" ]]; then
+#       shift
+#       POINTCOLOR=${2}
+#       info_msg "[-pt]: No cpt specified using @. Using POINTCOLOR for -G"
+#       shift
+#       pointdatafillflag[$userpointfilenumber]=1
+#       pointdatacptflag[$userpointfilenumber]=0
+#     else
+#       POINTDATACPT[$userpointfilenumber]=$(abs_path $2)
+#       shift
+#       if [[ ! -e ${POINTDATACPT[$userpointfilenumber]} ]]; then
+#         info_msg "[-pt]: CPT file $POINTDATACPT does not exist. Using default $POINTCPT"
+#         POINTDATACPT[$userpointfilenumber]=$(abs_path $POINTCPT)
+#       else
+#         info_msg "[-pt]: Using CPT file $POINTDATACPT"
+#       fi
+#       pointdatacptflag[$userpointfilenumber]=1
+#       pointdatafillflag[$userpointfilenumber]=0
+#     fi
+#
+#     info_msg "[-pt]: PT${userpointfilenumber}: ${POINTDATAFILE[$userpointfilenumber]}"
+#     plots+=("points")
+#     ;;
 
   -pv) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -6294,6 +6315,8 @@ fi
     exit
     ;;
 
+
+
   -scale)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6972,8 +6995,6 @@ cat <<-EOF
   e: elastic component of block velocity
   t: rotation component of block velocity
 
-
-
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -7062,7 +7083,7 @@ fi
   -ti)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ti:           adust illumination for gmt style topography (-t)
+-ti:           adjust illumination for gmt style topography (-t)
 -ti [[azimuth]]
 
 Example: None
@@ -8365,156 +8386,6 @@ fi
 
   ;;
 
-  -vres)  # Calculate residual gravity or other grid within specified distance of a provided XY line
-
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--vres:         create grid swath profile residual using signed distance method
--vres [file or modelID] [xy_file] [width_km] [along_ave_km] [across_ave_km] [[flag1]] ...
-
-  This function takes as input a grid file or gravity model, and an XY line.
-  It calculates an along-profile and across-profile running average, where data
-  are projected into a da-dt space (da=distance along profile of nearest point,
-  dt=distance from nearest point on profile). This projection avoids artifacts
-  from kinks in profiles. The along-profile smoothing is done over a running
-  window with a specified along-profile width, and across-profile smoothing is
-  done in dt space.
-
-  The input grid is first subsampled at a specified along-and-cross profile
-  interval using GMT grdtrack. The resulting XY points are projected into da-dt
-  space where the smoothing is applied. The resulting data are projected back
-  into XY space where a smoothed raster is interpolated from the points. This
-  raster is then subtracted from the original grid at the original resolution,
-  producing a residual data grid.
-
-  flags: specified as strings
-    contour   Plot contours of the smoothed average grid
-    path      Plot the profile path
-    relief    Plot shaded relief of residual grid
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-  # Check the number of arguments
-  if [[ ! $(number_nonflag_args "${@}") -ge 5 ]]; then
-    echo "[-vres]: Requires 5-7 arguments. tectoplot usage -vres"
-    exit 1
-  fi
-
-  GRAVMODEL="${2}"
-  GRAVXYFILE=$(abs_path "${3}")
-  GRAVWIDTHKM="${4}"
-  GRAVALONGAVKM="${5}"
-  GRAVACROSSAVKM="${6}"
-  shift
-  shift
-  shift
-  shift
-  shift
-
-  if ! arg_is_positive_float $GRAVWIDTHKM; then
-    echo "[-vres]: Argument ${GRAVWIDTHKM} should be a positive number without unit character."
-    exit 1
-  fi
-  if ! arg_is_positive_float $GRAVALONGAVKM; then
-    echo "[-vres]: Argument ${GRAVALONGAVKM} should be a positive number without unit character."
-    exit 1
-  fi
-  if ! arg_is_positive_float $GRAVACROSSAVKM; then
-    echo "[-vres]: Argument ${GRAVACROSSAVKM} should be a positive number without unit character."
-    exit 1
-  fi
-
-  while ! arg_is_flag $2; do
-    case "${2}" in
-      contour)
-        GRAVCONTOURFLAG=1
-      ;;
-      path)
-        GRAVPATHFLAG=1
-      ;;
-      relief)
-        GRAVRELIEFFLAG=1
-        echo setting here ${GRAVRELIEFFLAG}
-      ;;
-      *)
-        info_msg "[-vres]: Unknown option ${2}... skipping"
-      ;;
-    esac
-    shift
-  done
-
-  if [[ ! -s ${GRAVXYFILE} ]]; then
-    info_msg "[-vres]: XY file does not exist."
-    exit 1
-  else
-    if [[ ${GRAVXYFILE} =~ ".kml" ]]; then
-      info_msg "[-vres]: KML file specified for XY file. Converting to XY format and using first line only."
-      ogr2ogr -f "OGR_GMT" vres_profile.gmt ${GRAVXYFILE}
-      gawk < vres_profile.gmt '
-        BEGIN {
-          count=0
-        }
-        ($1==">") {
-          count++
-          if (count>1) {
-            exit
-          }
-        }
-        ($1+0==$1) {
-          print $1, $2
-        }' >  ${TMP}${F_MAPELEMENTS}vres_profile.xy
-        GRAVXYFILE=$(abs_path ${TMP}${F_MAPELEMENTS}vres_profile.xy)
-    fi
-  fi
-
-  case $GRAVMODEL in
-    FA)
-      GRAVDATA=$WGMFREEAIR
-      GRAVCPT=$WGMFREEAIR_CPT
-      echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
-      ;;
-    BG)
-      GRAVDATA=$WGMBOUGUER
-      GRAVCPT=$WGMBOUGUER_CPT
-      echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
-      ;;
-    IS)
-      GRAVDATA=$WGMISOSTATIC
-      GRAVCPT=$WGMISOSTATIC_CPT
-      echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
-      ;;
-    SW)
-      GRAVDATA=$SANDWELLFREEAIR
-      GRAVCPT=$WGMFREEAIR_CPT
-      echo $SANDWELL_SOURCESTRING >> ${LONGSOURCES}
-      echo $SANDWELL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      ;;
-    *)
-      if [[ ! -s $GRAVMODEL ]]; then
-        echo "Gravity model $GRAVMODEL not recognized."
-        exit 1
-      else
-        info_msg "Using custom gravity file ${GRAVMODEL}"
-        GRAVDATA=${GRAVMODEL}
-      fi
-      ;;
-  esac
-
-  resgravflag=1
-
-  plots+=("resgrav")
-  cpts+=("resgrav")
-
-  ;;
-
-
   -vars) # argument: filename
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8535,45 +8406,45 @@ fi
     cp ${VARFILE} ${TMP}input_vars.txt
     ;;
 
-  -vc|--volc) # args: none
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--vc:           plot volcanoes
--vc [[fill color=${V_FILL}]] [[line width=${V_LINEW}]] [[size=${V_SIZE}]]
-
-  Data from a variety of sources; Smithsonian, Whelley 2015, Japan
-  Currently uses the GMT custom volcano symbol.
-
-Example: Volcanoes of Japan
-  tectoplot -r JP -a -vc
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    if arg_is_flag $2; then
-      info_msg "[-vc]: No volcano line width or fill color specified."
-    else
-      V_FILL="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-vc]: No volcano line width specified."
-    else
-      V_LINEW="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-vc]: No volcano size specified."
-    else
-      V_SIZE="${2}"
-      shift
-    fi
-
-    plots+=("volcanoes")
-    volcanoesflag=1
-    echo $VOLC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-    echo $VOLC_SOURCESTRING >> ${LONGSOURCES}
-    ;;
+#   -vc|--volc) # args: none
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -vc:           plot volcanoes
+# -vc [[fill color=${V_FILL}]] [[line width=${V_LINEW}]] [[size=${V_SIZE}]]
+#
+#   Data from a variety of sources; Smithsonian, Whelley 2015, Japan
+#   Currently uses the GMT custom volcano symbol.
+#
+# Example: Volcanoes of Japan
+#   tectoplot -r JP -a -vc
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     if arg_is_flag $2; then
+#       info_msg "[-vc]: No volcano line width or fill color specified."
+#     else
+#       V_FILL="${2}"
+#       shift
+#     fi
+#     if arg_is_flag $2; then
+#       info_msg "[-vc]: No volcano line width specified."
+#     else
+#       V_LINEW="${2}"
+#       shift
+#     fi
+#     if arg_is_flag $2; then
+#       info_msg "[-vc]: No volcano size specified."
+#     else
+#       V_SIZE="${2}"
+#       shift
+#     fi
+#
+#     plots+=("volcanoes")
+#     volcanoesflag=1
+#     echo $VOLC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+#     echo $VOLC_SOURCESTRING >> ${LONGSOURCES}
+#     ;;
 
   # A high priority option processed in the prior loop
   -verbose) # args: none
@@ -9359,12 +9230,14 @@ fi
 
     for this_mod in ${TECTOPLOT_MODULES[@]}; do
 
-      if type "tectoplot_args_${this_mod}" >/dev/null; then
+      if type "tectoplot_args_${this_mod}" >/dev/null 2>&1; then
         cmd="tectoplot_args_${this_mod}"
         "$cmd" "$@"
 
         # Shift away the arguments processed by the module
-        [[ $tectoplot_module_shift -gt 0 ]] && shift ${tectoplot_module_shift}
+        if [[ $tectoplot_module_shift -gt 0 ]]; then
+          shift ${tectoplot_module_shift}
+        fi
         if [[ $tectoplot_module_caught -eq 1 ]]; then
           TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
           break
@@ -10593,68 +10466,17 @@ if [[ $topocontourcalcflag -eq 1 ]]; then
   fi
 fi
 
-################################################################################
-#####           Manage volcanoes                                           #####
-################################################################################
 
-if [[ $volcanoesflag -eq 1 ]]; then
-  # lat lon elevation
-  cat $SMITHVOLC $WHELLEYVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
-  @include "tectoplot_functions.awk"
-  {
-    lat=$1
-    lon=$2
-    elev=$3
-    if (minlat <= lat && lat <= maxlat) {
-      if (test_lon(minlon, maxlon, lon)==1) {
-        print lon, lat, elev
-      }
-    }
-  }' >> ${F_VOLC}volcanoes.dat
+### MODULE CALCULATION FUNCTIONS
 
-  # lon lat elevation elevation
-  cat $JAPANVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
-  @include "tectoplot_functions.awk"
-  {
-    lon=$1
-    lat=$2
-    elev=$3
-    if (minlat <= lat && lat <= maxlat) {
-      if (test_lon(minlon, maxlon, lon)==1) {
-        print lon, lat, elev
-      }
-    }
-  }' >> ${F_VOLC}volcanoes.dat
-
-  # Polygon select
-
-  if [[ $polygonselectflag -eq 1 ]]; then
-    info_msg "Selecting volcanoes within AOI polygon ${POLYGONAOI}"
-    mv ${F_VOLC}volcanoes.dat ${F_VOLC}volcanoes_preselect.dat
-    gmt select ${F_VOLC}volcanoes_preselect.dat -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_VOLC}volcanoes.dat
-    cleanup ${F_SEIS}eqs_preselect.txt
+for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
+  if type "tectoplot_calculate_${this_mod}" >/dev/null 2>&1; then
+    info_msg "Running module data calculations for ${this_mod}"
+    cmd="tectoplot_calculate_${this_mod}"
+    "$cmd"
   fi
+done
 
-
-  #
-  # gmt select $JAPANVOLC -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> ${F_VOLC}volctmp.dat
-  # gawk < ${F_VOLC}volctmp.dat '{
-  #   printf "%s %s ", $2, $1
-  #   for (i=3; i<=NF; i++) {
-  #     printf "%s ", $(i)
-  #   }
-  #   printf("\n")
-  # }' > ${F_VOLC}volcanoes.dat
-  # cleanup ${F_VOLC}volctmp.dat
-fi
-
-if [[ $resgravflag -eq 1 ]]; then
-  info_msg "Making residual gravity along ${GRAVXYFILE}"
-  mkdir -p ./resgrav
-  cd ./resgrav
-  ${SWATH} ${GRAVWIDTHKM} ${GRAVALONGAVKM} ${GRAVACROSSAVKM} ${GRAVXYFILE} ${GRAVDATA} 0.1
-  cd ..
-fi
 
 ################################################################################
 #####           Manage earthquake hypocenters                              #####
@@ -12747,6 +12569,9 @@ fi
 ################################################################################
 ##### Create required CPT files in the temporary directory
 
+
+
+
 for cptfile in ${cpts[@]} ; do
 	case $cptfile in
 
@@ -12876,22 +12701,22 @@ for cptfile in ${cpts[@]} ; do
       gmt makecpt -Ccategorical -Ww -T0/100/1 ${VERBOSE} > ${PLATEID_CPT}
     ;;
 
-    grav) # WGM gravity maps
-      touch $GRAV_CPT
-      GRAV_CPT=$(abs_path $GRAV_CPT)
-      if [[ $rescalegravflag -eq 1 ]]; then
-        # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
-        zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
-        info_msg "Grav raster range is: $zrange"
-        MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
-        MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
-        # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
-        info_msg "Rescaling gravity CPT to $MINZ/$MAXZ"
-        gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
-      else
-        gmt makecpt -C$GRAVCPT -T-500/500 $VERBOSE > $GRAV_CPT
-      fi
-      ;;
+    # grav) # WGM gravity maps
+    #   touch $GRAV_CPT
+    #   GRAV_CPT=$(abs_path $GRAV_CPT)
+    #   if [[ $rescalegravflag -eq 1 ]]; then
+    #     # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
+    #     zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+    #     info_msg "Grav raster range is: $zrange"
+    #     MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
+    #     MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
+    #     # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
+    #     info_msg "Rescaling gravity CPT to $MINZ/$MAXZ"
+    #     gmt makecpt -C$GRAVCPT -T$MINZ/$MAXZ $VERBOSE > $GRAV_CPT
+    #   else
+    #     gmt makecpt -C$GRAVCPT -T-500/500 $VERBOSE > $GRAV_CPT
+    #   fi
+    #   ;;
 
     gravcurv)
       touch $GRAV_CURV_CPT
@@ -12908,10 +12733,6 @@ for cptfile in ${cpts[@]} ; do
       else
         gmt makecpt -C$GRAV_CURV_DEF -T-100/100 $VERBOSE > $GRAV_CURV_CPT
       fi
-      ;;
-
-    resgrav)
-      gmt makecpt -C$GRAVCPT -T-145/145 -Z $VERBOSE > $RESGRAV_CPT
       ;;
 
     litho1)
@@ -13354,6 +13175,16 @@ for cptfile in ${cpts[@]} ; do
       fi
 
     ;;
+    *) # Likely a module CPT
+      if type "tectoplot_cpt_${cptfile}" >/dev/null 2>&1; then
+        # info_msg "Running module post-processing for ${this_mod}"
+        cmd="tectoplot_cpt_${cptfile}"
+        "$cmd"
+      else
+        echo "Unrecognized cpt command: $plot"
+      fi
+
+    ;;
 
   esac
 done
@@ -13489,7 +13320,6 @@ gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > mecaleg.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > seissymbol.ps
-gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > eqlabel.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
@@ -13602,7 +13432,7 @@ if [[ $printcommandflag -eq 1 || $authorflag -eq 1 ]]; then
 fi
 
 
-#### BEGIN PLOT SECTION
+#### SECTION PLOT BEGIN
 
 
 for plot in ${plots[@]} ; do
@@ -14374,22 +14204,6 @@ for plot in ${plots[@]} ; do
       gmt grdimage $SANDWELLFREEAIR_CURV $GRID_PRINT_RES -C$GRAV_CURV_CPT -t$GRAVTRANS $RJOK $VERBOSE >> map.ps
       ;;
 
-    resgrav)
-      if [[ -e ./resgrav/grid_residual.nc ]]; then
-
-        if [[ $GRAVRELIEFFLAG -eq 1 ]]; then
-          GRAVICMD="-I+d"
-        else
-          GRAVICMD=""
-        fi
-        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${TECTOPLOTDIR}"CPT/grav2.cpt" $RJOK $VERBOSE >> map.ps
-        [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
-      fi
-      if [[ $GRAVPATHFLAG -eq 1 ]]; then
-        [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
-      fi
-      ;;
-
 #### CHECK CAREFULLY
     grid)
       # Plot the gridded plate velocity field
@@ -15112,15 +14926,15 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       info_msg "Plotted velocity raster."
       ;;
 
-    points)
-      info_msg "Plotting point dataset $current_userpointfilenumber: ${POINTDATAFILE[$current_userpointfilenumber]}"
-      if [[ ${pointdatacptflag[$current_userpointfilenumber]} -eq 1 ]]; then
-        gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -W$POINTLINEWIDTH,$POINTLINECOLOR -C${POINTDATACPT[$current_userpointfilenumber]} -G+z -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
-      else
-        gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -G$POINTCOLOR -W$POINTLINEWIDTH,$POINTLINECOLOR -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
-      fi
-      current_userpointfilenumber=$(echo "$current_userpointfilenumber + 1" | bc -l)
-      ;;
+    # gis_point)
+    #   info_msg "Plotting point dataset $current_userpointfilenumber: ${POINTDATAFILE[$current_userpointfilenumber]}"
+    #   if [[ ${pointdatacptflag[$current_userpointfilenumber]} -eq 1 ]]; then
+    #     gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -W$POINTLINEWIDTH,$POINTLINECOLOR -C${POINTDATACPT[$current_userpointfilenumber]} -G+z -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
+    #   else
+    #     gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -G$POINTCOLOR -W$POINTLINEWIDTH,$POINTLINECOLOR -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
+    #   fi
+    #   current_userpointfilenumber=$(echo "$current_userpointfilenumber + 1" | bc -l)
+    #   ;;
 
     polygonaoi)
       info_msg "Plotting polygon AOI"
@@ -16220,10 +16034,21 @@ echo              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO
       current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
       ;;
 
-    volcanoes)
-      info_msg "Volcanoes"
-      gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
-      ;;
+    # volcanoes)
+    #   info_msg "Volcanoes"
+    #   gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
+    #   ;;
+
+    # Anything not in the above list is probably a module.
+    *)
+      if type "tectoplot_plot_${this_mod}" >/dev/null 2>&1; then
+        # info_msg "Running module post-processing for ${this_mod}"
+        cmd="tectoplot_plot_${this_mod}"
+        "$cmd"
+      else
+        echo "Unrecognized plot command: $plot"
+      fi
+    ;;
 
 	esac
 done
@@ -16637,7 +16462,8 @@ if [[ $makelegendflag -eq 1 ]]; then
   NEXTX=0
   GPS_ELLIPSE_TEXT=$(gawk -v c=0.95 'BEGIN{print c*100 "%" }')
 
-  info_msg "Plotting non-colorbar legend items"
+  info_msg "Plotting non-colorbar legend items: ${plots[@]}"
+
 
   for plot in ${plots[@]} ; do
   	case $plot in
@@ -16913,19 +16739,30 @@ if [[ $makelegendflag -eq 1 ]]; then
         # YADD=0.15
         ;;
 
-      volcanoes)
-        info_msg "Legend: volcanoes"
+      # volcanoes)
+      #   info_msg "Legend: volcanoes"
+      #
+      #   echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
+      #   echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
+      #
+      #   PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      #   PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      #   PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      #   gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
+      #   LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+      #   count=$count+1
+      #   NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
+      #   ;;
 
-        echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
-        echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
+      *)  # Any unrecognized command is potentially a module command
+        if type "tectoplot_legend_${plot}" >/dev/null 2>&1; then
+          # info_msg "Running module post-processing for ${this_mod}"
+          cmd="tectoplot_legend_${plot}"
+          "$cmd"
+        else
+          info_msg "Unrecognized legend command: $plot"
+        fi
 
-        PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        count=$count+1
-        NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
         ;;
     esac
     if [[ $count -eq 3 ]]; then
@@ -17164,8 +17001,8 @@ fi
 # RUN MODULE POST-PROCESSING
 # Maybe this should be outside the if..fi $noplotflag -eq 1?
 for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
-  if type "tectoplot_post_${this_mod}" >/dev/null; then
-    echo "Running module post-processing for ${this_mod}"
+  if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
+    info_msg "Running module post-processing for ${this_mod}"
     cmd="tectoplot_post_${this_mod}"
     "$cmd"
   fi

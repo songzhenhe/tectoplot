@@ -598,22 +598,23 @@ SLIP_FONTSIZE="5"
 SLIP_FONT="Helvetica"
 SLIP_FONTCOLOR="brown"
 
+# MOVED TO MODULE
 ################################################################################
 ##### Volcanoes
-V_SYMBOL="t"                  # volcano symbol; t=triangle    kvolcano/=volcano
-V_FILL="red"                  # volcano symbol, fill
-V_SIZE="0.075i"               # volcano symbol, size
-V_LINEW="0.3p"                  # volcano symbol, edge line width
-V_LINECOLOR="black"           # volcano symbol, edge line color
+#V_SYMBOL="t"                  # volcano symbol; t=triangle    kvolcano/=volcano
+#V_FILL="red"                  # volcano symbol, fill
+#V_SIZE="0.075i"               # volcano symbol, size
+#V_LINEW="0.3p"                  # volcano symbol, edge line width
+#V_LINECOLOR="black"           # volcano symbol, edge line color
 
 ################################################################################
 ##### GIS data: points
-POINTSYMBOL="c"
-POINTCOLOR="black"
-POINTSIZE="0.02i"
-POINTLINECOLOR="black"
-POINTLINEWIDTH="0.5p"
-POINTCPT=$CPTDIR"defaultpt.cpt"
+#POINTSYMBOL="c"
+#POINTCOLOR="black"
+#POINTSIZE="0.02i"
+#POINTLINECOLOR="black"
+#POINTLINEWIDTH="0.5p"
+#POINTCPT=$CPTDIR"defaultpt.cpt"
 
 ################################################################################
 ### SRCMOD slip distributions
