@@ -1,3 +1,5 @@
+# Source this script
+
 # tectoplot
 # bashscripts/args_cleanup.sh
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.

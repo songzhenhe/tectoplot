@@ -130,6 +130,7 @@ function check_and_download_dataset() {
       if ! curl --fail -L "${DOWNLOAD_SOURCEURL}" -o "${DOWNLOADFILE}"; then
         info_msg "Download of ${DOWNLOAD_SOURCEURL} failed."
         echo "${DOWNLOADNAME}" >> tectoplot.failed
+        rm -f "${DOWNLOADFILE}"
       else
         testfileflag=1
       fi
@@ -165,10 +166,17 @@ function check_and_download_dataset() {
               rm -f "${DOWNLOADZIP}"
             fi
           else
-            info_msg "Redownload of ${DOWNLOADFILE} ($filebytes) does not match expected size ($DOWNLOADFILE_BYTES)."
+            info_msg "Redownload of ${DOWNLOADFILE} ($filebytes) does not match expected size ($DOWNLOADFILE_BYTES). Deleting."
+            rm -f ${DOWNLOADFILE}
           fi
         fi
       fi
     fi
+  fi
+
+  if [[ -s $DOWNLOADFILE ]]; then
+    return 0
+  else
+    return 1
   fi
 }

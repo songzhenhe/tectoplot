@@ -321,17 +321,17 @@ SLAB2GRID_TRANS=20
 ################################################################################
 ##### Cities options
 
-CITIES_SYMBOL="s"
-CITIES_SYMBOL_SIZE="0.05i"
-CITIES_SYMBOL_LINEWIDTH="0.25p"
-CITIES_SYMBOL_LINECOLOR="black"
-CITIES_SYMBOL_FILLCOLOR="white"
-CITIES_MINPOP=5000
-CITIES_CPT="gray"
-CITIES_LABEL_MINPOP=100000
-CITIES_LABEL_FONTSIZE="8p"
-CITIES_LABEL_FONT="Helvetica"
-CITIES_LABEL_FONTCOLOR="black"
+#CITIES_SYMBOL="s"
+#CITIES_SYMBOL_SIZE="0.05i"
+#CITIES_SYMBOL_LINEWIDTH="0.25p"
+#CITIES_SYMBOL_LINECOLOR="black"
+#CITIES_SYMBOL_FILLCOLOR="white"
+#CITIES_MINPOP=5000
+#CITIES_CPT="gray"
+#CITIES_LABEL_MINPOP=100000
+#CITIES_LABEL_FONTSIZE="8p"
+#CITIES_LABEL_FONT="Helvetica"
+#CITIES_LABEL_FONTCOLOR="black"
 
 ################################################################################
 ##### Country borders and labels
@@ -565,56 +565,7 @@ GRAVTRANS=0.5                # transparency of gravity data
 MAGMODEL="EMAGV2"            # magnetic model
 MAGTRANS=0.5                 # transparency of magnetic model
 
-################################################################################
-##### TDEFNODE model options
-MINCOUPLING=0.2              # cutoff of coupling value to display, TDEFNODE
-SVBIG=0.1i                   # slip vectors, length, large
-SVBIGW="1p"                  # slip vectors, width, large
-SVSMALL=0.05i                # slip vectors, length, small
-SVSMALLW="0.65p"             # slip vectors, width, small
-SMALLRES=0.02i               # residual velocities, scale
 
-TD_OGPS_LINEWIDTH="0.25p"
-TD_OGPS_LINECOLOR="black"
-TD_OGPS_FILLCOLOR="red"
-
-TD_VGPS_LINEWIDTH="0.25p"
-TD_VGPS_LINECOLOR="black"
-TD_VGPS_FILLCOLOR="white"
-
-TD_RGPS_LINEWIDTH="0.25p"
-TD_RGPS_LINECOLOR="black"
-TD_RGPS_FILLCOLOR="green"
-
-##### TDEFNODE FAULT MIDPOINT VECTORS
-
-SLIP_DIST=2                 # Cutoff distance, in degrees lat/lon
-
-SLIP_LINEWIDTH="0.25p"
-SLIP_LINECOLOR="black"
-SLIP_FILLCOLOR="lightbrown"
-
-SLIP_FONTSIZE="5"
-SLIP_FONT="Helvetica"
-SLIP_FONTCOLOR="brown"
-
-# MOVED TO MODULE
-################################################################################
-##### Volcanoes
-#V_SYMBOL="t"                  # volcano symbol; t=triangle    kvolcano/=volcano
-#V_FILL="red"                  # volcano symbol, fill
-#V_SIZE="0.075i"               # volcano symbol, size
-#V_LINEW="0.3p"                  # volcano symbol, edge line width
-#V_LINECOLOR="black"           # volcano symbol, edge line color
-
-################################################################################
-##### GIS data: points
-#POINTSYMBOL="c"
-#POINTCOLOR="black"
-#POINTSIZE="0.02i"
-#POINTLINECOLOR="black"
-#POINTLINEWIDTH="0.5p"
-#POINTCPT=$CPTDIR"defaultpt.cpt"
 
 ################################################################################
 ### SRCMOD slip distributions

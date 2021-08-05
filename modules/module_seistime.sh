@@ -20,6 +20,7 @@ function tectoplot_args_seistime()  {
   -seistime)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_seistime.sh
 -seistime:     create a seismicity vs. time plot, colored by depth OR cluster
 -seistime
 

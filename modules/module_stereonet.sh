@@ -18,10 +18,9 @@ function tectoplot_args_stereonet()  {
   # The following usage statement is required for tectoplot -usage to work with this module.
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_stereonet.sh
 -cs:           plot focal mechanism principal axes on a stereonet
 -cs
-
- Module "stereonet"
 
  Requires -c option to select focal mechanism data.
  Output file is stereo.pdf in temporary directory.

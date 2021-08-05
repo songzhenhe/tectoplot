@@ -232,14 +232,14 @@ GSFML_FZ4=${GSFMLDIR}"GMT/GSFML_SF_FZ_RM.gmt"
 
 ##### World City Data; Format: Lon,Lat,Name,Population
 
-CITIES_SOURCESTRING="City data from geonames (CC-BY)"
-CITIES_SHORT_SOURCESTRING="geonames"
-CITIESDIR=$DATAROOT"WorldCities/"
-CITIES500=$CITIESDIR"cities500.txt"
-CITIES=$CITIESDIR"geonames_cities_500.txt"
-CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
-CITIES_ZIP_BYTES="10353983"
-CITIES500_BYTES="31818630"
+#CITIES_SOURCESTRING="City data from geonames (CC-BY)"
+#CITIES_SHORT_SOURCESTRING="geonames"
+#CITIESDIR=$DATAROOT"WorldCities/"
+#CITIES500=$CITIESDIR"cities500.txt"
+#CITIES=$CITIESDIR"geonames_cities_500.txt"
+#CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
+#CITIES_ZIP_BYTES="10353983"
+#CITIES500_BYTES="31818630"
 
 ##### DEMs used for bathymetry/topography
 
@@ -326,14 +326,14 @@ BLACKM_D2_NAME="BlackMarble_2016_D2_geo_gray.tif"
 
 ##### Crustal magnetization data
 
-MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
-MAG_SHORT_SOURCESTRING="EMAG2_V2"
+#MAG_SOURCESTRING="Magnetic data from EMAG2_V2 (USGW), https://catalog.data.gov/dataset/emag2-earth-magnetic-anomaly-grid-2-arc-minute-resolution"
+#MAG_SHORT_SOURCESTRING="EMAG2_V2"
 
-EMAG_V2_DIR=$DATAROOT"EMAG_V2/"
-EMAG_V2=$EMAG_V2_DIR"EMAG2_V2.tif"
-EMAG_V2_CPT=$EMAG_V2_DIR"EMAG2_V2.cpt"
-EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
-EMAG_V2_BYTES="233388712"
+#EMAG_V2_DIR=$DATAROOT"EMAG_V2/"
+#EMAG_V2=$EMAG_V2_DIR"EMAG2_V2.tif"
+#EMAG_V2_CPT=$EMAG_V2_DIR"EMAG2_V2.cpt"
+#EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
+#EMAG_V2_BYTES="233388712"
 
 ##### Gravity data
 
@@ -416,14 +416,14 @@ MULLER_OCAGE_SOURCEURL="https://www.earthbyte.org/webdav/ftp/Data_Collections/Mu
 MULLER_OCAGE_BYTES=25985584
 
 ##### Global Curie Depth Map
-GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"
-GCDM_SHORT_SOURCESTRING="GCDM"
+#GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"
+#GCDM_SHORT_SOURCESTRING="GCDM"
 
-GCDMDIR=$DATAROOT"GCDM/"
-GCDMDATA=$GCDMDIR"GCDM.nc"
-GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
-GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
-GCDM_BYTES="123810173"
+#GCDMDIR=$DATAROOT"GCDM/"
+#GCDMDATA=$GCDMDIR"GCDM.nc"
+#GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
+#GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
+#GCDM_BYTES="123810173"
 
 ##### GMT Day and Night Imagery
 

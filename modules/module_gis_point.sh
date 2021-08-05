@@ -26,6 +26,7 @@ function tectoplot_args_gis_point()  {
     -pt|--point)
   if [[ $USAGEFLAG -eq 1 ]]; then
   cat <<-EOF
+modules/module_gis_point.sh
 -pt:           plot point dataset with specified size, fill, cpt
 -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[@ color]]
 -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[cpt_filename]]

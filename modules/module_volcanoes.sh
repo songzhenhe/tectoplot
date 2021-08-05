@@ -33,6 +33,7 @@ function tectoplot_args_volcanoes()  {
   -vc|--volc) # args: none
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_volcanoes.sh
 -vc:           plot volcanoes
 -vc [[fill color=${V_FILL}]] [[line width=${V_LINEW}]] [[size=${V_SIZE}]]
 
@@ -45,6 +46,8 @@ Example: Volcanoes of Japan
 EOF
     fi
     shift
+
+    echo "loading volcanoes"
 
     if ! arg_is_flag $1 ; then
       V_FILL="${1}"
@@ -122,6 +125,7 @@ function tectoplot_calculate_volcanoes()  {
 }
 
 function tectoplot_plot_volcanoes() {
+  echo "aaaa"
   info_msg "[-vc]: Plotting volcanoes"
   gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
 }

@@ -2,7 +2,7 @@
 # This script contains a template describing the functionality of tectoplot
 # modules.
 
-# tectoplot modules must be saved to a script called module_XXXX.sh 
+# tectoplot modules must be saved to a script called module_XXXX.sh
 # in the tectoplot/modules/ folder.
 
 # Register the module with tectoplot
@@ -38,7 +38,8 @@ function tectoplot_args_example()  {
   # A usage statement with the following format:
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--example:      create grid swath profile residual using signed distance method
+modules.template.sh
+-example:      short explanatory text
 -example [required_arg] [[optional_arg1]] ...
 
   This is a text description of the module and its arguments.
@@ -142,7 +143,7 @@ function tectoplot_plot_example() {
 }
 
 # This function is taken from module_volcanoes.sh and shows how to add an entry
-# to the legend
+# to the legend using the 'typewriter' method.
 
 function tectoplot_legend_example() {
   # Create a new blank map with the same -R -J as our main map
@@ -167,6 +168,15 @@ function tectoplot_legend_example() {
   NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
   cleanup volcanoes.ps volcanoes.eps
 }
+
+# Colorbars are specified using a pslegend format such as the following:
+
+function tectoplot_legendbar_example() {
+    echo "G 0.2i" >> legendbars.txt
+    echo "B $EXAMPLE_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"Example units (100k)\"" >> legendbars.txt
+    barplotcount=$barplotcount+1
+}
+
 
 function tectoplot_post_example() {
   echo "This function contains logic that is executed after the map document is finalized."

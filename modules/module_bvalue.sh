@@ -21,8 +21,13 @@ function tectoplot_args_bvalue()  {
   -bvalue)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_bvalue.sh
+
 -bvalue:     plot cumulative frequency number distribution of seismicity
 -bvalue [[Mc]]
+
+  Mc is the magnitude of completeness of the input catalog, which is set to be
+  the earthquake bin with highest event count, if not specified directly.
 
   Uses only seismicity - "b" careful if using CMTs with culling!
 
@@ -32,7 +37,6 @@ EOF
 fi
 
     shift
-
     if arg_is_float "${1}"; then
       BVALUE_USEMC=1
       BVALUE_MC=${1}

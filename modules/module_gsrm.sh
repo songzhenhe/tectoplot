@@ -18,6 +18,7 @@ function tectoplot_args_gsrm()  {
   -gsrm)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_gsrm.sh
 -gsrm:     plot Global Strain Rate Model data from Kreemer et al., (2014)
 -gsrm
 
@@ -25,11 +26,13 @@ Example: None
 --------------------------------------------------------------------------------
 EOF
 fi
+
+    plots+=("gsrm")
+
     tectoplot_module_shift=0
     tectoplot_module_caught=1
     ;;
   esac
-  plots+=("gsrm")
 }
 
 # function tectoplot_calculate_gsrm()  {

@@ -59,12 +59,9 @@ GEOAGE_COLORBAR_MIN=0
 
 PLATEID_CPT=${F_CPTS}"plateid.cpt"
 
-RESGRAV_CPT=${F_CPTS}"resgrav.cpt"
-MAG_CPT=${F_CPTS}"mag.cpt"
-POPULATION_CPT=${F_CPTS}"population.cpt"
 FAULTSLIP_CPT=${F_CPTS}"faultslip.cpt"
 CYCLEAZIMUTH_CPT=${F_CPTS}"cycleaz.cpt"
-GCDM_CPT=${F_CPTS}"gcdm.cpt"
+#GCDM_CPT=${F_CPTS}"gcdm.cpt"
 PLATEVEL_CPT=${F_CPTS}"platevel.cpt"
 PLATEVEL_NORM_CPT=${F_CPTS}"platevel_one.cpt"
 SLIPRATE_DEF_CPT=${F_CPTS}"slipratedeficit.cpt"

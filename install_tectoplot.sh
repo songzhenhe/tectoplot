@@ -751,7 +751,7 @@ function configure_tectoplot() {
       read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [y|n] " response
       case "${response}" in
         Y|y|Yy|yY|yes|"")
-          read -r -p "Enter directory path (default is ${HOME}/TectoplotData/)" response2
+          read -r -p "Enter path or press enter for default: ${HOME}/TectoplotData/" response2
           case "${response2}" in
             "")
               response2="${HOME}/TectoplotData/"

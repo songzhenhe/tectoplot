@@ -10,6 +10,7 @@ TECTOPLOT_MODULES+=("resgrid")
 
 function tectoplot_defaults_resgrid() {
   SWATH=${BASHSCRIPTDIR}"swath.sh"
+  RESGRID_CPT=${F_CPTS}"resgrav.cpt"
   RESGRID_CPTRANGE=145
 }
 
@@ -25,6 +26,7 @@ function tectoplot_args_resgrid()  {
 
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
+modules/module_resgrid.sh
 -vres:         create grid swath profile residual using signed distance method
 -vres [file or modelID] [xy_file] [width_km] [along_ave_km] [across_ave_km] [[flag1]] ...
 
@@ -103,15 +105,19 @@ EOF
           GRAVRELIEFFLAG=1
           echo setting here ${GRAVRELIEFFLAG}
         ;;
+        plotav)
+          PLOTAVGRID=1
+        ;;
         *)
           info_msg "[-vres]: Unknown option ${1}... skipping"
         ;;
       esac
       shift
+      ((tectoplot_module_shift++))
     done
 
     if [[ ! -s ${GRAVXYFILE} ]]; then
-      info_msg "[-vres]: XY file does not exist."
+      info_msg "[-vres]: XY file ${GRAVXYFILE} does not exist."
       exit 1
     else
       if [[ ${GRAVXYFILE} =~ ".kml" ]]; then
@@ -196,7 +202,11 @@ function tectoplot_calculate_resgrid()  {
 }
 
 function tectoplot_cpt_resgrid() {
-  [[ ! -s $RESGRAV_CPT ]] && gmt makecpt -C$GRAVCPT -T-${RESGRID_CPTRANGE}/${RESGRID_CPTRANGE} -Z $VERBOSE > $RESGRAV_CPT
+  if [[ $PLOTAVGRID -eq 1 ]]; then
+    [[ ! -s $RESGRID_CPT ]] && gmt makecpt -C$GRAVCPT -T0/500 -Z $VERBOSE > $RESGRID_CPT
+  else
+    [[ ! -s $RESGRID_CPT ]] && gmt makecpt -C$GRAVCPT -T-${RESGRID_CPTRANGE}/${RESGRID_CPTRANGE} -Z $VERBOSE > $RESGRID_CPT
+  fi
 }
 
 function tectoplot_plot_resgrid() {
@@ -206,7 +216,11 @@ function tectoplot_plot_resgrid() {
     else
       GRAVICMD=""
     fi
-    gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRAV_CPT} $RJOK $VERBOSE >> map.ps
+    if [[ $PLOTAVGRID -eq 1 ]]; then
+      gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+    else
+      gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+    fi
     [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
   fi
   if [[ $GRAVPATHFLAG -eq 1 ]]; then
