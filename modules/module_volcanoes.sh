@@ -47,8 +47,6 @@ EOF
     fi
     shift
 
-    echo "loading volcanoes"
-
     if ! arg_is_flag $1 ; then
       V_FILL="${1}"
       shift
@@ -125,14 +123,20 @@ function tectoplot_calculate_volcanoes()  {
 }
 
 function tectoplot_plot_volcanoes() {
-  echo "aaaa"
-  info_msg "[-vc]: Plotting volcanoes"
-  gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
+  case $1 in
+  volcanoes)
+    info_msg "[-vc]: Plotting volcanoes"
+    gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
+    ;;
+  esac
 }
 
 # This legend code is a good example of how we manage graphic legend entries.
 
 function tectoplot_legend_volcanoes() {
+
+  case $1 in
+  volcanoes)
     info_msg "[-vc]: plotting volcanoes on legend"
 
     # Create a new blank map with the same -R -J as our main map
@@ -156,6 +160,9 @@ function tectoplot_legend_volcanoes() {
     count=$count+1
     NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
     cleanup volcanoes.ps volcanoes.eps
+    tectoplot_legend_caught=1
+    ;;
+  esac
 }
 
 # function tectoplot_post_volcanoes() {

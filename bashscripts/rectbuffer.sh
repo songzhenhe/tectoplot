@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # tectoplot
-# rectubuffer.sh
+# bashscripts/rectubuffer.sh
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,

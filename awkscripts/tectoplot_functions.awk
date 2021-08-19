@@ -266,7 +266,7 @@ function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz) {
         d_EV1=w[i];
         d_E10=Q[0][i];
         d_E11=Q[1][i];
-        d_E12=d_M[2][i];
+        d_E12=Q[2][i];
       }
     }
 
@@ -276,6 +276,7 @@ function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz) {
     d_PL0 = rad2deg(asin(-d_E00));
     d_AZ0 = rad2deg(atan2(d_E02,-d_E01));
     d_PL1 = rad2deg(asin(-d_E10));
+
     d_AZ1 = rad2deg(atan2(d_E12,-d_E11));
     d_PL2 = rad2deg(asin(-d_E20));
     d_AZ2 = rad2deg(atan2(d_E22, -d_E21));

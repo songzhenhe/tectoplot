@@ -1326,10 +1326,12 @@ EOF
         # Find the value of Z at X=0 and subtract it from the entire dataset
         if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
           # echo ZOFFSETflag is set
-          XZEROINDEX=$(gawk < ${F_PROFILES}profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
+          XZEROINDEX=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
+          echo "XZEROINDEX is" ${XZEROINDEX}
+
           ZOFFSET_NUM=$(head -n $XZEROINDEX ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | gawk '{print 0-$3}')
         fi
-
+        echo "Z offset is" ${ZOFFSET_NUM}
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | gawk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt
 
         # profilesummary.txt is min q1 q2 q3 max

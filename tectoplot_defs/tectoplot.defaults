@@ -30,11 +30,16 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
-useccatflag=1
+OLDCAT_DATE="2021-08-12T00:53:36"
+
+PROFILE_ALIGNZ="N"          # N to not align profiles, 0 to align, number to shift
+
+DEM_SMOOTH_RAD=3
+
 CMT_CATALOG_TYPE+=("GCMT")
 CMT_CATALOG_TYPE+=("ISC")
 CMT_CATALOG_TYPE+=("GFZ")
-CCATSTRING="GIZ"
+CCAT_STRING="GIZ"
 CULL_CMT_CATALOGS=1
 
 SEISPROJ_DIM1="X"
@@ -131,7 +136,6 @@ SSRESC="0.05d"
 
 COUNTRIESCPT=wysiwyg
 
-SLAB2STR="c"
 
 LASTDAYNUM=7
 
@@ -212,11 +216,6 @@ GRIDLINESON=0                # Gridlines on (0=off)
 VELSCALE=0.01                # Scale factor for velocities
 PVHEAD=0.1i                  # Head size for velocity vectors
 PVFORMAT="0.03/0.06/0.06"    # Experimental head size for plate relative V
-
-# GIS line options
-USERLINECOLOR=black           # GIS line data file, line color
-USERLINEWIDTH="0.5p"          # GIS line data file, line width
-
 
 # Miscellaneous options that haven't been placed in their proper locations in this file
 
@@ -319,36 +318,6 @@ REFPTLON=160                 # reference point longitude
 SLAB2GRID_TRANS=20
 
 ################################################################################
-##### Cities options
-
-#CITIES_SYMBOL="s"
-#CITIES_SYMBOL_SIZE="0.05i"
-#CITIES_SYMBOL_LINEWIDTH="0.25p"
-#CITIES_SYMBOL_LINECOLOR="black"
-#CITIES_SYMBOL_FILLCOLOR="white"
-#CITIES_MINPOP=5000
-#CITIES_CPT="gray"
-#CITIES_LABEL_MINPOP=100000
-#CITIES_LABEL_FONTSIZE="8p"
-#CITIES_LABEL_FONT="Helvetica"
-#CITIES_LABEL_FONTCOLOR="black"
-
-################################################################################
-##### Country borders and labels
-
-BORDER_QUALITY="-Da"
-BORDER_LINEWIDTH="0.5p"
-BORDER_LINECOLOR="red"
-
-COUNTRY_LABEL_FONTSIZE="8p"
-COUNTRY_LABEL_FONT="Helvetica"
-COUNTRY_LABEL_FONTCOLOR="red"
-
-BORDER_STATE_QUALITY="-Da"
-BORDER_STATE_LINEWIDTH="0.3p"
-BORDER_STATE_LINECOLOR="red"
-
-################################################################################
 ##### Global Curie Depth Map (GCDM)
 GCDMMIN=4                   # Minimum depth of CPT
 GCDMMAX=45                  # Maximum depth of CPT
@@ -369,25 +338,25 @@ GPS_ELLIPSE_MODEL=0          # Use for velocities with no error ellipse
 
 ################################################################################
 ##### Coastlines and land/sea colors
-COAST_QUALITY="-Da"          # pscoast quality
-COAST_SIZELIMIT=0
-FILLCOASTS=""                # pscoast option for filling land areas
-COAST_LINEWIDTH="0.5p"       # pscoast line width
-COAST_LINECOLOR="black"      # pscoast line color
+#COAST_QUALITY="-Da"          # pscoast quality
+#COAST_SIZELIMIT=0
+#FILLCOASTS=""                # pscoast option for filling land areas
+#COAST_LINEWIDTH="0.5p"       # pscoast line width
+#COAST_LINECOLOR="black"      # pscoast line color
 
-LAKE_LINEWIDTH="0.2p"
-LAKE_LINECOLOR="black"
+#LAKE_LINEWIDTH="0.2p"
+#LAKE_LINECOLOR="black"
 
-RIVER_LINEWIDTH=0.4p
-RIVER_LINECOLOR="blue"
-RIVER_COMMAND=""
+#RIVER_LINEWIDTH=0.4p
+#RIVER_LINECOLOR="blue"
+#RIVER_COMMAND=""
 
-COAST_KM2="100"              # minimum size (im km^2) of feature
-LANDCOLOR="gray"             # color of land areas
-SEACOLOR="lightblue"         # color of sea areas
-FILLCOASTS=""                # empty by default = don't fill anything
-BORDER_LINEWIDTH="1.3p"      # National border linewidth
-BORDER_LINECOLOR="red"       # National border linecolor
+#COAST_KM2="100"              # minimum size (im km^2) of feature
+#LANDCOLOR="gray"             # color of land areas
+#SEACOLOR="lightblue"         # color of sea areas
+#FILLCOASTS=""                # empty by default = don't fill anything
+#BORDER_LINEWIDTH="1.3p"      # National border linewidth
+#BORDER_LINECOLOR="red"       # National border linecolor
 
 ################################################################################
 ##### Plate motions
@@ -395,6 +364,11 @@ AZDIFFSCALE=0.25             # scale of azimuth difference circles
 GRIDSTEP=0.5                 # grid increment
 PLATEARROW_COLOR="orange"    # differential plate motion arrow, fill
 PLATEARROW_TRANS=40          # differential plate motion arrow, transparency
+
+PLATEARROW_NORMAL_COLOR="red"
+PLATEARROW_THRUST_COLOR="blue"
+PLATEARROW_SS_COLOR1="yellow"
+PLATEARROW_SS_COLOR2="orange"
 
 PLATELINE_COLOR="black"      # plate edge color
 PLATELINE_WIDTH="1.0p"       # plate edge width
@@ -512,6 +486,10 @@ CMTAXESSCALE=0.75            # Focal mechanism principal axes, general scale fac
 T0PEN="0.1p,black"           # Focal mechanism, nodal planes and bubble pen
 FMLPEN="0p,black"            # Focal mechanism line pen, main
 
+
+CMTAXESSCALE=50            # Focal mechanism principal axes, general scale factor
+
+
 ################################################################################
 # Earthquake labels
 
@@ -566,20 +544,6 @@ MAGMODEL="EMAGV2"            # magnetic model
 MAGTRANS=0.5                 # transparency of magnetic model
 
 
-
-################################################################################
-### SRCMOD slip distributions
-SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
-SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
-SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)
-
-################################################################################
-### Contoured grids
-CONTOURNUMDEF=20             # Number of contours to plot
-GRIDCONTOURWIDTH=0.1p
-GRIDCONTOURCOLOUR="black"
-GRIDCONTOURSMOOTH=100
-GRIDCONTOURLABELS="on"
 
 ################################################################################
 ### CMT default catalog

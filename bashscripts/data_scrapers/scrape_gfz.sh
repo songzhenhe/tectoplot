@@ -43,6 +43,7 @@ GFZDIR=${1}
 cd $GFZDIR
 
 GFZCATALOG=${GFZDIR}"gfz_extract.cat"
+GFZSTORED=${GFZDIR}"GFZStored.zip"
 
 GFZ_LATESTEVENT=${GFZDIR}"gfz_latest.txt"
 
@@ -50,31 +51,29 @@ GFZ_LATESTEVENT=${GFZDIR}"gfz_latest.txt"
 [[ ! -s ${GFZ_LATESTEVENT} ]] && echo "noevents00000noevents" > ${GFZ_LATESTEVENT}
 [[ ! -e ${GFZCATALOG} ]] && touch ${GFZCATALOG}
 
-if [[ $2 =~ "rebuild" ]]; then
-  echo "Rebuilding GFZ focal mechanism catalog from downloaded _mt files..."
-  rm -f ${GFZCATALOG}
-  rm -f gfz_rebuild.txt
-
-  for gfz_file in gfz*_mt.txt; do
-    echo "${gfz_file%_*}" >> gfz_rebuild.txt
-  done
-  sort -r gfz_rebuild.txt > gfz_latest_sort.txt
-  head -n 1 gfz_latest_sort.txt > ${GFZ_LATESTEVENT}
-
-  echo "Rebuilding... "
-  while read mtfile; do
-    echo -n "$mtfile "
-    ${CMTTOOLS} ${mtfile}_mt.txt Z Z >> ${GFZCATALOG}
-  done < gfz_latest_sort.txt
-
-  echo
-  echo -n "Note: scraping will not download any missing MT files earlier than: " ${GFZ_LATESTEVENT}
-  rm gfz_latest_sort.txt gfz_rebuild.txt
-
-  exit
-fi
-
-echo "Downloading GFZ catalog using stored MT files as basis"
+# if [[ $2 =~ "rebuild" ]]; then
+#   echo "Rebuilding GFZ focal mechanism catalog from downloaded _mt files..."
+#   rm -f ${GFZCATALOG}
+#   rm -f gfz_rebuild.txt
+#
+#   for gfz_file in gfz*_mt.txt; do
+#     echo "${gfz_file%_*}" >> gfz_rebuild.txt
+#   done
+#   sort -r gfz_rebuild.txt > gfz_latest_sort.txt
+#   head -n 1 gfz_latest_sort.txt > ${GFZ_LATESTEVENT}
+#
+#   echo "Rebuilding... "
+#   while read mtfile; do
+#     echo -n "$mtfile "
+#     ${CMTTOOLS} ${mtfile}_mt.txt Z Z >> ${GFZCATALOG}
+#   done < gfz_latest_sort.txt
+#
+#   echo
+#   echo -n "Note: scraping will not download any missing MT files earlier than: " ${GFZ_LATESTEVENT}
+#   rm gfz_latest_sort.txt gfz_rebuild.txt
+#
+#   exit
+# fi
 
 # gfz_complete.txt contains file names of downloaded HTML pages that have
 # been marked complete when a following file was successfully downloaded
@@ -119,7 +118,7 @@ pagenum=$(echo "$pagenum - 1 " | bc)
 added=0
 while read p; do
   if ! [[ -s "${p}_mt.txt" ]]; then
-    echo "Trying to download missing file ${p}_mt.txt"
+    echo "Trying to download ${p}_mt.txt"
     event_id=$p
     event_yr=$(echo $p | gawk  '{print substr($1,4,4); }')
     echo ":${event_id}:${event_yr}:"
@@ -130,12 +129,16 @@ while read p; do
       mv ${event_id}_mt.txt ${event_id}_mtbad.txt
     else
       ${CMTTOOLS} ${event_id}_mt.txt Z Z >> ${GFZCATALOG}
+      zip ${GFZ_STORED} ${event_id}_mt.txt
+      rm -f ${event_id}_mt.txt
       ((added++))
     fi
   fi
 done < gfz_list_newevents.txt
 echo "Added ${added} events."
 
+rm -f gfz_list_*.txt
+rm -f cmt_tools_rejected.dat
 
 # Example GFZ event report (line numbers added)
 # https://geofon.gfz-potsdam.de/data/alerts/2020/gfz2020xnmx/mt.txt

@@ -38,12 +38,15 @@
 
 # This script will only download files that have not been marked as COMPLETE,
 # as indicated by their presence in anss_complete.txt, and will only add events
-# to tiles if their epoch is later than the epoch of the most recently added
+# to tiles if their date is later than the date of the most recently added
 # event stored in anss_last_downloaded_event.txt. A file is marked as complete
 # if a file with a later date is successfully downloaded during the same session.
 
 # Example curl command:
 # curl "https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=${year}-${month}-${day}&endtime=${year}-${month}-${day}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180"
+
+# The arbitrary moment that divides the catalog into old and new events, to speed
+# up data scraping and data access when looking at recent events.
 
 function tecto_tac() {
   gawk '{
@@ -143,24 +146,14 @@ ANSSDIR="${1}"
 
 [[ ! -d $ANSSDIR ]] && mkdir -p $ANSSDIR
 
-ANSSTILEDIR=$ANSSDIR"Tiles/"
+ANSSDIR=$ANSSDIR
 
-if [[ -d $ANSSTILEDIR ]]; then
-  echo "ANSS tile directory exists."
-  cd $ANSSDIR
-
-else
-  echo "Creating tile files in ANSS tile directory :${ANSSTILEDIR}:."
-
-  mkdir -p ${ANSSTILEDIR}
-  cd $ANSSDIR
-
-  for long in $(seq -180 5 175); do
-    for lati in $(seq -90 5 85); do
-      touch ${ANSSTILEDIR}"tile_${long}_${lati}.cat"
-    done
-  done
+if [[ ! -d $ANSSDIR ]]; then
+  echo "Creating ANSS directory ${ANSSDIR}"
+  mkdir -p ${ANSSDIR}
 fi
+
+cd $ANSSDIR
 
 # Sort the anss_complete.txt file to preserve the order of earliest->latest
 if [[ -e anss_complete.txt ]]; then
@@ -179,8 +172,8 @@ if ! [[ $2 =~ "rebuild" ]]; then
     lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
     lastevent_date="1900-01-01T00:00:01"
   fi
-  echo "Last event from previous scrape has epoch $lastevent_epoch"
-  echo "Last event from previous scrape has data $lastevent_date"
+  # echo "Last event from previous scrape has epoch $lastevent_epoch"
+  # echo "Last event from previous scrape has data $lastevent_date"
 
 
   this_year=$(date -u +"%Y")
@@ -196,7 +189,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
   # If there is no last entry (no file), regenerate the list
   if [[ -z ${final_cat[0]} ]]; then
-    echo "Generating new catalog file list..."
+    # echo "Generating new catalog file list..."
     echo "anss_events_1000_to_1950.cat" > ./anss_list.txt
     for year in $(seq 1951 $this_year); do
       for month in $(seq 1 12); do
@@ -214,7 +207,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
     done
   else
   # Otherwise, add the events that postdate the last catalog file.
-    echo "Adding new catalog files to file list..."
+    # echo "Adding new catalog files to file list..."
     final_year=${final_cat[0]}
     final_month=${final_cat[1]}
     final_segment=${final_cat[2]}
@@ -246,7 +239,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
   anss_list_files=($(tecto_tac anss_incomplete.txt))
 
-  echo ${anss_list_files[@]}
+  # echo ${anss_list_files[@]}
 
   # For each of these files, in order from oldest to most recent, download the file.
   # Keep track of the last complete download made. If a younger file is downloaded
@@ -263,7 +256,11 @@ if ! [[ $2 =~ "rebuild" ]]; then
       if [[ $last_index -ge 0 ]]; then
         # Need to check whether the last file exists still before marking as complete (could have been deleted)
         echo "File ${d_file} had events... marking earlier file ${anss_list_files[$last_index]} as complete."
-        [[ -e ${anss_list_files[$last_index]} ]] && echo ${anss_list_files[$last_index]} >> anss_complete.txt
+        if [[ -e ${anss_list_files[$last_index]} ]]; then
+          echo ${anss_list_files[$last_index]} >> anss_complete.txt
+          # echo "Zipping file ${anss_list_files[$last_index]} into storage"
+          # zip ${ANSS_ARCHIVEZIP} ${anss_list_files[$last_index]} && rm -f ${anss_list_files[$last_index]}
+        fi
       fi
     fi
     last_index=$(echo "$last_index + 1" | bc)
@@ -271,22 +268,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
 else
   # Completely rebuild the tiles directory from the downloaded catalog datasets
-  echo "Rebuilding tiles from downloaded files"
-  rm -f ${ANSSTILEDIR}tile*.cat
-
-  # Set all catalog files to be just downloaded, but don't change complete vs. incomplete status
-
-  cp anss_complete.txt anss_just_downloaded.txt
-  # cat anss_incomplete.txt >> anss_just_downloaded.txt
-  lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
-  lastevent_data="1900-01-01T00:00:01"
-
-  for long in $(seq -180 5 175); do
-    for lati in $(seq -90 5 85); do
-      touch ${ANSSTILEDIR}"tile_${long}_${lati}.cat"
-    done
-  done
-
+  echo "Rebuilding ANSS tiles is no longer possible - delete manually and rescrape."
 fi
 
 # Add downloaded data to Tiles.
@@ -295,16 +277,15 @@ fi
 if [[ -e anss_just_downloaded.txt ]]; then
 
   selected_files=$(cat anss_just_downloaded.txt)
-  rm -f ./not_tiled.cat
 
   # For each candidate file, examine events and see if they are younger than the
   # last event that has been added to a tile file. Keep track of the youngest
   # event added to tiles and record that for future scrapes.
 
   for anss_file in $selected_files; do
-    echo "Processing file $anss_file into tile files"
+    # echo "Processing file $anss_file into tile files"
 
-    gawk < $anss_file -F, -v tiledir=${ANSSTILEDIR} -v mindate=$lastevent_date '
+    gawk < $anss_file -F, -v tiledir=${ANSSDIR} -v mindate=$lastevent_date -v oldcatdate=${OLDCAT_DATE} '
     @include "tectoplot_functions.awk"
 
     BEGIN { added=0 }
@@ -312,7 +293,14 @@ if [[ -e anss_just_downloaded.txt ]]; then
       eventdate=substr($1, 1, 19)
 
       if (eventdate > mindate) {
-        tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($3,5), rd($2,5));
+
+        if (eventdate > oldcatdate) {
+          catstr="_new"
+        } else {
+          catstr="_old"
+        }
+
+        tilestr=sprintf("%stile_%d_%d%s.cat", tiledir, rd($3,5), rd($2,5), catstr);
         print $0 >> tilestr
         added++
       } else {
@@ -325,8 +313,46 @@ if [[ -e anss_just_downloaded.txt ]]; then
 
   done
 
-  # not_tiled.cat is a file containing old events that have alread been tiled
-  # It is kept for inspection purposes but is deleted with each scrape
+  # Don't match tile_*.cat as a file...
+  shopt -s nullglob
+  newfiles=(${ANSSDIR}tile_*_old.cat)
+
+  # The tile files are the new data that needs to be added into the ZIP file
+  for newfile in ${newfiles[@]}; do
+    thisname=$(basename $newfile | sed 's/_old//')
+    # echo unzip -p ${ANSS_TILEZIP} ${thisname}
+    # ls -l ${ANSSDIR}${thisname}
+    unzip -p ${ANSS_TILEOLDZIP} ${thisname} > temp.cat 2>/dev/null
+    cat temp.cat ${newfile} > temp2.cat
+    mv temp2.cat ${thisname}
+    # ls -l ${ANSSDIR}${thisname}
+    # Update the zip file as needed
+    # echo zip ${ANSS_TILEZIP} ${ANSSDIR}${thisname}
+    zip ${ANSS_TILEOLDZIP} ${thisname} && rm -f ${thisname}
+  done
+
+  shopt -s nullglob
+  newfiles=(${ANSSDIR}tile_*_new.cat)
+  # The tile files are the new data that needs to be added into the ZIP file
+  for newfile in ${newfiles[@]}; do
+    thisname=$(basename $newfile | sed 's/_new//')
+    # echo unzip -p ${ANSS_TILEZIP} ${thisname}
+    # ls -l ${ANSSDIR}${thisname}
+    unzip -p ${ANSS_TILENEWZIP} ${thisname} > temp.cat
+    cat temp.cat ${newfile} > temp2.cat
+    mv temp2.cat ${thisname}
+    # ls -l ${ANSSDIR}${thisname}
+    # Update the zip file as needed
+    # echo zip ${ANSS_TILEZIP} ${ANSSDIR}${thisname}
+    zip ${ANSS_TILENEWZIP} ${thisname} && rm -f ${thisname}
+  done
+  # echo "After updating, tile files in the directory are:"
+  # ls -l ${ANSSDIR}tile_*.cat
+  #
+  # # Update the zip file as needed
+  # zip -u ${ANSS_TILEZIP}${thisname}
+  # Remove the tile files
+
 
   last_downloaded_file=$(tail -n 1 anss_just_downloaded.txt)
   last_downloaded_event=$(tail -n 1 $last_downloaded_file)
@@ -344,4 +370,7 @@ if [[ -e anss_just_downloaded.txt ]]; then
 
 fi
 
-# Done
+# Cleanup
+
+rm -f *.cat
+rm -f anss_incomplete.txt anss_just_downloaded.txt

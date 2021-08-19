@@ -79,7 +79,7 @@ if [[ -e ${ISCDIR}"isc_extract.cat" ]]; then
   last_minute=$(echo $lastevent_ymd | gawk '{print $5}')
   last_second=$(echo $lastevent_ymd | gawk '{print $6}')
   echo "Trying to download only the events after last event in catalog:", $last_year "/" $last_month "/" $last_day " " $last_hour ":" $last_minute ":" $last_second, "to", $this_year "/" $this_month "/" $this_day
-  echo   curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot"
+
   curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${last_year}&start_month=${last_month}&start_day=${last_day}&start_time=${last_hour}%3A${last_minute}%3A${last_second}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=23%3A59%3A59" > isc_focals_uptodate.dat
 
   if [[ $(grep "EVENT_ID" isc_focals_uptodate.dat | wc -l) -lt 1 ]]; then

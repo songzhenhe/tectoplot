@@ -88,17 +88,27 @@ function tectoplot_calculate_gcdm()  {
 }
 
 function tectoplot_cpt_gcdm() {
-    gmt makecpt -Cseis -T$GCDMMIN/$GCDMMAX -Z ${VERBOSE} > $GCDM_CPT
+  gmt makecpt -Cseis -T$GCDMMIN/$GCDMMAX -Z ${VERBOSE} > $GCDM_CPT
 }
 
 function tectoplot_plot_gcdm() {
-    gmt grdimage $GCDMDATA $GRID_PRINT_RES -C$GCDM_CPT $RJOK $VERBOSE >> map.ps
+  case $1 in
+    gcdm)
+      gmt grdimage $GCDMDATA $GRID_PRINT_RES -C$GCDM_CPT $RJOK $VERBOSE >> map.ps
+      tectoplot_plot_caught=1
+    ;;
+  esac
 }
 
 function tectoplot_legendbar_gcdm() {
+  case $1 in
+  gcdm)
     echo "G 0.2i" >> legendbars.txt
     echo "B $GCDM_CPT 0.2i 0.1i+malu -Bxa10f2+l\"Curie Depth (km)\"" >> legendbars.txt
     barplotcount=$barplotcount+1
+    tectoplot_legendbar_caught=1
+    ;;
+  esac
 }
 
 # function tectoplot_legend_gcdm() {

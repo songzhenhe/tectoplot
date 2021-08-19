@@ -180,7 +180,9 @@ SCRAPE_ISCEHB=$SCRAPERDIR"scrape_isc-ehb.sh"
 
 SCRAPE_GFZ=$SCRAPERDIR"scrape_gfz.sh"
 SCRAPE_GCMT=$SCRAPERDIR"scrape_gcmt.sh"
-SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
+SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals_new.sh"
+#SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
+
 SCRAPE_ISCSEIS=$SCRAPERDIR"scrape_isc_seismicity.sh"
 SCRAPE_ANSS=$SCRAPERDIR"scrape_anss_data.sh"
 #EXTRACT_ANSS=$SCRAPERDIR"extract_anss.sh"
@@ -286,18 +288,6 @@ ACCESS_LITHO_BIN=$TECTOPLOTDIR
 
 LITHO1_PROG=${CSCRIPTDIR}"access_litho"
 
-##### Oceanic crustal age data (Seton et al. 2020)
-OC_AGE_DIR=$DATAROOT"OC_AGE/"
-OC_AGE=$OC_AGE_DIR"age.2020.1.GTS2012.1m.nc"
-OC_AGE_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
-OC_AGE_BYTES="215659543"
-
-OC_AGE_CPT=$OC_AGE_DIR"age_2020.cpt"
-OC_AGE_CPT_URL="https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/cpt/age_2020.cpt"
-OC_AGE_CPT_BYTES="1062"
-
-OC_AGE_SOURCESTRING="Oceanic crustal age from Seton et al., 2020, https://www.earthbyte.org/webdav/ftp/earthbyte/agegrid/2020/Grids/age.2020.1.GTS2012.1m.nc"
-OC_AGE_SHORT_SOURCESTRING="OCA"
 
 ##### NASA Blue Marble 2004
 BLUEM_EAST="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57752/land_shallow_topo_east.tif"
@@ -393,8 +383,7 @@ SANDWELL2019_CURV_bytes="829690416"
 #EARTHBYTE_ISOCHRONS_SHP_BYTES=310048
 #EARTHBYTE_ISOCHRONS_ZIP_BYTES=714027
 
-#EARTHBYTE_ISOCHRONS_SHP=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.shp"
-#EARTHBYTE_ISOCHRONS_GMT=${TECTFABRICSDIR}"Isochrons/Shapefile/Muller_etal_AREPS_2016_Isochrons.gmt"
+#EARTHBYTE_ISOCHRONS_GMT=${TECTFABRICSDIR}"Muller_etal_AREPS_2016_Isochrons.gmt"
 
 #EARTHBYTE_ISOCHRONS_SOURCESTRING="Müller, R.D., Seton, M., Zahirovic, S., Williams, S.E., Matthews, K.J., Wright, N.M., Shephard, G.E., Maloney, K.T., Barnett-Moore, N., Hosseinpour, M., Bower, D.J. & Cannon, J. 2016. Ocean Basin Evolution and Global-Scale Plate Reorganization Events Since Pangea Breakup, Annual Review of Earth and Planetary Sciences, vol. 44, pp. 107 . DOI: 10.1146/annurev-earth-060115-012211."
 #EARTHBYTE_ISOCHRONS_SHORT_SOURCESTRING="EarthByte"
@@ -437,21 +426,6 @@ GMT_EARTHDAY=$GMT_EARTHDIR"gmt_day_30s.tif"
 GMT_EARTHDAY_SOURCEURL="https://oceania.generic-mapping-tools.org/server/earth/earth_day/earth_day_30s_p.tif"
 GMT_EARTHDAY_BYTES="229508530"
 
-##### SLAB2.0
-SLAB2_SOURCESTRING="Slab geometries from Slab 2.0, Hayes et al. 2018, doi:10.1126/science.aat4723"
-SLAB2_SHORT_SOURCESTRING="SLAB2"
-
-SLAB2_DATADIR=$DATAROOT"SLAB2/"
-SLAB2_SOURCEURL="https://www.sciencebase.gov/catalog/file/get/5aa1b00ee4b0b1c392e86467"
-SLAB2_CHECKFILE=$SLAB2_DATADIR"Slab2Distribute_Mar2018.tar.gz"
-SLAB2_CHECK_BYTES="140213438"
-SLAB2_ZIP_BYTES="93730583"
-
-SLAB2DIR=$SLAB2_DATADIR"Slab2Distribute_Mar2018/"
-SLAB2_CLIPDIR=$SLAB2DIR"Slab2Clips/"
-SLAB2_CONTOURDIR=$SLAB2DIR"Slab2_CONTOURS/"
-SLAB2_GRIDDIR=$SLAB2DIR
-
 ### Additional directories where we store cached DEM data or custom DEMs
 # We will store 1°x1° tiles of GMRT and manage their re-download as needed
 
@@ -468,7 +442,6 @@ EARTHRELIEF_SOURCESTRING="EarthRelief topo retrieved from GMT Oceania server (ht
 GMRT_SHORT_SOURCESTRING="GMRT"
 GMRT_SOURCESTRING="Global Multi-Resolution Topography (https://www.gmrt.org/services/gridserverinfo.php#!/services/getGMRTGrid)"
 
-
 ##### Focal mechanism data
 
 FOCALDIR=$DATAROOT"CombinedFocals/"
@@ -476,7 +449,7 @@ FOCALCATALOG=$FOCALDIR"focals.cat"
 
 GFZDIR=$DATAROOT"GFZ/"
 GFZCATALOG=$GFZDIR"gfz_extract.cat"
-
+GFZ_STORED=$GFZDIR"GFZStored.zip"
 GFZ_SOURCESTRING="Focal mechanisms from GFZ, https://geofon.gfz-potsdam.de/eqinfo/list.php"
 GFZ_SHORT_SOURCESTRING="GFZ"
 
@@ -525,14 +498,18 @@ ANSS_EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthq
 ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 
 ANSSDIR=$DATAROOT"ANSS/"
-ANSSTILEDIR=${ANSSDIR}"Tiles"
+ANSS_TILENEWZIP=${ANSSDIR}"/ANSSTiles_new.zip"
+ANSS_TILEOLDZIP=${ANSSDIR}"/ANSSTiles.zip"
+
 #ANSS_EQ_CATALOG=${ANSSDIR}"anss.cat"
 
 # mirror:
 ISC_MIRROR="http://isc-mirror.iris.washington.edu"
 
 ISC_EQS_DIR=$DATAROOT"ISC_SEIS/"
-ISCTILEDIR=${ISC_EQS_DIR}"Tiles"
+
+ISC_TILENEWZIP=${ISC_EQS_DIR}"/ISCTiles_new.zip"
+ISC_TILEOLDZIP=${ISC_EQS_DIR}"/ISCTiles.zip"
 
 ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
@@ -558,62 +535,13 @@ FAULTS_SHORT_SOURCESTRING="GEM"
 GEMFAULTS=$DATAROOT"GEMActiveFaults/gem-global-active-faults/gmt/gem_active_faults_harmonized.gmt"
 GEMFAULTS_SOURCEURL="https://raw.githubusercontent.com/cossatot/gem-global-active-faults/master/gmt/gem_active_faults_harmonized.gmt"
 
-##### SRCMOD slip distribution folder
-SRCMOD_SOURCESTRING="SRCMOD, http://equake-rc.info/srcmod/"
-SRCMOD_SHORT_SOURCESTRING="SRCMOD"
-
-SRCMODFSPFOLDER=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/"
-SRCMODFSPLOCATIONS=$DATAROOT"SRCMOD/srcmod2020-03-23FSP/FSPlocations.txt"
-
 ##### Plate models
 
 PLATEMODELSDIR=$TECTOPLOTDIR"platemodels/"
 
 # EarthByte datasets
 
-TECTFABRICSDIR=${PLATEMODELSDIR}"TectonicFabrics/"
 
-EARTHBYTE_SOURCESTRING="EarthByte data from GPlates2.2.0, converted to GMT format using GPlates: https://www.earthbyte.org/gplates-2-2-software-and-data-sets/"
-EARTHBYTE_SHORT_SOURCESTRING="EarthByte"
-
-# Discordant zones
-EARTHBYTE_DZ=${TECTFABRICSDIR}"DZ.gmt"
-
-# Extinct Ridges (not used)
-EARTHBYTE_ER=${TECTFABRICSDIR}"ER.gmt"
-
-# Fracture Zones
-EARTHBYTE_FZ=${TECTFABRICSDIR}"FZ.gmt"
-EARTHBYTE_FZLC=${TECTFABRICSDIR}"FZLC.gmt"
-
-# Pseudofaults
-EARTHBYTE_PF=${TECTFABRICSDIR}"PF.gmt"
-
-# Propagating ridges
-EARTHBYTE_PR=${TECTFABRICSDIR}"PR.gmt"
-
-# Unclassified V-anomalies
-EARTHBYTE_UNCV=${TECTFABRICSDIR}"UNCV.gmt"
-
-# V-shaped structures
-EARTHBYTE_VANOM=${TECTFABRICSDIR}"VANOM.gmt"
-
-# Additional datasets from GPlates2.2.0 converted to .gmt format
-# See source directory for README and licensing files
-
-TECTFABRICS_SR=${TECTFABRICSDIR}"Muller_etal_AREPS_2016_Ridges.gmt"
-
-TECTFABRICS_SR_SOURCESTRING="Seafloor fabrics: Müller et al., 2016 10.1146/annurev-earth-060115-012211"
-TECTFABRICS_SR_SHORT_SOURCESTRING="M2016"
-
-TECTFABRICS_VP=${TECTFABRICSDIR}"Johansson_etal_2018_VolcanicProvinces_v2.gmt"
-
-TECTFABRICS_VP_SOURCESTRING="Volcanic provinces: Johansson et al., 2018 doi:10.1029/2017GL076691"
-TECTFABRICS_VP_SHORT_SOURCESTRING="VP/JH2018"
-
-TECTFABRICS_CP=${TECTFABRICSDIR}"Matthews_etal_GPC_2016_ContinentalPolygons.gmt"
-TECTFABRICS_CP_SOURCESTRING="Continental polygons: Matthews et al., 2016"
-TECTFABRICS_CP_SHORT_SOURCESTRING="CP/M2016"
 
 # MORVEL56-NNR (Argus et al., 2011)
 MORVEL_SOURCESTRING="MORVEL56 NNR plate motions, Argus et al., 2011 doi:10.1111/j.1365-246X.2009.04491.x"

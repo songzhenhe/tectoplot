@@ -95,20 +95,36 @@ function tectoplot_calculate_magnetics()  {
 }
 
 function tectoplot_cpt_magnetics() {
+  case $1 in
+  magnetics)
     touch $MAG_CPT
     MAG_CPT=$(abs_path $MAG_CPT)
     gmt makecpt -Crainbow -Z -Do -T-250/250/10 $VERBOSE > $MAG_CPT
+    tectoplot_cpt_caught=1
+    ;;
+  esac
 }
 
 function tectoplot_plot_magnetics() {
+  case $1 in
+  magnetics)
     info_msg "Plotting magnetic data"
     gmt grdimage $EMAG_V2 $GRID_PRINT_RES -C$MAG_CPT -t$MAGTRANS $RJOK -Q $VERBOSE >> map.ps
+    tectoplot_plot_caught=1
+    ;;
+  esac
+
 }
 
 function tectoplot_legendbar_magnetics() {
-    echo "G 0.2i" >> legendbars.txt
-    echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
-    barplotcount=$barplotcount+1
+  case $1 in
+    magnetics)
+      echo "G 0.2i" >> legendbars.txt
+      echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
+      barplotcount=$barplotcount+1
+      tectoplot_caught_legendbar=1
+    ;;
+  esac
 }
 
 # function tectoplot_legend_magnetics() {

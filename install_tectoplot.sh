@@ -397,9 +397,6 @@ function brew_packages() {
   # This is the formula for GMT 6.1.1_6
   curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && HOMEBREW_NO_AUTO_UPDATE=1 brew install gmt.rb && rm -f gmt.rb
 
-  echo "Pinning GMT 6.1.1"
-  brew pin gmt
-
   echo "Installing other packages"
   for tap in ${tap_list}; do
     echo "Checking for tap > ${tap}"
@@ -445,6 +442,10 @@ function brew_packages() {
       fi
     fi
   done
+
+  # Special section to link GMT 6.1.1?
+
+
 }
 
 function install_evince() {
@@ -751,7 +752,7 @@ function configure_tectoplot() {
       read -r -p "Set tectoplot data directory? It will be created if it doesn't exist. Default is yes. [y|n] " response
       case "${response}" in
         Y|y|Yy|yY|yes|"")
-          read -r -p "Enter path or press enter for default: ${HOME}/TectoplotData/" response2
+          read -r -p "Enter path or press enter for default (${HOME}/TectoplotData/) : " response2
           case "${response2}" in
             "")
               response2="${HOME}/TectoplotData/"

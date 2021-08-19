@@ -201,20 +201,30 @@ function download_isc_file() {
 
 ISCDIR="${1}"
 
-# Sort the isc_complete.txt file to preserve the order of earliest->latest
+[[ ! -d $ISCDIR ]] && mkdir -p $ISCDIR
+
+cd $ISCDIR
+
+# Sort the anss_complete.txt file to preserve the order of earliest->latest
 if [[ -e isc_complete.txt ]]; then
   sort < isc_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_complete.txt.sort
   mv isc_complete.txt.sort isc_complete.txt
 fi
 
-if [[ -d $ISCDIR ]]; then
+ISCTILEDIR="Tiles/"
+
+if [[ -d $ISCTILEDIR ]]; then
   echo "ISC tile directory exists."
 else
-  echo "Creating tile files in ISC tile directory :${ISCDIR}:."
-  mkdir -p ${ISCDIR}
-fi
+  echo "Creating tile files in ISC tile directory :${ISCTILEDIR}:."
 
-cd $ISCDIR
+  mkdir -p ${ISCTILEDIR}
+  for long in $(seq -180 5 175); do
+    for lati in $(seq -90 5 85); do
+      touch ${ISCTILEDIR}"tile_${long}_${lati}.cat"
+    done
+  done
+fi
 
 if ! [[ $2 =~ "rebuild" ]]; then
 
@@ -308,17 +318,11 @@ if ! [[ $2 =~ "rebuild" ]]; then
     if [[ ! -e ${d_file} || $(has_a_line ${d_file}) -eq 0 ]]; then
       echo "File ${d_file} was not downloaded or has no events. Not marking as complete"
     else
-
-      if ! grep "No events were found" ${d_file}; then
-
-        echo ${d_file} >> isc_just_downloaded.txt
-        if [[ $last_index -ge 0 ]]; then
-          # Need to check whether the last file exists still before marking as complete (could have been deleted)
-          echo "File ${d_file} had events... marking earlier file ${isc_list_files[$last_index]} as complete."
-          [[ -e ${isc_list_files[$last_index]} ]] && echo ${isc_list_files[$last_index]} >> isc_complete.txt
-        fi
-      else
-        echo "File ${d_file} had no events inside"
+      echo ${d_file} >> isc_just_downloaded.txt
+      if [[ $last_index -ge 0 ]]; then
+        # Need to check whether the last file exists still before marking as complete (could have been deleted)
+        echo "File ${d_file} had events... marking earlier file ${isc_list_files[$last_index]} as complete."
+        [[ -e ${isc_list_files[$last_index]} ]] && echo ${isc_list_files[$last_index]} >> isc_complete.txt
       fi
     fi
     last_index=$(echo "$last_index + 1" | bc)
@@ -326,17 +330,17 @@ if ! [[ $2 =~ "rebuild" ]]; then
   done
 else
   # Rebuild the tile from the downloaded
-  echo "Rebuilding ISC tiles no longer supported - remove manually and rescrape"
-  # rm -f ${ISCDIR}tile*.cat
-  # cp isc_complete.txt isc_just_downloaded.txt
-  # lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
-  # lastevent_date="1900-01-01T00:00:01"
-  #
-  # for long in $(seq -180 5 175); do
-  #   for lati in $(seq -90 5 85); do
-  #     touch ${ISCDIR}"tile_${long}_${lati}.cat"
-  #   done
-  # done
+  echo "Rebuilding tiles from complete files"
+  rm -f ${ISCTILEDIR}tile*.cat
+  cp isc_complete.txt isc_just_downloaded.txt
+  lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
+  lastevent_date="1900-01-01T00:00:01"
+
+  for long in $(seq -180 5 175); do
+    for lati in $(seq -90 5 85); do
+      touch ${ISCTILEDIR}"tile_${long}_${lati}.cat"
+    done
+  done
 fi
 
 # If we downloaded a file (should always happen as newest file is never marked complete)
@@ -346,6 +350,7 @@ fi
 if [[ -e isc_just_downloaded.txt ]]; then
 
   selected_files=$(cat isc_just_downloaded.txt)
+  rm -f ./not_tiled.cat
 
   # For each candidate file, examine events and see if they are younger than the
   # last event that has been added to a tile file. Keep track of the youngest
@@ -354,22 +359,15 @@ if [[ -e isc_just_downloaded.txt ]]; then
   for isc_file in $selected_files; do
     echo "Processing file $isc_file into tile files"
 
-    cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCDIR} -v mindate=$lastevent_date -v oldcatdate=${OLDCAT_DATE} '
+
+    cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCTILEDIR} -v mindate=$lastevent_date '
     @include "tectoplot_functions.awk"
     BEGIN { added=0 }
     {
       thisdate=sprintf("%sT%s", $3, substr($4, 1, 8))
 
       if (thisdate > mindate) {
-
-        if (thisdate > oldcatdate) {
-          catstr="_new"
-        } else {
-          catstr="_old"
-        }
-
-        tilestr=sprintf("%stile_%d_%d%s.cat", tiledir, rd($6,5), rd($5,5), catstr);
-
+        tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($6,5), rd($5,5));
         print $0 >> tilestr
         added++
       } else {
@@ -380,34 +378,6 @@ if [[ -e isc_just_downloaded.txt ]]; then
       print "Added", added, "events to ISC tiles."
     }'
 
-  done
-
-  # Now all the tile files have been created with all of the added events
-
-
-  # Don't match tile_*.cat as a file...
-  shopt -s nullglob
-  newfiles=(${ISCDIR}tile_*_old.cat)
-
-  # The tile files are the new data that needs to be added into the ZIP file
-  for newfile in ${newfiles[@]}; do
-    thisname=$(basename $newfile | sed 's/_old//')
-    unzip -p ${ISC_TILEOLDZIP} ${thisname} > temp.cat 2>/dev/null
-    cat temp.cat ${newfile} > temp2.cat
-    mv temp2.cat ${thisname}
-    zip ${ISC_TILEOLDZIP} ${thisname} && rm -f ${thisname}
-  done
-
-  shopt -s nullglob
-  newfiles=(${ISCDIR}tile_*_new.cat)
-
-  # The tile files are the new data that needs to be added into the ZIP file
-  for newfile in ${newfiles[@]}; do
-    thisname=$(basename $newfile | sed 's/_new//')
-    unzip -p ${ISC_TILENEWZIP} ${thisname} > temp.cat
-    cat temp.cat ${newfile} > temp2.cat
-    mv temp2.cat ${thisname}
-    zip ${ISC_TILENEWZIP} ${thisname} && rm -f ${thisname}
   done
 
   # not_tiled.cat is a file containing old events that have alread been tiled
@@ -422,7 +392,5 @@ if [[ -e isc_just_downloaded.txt ]]; then
     echo $last_downloaded_event > isc_last_downloaded_event.txt
     # Update last_downloaded_event.txt
   fi
-fi
 
-rm -f isc_events_*.cat not_tiled.cat
-rm -f isc_incomplete.txt isc_just_downloaded.txt
+fi

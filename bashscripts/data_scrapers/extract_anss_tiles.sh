@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# extract_anss.sh DATADIR MINLON MAXLON MINLAT MAXLAT MINTIME MAXTIME MINMAG MAXMAG MINDEPTH MAXDEPTH OUTFILE
+# extract_anss.sh ZIPPATH_OLD ZIPPATH_NEW MINLON MAXLON MINLAT MAXLAT MINTIME MAXTIME MINMAG MAXMAG MINDEPTH MAXDEPTH OUTFILE
 
 # This script will print all events from a tiled ANSS catalog directory (tile_lon_lat.cat) to OUTFILE
 # The tile files are in Comcat CSV format without a header line.
@@ -96,17 +96,44 @@
 #   }'
 # }
 
-DATADIR=$1
+# DATADIR=$1
+#
+# if ! [[ -d $DATADIR ]]; then
+#   echo "Seismicity directory $DATADIR does not exist." > /dev/stderr
+#   exit 1
+# fi
+#
+# cd $DATADIR
 
-if ! [[ -d $DATADIR ]]; then
-  echo "Seismicity directory $DATADIR does not exist." > /dev/stderr
-  exit 1
+
+# $EXTRACT_ANSS_TILES $ANSS_TILEOLDZIP $ANSS_TILENEWZIP $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
+
+ANSS_TILEOLDZIP="${1}"
+ANSS_TILENEWZIP="${2}"
+ARG_OLDDATE="${3}"
+MINLON="${4}"
+MAXLON="${5}"
+MINLAT="${6}"
+MAXLAT="${7}"
+STARTTIME="${8}"
+ENDTIME="${9}"
+EQ_MINMAG="${10}"
+EQ_MAXMAG="${11}"
+EQCUTMINDEPTH="${12}"
+EQCUTMAXDEPTH="${13}"
+OUTPUTFILE="${14}"
+
+
+if ! [[ -s $ANSS_TILEOLDZIP ]]; then
+  echo "Seismicity tile ZIP file $ANSS_TILEOLDZIP does not exist." > /dev/stderr
+  if ! [[ -s $ANSS_TILEOLDZIP ]]; then
+    echo "Seismicity tile new ZIP file $ANSS_TILENEWZIP does not exist either!" > /dev/stderr
+    exit 1
+  fi
 fi
 
-cd $DATADIR
-
 # # Initial selection of files based on the input latitude and longitude range
-selected_files=($(gawk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} '
+selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
   @include "tectoplot_functions.awk"
   BEGIN   {
     newminlon=minlon
@@ -170,21 +197,32 @@ selected_files=($(gawk -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${
 
 # The CSV files can have commas within the ID string messing up fields.
 # Remove these and also the quotation marks in ID strings to give a parsable CSV file
-# echo ${selected_files[@]} | tr ' ' '\n'
-# Currenly broken for AOI longitudes like: [-200, -170]. Works for [170, 190]
 
+ # echo ${selected_files[@]} | tr ' ' '\n'
+
+# Old method reading from non-zipped tiles.
+# gawk < $this_file -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
+
+# New method reading from zipped tiles.
 for this_file in ${selected_files[@]}; do
-  if [[ -s ${this_file} ]]; then
-    gawk < $this_file -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
-    gawk -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v mindate=${6} -v maxdate=${7} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
+    # echo unzip -p $ANSS_TILEZIP ${this_file}
+
+    # If the start time is earlier than the break between old and new
+    if [[ "${STARTTIME}" < "${ARG_OLDDATE}" ]]; then
+      unzip -p $ANSS_TILEOLDZIP ${this_file} 2>/dev/null >> ${F_SEIS}anss_extract.txt
+    fi
+    # If the end time is later than the break between old and new
+
+    if [[  "${ENDTIME}" > "${ARG_OLDDATE}" ]]; then
+      unzip -p $ANSS_TILENEWZIP ${this_file} 2>/dev/null >> ${F_SEIS}anss_extract.txt
+    fi
+
+    gawk < ${F_SEIS}anss_extract.txt -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
+    gawk -F, -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '
     @include "tectoplot_functions.awk"
     ($1 != "time" && $15 == "earthquake" && mindate <= $1 && $1 <= maxdate && $2 <= maxlat && $2 >= minlat && $5 >= minmag && $5 <= maxmag && $4 >= mindepth && $4 <= maxdepth) {
-
-      # Three cases: minlon < -180 (e.g. [-190:-170], maxlon>180 (e.g. [170:190]), and otherwise (e.g. [-170:170])
-
       if (test_lon(minlon, maxlon, $3)==1) {
         print
       }
-    }' >> ${12}
-  fi
+    }' >> ${OUTPUTFILE}
 done

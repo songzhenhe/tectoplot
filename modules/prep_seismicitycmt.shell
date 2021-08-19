@@ -1,0 +1,1641 @@
+
+TECTOPLOT_MODULES+=("seismicitycmt")
+
+# Calculate residual grid by removing along-line average, using da-dt formulation
+# Builtin support for gravity grids
+
+# Variables needed:
+# GRID_PRINT_RES
+# GRAVCPT
+
+function tectoplot_defaults_seismicitycmt() {
+  SWATH=${BASHSCRIPTDIR}"swath.sh"
+  RESGRID_CPT=${F_CPTS}"resgrav.cpt"
+  RESGRID_CPTRANGE=145
+}
+
+function tectoplot_args_seismicitycmt()  {
+  # The following line is required for all modules
+  tectoplot_module_caught=0
+  tectoplot_module_shift=0
+
+  # The following case statement mimics the argument processing for tectoplot
+  # case "${1}" in
+  #
+  # # -vres)  # Calculate residual gravity or other grid within specified distance of a provided XY line
+  #
+  #   shift
+  #
+  #   plots+=("seismicitycmt")
+  #   # cpts+=("seismicitycmt")
+  #
+  #   tectoplot_module_caught=1
+  #   ;;
+  # esac
+}
+
+# tectoplot_cpts_seismicitycmt() {
+#
+# }
+
+function tectoplot_calculate_seismicitycmt()  {
+
+  ################################################################################
+  #####           Manage earthquake hypocenters                              #####
+  ################################################################################
+
+  SEISDATA=${F_SEIS}eqs.txt
+
+  if [[ $plotseis -eq 1 ]]; then
+
+    touch ${F_SEIS}eqs.txt
+    NUMEQCATS=0
+    ##############################################################################
+    # Initial select of seismicity based on geographic coords, mag, and depth
+    # Takes into account crossing of antimeridian (e.g lon in range [120 220] or [-190 -170])
+
+    # Data are selected from either ANSS, ISC, ISC-EHB, or custom data files
+    # Tectoplot catalog eqs.txt is Lon Lat Depth Mag Timecode ID epoch clusterid
+
+    customseisindex=1
+
+    for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
+      if [[ $eqcattype =~ "ANSS" ]]; then
+        F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+        info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
+        $EXTRACT_ANSS_TILES $ANSSTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
+
+        # ANSS CSV format is:
+        # 1    2        3         4     5   6       7   8   9    10  11  12 13      14    15   16              17         18       19     20     21             22
+        # time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+
+        # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
+        TZ=UTC
+        gawk -F, < ${F_SEIS}anss_extract_tiles.cat '
+        @include "tectoplot_functions.awk"
+        {
+          type=tolower(substr($6,1,2))
+          if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
+            # NEIC mb > Mw Weatherill, 2016
+            oldval=$5
+            $5 = 1.159 * $5 - 0.659
+            print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "mw") {
+            # NEIC Mw > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            $11 = 1.021 * mag - 0.091
+            print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "ms") {
+            oldval=$5
+            if (tolower(substr($6,1,3))=="msz") {
+              # NEIC Msz > Mw Weatherill, 2016
+              if ($5 >= 3.5 && $5 <= 6.47) {
+                  $5 = 0.707 * $5 + 19.33
+                  print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+              if ($5 > 6.47 && $5 <= 8.0) {
+                $5 = 0.950 * $5 + 0.359
+                print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+              print $1, tolower(substr($6,1,3)) "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
+            } else {
+              # NEIC Ms > Mw(GCMT) Weatherill, 2016
+              if ($5 >= 3.5 && $5 <= 6.47) {
+                  $5 = 0.723 * $5 + 1.798
+                  print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+              if ($5 > 6.47 && $5 <= 8.0) {
+                $5 = 1.005 * $5 - 0.026
+                print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+            }
+          }
+        else if (tolower(type) == "ml") { # Mereu, 2020
+            oldval=$5
+            $5 = 0.62 * $5 + 1.09
+            print $12, type "=" oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+          }
+          epoch=iso8601_to_epoch(substr($1,1,19))
+          print $3, $2, $4, $5, substr($1,1,19), $12, epoch
+        }' >> ${F_SEIS}eqs.txt
+        ((NUMEQCATS+=1))
+      fi
+      if [[ $eqcattype =~ "ISC" ]]; then
+        F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+        info_msg "[-z]: $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat"
+        $EXTRACT_ISC_TILES $ISCTILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat
+
+        # 1       2         3           4          5        6         7     8      9         10     11   12+
+        # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
+        #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
+
+        gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
+        @include "tectoplot_functions.awk"
+        {
+          type=tolower(substr($10,1,2))
+          mag=$11
+          typeindex=10
+          magindex=11
+          while($(typeindex)!="") {
+            newtype=tolower(substr($(typeindex),1,2))
+            newmag=$(magindex)
+            if (newmag > mag) {
+              print "Selecting largest reported magnitude of event", $1, ":", newtype, newmag > "./mag_selections.dat"
+              type=newtype
+              mag=newmag
+            }
+            typeindex+=3
+            magindex+=3
+          }
+          if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+            # ISC mb > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            $11 = 1.084 * mag - 0.142
+            print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "ms") {
+            # ISC Ms > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            if (mag >= 3.5 && mag <= 6.0) {
+                $11 = 0.616 * mag + 2.369
+                print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+
+            } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+              $11 = 0.994 * mag + 0.1
+              print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+            }
+          } else if (tolower(type) == "ml") {
+            # Is it more wrong to use a local ml->Mw conversion or leave the ml alone? Not sure!
+            # Mereu, 2020
+            oldval=mag
+            $11 = 0.62 * mag + 1.09
+            print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+          }
+          timestring=sprintf("%sT%s", $3, substr($4, 1, 8))
+          epoch=iso8601_to_epoch(timestring)
+          print $6, $5, $7, $11, timestring, $1, epoch
+        }' >> ${F_SEIS}eqs.txt
+        ((NUMEQCATS+=1))
+      fi
+      if [[ $eqcattype =~ "EHB" ]]; then
+
+        # lon, lat, depth, mag, timestring, id, epoch, type
+        # type = "mw" or "ms" or "mb"
+
+          gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME '
+            @include "tectoplot_functions.awk"
+            {
+              lon=$1
+              lat=$2
+              depth=$3
+              mag=$4
+              datestring=$5
+              id=$6
+              epoch=$7
+              type=$8
+
+
+              if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+                if (test_lon(minlon, maxlon, lon) == 1) {
+
+                  if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+                    # ISC mb > Mw(GCMT) Weatherill, 2016
+                    oldval=mag
+                    $4 = 1.084 * mag - 0.142
+                    print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                  } else if (tolower(type) == "ms") {
+                    # ISC Ms > Mw(GCMT) Weatherill, 2016
+                    oldval=mag
+                    if (mag >= 3.5 && mag <= 6.0) {
+                        $4 = 0.616 * mag + 2.369
+                        print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                    } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+                      $4 = 0.994 * mag + 0.1
+                      print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                    }
+                  }
+
+                  $8=""
+
+
+                  print
+                }
+              }
+
+
+            }
+          ' >> ${F_SEIS}eqs.txt
+          ((NUMEQCATS+=1))
+          ((customseisindex+=1))
+          echo "${ISCEHB_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+          echo "${ISCEHB_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+      fi
+      ##############################################################################
+      # Add additional user-specified seismicity files. This needs to be expanded
+      # to import from various common formats. Currently needs tectoplot format data
+      # and only ingests lines with 4-7 fields.
+
+      if [[ $eqcattype =~ "custom" ]]; then
+        info_msg "[-z]: Loading custom seismicity file ${SEISADDFILE[$customseisindex]}"
+          gawk < ${SEISADDFILE[$customseisindex]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
+            @include "tectoplot_functions.awk"
+            {
+               # We have at least lon lat depth mag
+              if (NF >= 4) {
+                if ($5=="") {
+                  $5=0
+                  checkdate=0
+                } else {
+                  checkdate=1
+                }
+                if ($6=="") {
+                  $6=0
+                }
+                if ($7=="") {
+                  $7="none"
+                }
+                if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag && $2 >= minlat && $2 <= maxlat) {
+                  if (test_lon(minlon, maxlon, $1) == 1) {
+                    if (checkdate==1) {
+                      if (mindate <= $5 && $5 <= maxdate) {
+                        print $1, $2, $3, $4, $5, $6, $7
+                      }
+                    } else {
+                      print $1, $2, $3, $4, $5, $6, $7
+                    }
+                  }
+                }
+              }
+            }' >> ${F_SEIS}eqs.txt
+          ((NUMEQCATS+=1))
+          ((customseisindex+=1))
+          echo "CustomEQ" >> ${SHORTSOURCES}
+          echo "Seismicity from ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
+      fi
+    done
+
+    [[ -s ./mag_conversions.dat ]] && mv ./mag_conversions.dat ${F_SEIS}
+    [[ -s ./mag_selections.dat ]] && mv ./mag_selections.dat ${F_SEIS}
+
+    if [[ -s ${F_SEIS}eqs.txt && $recenteqprintandexitflag -eq 1 ]]; then
+      case ${LATESTEQSORTTYPE} in
+        date)
+          cat ${F_SEIS}eqs.txt | sort -n -k 5
+          ;;
+        mag)
+          cat ${F_SEIS}eqs.txt | sort -n -k 4
+          ;;
+        esac
+    fi
+
+
+      # Cull the combined catalogs by removing global events that fall within a
+      # specified space-time-magnitude window of an event in the custom catalog
+  [[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
+  [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
+
+      # We keep the first event, so prioritization is by order of specified catalogs
+  if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
+      info_msg "Culling multiple input seismic catalogs..."
+      cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_precull.txt
+      num_eqs_precull=$(wc -l < ${F_SEIS}eqs_precull.txt | tr -d ' ')
+      gawk < ${F_SEIS}eqs_precull.txt -v n=${num_eqs_precull} '
+      @include "tectoplot_functions.awk"
+      BEGIN {
+        epoch_cutoff=30  # Seconds between events
+        mag_cutoff=0.3   # Magnitude difference
+        lon_cutoff=0.2   # Longitude difference
+        lat_cutoff=0.2   # Latitude difference
+        depth_cutoff=20  # depth difference
+      }
+      (NR <= n) {
+        data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)"\x99"NR
+      }
+      (NR > n) {
+        data[NR]=$5"\x99"$0"\x99"0"\x99"iso8601_to_epoch($5)"\x99"NR
+      }
+      END {
+        asort(data)
+        for(i=1;i<=NR;i++)
+        {
+          split(data[i],x,"\x99")
+
+          # x[1] = timecode, x[2] = full data string, x[3] = is_imported flag
+          # x[4] = epoch time (seconds) x[5]=line number in input file
+
+          # event_timecode[i]=x[1]
+          event[i]=x[2]
+          split(x[2], evec, " ")
+          lon[i]=evec[1]
+          lat[i]=evec[2]
+          depth[i]=evec[3]
+          mag[i]=evec[4]
+          is_imported[i]=x[3]
+          epoch[i]=x[4]
+          linenumber[i]=x[5]
+        }
+        for(i=1;i<=NR;i++)
+        {
+          # For each event in the combined catalog
+          printme=1
+          # if (is_imported[i]==0) {
+          #   printme=1
+            # Check only the 10 closest events in time
+          for(j=i-5;j<=i+5;++j)
+          {
+            if (j>=1 && j<=NR && j != i && is_imported[j] == 1)
+            {
+              if ((abs(epoch[i]-epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff) && (linenumber[i] > linenumber[j]) )
+              {
+                    # There is an equivalent event in the catalog that has a
+                    # lower line number, so do not print this event
+                    print event[i], "[" linenumber[i] "]", "was removed because it matches", event[j], "[" linenumber[j] "]" > "./culled_seismicity.txt"
+                    printme=0
+                    break
+              }
+            }
+          }
+          if (printme==1) {
+            print event[i]
+          }
+        }
+      }' > ${F_SEIS}eqs.txt
+      [[ -s culled_seismicity.txt ]] && mv culled_seismicity.txt ${F_SEIS}
+
+      num_after_cull=$(wc -l < ${F_SEIS}eqs.txt | tr -d ' ')
+      info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
+    fi
+
+    # Secondary select of combined seismicity using the actual AOI polygon which
+    # may differ from the lat/lon box.
+
+    # In most cases this won't be necessary so maybe we should move into if-fi above?
+    info_msg "Selecting seismicity within AOI polygon"
+    if [[ -s ${F_SEIS}eqs.txt ]]; then
+      mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
+      gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+    fi
+
+    # Alternative method using the bounding box which really doesn't work with global extents
+    # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+    cleanup ${F_SEIS}eqs_aoipreselect.txt
+    info_msg "AOI selection: $(wc -l < ${F_SEIS}eqs.txt)"
+
+    ##############################################################################
+    # Select seismicity that falls within a specified polygon.
+
+    if [[ $polygonselectflag -eq 1 ]]; then
+      info_msg "Selecting seismicity within speficied AOI polygon ${POLYGONAOI}"
+      mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
+      gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+      # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+      # cleanup ${F_SEIS}eqs_preselect.txt
+    fi
+    info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
+
+    ##############################################################################
+    # Select seismicity on land
+
+    if [[ $zconlandflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
+      info_msg "Selecting seismicity on land or at sea"
+      if [[ -s ${F_TOPO}dem.nc ]]; then
+
+        gmt grdtrack ${F_SEIS}eqs.txt -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
+        {
+          if (landorsea==1) {
+            # Land
+            print ($1>0)?1:0
+          } else {
+            # sea
+            print ($1<=0)?1:0
+          }
+        }'> ${F_SEIS}eqs_onland_sel.txt
+        gawk '
+        (NR==FNR) {
+          toprint[NR]=$1
+        }
+        (NR!=FNR) {
+          if (toprint[NR-length(toprint)]==1) {
+            print
+          }
+        }' ${F_SEIS}eqs_onland_sel.txt ${F_SEIS}eqs.txt > ${F_SEIS}eqs_onland.txt
+      fi
+      if [[ -s ${F_SEIS}eqs_onland.txt ]]; then
+        cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_land.txt
+        mv ${F_SEIS}eqs_onland.txt ${F_SEIS}eqs.txt
+      fi
+    fi
+
+
+    # Select seismicity from eqlist
+
+    if [[ $eqlistselectflag -eq 1 ]]; then
+      echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_SEIS}eqselectlist.txt
+
+      gawk '
+        NR==FNR {
+          A[$1]=1 ; next
+        }
+        $6 in A {
+          print
+        }' ${F_SEIS}eqselectlist.txt ${F_SEIS}eqs.txt > ${F_SEIS}eqselected.dat
+      [[ -s ${F_SEIS}eqselected.dat ]] && cp ${F_SEIS}eqselected.dat ${F_SEIS}eqs.txt
+    fi
+
+
+    #### Decluster seismicity using one of several available algorithms
+
+    if [[ $seisdeclusterflag -eq 1 ]]; then
+      info_msg "Declustering seismicity catalog..."
+      if [[ ${DECLUSTER_METHOD} =~ "rb" ]]; then
+        info_msg "Using Reasenberg method"
+
+        if [[ ! -x ${REASENBERG_EXEC} ]]; then
+          echo "Compiling Reasenberg declustering code"
+          ${F90COMPILER} ${REASENBERG_SCRIPT} -o ${REASENBERG_EXEC}
+        fi
+
+        if [[ -x ${REASENBERG_EXEC} ]]; then
+          ${REASENBERG_SH} ${F_SEIS}eqs.txt ${REASENBERG_EXEC} ${DECLUSTER_MINSIZE}
+        fi
+
+      else
+        info_msg "Using Gardner-Knopoff window method ${DECLUSTER_METHOD}"
+        ${DECLUSTER_GK} ${F_SEIS}eqs.txt ${DECLUSTER_METHOD} ${DECLUSTER_MINSIZE}
+        cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_predecluster.txt
+      fi
+      if [[ ${DECLUSTER_REMOVE} -eq 1 ]]; then
+        cp ./catalog_declustered.txt ${F_SEIS}eqs.txt
+      else
+        cat ./catalog_declustered.txt ./catalog_clustered.txt > ${F_SEIS}eqs.txt
+      fi
+      mv ./catalog_declustered.txt ./catalog_clustered.txt ${F_SEIS}
+    fi
+
+    ##############################################################################
+    # Sort seismicity file so that certain events plot on top of / below others
+
+    if [[ $dozsortflag -eq 1 ]]; then
+      info_msg "Sorting earthquakes by $ZSORTTYPE"
+      case $ZSORTTYPE in
+        "depth")
+          SORTFIELD=3
+        ;;
+        "time")
+          SORTFIELD=7
+        ;;
+        "mag")
+          SORTFIELD=4
+        ;;
+        *)
+          info_msg "[-zcsort]: Sort field $ZSORTTYPE not recognized. Using depth."
+          SORTFIELD=3
+        ;;
+      esac
+      [[ $ZSORTDIR =~ "down" ]] && sort -n -k $SORTFIELD,$SORTFIELD ${F_SEIS}eqs.txt > ${F_SEIS}eqsort.txt
+      [[ $ZSORTDIR =~ "up" ]] && sort -n -r -k $SORTFIELD,$SORTFIELD ${F_SEIS}eqs.txt > ${F_SEIS}eqsort.txt
+      [[ -e ${F_SEIS}eqsort.txt ]] && cp ${F_SEIS}eqsort.txt ${F_SEIS}eqs.txt
+    fi
+  fi # if [[ $plotseis -eq 1 ]]
+
+
+  ################################################################################
+  #####           Manage focal mechanisms and hypocenters                    #####
+  ################################################################################
+
+  # Fixed scaling of the kinematic vectors from size of focal mechanisms
+
+  # SYMSIZES are apparently in units of cm (default size unit???)
+  # Length of slip vector azimuth
+  SYMSIZE1=$(echo "${KINSCALE} * 3.5" | bc -l)
+  # Length of dip line
+  SYMSIZE2=$(echo "${KINSCALE} * 1" | bc -l)
+  # Length of strike line
+  SYMSIZE3=$(echo "${KINSCALE} * 3.5" | bc -l)
+
+  ##### FOCAL MECHANISMS
+
+
+  if [[ $calccmtflag -eq 1 ]]; then
+
+    [[ $CMTFORMAT =~ "GlobalCMT" ]]     && CMTLETTER="c"
+    [[ $CMTFORMAT =~ "MomentTensor" ]]  && CMTLETTER="m"
+    [[ $CMTFORMAT =~ "TNP" ]] && CMTLETTER="y"
+
+    # New code to process CMT
+
+    cmt_priority=1
+    for this_ccat in ${CMT_CATALOG_TYPE[@]}; do
+      info_msg "[-c]: Extracting CMT events from ${this_ccat}"
+      this_customcmtnum=1
+      case $this_ccat in
+        GCMT)
+          THIS_CMTFILE=${GCMTCATALOG}
+        ;;
+        ISC)
+          THIS_CMTFILE=${ISCCATALOG}
+        ;;
+        GFZ)
+          THIS_CMTFILE=${GFZCATALOG}
+        ;;
+        custom)  # Slurp the custom CMT file using the specified format and the alphabetical ID
+
+          # THIS_CMTFILE=${CMTADDFILE[$this_customcmtnum]}
+          # THIS_CMTFORMAT=${CMTADDFILE_TYPE[$this_customcmtnum]}
+          # THIS_CMTLETTER=${CCAT_LETTER[$cmtfilenumber]}
+          # echo ${CMTSLURP} ${CMTADDFILE[$this_customcmtnum]} ${CMTADDFILE_TYPE[$this_customcmtnum]} ${CCAT_LETTER[$this_customcmtnum]}
+
+          ${CMTSLURP} ${CMTADDFILE[$this_customcmtnum]} ${CMTADDFILE_TYPE[$this_customcmtnum]}  ${CCAT_LETTER[$this_customcmtnum]} > ${F_CMT}custom_cmt_${this_customcmtnum}.txt
+
+          THIS_CMTFILE=${F_CMT}custom_cmt_${this_customcmtnum}.txt
+        ;;
+        *)
+        ;;
+      esac
+
+      # Do the initial AOI scrape and filter events by CENTROID/ORIGIN location.
+      # We should have a cmt_tools.sh option to set events as centroid/origin when importing!
+
+      if [[ -s $THIS_CMTFILE ]]; then
+        gawk < $THIS_CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${CMT_MINMAG} -v maxmag=${CMT_MAXMAG} '
+        @include "tectoplot_functions.awk"
+        {
+          mag=$13
+          if (cent==1) {
+            lon=$5
+            lat=$6
+            depth=$7
+          } else {
+            lon=$8
+            lat=$9
+            depth=$10
+          }
+          if ((depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+            if (test_lon(minlon, maxlon, lon) == 1) {
+              if (lon!="none" && lat!="none") {
+                print
+              }
+            }
+          }
+        }' > ${F_CMT}sub_extract.cat
+        info_msg "Extracted $(wc -l < ${F_CMT}sub_extract.cat) CMT events from $THIS_CMTFILE"
+        cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
+      fi
+    done
+
+    if [[ ${#CCAT_STRING} -gt 1 && ${CULL_CMT_CATALOGS} -eq 1 ]]; then
+
+      info_msg "[-c]: Sorting, finding clashes, and prioritizing using order of CCAT_STRING=${CCAT_STRING}"
+
+
+      before_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
+
+      # Column  Data              Units
+      # ------  ----              -----
+      # 1.      idcode            A source data letter (G=GCMT, I=ISC, Z=GFZ, etc) and a
+      #                           EQ type letter (N=Normal, T=Thrust, S=Strike slip)
+      # 2.      event_code	      Any event ID from the source catalog
+      # 3.      id	              YYYY-MM-DDTHH:MM:SS time string
+      # 4.      epoch             (seconds) since Jan 1, 1970
+      # 5.      lon_centroid	    (°)
+      # 6.      lat_centroid	    (°)
+      # 7.      depth_centroid	  (km)
+      # 8.      lon_origin	      (°)
+      # 9.      lat_origin	      (°)
+      # 10.     depth_origin	    (km)
+      # 11.     author_centroid	  string    (e.g. GCMT)
+      # 12.     author_origin	    string    (e.g. NEIC)
+      # 13.     MW	              number
+      # 14.     mantissa	        number
+      # 15.     exponent	        integer
+      # 16.     strike1	          (°)
+      # 17.     dip1	            (°)
+      # 18.     rake1	            (°)
+      # 19.     strike2	          (°)
+      # 20.     dip2	            (°)
+      # 21.     rake2	            (°)
+      # 22.     exponent	        same as field 15
+      # 23.     Tval	            number
+      # 24.     Taz	              (°) azimuth of T axis
+      # 25.     Tinc	            (°) plunge of T axis
+      # 26.     Nval	            number
+      # 27.     Naz	              (°)
+      # 28.     Ninc	            (°)
+      # 29.     Pval	            number
+      # 30.     Paz	              (°)
+      # 31.     Pinc	            (°)
+      # 32.     exponent	        same as 15
+      # 33.     Mrr	              number
+      # 34.     Mtt	              number
+      # 35.     Mpp	              number
+      # 36.     Mrt	              number
+      # 37.     Mrp	              number
+      # 38.     Mtp	              number
+      # 39.     centroid_dt       (seconds)   Time between origin and centroid
+
+      sort ${F_CMT}cmt_global_aoi.dat -k3,3 | uniq -u > ${F_CMT}cmt_presort.txt
+      gawk < ${F_CMT}cmt_presort.txt -v removedfile=${F_CMT}"cmt_removed_cull.cat" -v cent=$CENTROIDFLAG -v ccatstring=${CCAT_STRING} '
+      function abs(v) { return (v>0)?v:-v }
+      function build_index(ccstr) {
+        for(i=1; i<=length(ccstr); i++) {
+          ccindex[substr(ccstr, i, 1)]=i
+        }
+      }
+      BEGIN {
+        # Define the window for potentially equivalent earthquakes
+        delta_lon=2
+        delta_lat=2
+        delta_sec=15
+        delta_depth=30
+        delta_mag=0.5
+
+        # Build the priority index
+        build_index(ccatstring)
+      }
+      {
+        data[NR]=$0
+        date[NR]=substr($3,1,10)
+        epoch[NR]=$4
+        eventid[NR]=$2
+        numfields=NF
+        if (cent==1) {
+          lon[NR]=$5
+          lat[NR]=$6
+          depth[NR]=$7
+        } else {
+          lon[NR]=$8
+          lat[NR]=$9
+          depth[NR]=$10
+        }
+        mag[NR]=$13
+        idcode[NR]=substr($1,1,1)
+        prioritynum[NR]=ccindex[idcode[NR]]
+      }
+      END {
+        numentries=NR
+
+        # The strategy is to mark any event that is superceded by another event, and then output only
+        # the unmarked events
+
+        # For each entry (target event)
+        for(i=1;i<=numentries;i++) {
+          # If input event has no date, then obliterate any other events in the whole file that fall
+          # within the spatial-temporal-magnitude window. This takes a long time as we cannot sort
+          # the data and look at a sub-window.
+          if(date[i]=="0000-00-00") {
+            for(j=1;j<=numentries;j++) {
+              if (j != i && idcode[i] != idcode[j]) {
+                # Does the comparison event fall in the spatial-magnitude window of the target event?
+                if ( (abs(lon[i]-lon[j])<=delta_lon) && (abs(lat[i]-lat[j])<=delta_lat) &&
+                   (abs(depth[i]-depth[j])<=delta_depth) && (abs(mag[i]-mag[j])<=delta_mag) ) {
+                   # Is the target event higher priority?
+                   if (prioritynum[j] > prioritynum[i]) {
+                     markedfordeath_nodate[j]=1
+                     # print "Removing event",  j, eventid[j], idcode[j], "which is killed by no-date event", i, eventid[i], idcode[i] > "/dev/stderr"
+                   } else {
+                     markedfordeath_nodate[i]=1
+                    print "Removing nodate event:" > "/dev/stderr"
+                    print data[i] > "/dev/stderr"
+                    print "which is killed by event:" > "/dev/stderr"
+                    print data[j] > "/dev/stderr"
+
+                   }
+                   break
+                }
+              }
+            }
+          } else {
+            # For the two entries surrounding each entry (before and after)
+            for(j=i-3; j<=i+3; j++) {
+              if (j>=1 && j<=numentries && j != i && idcode[i] != idcode[j]) {
+                # Does the comparison event fall in the spatial-magnitude window of the target event?
+                if ( (abs(lon[i]-lon[j])<=delta_lon) && (abs(lat[i]-lat[j])<=delta_lat) &&
+                   (abs(depth[i]-depth[j])<=delta_depth) && (abs(mag[i]-mag[j])<=delta_mag) ) {
+                   # Does the comparison event fall in the time window OR an event has time 0000-00-00?
+                   if ( (abs(epoch[i]-epoch[j])<=delta_sec) || date[i]=="0000-00-00" || date[j] == "0000-00-00") {
+                     # Does the target event fall behind the comparison event in priority order?
+                     print "Event", i, eventid[i], idcode[i], "is in window of", j, eventid[j], idcode[j] > "/dev/stderr"
+                     if (prioritynum[i] > prioritynum[j]) {
+                       markedfordeath[i]=1
+                       # print "Removing event", i, eventid[i], idcode[i], "which is superceded by event", j eventid[j] idcode[j] > "/dev/stderr"
+                     }
+                     break
+                   }
+                }
+              }
+            }
+          }
+        }
+        for(i=1;i<=numentries;i++) {
+          if (markedfordeath[i]!=1 && markedfordeath_nodate[i]!=1) {
+            print data[i]
+          } else if (markedfordeath[i]==1) {
+            print "Removed using time-space-magnitude:", data[i] > removedfile
+          } else if (markedfordeath_nodate[i]==1) {
+            print "Removed due to collision with nodate:", data[i] > removedfile
+          }
+        }
+      }
+      ' > ${F_CMT}cmt_global_aoi.dat
+
+      after_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
+
+      echo "Before equivalent CMT culling: $before_e events ; after culling: $after_e events."
+    fi
+
+    CMTFILE=${F_CMT}cmt_global_aoi.dat
+
+    gawk < $CMTFILE -v dothrust=$cmtthrustflag -v donormal=$cmtnormalflag -v doss=$cmtssflag '{
+      if (substr($1,2,1) == "T" && dothrust == 1) {
+        print
+      } else if (substr($1,2,1) == "N" && donormal == 1) {
+        print
+      } else if (substr($1,2,1) == "S" && doss == 1) {
+        print
+      }
+    }' > ${F_CMT}cmt_typefilter.dat
+    CMTFILE=$(abs_path ${F_CMT}cmt_typefilter.dat)
+
+    # Select focal mechanisms from the eqlist
+    if [[ $eqlistselectflag -eq 1 ]]; then
+      info_msg "Selecting focal mechanisms from eqlist"
+      echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_CMT}selectfile.dat
+      gawk '
+        NR==FNR
+        {
+          A[$1]=1
+          next
+        }
+        $2 in A { print }' ${CMTFILE} ${F_CMT}selectfile.dat > ${F_CMT}cmt_eqlistsel.dat
+
+      CMTFILE=$(abs_path ${F_CMT}cmt_eqlistsel.dat)
+    fi
+
+    # Select CMT data between start and end times
+    if [[ $timeselectflag -eq 1 ]]; then
+      gawk < $CMTFILE -v mintime=$STARTTIME -v maxtime=$ENDTIME '{
+        if (mintime <= $3 && $3 <= maxtime) {
+          print
+        }
+      }' > ${F_CMT}cmt_timesel.dat
+      CMTFILE=$(abs_path ${F_CMT}cmt_timesel.dat)
+      echo "Seismic/CMT [${STARTTIME} to ${ENDTIME}]" >> ${SHORTSOURCES}
+    fi
+
+
+    # if [[ $globalextentflag -ne 1  ]]; then
+    #   info_msg "Selecting focal mechanisms within non-global map AOI using ${CMTTYPE} location"
+    #
+    #   case $CMTTYPE in
+    #     CENTROID)  # Lon=Column 5, Lat=Column 6
+    #       gawk < $CMTFILE '{
+    #         for (i=5; i<=NF; i++) {
+    #           printf "%s ", $(i) }
+    #           print $1, $2, $3, $4;
+    #         }' | gmt select -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
+    #         printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
+    #         for (i=1; i<=NF-4; i++) {
+    #           printf " %s", $(i)
+    #         }
+    #         printf "\n";
+    #       }' > ${F_CMT}cmt_aoipolygonselect.dat
+    #       ;;
+    #     ORIGIN)  # Lon=Column 8, Lat=Column 9
+    #       gawk < $CMTFILE '{
+    #         for (i=8; i<=NF; i++) {
+    #           printf "%s ", $(i) }
+    #           print $1, $2, $3, $4, $5, $6, $7;
+    #         }' > ${F_CMT}tmp.dat
+    #         gmt select ${F_CMT}tmp.dat -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
+    #         printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
+    #         for (i=1; i<=NF-6; i++) {
+    #           printf " %s", $(i)
+    #         } printf "\n";
+    #       }' > ${F_CMT}cmt_aoipolygonselect.dat
+    #       ;;
+    #   esac
+    #   CMTFILE=$(abs_path ${F_CMT}cmt_aoipolygonselect.dat)
+    # fi
+
+    # This abomination of a command is because I don't know how to use gmt select
+    # to print the full record based only on the lon/lat in specified columns.
+
+    if [[ $polygonselectflag -eq 1 ]]; then
+      info_msg "Selecting focal mechanisms within user polygon ${POLYGONAOI} using ${CMTTYPE} location"
+
+      case $CMTTYPE in
+        CENTROID)  # Lon=Column 5, Lat=Column 6
+          gawk < $CMTFILE '{
+            for (i=5; i<=NF; i++) {
+              printf "%s ", $(i) }
+              print $1, $2, $3, $4;
+            }' | gmt select -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | gawk  '{
+            printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
+            for (i=1; i<=NF-4; i++) {
+              printf " %s", $(i)
+            }
+            printf "\n";
+          }' > ${F_CMT}cmt_polygonselect.dat
+          ;;
+        ORIGIN)  # Lon=Column 8, Lat=Column 9
+          gawk < $CMTFILE '{
+            for (i=8; i<=NF; i++) {
+              printf "%s ", $(i) }
+              print $1, $2, $3, $4, $5, $6, $7;
+            }' > ${F_CMT}tmp.dat
+            gmt select ${F_CMT}tmp.dat -F${POLYGONAOI} ${VERBOSE} | tr '\t' ' ' | gawk  '{
+            printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
+            for (i=1; i<=NF-6; i++) {
+              printf " %s", $(i)
+            } printf "\n";
+          }' > ${F_CMT}cmt_polygonselect.dat
+          ;;
+      esac
+      CMTFILE=$(abs_path ${F_CMT}cmt_polygonselect.dat)
+    fi
+
+    # 16.     strike1	          (°)
+    # 17.     dip1	            (°)
+    # 18.     rake1	            (°)
+    # 19.     strike2	          (°)
+    # 20.     dip2	            (°)
+    # 21.     rake2	            (°)
+
+    ##### Select focal mechanisms using cfilter
+    if [[ $cfilterflag -eq 1 ]]; then
+      cp ${CMTFILE} ${F_CMT}cmt_cfilter.txt
+      FILTERFILE=$(abs_path ${F_CMT}cmt_cfilter.txt)
+
+      for thiscmd in ${cfiltercommand[@]}; do
+        info_msg "[-cfilter]: Processing ${thiscmd} beginning with $(wc -l < ${FILTERFILE}) lines"
+
+        case $thiscmd in
+          maxstrike)
+            gawk < ${FILTERFILE} -v strike=${CF_MAXSTRIKE} '{
+               if ($16 <= strike || $19 <= strike) {
+                 print
+               }
+            }' > ${F_CMT}filter.out
+             mv ${F_CMT}filter.out ${FILTERFILE}
+          ;;
+          minstrike)
+            gawk < ${FILTERFILE} -v strike=${CF_MINSTRIKE} '{
+               if ($16 >= strike || $19 >= strike) {
+                 print
+               }
+            }' > ${F_CMT}filter.out
+             mv ${F_CMT}filter.out ${FILTERFILE}
+          ;;
+          maxdip)
+            gawk < ${FILTERFILE} -v dip=${CF_MAXDIP} '{
+               if ($17 <= dip || $20 <= dip) {
+                 print
+               }
+            }' > ${F_CMT}filter.out
+             mv ${F_CMT}filter.out ${FILTERFILE}
+          ;;
+          mindip)
+            gawk < ${FILTERFILE} -v dip=${CF_MINDIP} '{
+             if ($17 >= dip || $20 >= dip) {
+               print
+             }
+            }' > ${F_CMT}filter.out
+            mv ${F_CMT}filter.out ${FILTERFILE}
+          ;;
+          rakerange)
+            gawk < ${FILTERFILE} -v minrake=${CF_MINRAKE} -v maxrake=${CF_MAXRAKE} '{
+             if (minrake < maxrake) {
+               if (($18 >= minrake && $18 <= maxrake) || ($21 >= minrake && $21 <= maxrake)) {
+                 print
+               }
+             } else {
+               if ( ($18 <= maxrake && $18 >= -180) || ($21 >= minrake && $21 <= 180) ) {
+                 print
+               }
+             }
+            }' > ${F_CMT}filter.out
+            mv ${F_CMT}filter.out ${FILTERFILE}
+          ;;
+        esac
+      done
+      [[ -s ${FILTERFILE} ]] && CMTFILE=$(abs_path ${FILTERFILE})
+    fi
+
+    ##### Select focal mechanisms on land
+
+    if [[ $zconlandflag -eq 1 && -s $CMTFILE ]]; then
+      if [[ -s ${F_TOPO}dem.nc ]]; then
+        case $CMTTYPE in
+          ORIGIN)
+            gawk < ${CMTFILE} '{print $8, $9}' > ${F_CMT}cmt_epicenter.dat
+            ;;
+          CENTROID)
+            gawk < ${CMTFILE} '{print $5, $6}' > ${F_CMT}cmt_epicenter.dat
+            ;;
+        esac
+
+        gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
+        {
+          if (landorsea==1) {
+            # Land
+            print ($1>0)?1:0
+          } else {
+            # sea
+            print ($1<=0)?1:0
+          }
+        }'> ${F_CMT}cmt_onland_sel.txt
+        gawk '
+        (NR==FNR) {
+          toprint[NR]=$1
+        }
+        (NR!=FNR) {
+          if (toprint[NR-length(toprint)]==1) {
+            print
+          }
+        }' ${F_CMT}cmt_onland_sel.txt ${CMTFILE} > ${F_CMT}cmt_onland.txt
+      fi
+      [[ -s ${F_CMT}cmt_onland.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_onland.txt)
+    fi
+
+    ##### Select focal mechanisms based on SLAB2 interface
+
+    ##### Filter GMT format thrust CMTs based on proximity to Slab2 surface
+    #     In case the same event is selected multiple times, only take first one
+    if [[ $cmtslab2filterflag -eq 1 ]]; then
+      if [[ ! $numslab2inregion -eq 0 ]]; then
+
+        # Extract the lon, lat of all focal mechanisms based on CMTTYPE
+
+        gawk < $CMTFILE -v cmttype=$CMTTYPE '
+          {
+            if (cmttype=="CENTROID") {
+              lon=$5; lat=$6; depth=$7;
+            } else {
+              lon=$8; lat=$9; depth=$10;
+            }
+            print lon, lat
+          }' > ${F_CMT}cmt_lonlat.txt
+
+        # For each slab in the region
+
+        for i in $(seq 1 $numslab2inregion); do
+          info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+          depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+          strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
+          dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
+
+          # -N flag is needed in case events fall outside the domain
+          gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} >> ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt
+          paste ${CMTFILE} ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt > ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt
+
+          info_msg "Selecting interplate thrust focal mechanisms: v ${CMTSLAB2VERT} / s ${CMTSLAB2STR} / d ${CMTSLAB2DIP}"
+          touch ${F_CMT}cmt_nodalplane.txt
+          gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            {
+              slab2depth=(0-$40)     # now it is positive down, matching CMT depth
+              slab2strike=$41
+              slab2dip=$42
+              events1=$16; eventd1=$17;  # Strike and dip of nodal planes
+              events2=$19; eventd2=$20;
+              if (cmttype=="ORIGIN") {
+                lon=$8; lat=$9; depth=$10
+              } else {
+                lon=$5; lat=$6; depth=$7
+              }
+
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff)
+              {
+                # If the strike and dip of one nodal plane matches the slab
+                printme=0
+                if (abs(slab2strike-events1) < strikediff && (abs(slab2dip-eventd1)<dipdiff)) {
+                  printme=1
+                  nodalplane=1
+                } else if (abs(slab2strike-events2) < strikediff && (abs(slab2dip-eventd2)<dipdiff)) {
+                  printme=1
+                  nodalplane=2
+                }
+                if (printme==1) {
+                  $42=""
+                  $41=""
+                  $40=""
+                  print $0
+                  print nodalplane, $3, $16, vertdiff >> "./cmt_thrust_nodalplane.txt"
+                }
+              }
+            }' >> ${F_CMT}cmt_nearslab.txt
+          #   wc -l ../${F_CMT}cmt_thrust_nearslab.txt
+          #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
+          #   rm -f ./cmt_thrust_nodalplane.txt
+        done
+      fi
+      [[ -s ${F_CMT}cmt_nearslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_nearslab.txt)
+    fi
+
+  ##### Filter to select only earthquakes NOT above a Slab2 model
+
+  if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
+    if [[ ! $numslab2inregion -eq 0 ]]; then
+
+      # Extract the lon, lat of all focal mechanisms based on CMTTYPE
+
+      gawk < $CMTFILE -v cmttype=$CMTTYPE '
+        {
+          if (cmttype=="CENTROID") {
+            lon=$5; lat=$6; depth=$7;
+          } else {
+            lon=$8; lat=$9; depth=$10;
+          }
+          print lon, lat
+        }' > ${F_CMT}cmt_lonlat.txt
+
+      # For each slab in the region
+
+      for i in $(seq 1 $numslab2inregion); do
+        info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+        ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
+      done
+
+        # -N flag is needed in case events fall outside the domain
+      gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_under_slab2_sample.txt
+
+      paste ${CMTFILE} ${F_CMT}cmt_under_slab2_sample.txt > ${F_CMT}cmt_under_slab2_sample_pasted.txt
+
+      info_msg "Selecting focal mechanisms beneath or away from slab"
+      touch ${F_CMT}cmt_nodalplane.txt
+
+      # Fields 40+ are slab depth samples.
+      # If one of them is not NaN and is less than slab2depth, exclude the
+      gawk < ${F_CMT}cmt_under_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
+        {
+            if (cmttype=="ORIGIN") {
+              lon=$8; lat=$9; depth=$10
+            } else {
+              lon=$5; lat=$6; depth=$7
+            }
+            printme=1
+            for (i=40; i<= NF; i++) {
+              # If the focal mechanism is above the slab interface (0-$(i) is positive down)
+              if (depth < (0-$(i)) - buf ) {
+                printme=0
+              }
+              # Delete the field for eventual printing
+              $(i)=""
+            }
+
+            # If it is outside the slab2 region OR is beneath the slab
+            if (printme==1)
+            {
+              print $0
+            }
+        }' >> ${F_CMT}cmt_underslab.txt
+
+
+      # Problem: if there are multiple slabs, then all mechanisms will appear
+      # because of NaN... we really want to EXCLUDE strike slip events in the
+      # UPPER PLATE.
+
+    fi
+    [[ -s ${F_CMT}cmt_underslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_underslab.txt)
+  fi
+
+  ##### Filter to select only earthquakes ABOVE a Slab2 model
+
+  if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
+    if [[ ! $numslab2inregion -eq 0 ]]; then
+
+      # Extract the lon, lat of all focal mechanisms based on CMTTYPE
+
+      gawk < $CMTFILE -v cmttype=$CMTTYPE '
+        {
+          if (cmttype=="CENTROID") {
+            lon=$5; lat=$6; depth=$7;
+          } else {
+            lon=$8; lat=$9; depth=$10;
+          }
+          print lon, lat
+        }' > ${F_CMT}cmt_lonlat.txt
+
+      # For each slab in the region
+
+      for i in $(seq 1 $numslab2inregion); do
+        info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+        ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
+      done
+
+        # -N flag is needed in case events fall outside the domain
+      gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_shallow_slab2_sample.txt
+
+      paste ${CMTFILE} ${F_CMT}cmt_shallow_slab2_sample.txt > ${F_CMT}cmt_shallow_slab2_sample_pasted.txt
+
+      info_msg "Selecting focal mechanisms beneath or away from slab"
+      touch ${F_CMT}cmt_nodalplane.txt
+
+      # Fields 40+ are slab depth samples.
+      # If one of them is not NaN and is less than slab2depth, exclude the
+      gawk < ${F_CMT}cmt_shallow_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
+        {
+            if (cmttype=="ORIGIN") {
+              lon=$8; lat=$9; depth=$10
+            } else {
+              lon=$5; lat=$6; depth=$7
+            }
+            printme=0
+            for (i=40; i<= NF; i++) {
+              # Select if the focal mechanism is above a slab interface (0-$(i) is positive down)
+              if ($(i) != "NaN" && depth < (0-$(i)) - buf ) {
+                printme=1
+              }
+              # Delete the field for eventual printing
+              $(i)=""
+            }
+
+            # If it is outside the slab2 region OR is beneath the slab
+            if (printme==1)
+            {
+              print $0
+            }
+        }' >> ${F_CMT}cmt_aboveslab.txt
+
+
+      # Problem: if there are multiple slabs, then all mechanisms will appear
+      # because of NaN... we really want to EXCLUDE strike slip events in the
+      # UPPER PLATE.
+
+    fi
+    [[ -s ${F_CMT}cmt_aboveslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_aboveslab.txt)
+  fi
+
+  # Backtilt focal mechanisms based on Slab2 strike and dip.
+
+  if [[ $slab2_unfold_focalsflag -eq 1 ]]; then
+    info_msg "[-cunfold]: Rotating focal mechanisms based on Slab2 strike/dip"
+    gawk < $CMTFILE -v cmttype=$CMTTYPE '
+      {
+        if (cmttype=="CENTROID") {
+          lon=$5; lat=$6; depth=$7;
+        } else {
+          lon=$8; lat=$9; depth=$10;
+        }
+        print lon, lat
+      }' > ${F_CMT}cmt_rotate_lonlat.txt
+
+
+    for i in $(seq 1 $numslab2inregion); do
+      rot_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
+      rot_strikefile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')" "
+      rot_dipfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')" "
+    done
+
+      # -N flag is needed in case events fall outside the domain
+    gmt grdtrack ${rot_depthfile[@]} -Z -N ${F_CMT}cmt_rotate_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_rotate_depth_sample.txt
+    gmt grdtrack ${rot_strikefile[@]} -Z -N ${F_CMT}cmt_rotate_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_rotate_strike_sample.txt
+    gmt grdtrack ${rot_dipfile[@]} -Z -N ${F_CMT}cmt_rotate_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_rotate_dip_sample.txt
+
+    paste ${CMTFILE} ${F_CMT}cmt_rotate_depth_sample.txt ${F_CMT}cmt_rotate_strike_sample.txt ${F_CMT}cmt_rotate_dip_sample.txt > ${F_CMT}cmt_rotate_paste.txt
+    gawk < ${F_CMT}cmt_rotate_paste.txt -v numsamples=$numslab2inregion -v cmttype=$CMTTYPE '
+      @include "tectoplot_functions.awk"
+      {
+      mindepth=-9999
+      # if (cmttype=="CENTROID") {
+      #   lon=$5; lat=$6; depth=$7;
+      # } else {
+      #   lon=$8; lat=$9; depth=$10;
+      # }
+      # find the index of the sample with least slab2 depth
+      for(i=40;i<40+numsamples;i++) {
+        if ($(i) != "NaN") {
+          mindepth=($(i)>mindepth)?$(i):mindepth  # Backwards looking because slab2 depth is negative downward
+          mindepth_ind=i
+        }
+      }
+      if (mindepth==-9999) {   # For example if all NaNs
+        strike=0
+        dip=0
+      } else {
+        strike=$(numsamples+mindepth_ind)
+        dip=$(2*numsamples+mindepth_ind)
+      }
+
+      moment_tensor_rotate($33,$34,$35,$36,$37,$38,strike,dip,dip)
+      moment_tensor_diagonalize_ntp(r_Mxx, r_Myy, r_Mzz, r_Mxy, r_Mxz, r_Myz)
+      ntp_to_sdr(d_AZ0, d_PL0, d_AZ2, d_PL2, SDR)
+
+      print $1,$2"-rotated",$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,SDR[1],SDR[2],SDR[3],SDR[4],SDR[5],SDR[6],$22,d_EV0,d_AZ0,d_PL0,d_EV1,d_AZ1,d_PL1,d_EV2,d_AZ2,d_PL2,$32,r_Mxx,r_Myy,r_Mzz,r_Mxy,r_Mxz,r_Myz,$39
+    }' > ${F_CMT}cmt_rotated_slab2.txt
+    [[ -s ${F_CMT}cmt_rotated_slab2.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_rotated_slab2.txt)
+  fi
+
+  #  # (This section is for a very specific application and probably should be removed)
+  #  ##############################################################################
+  #  # Rotate PTN axes based on back-azimuth to a pole (-cr)
+  #
+   if [[ $cmtrotateflag -eq 1 && -e $CMTFILE ]]; then
+     info_msg "Rotating principal axes by back azimuth to ${CMT_ROTATELON}/${CMT_ROTATELAT}"
+     case $CMTTYPE in
+       ORIGIN)
+         gawk < $CMTFILE '{ print $8, $9 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > ${F_CMT}cmt_backaz.txt
+       ;;
+       CENTROID)
+         gawk < $CMTFILE '{ print $5, $6 }' | gmt mapproject -Ab${CMT_ROTATELON}/${CMT_ROTATELAT} ${VERBOSE} > ${F_CMT}cmt_backaz.txt
+       ;;
+     esac
+     paste $CMTFILE ${F_CMT}cmt_backaz.txt > ${F_CMT}cmt_backscale.txt
+     gawk < ${F_CMT}cmt_backscale.txt -v refaz=$CMT_REFAZ '{ for (i=1; i<=22; i++) { printf "%s ", $(i) }; printf "%s %s %s %s %s %s %s %s %s", $23, ($24-$42+refaz)%360, $25, $26, ($27-$42+refaz)%360, $28, $29,($30-$42+refaz)%360, $31;  for(i=32;i<=39;i++) {printf " %s", $(i)}; printf("\n");  }' > ${F_CMT}cmt_rotated.dat
+     CMTFILE=$(abs_path ${F_CMT}cmt_rotated.dat)
+  fi
+
+    ##### EQUIVALENT EARTHQUAKES
+
+    # If the REMOVE_EQUIVS variable is set, compare eqs.txt with cmt.dat to remove
+    # earthquakes that have a focal mechanism equivalent, using a spatiotemporal
+    # proximity metric
+
+    # If CMTFILE exists but we aren't plotting CMT's this will really cull a lot of EQs! Careful!
+    # CMTFILE should arguably be AOI selected by now in all cases (can we check?)
+
+    # This section is very sensitive to file formats and any change will break it.
+
+    if [[ $REMOVE_EQUIVS -eq 1 && -e $CMTFILE && -e ${F_SEIS}eqs.txt ]]; then
+
+      before_e=$(wc -l < ${F_SEIS}eqs.txt)
+
+      gawk '
+      (NR==FNR) { # Read in EQs first
+        print $7, $0
+      }
+      (NR>FNR) { # Now read in focal mechanisms
+        print $4, $0
+      }
+      ' ${F_SEIS}eqs.txt $CMTFILE | sort -n -k 1,1 > ${F_CMT}equiv_presort.txt
+
+      gawk < ${F_CMT}equiv_presort.txt '
+        function abs(v) { return (v>0)?v:-v }
+        BEGIN {
+          delta_lon=2
+          delta_lat=2
+          delta_sec=15
+          delta_depth=30
+          delta_mag=0.5
+        }
+        {
+          data[NR]=$0
+          epoch[NR]=$1
+          numfields[NR]=NF
+
+          if ($14 != "") {
+          # CMT entry
+            iscmt[NR]=1
+            lon[NR]=$9
+            lat[NR]=$10
+            depth[NR]=$11
+            mag[NR]=$14
+            idcode[NR]=$3
+          } else {
+          # Seismicity entry
+          # EPOCH LON LAT DEPTH MAG TIMECODE ID EPOCH CLUSTERID+0
+            iscmt[NR]=0
+            lon[NR]=$2
+            lat[NR]=$3
+            depth[NR]=$4
+            mag[NR]=$5
+            idcode[NR]=$7
+          }
+        }
+        END {
+          numentries=NR
+          # Check each earthquake entry
+          for(indd=1;indd<=numentries;indd++) {
+
+            # For seismicity event, decide if there is a focal mechanism equivalent
+            if (iscmt[indd]==0) {
+              printme=1
+              for(j=indd-2; j<=indd+2; j++) {
+                # For the surrounding two events, if one is a CMT event
+                if (j>=1 && j<=numentries && j != indd && iscmt[j]==1) {
+                  if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
+                       (abs(depth[indd]-depth[j])<=delta_depth) && (abs(epoch[indd]-epoch[j])<=delta_sec &&
+                       (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
+                       # This CMT [j] is a duplicate of the seismicity event [i]
+                      printme=0
+                      mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
+                      break
+                  }
+                }
+              }
+              numf=split(data[indd], printout, " ")
+              if (printme==1) {
+                for (i=2; i<numf;i++) {
+                  printf("%s ", printout[i])
+                }
+                printf("%s\n", printout[numf])
+              } else {
+                for (i=2; i<numf;i++) {
+                  printf("%s ", printout[i]) >> "./eq_culled.txt"
+                }
+                printf("%s\n", printout[numf]) >> "./eq_culled.txt"
+                print mixedid >> "./eq_idcull.sed"
+              }
+            }
+          }
+        }
+        ' > ${F_SEIS}eqs_notculled.txt
+
+        [[ -s ${F_SEIS}eqs_notculled.txt ]] && cp ${F_SEIS}eqs_notculled.txt ${F_SEIS}eqs.txt
+        [[ -s ./eq_culled.txt ]] && mv ./eq_culled.txt ${F_SEIS}
+
+
+        after_e=$(wc -l < ${F_SEIS}eqs.txt)
+
+        info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
+
+        info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
+
+        [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed ${CMTFILE} > newids.txt && CMTFILE=$(abs_path newids.txt)
+
+        info_msg "Merging cluster IDs with CMT catalog"
+
+    fi
+
+    if [[ -s ${F_SEIS}eq_culled.txt && -s ${F_SEIS}catalog_clustered.txt && -s $CMTFILE ]]; then
+      # cat ${F_SEIS}catalog_clustered.txt ${F_SEIS}catalog_clustered.txt > ${F_SEIS}pre_cluster_cmt.txt
+      cat ${F_SEIS}eq_culled.txt ${F_SEIS}eqs.txt > ${F_SEIS}pre_cluster_cmt.txt
+      gawk '
+        (FNR==NR){
+          id[$6]=$6;
+          cluster[$6]=$8
+        }
+        (FNR != NR) {
+          split($2, ids, "+")
+          if (ids[2] in id) {
+            print $0, cluster[ids[2]]
+          } else {
+            print $0, 1
+          }
+        }' ${F_SEIS}pre_cluster_cmt.txt $CMTFILE > ${F_CMT}cmt_declustered.txt
+      if [[ -s ${F_CMT}cmt_declustered.txt ]]; then
+        CMTFILE=$(abs_path  ${F_CMT}cmt_declustered.txt)
+      fi
+    fi
+
+    # Now sort the remaining focal mechanisms in the same manner as the seismicity
+
+    if [[ $dozsortflag -eq 1 ]]; then
+      info_msg "Sorting focal mechanisms by $ZSORTTYPE"
+        case $ZSORTTYPE in
+          "depth")
+            case $CMTTYPE in
+              CENTROID) SORTFIELD=7;;
+              ORIGIN) SORTFIELD=10;;
+            esac
+          ;;
+          "time")
+            SORTFIELD=4
+          ;;
+          "mag")
+            SORTFIELD=13
+          ;;
+          *)
+            info_msg "[-zcsort]: CMT Sort field $ZSORTTYPE not recognized. Using depth."
+            SORTFIELD=3
+          ;;
+        esac
+      [[ $ZSORTDIR =~ "down" ]] && sort -n -k $SORTFIELD,$SORTFIELD $CMTFILE > ${F_CMT}cmt_sort.dat
+      [[ $ZSORTDIR =~ "up" ]] && sort -n -r -k $SORTFIELD,$SORTFIELD $CMTFILE > ${F_CMT}cmt_sort.dat
+      CMTFILE=$(abs_path ${F_CMT}cmt_sort.dat)
+    fi
+
+    # Rescale CMT magnitudes to match rescaled seismicity, if that option is set
+    # This function assumes that the CMT file included the epoch seconds
+
+    # Ideally we would do the rescaling at the moment of plotting and not make new
+    # files, but I'm not sure how to do that with psmeca
+
+    CMTRESCALE=$(echo "$CMTSCALE * $SEISSCALE " | bc -l)  # * $SEISSCALE
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      info_msg "Scaling CMT earthquake magnitudes for display only"
+      gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+        mw=$13
+        mwmod = (mw^str)/(sref^(str-1))
+        a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
+        split(a,b,"+")  # mantissa
+        split(a,c,"E")  # exponent
+        $14=c[1]
+        $15=b[2]
+        print
+        # print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, c[1], b[2], $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+      }' > ${F_CMT}cmt_scale.dat
+      CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
+    fi
+
+    ##############################################################################
+    # Save focal mechanisms in a psmeca+ format based on the selected format type
+    # so that we can plot them with psmeca.
+    # Also calculate and save focal mechanism axes, nodal planes, and slip vectors
+
+    touch ${F_CMT}cmt_thrust.txt ${F_CMT}cmt_normal.txt ${F_CMT}cmt_strikeslip.txt
+    touch ${F_KIN}t_axes_thrust.txt ${F_KIN}n_axes_thrust.txt ${F_KIN}p_axes_thrust.txt  \
+          ${F_KIN}t_axes_normal.txt ${F_KIN}n_axes_normal.txt ${F_KIN}p_axes_normal.txt \
+          ${F_KIN}t_axes_strikeslip.txt ${F_KIN}n_axes_strikeslip.txt ${F_KIN}p_axes_strikeslip.txt
+
+    #   1             	2	 3      4 	          5	           6              	7	         8	         9	          10	             11	           12 13        14	      15	     16	  17	   18	     19  	20	   21	      22	  23	 24 	25	 26 	 27	  28	  29	 30	  31	      32	 33 34	 35  36	 37	 38	         39
+    # idcode	event_code	id	epoch	lon_centroid	lat_centroid	depth_centroid	lon_origin	lat_origin	depth_origin	author_centroid	author_origin	MW	mantissa	exponent	strike1	dip1	rake1	strike2	dip2	rake2	exponent	Tval	Taz	Tinc	Nval	Naz	Ninc	Pval	Paz	Pinc	exponent	Mrr	Mtt	Mpp	Mrt	Mrp	Mtp	centroid_dt
+
+    # This should go into an external utility script that converts from tectoplot->psmeca format
+
+    cd ${F_KIN}
+    gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '
+      @include "tectoplot_functions.awk"
+      # function abs(v) { return (v>0)?v:-v}
+      BEGIN { pi=atan2(0,-1) }
+      {
+        event_code=$2
+        iso8601_code=$3
+        Mw=$13
+        mantissa=$14;exponent=$15
+        strike1=$16;dip1=$17;rake1=$18;strike2=$19;dip2=$20;rake2=$21
+        Mrr=$33; Mtt=$34; Mpp=$35; Mrt=$36; Mrp=$37; Mtp=$38
+        Tval=$23; Taz=$24; Tinc=$25; Nval=$26; Naz=$27; Ninc=$28; Pval=$29; Paz=$30; Pinc=$31;
+        clusterid=$40
+
+        epoch=iso8601_to_epoch(iso8601_code)
+
+        timecode=$3
+        if (cmttype=="CENTROID") {
+          lon=$5; lat=$6; depth=$7;
+          altlon=$8; altlat=$9; altdepth=$10;
+        } else {
+          lon=$8; lat=$9; depth=$10;
+          altlon=$5; altlat=$6; altdepth=$7;
+        }
+
+        if (lon != "none" && lat != "none") {
+
+          # if (fmt == "GlobalCMT") {
+          #   #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
+          #   if (substr($1,2,1) == "T") {
+          #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+          #   } else if (substr($1,2,1) == "N") {
+          #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_normal.txt"
+          #   } else {
+          #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_strikeslip.txt"
+          #   }
+          #   print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt.dat"
+          #
+          # } else
+          if (fmt == "MomentTensor") {
+            # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat [event_title] altdepth [timecode]
+              if (substr($1,2,1) == "T") {
+                print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+              } else if (substr($1,2,1) == "N") {
+                print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
+              } else {
+                print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
+              }
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt.dat"
+          }
+        # else if (fmt == "TNP") {
+        #      # y  Best double couple defined from principal axis:
+    	  #      # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
+        #     if (substr($1,2,1) == "T") {
+        #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+        #     } else if (substr($1,2,1) == "N") {
+        #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
+        #     } else {
+        #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
+        #     }
+        #     print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid   > "cmt.dat"
+        #   }
+
+          if (substr($1,2,1) == "T") {
+            print lon, lat, Taz, Tinc > "t_axes_thrust.txt"
+            print lon, lat, Naz, Ninc > "n_axes_thrust.txt"
+            print lon, lat, Paz, Pinc > "p_axes_thrust.txt"
+          } else if (substr($1,2,1) == "N") {
+            print lon, lat, Taz, Tinc> "t_axes_normal.txt"
+            print lon, lat, Naz, Ninc > "n_axes_normal.txt"
+            print lon, lat, Paz, Pinc > "p_axes_normal.txt"
+          } else if (substr($1,2,1) == "S") {
+            print lon, lat, Taz, Tinc > "t_axes_strikeslip.txt"
+            print lon, lat, Naz, Ninc > "n_axes_strikeslip.txt"
+            print lon, lat, Paz, Pinc > "p_axes_strikeslip.txt"
+          }
+
+          if (Mw >= minmag && Mw <= maxmag) {
+            if (substr($1,2,1) == "T") {
+              print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_thrust.txt"
+            } else if (substr($1,2,1) == "N") {
+              print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_normal.txt"
+            } else {
+              print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "kin_strikeslip.txt"
+            }
+          }
+        }
+      }'
+
+      [[ -e cmt_thrust.txt ]] && mv cmt_thrust.txt ../${F_CMT}
+      [[ -e cmt_normal.txt ]] && mv cmt_normal.txt ../${F_CMT}
+      [[ -e cmt_strikeslip.txt ]] && mv cmt_strikeslip.txt ../${F_CMT}
+      [[ -e cmt.dat ]] && mv cmt.dat ../${F_CMT}
+
+      # This code was clearly patched in to deal with a slab issue
+
+    touch kin_thrust.txt kin_normal.txt kin_strikeslip.txt
+
+  	# Generate the kinematic vectors
+  	# For thrust faults, take the slip vector associated with the shallower dipping nodal plane
+
+    gawk < kin_thrust.txt -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($7+270) % 360, symsize; else print $1, $2, ($4+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np1.txt
+    gawk < kin_thrust.txt -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($4+90) % 360, symsize; else print $1, $2, ($7+90) % 360, symsize;  }' > thrust_gen_slip_vectors_np1_downdip.txt
+    gawk < kin_thrust.txt -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($4) % 360, symsize ; else print $1, $2, ($7) % 360, symsize ;  }' > thrust_gen_slip_vectors_np1_str.txt
+
+    gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($4+270) % 360, symsize; else print $1, $2, ($7+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np2.txt
+    gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($7+90) % 360, symsize; else print $1, $2, ($4+90) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_downdip.txt
+    gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($7) % 360, symsize ; else print $1, $2, ($4) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_str.txt
+
+    gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > strikeslip_slip_vectors_np1.txt
+    gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > strikeslip_slip_vectors_np2.txt
+
+    gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > normal_slip_vectors_np1.txt
+    gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
+
+    cd ..
+
+  fi
+
+
+  #### Back to seismicity for some reason
+if [[ $plotseis -eq 1 ]]; then
+  if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
+    info_msg "Removing earthquakes with poorly determined origin depths"
+    [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && info_msg "Plotting removed events separately"
+    # Plotting in km instead of in map geographic coords.
+    gawk < ${F_SEIS}eqs.txt -v defdepmag=$REMOVE_DEFAULTDEPTHS_MAXMAG '{
+      if ($4 <= defdepmag) {
+        if ($3 == 10 || $3 == 30 || $3 == 33 || $3 == 5 ||$3 == 1 || $3 == 6  || $3 == 35 ) {
+          seen[$3]++
+        } else {
+          print
+        }
+      } else {
+        print
+      }
+    }
+    ' > ${F_SEIS}tmp.dat 2>${F_SEIS}removed_eqs.txt
+    mv ${F_SEIS}tmp.dat ${F_SEIS}eqs.txt
+  fi
+
+  # Print 8 fields in case we are declustering
+  if [[ $SCALEEQS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
+    [[ -e ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
+    gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+  fi
+fi
+}
+
+function tectoplot_cpt_seismicitycmt() {
+}
+
+function tectoplot_plot_seismicitycmt() {
+  case $1 in
+  seismicitycmt)
+    if [[ -e ./resgrav/grid_residual.nc ]]; then
+      if [[ $GRAVRELIEFFLAG -eq 1 ]]; then
+        GRAVICMD="-I+d"
+      else
+        GRAVICMD=""
+      fi
+      if [[ $PLOTAVGRID -eq 1 ]]; then
+        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+      else
+        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+      fi
+      [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
+    fi
+    if [[ $GRAVPATHFLAG -eq 1 ]]; then
+      [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
+    fi
+    tectoplot_plot_caught=1
+    ;;
+  esac
+}
+
+# function tectoplot_legend_seismicitycmt() {
+#   echo "none"
+# }
+
+function tectoplot_legendbar_seismicitycmt() {
+  case $1 in
+    seismicitycmt)
+      # echo "G 0.2i" >> legendbars.txt
+      # echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
+      # barplotcount=$barplotcount+1
+      tectoplot_caught_legendbar=1
+    ;;
+  esac
+}
+
+# function tectoplot_post_seismicitycmt() {
+#   echo "none"
+# }

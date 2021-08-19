@@ -188,9 +188,7 @@ fi
 
 function tectoplot_plot_tdefnode() {
 
-  plot_cmt=${1}
-
-  case $plot_cmt in
+  case $1 in
 
   tdefnode)
 
@@ -433,6 +431,7 @@ function tectoplot_plot_tdefnode() {
           ;;
       esac
     done < <(printf %s "${TDSTRING}")
+    tectoplot_plot_caught=1
     ;;
   esac
 }

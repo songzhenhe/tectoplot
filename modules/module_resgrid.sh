@@ -210,27 +210,43 @@ function tectoplot_cpt_resgrid() {
 }
 
 function tectoplot_plot_resgrid() {
-  if [[ -e ./resgrav/grid_residual.nc ]]; then
-    if [[ $GRAVRELIEFFLAG -eq 1 ]]; then
-      GRAVICMD="-I+d"
-    else
-      GRAVICMD=""
+  case $1 in
+  resgrid)
+    if [[ -e ./resgrav/grid_residual.nc ]]; then
+      if [[ $GRAVRELIEFFLAG -eq 1 ]]; then
+        GRAVICMD="-I+d"
+      else
+        GRAVICMD=""
+      fi
+      if [[ $PLOTAVGRID -eq 1 ]]; then
+        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+      else
+        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+      fi
+      [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
     fi
-    if [[ $PLOTAVGRID -eq 1 ]]; then
-      gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
-    else
-      gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+    if [[ $GRAVPATHFLAG -eq 1 ]]; then
+      [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
     fi
-    [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
-  fi
-  if [[ $GRAVPATHFLAG -eq 1 ]]; then
-    [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
-  fi
+    tectoplot_plot_caught=1
+    ;;
+  esac
 }
 
 # function tectoplot_legend_resgrid() {
 #   echo "none"
 # }
+
+function tectoplot_legendbar_resgrid() {
+  case $1 in
+    resgrid)
+      # echo "G 0.2i" >> legendbars.txt
+      # echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
+      # barplotcount=$barplotcount+1
+      tectoplot_caught_legendbar=1
+    ;;
+  esac
+}
 
 # function tectoplot_post_resgrid() {
 #   echo "none"

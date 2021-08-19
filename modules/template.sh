@@ -132,6 +132,12 @@ function tectoplot_calculate_example()  {
 function tectoplot_cpt_example() {
   echo "This section contains code to generate CPT files in ${F_CPTS} for plotting"
   echo "This function will only be run if the module contains cpts+=(...)"
+  case $1 in
+    example)
+      gmt makecpt -T0/1/0.1 -Cturbo > ${F_CPTS}example.cpt
+      tectoplot_cpt_caught=1
+      ;;
+  esac
 }
 
 function tectoplot_plot_example() {
@@ -139,42 +145,59 @@ function tectoplot_plot_example() {
   echo "\$RJOK is -R -J -O -K and \${VERBOSE} is the active verbosity setting"
   echo "Concatenate PS data onto map.ps"
 
-  gmt GMT_MODULE GMT_COMMANDS $RJOK ${VERBOSE} >> map.ps
+  case $1 in
+  example)
+    gmt GMT_MODULE GMT_COMMANDS $RJOK ${VERBOSE} >> map.ps
+    tectoplot_plot_caught=1
+    ;;
+  esac
 }
 
 # This function is taken from module_volcanoes.sh and shows how to add an entry
 # to the legend using the 'typewriter' method.
 
 function tectoplot_legend_example() {
-  # Create a new blank map with the same -R -J as our main map
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
+  case $1 in
+  example)
+    # Create a new blank map with the same -R -J as our main map
+    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
 
-  # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-  echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
-  echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
+    # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
+    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
+    echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
 
-  # Calculate the width and height of the graphic with a margin of 0.05i
-  PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-  PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-  PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    # Calculate the width and height of the graphic with a margin of 0.05i
+    PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
 
-  # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
-  # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
-  # (The typewriter approach)
+    # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
+    # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
+    # (The typewriter approach)
 
-  gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
-  LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-  count=$count+1
-  NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
-  cleanup volcanoes.ps volcanoes.eps
+    gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
+    LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+    count=$count+1
+    NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
+    cleanup volcanoes.ps volcanoes.eps
+
+    tectoplot_legend_caught=1
+    ;;
+  esac
+
 }
 
 # Colorbars are specified using a pslegend format such as the following:
 
 function tectoplot_legendbar_example() {
-    echo "G 0.2i" >> legendbars.txt
-    echo "B $EXAMPLE_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"Example units (100k)\"" >> legendbars.txt
-    barplotcount=$barplotcount+1
+    case $1 in
+      example)
+        echo "G 0.2i" >> legendbars.txt
+        echo "B $EXAMPLE_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"Example units (100k)\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
+        tectoplot_legendbar_caught=1
+        ;;
+    esac
 }
 
 

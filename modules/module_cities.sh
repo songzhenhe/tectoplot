@@ -159,51 +159,70 @@ function tectoplot_calculate_cities()  {
 }
 
 function tectoplot_cpt_cities() {
+  case $1 in
+  cities)
     touch $POPULATION_CPT
     POPULATION_CPT=$(abs_path $POPULATION_CPT)
     gmt makecpt -C${CITIES_CPT} -I -Do -T0/1000000/100000 -N $VERBOSE > $POPULATION_CPT
+    tectoplot_cpt_caught=1
+    ;;
+  esac
 }
 
 function tectoplot_plot_cities() {
-  info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
+  case $1 in
+    cities)
+      info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
 
-  # Sort the cities so that dense areas plot on top of less dense areas
-  # Could also do some kind of symbol scaling
-  gawk < cities.dat -F, '{print $1, $2, $4}' | sort -n -k 3 | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> map.ps
-  if [[ $citieslabelflag -eq 1 ]]; then
-    gawk < cities.dat -F, -v minpop=${CITIES_LABEL_MINPOP} '($4>=minpop){print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
-  fi
+      # Sort the cities so that dense areas plot on top of less dense areas
+      # Could also do some kind of symbol scaling
+      gawk < cities.dat -F, '{print $1, $2, $4}' | sort -n -k 3 | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> map.ps
+      if [[ $citieslabelflag -eq 1 ]]; then
+        gawk < cities.dat -F, -v minpop=${CITIES_LABEL_MINPOP} '($4>=minpop){print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
+      fi
+      tectoplot_plot_caught=1
+    ;;
+  esac
 }
 
 function tectoplot_legendbar_cities() {
-    echo "G 0.2i" >> legendbars.txt
-    echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"City population (100k)\"" >> legendbars.txt
-    barplotcount=$barplotcount+1
+  case $1 in
+    cities)
+      echo "G 0.2i" >> legendbars.txt
+      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"City population (100k)\"" >> legendbars.txt
+      barplotcount=$barplotcount+1
+      tectoplot_legendbar_caught=1
+      ;;
+  esac
 }
 
 function tectoplot_legend_cities() {
-  # Create a new blank map with the same -R -J as our main map
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > cities.ps
+  case $1 in
+  cities)
+    # Create a new blank map with the same -R -J as our main map
+    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > cities.ps
 
-  echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -Xa0.35i -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> cities.ps
-  echo "${CENTERLON} ${CENTERLAT} City > ${CITIES_MINPOP}" | gmt pstext -Y0.15i -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM -R -J -O $VERBOSE >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -Xa0.35i -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} City > ${CITIES_MINPOP}" | gmt pstext -Y0.15i -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM -R -J -O $VERBOSE >> cities.ps
 
-  # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
+    # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
 
-  # Calculate the width and height of the graphic with a margin of 0.05i
-  PS_DIM=$(gmt psconvert cities.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-  PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-  PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    # Calculate the width and height of the graphic with a margin of 0.05i
+    PS_DIM=$(gmt psconvert cities.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
 
-  # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
-  # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
-  # (The typewriter approach)
+    # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
+    # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
+    # (The typewriter approach)
 
-  gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i cities.eps $RJOK ${VERBOSE} >> $LEGMAP
-  LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-  count=$count+1
-  NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
-  # cleanup cities.ps cities.eps
+    gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i cities.eps $RJOK ${VERBOSE} >> $LEGMAP
+    LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+    count=$count+1
+    NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
+    # cleanup cities.ps cities.eps
+  ;;
+  esac
 }
 
 # function tectoplot_post_cities() {

@@ -38,16 +38,16 @@ fi
 
 # The following functions are not necessary for this module
 
-# function tectoplot_calculate_stereonet()  {
-#   echo "Doing stereonet calculations"
+# function tectoplot_calculate_seistime()  {
+#   echo "Doing seistime calculations"
 # }
 #
-# function tectoplot_plot_stereonet() {
-#   echo "Doing stereonet plot"
+# function tectoplot_plot_seistime() {
+#   echo "Doing seistime plot"
 # }
 #
-# function tectoplot_legend_stereonet() {
-#   echo "Doing stereonet legend"
+# function tectoplot_legend_seistime() {
+#   echo "Doing seistime legend"
 # }
 
 function tectoplot_post_seistime() {
