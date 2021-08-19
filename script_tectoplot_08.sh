@@ -12562,8 +12562,8 @@ for cptfile in ${cpts[@]} ; do
           }'))
 
           CPT_HAS_ZERO=${CPT_ZRANGE[2]}
-          echo range is ${CPT_ZRANGE[@]} "/" ${CPT_HAS_ZERO}
-          echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0"
+          # echo range is ${CPT_ZRANGE[@]} "/" ${CPT_HAS_ZERO}
+          # echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0"
 
         if [[ $(echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0" | bc) -eq 1 ]]; then
           if [[ $CPT_HAS_ZERO -eq 0 ]]; then
@@ -12591,10 +12591,9 @@ for cptfile in ${cpts[@]} ; do
             cp  ${F_CPTS}new_0slice.cpt  ${F_CPTS}respaced_rgb.cpt
             CPT_HAS_ZERO=1
           else
-            cp ${F_CPTS}respaced_rgb1.cpt ${F_CPTS}respaced_rgb.cpt 
+            cp ${F_CPTS}respaced_rgb1.cpt ${F_CPTS}respaced_rgb.cpt
           fi
         else
-            echo "In the else"
             if [[ -s ${F_CPTS}respaced_rgb1.cpt ]]; then
               cp ${F_CPTS}respaced_rgb1.cpt  ${F_CPTS}respaced_rgb.cpt
             fi
