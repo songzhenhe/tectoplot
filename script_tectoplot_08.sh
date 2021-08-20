@@ -5362,7 +5362,7 @@ fi
 
               # Check the custom region strings for projections that require a different bounding box method
               if [[ ${ISCUSTOMREGION[${ind}]} == *"-JOc"* ]]; then
-                echo "Found Oblique Mercator"
+                # echo "Found Oblique Mercator"
                 boundboxfrompsbasemapflag=1
               fi
 
@@ -9214,8 +9214,8 @@ fi
 # Not yet tested for maps crossing the dateline!
 
 if [[ $boundboxfrompsbasemapflag -eq 1 || $recalcregionflag_bounds -eq 1 ]]; then
-  echo "Bound bound"
-echo ${RJSTRING[@]}
+  # echo "Bound bound"
+# echo ${RJSTRING[@]}
   gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
     ($1!="NaN") {
       while ($1>180) { $1=$1-360 }
@@ -16034,6 +16034,27 @@ if [[ $kmlflag -eq 1 ]]; then
 
   gdal_translate -of VRT -a_srs EPSG:4326 -gcp 0 0 ${MINLON} ${MAXLAT} -gcp $ncols 0 ${MAXLON} ${MAXLAT} -gcp $ncols $nrows ${MAXLON} ${MINLAT} map.tif map.vrt
   gdal2tiles.py -p geodetic -k map.vrt
+
+  # Set the KML files to be clamped to seafloor
+  info_msg "[-kml]: Resetting tiles to be clamped to ground+seafloor"
+  find . -name "*.kml" > kmlfiles.txt
+  while read p; do
+    # echo "Processing KML file ${p}"
+    if grep GroundOverlay $p >/dev/null; then
+      # echo "Found GroundOverlay element... updating KML tags"
+      gawk < $p '{
+        if ($0 ~ "<kml xmlns=\"http://www.opengis.net/kml/2.2\">") {
+          print "<kml xmlns=\"http://www.opengis.net/kml/2.2\" xmlns:gx=\"http://www.google.com/kml/ext/2.2\">"
+        } else if ($0 ~ "<GroundOverlay>") {
+          print("<GroundOverlay>")
+          printf("\t<gx:altitudeMode>clampToSeaFloor</gx:altitudeMode>\n")
+        } else {
+          print
+        }
+      }' > $p.new
+      mv $p.new $p
+    fi
+  done < kmlfiles.txt
   #
   # echo "($MAXLON - $MINLON) / $ncols" | bc -l > map.tfw
   # echo "0" >> map.tfw
