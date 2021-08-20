@@ -5816,15 +5816,31 @@ fi
           fi
         fi
 
-        MAPWIDTHNUM=$(echo $MAPWIDTHKM | gawk '{print $1 + 0}')
-        MAPHEIGHTNUM=$(echo $MAPHEIGHTKM | gawk '{print $1 + 0}')
+        # As of GMT 6.1.1, the KM width is such that 20000 ~ a full circle, so
+        # Length of small circle at angle A from a pole is 6371*cos(90-theta)
 
-        rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
+        # Calculate circumference of a small circle with given pole passing through center point
+        # Note that there are too many conversions back and forth, not great...
+        SMALLC_CIRC=$(gawk -v lon1=${CENTRALLON} -v lat1=${CENTRALLAT} -v lon2=${POLELON} -v lat2=$POLELAT '
+          @include "tectoplot_functions.awk"
+          BEGIN {
+            val=haversine_m(lon1, lat1, lon2, lat2)
+            print 6371*2*getpi()*cos(getpi()/2-val/6371000)
+          }
+          ')
+
+        # This calculation (as far as I can tell) will set the length of the map box closest to
+        # the pole!
+
+        MAPWIDTHNUM=$(echo $MAPWIDTHKM | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
+        MAPHEIGHTNUM=$(echo $MAPHEIGHTKM | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
+
+        # rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
+        rj+=("-Rk-${MAPWIDTHNUM}k/${MAPWIDTHNUM}k/-${MAPHEIGHTNUM}k/${MAPHEIGHTNUM}k")
         rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1
-
       ;;
       Albers|B|Lambert|L|Equid|D)
 
@@ -6094,51 +6110,55 @@ fi
 
     if [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
       info_msg "[-north]: aprofcode ${2:0:1} found."
-      ARROWAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
-      BEGIN {
-          row[1]="AFKPU"
-          row[2]="BGLQV"
-          row[3]="CHMRW"
-          row[4]="DINSX"
-          row[5]="EJOTY"
-          difflat=maxlat-minlat
-          difflon=maxlon-minlon
-
-          newdifflon=difflon*8/10
-          newminlon=minlon+difflon*1/10
-          newmaxlon=maxlon-difflon*1/10
-
-          newdifflat=difflat*8/10
-          newminlat=minlat+difflat*1/10
-          newmaxlat=maxlat-difflat*1/10
-
-          minlon=newminlon
-          maxlon=newmaxlon
-          minlat=newminlat
-          maxlat=newmaxlat
-          difflat=newdifflat
-          difflon=newdifflon
-
-          for(i=1;i<=5;i++) {
-            for(j=1; j<=5; j++) {
-              char=toupper(substr(row[i],j,1))
-              lats[char]=minlat+(i-1)/4*difflat
-              lons[char]=minlon+(j-1)/4*difflon
-              # print char, lons[char], lats[char]
-            }
-          }
-      }
-      {
-        for(i=1;i<=length($0);++i) {
-          char1=toupper(substr($0,i,1));
-          print lons[char1], lats[char1]
-        }
-      }'))
-      ARROWREFLON=${ARROWAPROF[0]}
-      ARROWREFLAT=${ARROWAPROF[1]}
-      ARROWLENLAT=${ARROWAPROF[1]}
+      NORTHARROWAPROFCODE="${2}"
       shift
+      northarrowaprofflag=1
     fi
+    #   ARROWAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+    #   BEGIN {
+    #       row[1]="AFKPU"
+    #       row[2]="BGLQV"
+    #       row[3]="CHMRW"
+    #       row[4]="DINSX"
+    #       row[5]="EJOTY"
+    #       difflat=maxlat-minlat
+    #       difflon=maxlon-minlon
+    #
+    #       newdifflon=difflon*8/10
+    #       newminlon=minlon+difflon*1/10
+    #       newmaxlon=maxlon-difflon*1/10
+    #
+    #       newdifflat=difflat*8/10
+    #       newminlat=minlat+difflat*1/10
+    #       newmaxlat=maxlat-difflat*1/10
+    #
+    #       minlon=newminlon
+    #       maxlon=newmaxlon
+    #       minlat=newminlat
+    #       maxlat=newmaxlat
+    #       difflat=newdifflat
+    #       difflon=newdifflon
+    #
+    #       for(i=1;i<=5;i++) {
+    #         for(j=1; j<=5; j++) {
+    #           char=toupper(substr(row[i],j,1))
+    #           lats[char]=minlat+(i-1)/4*difflat
+    #           lons[char]=minlon+(j-1)/4*difflon
+    #           # print char, lons[char], lats[char]
+    #         }
+    #       }
+    #   }
+    #   {
+    #     for(i=1;i<=length($0);++i) {
+    #       char1=toupper(substr($0,i,1));
+    #       print lons[char1], lats[char1]
+    #     }
+    #   }'))
+    #   ARROWREFLON=${ARROWAPROF[0]}
+    #   ARROWREFLAT=${ARROWAPROF[1]}
+    #   ARROWLENLAT=${ARROWAPROF[1]}
+    #   shift
+    # fi
 
     if [[ $2 =~ "white" ]]; then
       ARROWFILL="-F+gwhite"
@@ -8680,6 +8700,28 @@ fi
     fi
     ;;
 
+  -zccpt)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zcccpt:       select CPT for seismicity
+-zccpt [cpt_name]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  if ! arg_is_flag "${2}"; then
+    if is_gmtcpt "${2}"; then
+      SEIS_CPT="${2}"
+    else
+      SEIS_CPT=$(abs_path "${2}")
+    fi
+    shift
+    echo SEIS_CPT=${SEIS_CPT}
+  fi
+  ;;
+
   -zcolor)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9214,8 +9256,6 @@ fi
 # Not yet tested for maps crossing the dateline!
 
 if [[ $boundboxfrompsbasemapflag -eq 1 || $recalcregionflag_bounds -eq 1 ]]; then
-  # echo "Bound bound"
-# echo ${RJSTRING[@]}
   gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
     ($1!="NaN") {
       while ($1>180) { $1=$1-360 }
@@ -9232,7 +9272,13 @@ if [[ $recalcregionflag_bounds -eq 1 ]]; then
 
     # Calculate the range in longitude and latitude in order to set MINLON...etc
 
-    NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}bounds.txt))
+    # Split the polygon across the dateline if necessary - xy_range should still work!
+    gmt spatial -Ss ${TMP}${F_MAPELEMENTS}bounds.txt > ${TMP}${F_MAPELEMENTS}ss_bounds.txt
+
+    NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}ss_bounds.txt))
+
+    # We need to account for boundary box crossing the dateline here.
+
 
     info_msg "Bounds method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
 
@@ -10605,8 +10651,6 @@ if [[ $calccmtflag -eq 1 ]]; then
     fi
   done
 
-  echo CCAT_STRING=${CCAT_STRING} CULL_CMT_CATALOGS=${CULL_CMT_CATALOGS}
-
   if [[ ${#CCAT_STRING} -gt 1 && ${CULL_CMT_CATALOGS} -eq 1 ]]; then
 
     info_msg "[-c]: Sorting, finding clashes, and prioritizing using order of CCAT_STRING=${CCAT_STRING}"
@@ -10738,7 +10782,7 @@ if [[ $calccmtflag -eq 1 ]]; then
                  # Does the comparison event fall in the time window OR an event has time 0000-00-00?
                  if ( (abs(epoch[i]-epoch[j])<=delta_sec) || date[i]=="0000-00-00" || date[j] == "0000-00-00") {
                    # Does the target event fall behind the comparison event in priority order?
-                   print "Event", i, eventid[i], idcode[i], "is in window of", j, eventid[j], idcode[j] > "/dev/stderr"
+                   # print "Event", i, eventid[i], idcode[i], "is in window of", j, eventid[j], idcode[j] > "/dev/stderr"
                    if (prioritynum[i] > prioritynum[j]) {
                      markedfordeath[i]=1
                      # print "Removing event", i, eventid[i], idcode[i], "which is superceded by event", j eventid[j] idcode[j] > "/dev/stderr"
@@ -10764,7 +10808,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
     after_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
 
-    echo "Before equivalent CMT culling: $before_e events ; after culling: $after_e events."
+    info_msg "[-c]: Before equivalent CMT culling: $before_e events ; after culling: $after_e events."
   fi
 
   CMTFILE=${F_CMT}cmt_global_aoi.dat
@@ -12832,6 +12876,8 @@ for cptfile in ${cpts[@]} ; do
         SEISDEPTH_CPT=$(abs_path $SEISDEPTH_CPT)
         gmt makecpt -N -C${SEIS_CPT} -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}"/1 -Z $VERBOSE > $SEISDEPTH_CPT
         cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
+
+        # This needs to be customized!
         echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
         echo "B	170/0/0" >> $SEISDEPTH_CPT
         echo "F	0/0/205" >> $SEISDEPTH_CPT
@@ -13936,6 +13982,60 @@ for plot in ${plots[@]} ; do
       ;;
 
     northarrow)
+
+      if [[ $northarrowaprofflag -eq 1 ]]; then
+        p1=($(grep "[${NORTHARROWAPROFCODE:0:1}]" ${F_MAPELEMENTS}aprof_database.txt))
+        ARROWREFLON=${p1[0]}
+        ARROWREFLAT=${p1[1]}
+      fi
+
+      # ARROWAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+      # BEGIN {
+      #     row[1]="AFKPU"
+      #     row[2]="BGLQV"
+      #     row[3]="CHMRW"
+      #     row[4]="DINSX"
+      #     row[5]="EJOTY"
+      #     difflat=maxlat-minlat
+      #     difflon=maxlon-minlon
+      #
+      #     newdifflon=difflon*8/10
+      #     newminlon=minlon+difflon*1/10
+      #     newmaxlon=maxlon-difflon*1/10
+      #
+      #     newdifflat=difflat*8/10
+      #     newminlat=minlat+difflat*1/10
+      #     newmaxlat=maxlat-difflat*1/10
+      #
+      #     minlon=newminlon
+      #     maxlon=newmaxlon
+      #     minlat=newminlat
+      #     maxlat=newmaxlat
+      #     difflat=newdifflat
+      #     difflon=newdifflon
+      #
+      #     for(i=1;i<=5;i++) {
+      #       for(j=1; j<=5; j++) {
+      #         char=toupper(substr(row[i],j,1))
+      #         lats[char]=minlat+(i-1)/4*difflat
+      #         lons[char]=minlon+(j-1)/4*difflon
+      #         # print char, lons[char], lats[char]
+      #       }
+      #     }
+      # }
+      # {
+      #   for(i=1;i<=length($0);++i) {
+      #     char1=toupper(substr($0,i,1));
+      #     print lons[char1], lats[char1]
+      #   }
+      # }'))
+      # ARROWREFLON=${ARROWAPROF[0]}
+      # ARROWREFLAT=${ARROWAPROF[1]}
+      # ARROWLENLAT=${ARROWAPROF[1]}
+      # shift
+
+
+
       # The values of SCALECMD will be set by the scale) section
       ARROWCMD="-Tdg${ARROWREFLON}/${ARROWREFLAT}+w${ARROWSIZE}"
       # SMALLJ_RJOK=$(echo ${RJSTRING[@]} | tr 'J' 'j')

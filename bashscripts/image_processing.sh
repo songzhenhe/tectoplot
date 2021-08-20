@@ -245,6 +245,11 @@ function recolor_sea() {
   gdal_merge.py -q -co "PHOTOMETRIC=RGB" -separate -o "${6}" outA.tif outB.tif outC.tif
 }
 
+function is_gmtcpt() {
+  gawk -v key=$1 < ${GMTCPTS} '($1==key) { found=1; exit } END { exit (found==1)?0:1 }'
+}
+
+
 # This function reformats an input CPT file to be in r/g/b (or h/s/v) format,
 # replacing GMT color names (e.g. seashell4) with r/g/b colors. Comments, BFN,
 # and trailing annotation fields are also printed.
