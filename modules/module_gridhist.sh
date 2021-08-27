@@ -147,7 +147,7 @@ cat <<-EOF
 modules/module_gridhist.sh
 
 -gridhistint:   Report total percent area between upper and lower intervals.
--gridhistint [interval1_low] [interval1_high] [[interval2_low]] [[interval2_high]] ...
+-gridhistint [interval1_low] [interval1_high]
 
   After -gridhist has been run, report the total surface area contained between
   the given upper and lower interval bounds.
@@ -159,17 +159,19 @@ fi
 
   shift
 
-  if arg_is_float "${1}"; then
-    GRIDHIST_INT_LOW="${1}"
-    shift
-    ((tectoplot_module_shift++))
-  fi
-  if arg_is_float "${1}"; then
-    GRIDHIST_INT_HIGH="${1}"
-    shift
-    ((tectoplot_module_shift++))
-    gridhist_dointcalc=1
-  fi
+  while ! arg_is_flag "${1}"; do
+    if arg_is_float "${1}"; then
+      GRIDHIST_INT_LOW+=("${1}")
+      shift
+      ((tectoplot_module_shift++))
+    fi
+    if arg_is_float "${1}"; then
+      GRIDHIST_INT_HIGH+=("${1}")
+      shift
+      ((tectoplot_module_shift++))
+      gridhist_dointcalc=1
+    fi
+  done
   gridhistintflag=1
   tectoplot_module_caught=1
   ;;
@@ -350,21 +352,21 @@ function tectoplot_post_gridhist() {
       gmt psconvert ./module_gridhist/gridhist.ps -Tf -A+m0.5i
     # ;;
     #
-
       if [[ -s ./module_gridhist/histdata_weighted.txt && $gridhistintflag -eq 1 ]]; then
-        # This is inefficient but works
-        # awk '{ printf("%'"'"'d\n", $0) }'
-        LC_ALL=en_US.UTF-8 gawk < ./module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW} -v high=${GRIDHIST_INT_HIGH} '
-        BEGIN {
-          sumarea=0
-        }
-        ($3 >= low && $3 <= high) {
-          sumarea+=$5
-        }
-        END {
-          print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between", low, "and", high, "meters elevation (" sprintf("%0.01f", sumarea * 100 / 511217755) "% of Earth surface)"
-        }
-        '
+        for gridind in $(seq 1 ${#GRIDHIST_INT_LOW[@]}); do
+          thisgrid=$(echo "$gridind - 1" | bc)
+          LC_ALL=en_US.UTF-8 gawk < ./module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW[$thisgrid]} -v high=${GRIDHIST_INT_HIGH[$thisgrid]} '
+          BEGIN {
+            sumarea=0
+          }
+          ($3 >= low && $3 <= high) {
+            sumarea+=$5
+          }
+          END {
+            print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between", low, "and", high, "meters elevation (" sprintf("%0.01f", sumarea * 100 / 511217755) "% of Earth surface)"
+          }
+          '
+        done
       fi
     fi
 
