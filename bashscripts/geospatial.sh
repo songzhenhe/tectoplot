@@ -123,3 +123,51 @@ function kml_to_first_xy() {
     }' > "${2}"
     rm -f ./tectoplot_tmp.gmt
 }
+
+# Convert first line/polygon element in KML file $1, store output XY file in $2
+# Close the polygon if necessary
+
+function kml_to_first_poly() {
+  ogr2ogr -f "OGR_GMT" ./tectoplot_tmp.gmt "${1}"
+  gawk < ./tectoplot_tmp.gmt '
+    BEGIN {
+      count=0
+      printcount=0
+    }
+    ($1==">") {
+      count++
+      if (count>1) {
+        exit
+      }
+    }
+    ($1+0==$1) {
+      if (printcount==0) {
+        first_x=$1
+        first_y=$2
+      }
+      print $1, $2
+      last_x=$1
+      last_y=$2
+      printcount=1
+
+    }
+    END {
+      if (first_x != last_x || first+y != last_y) {
+        print first_x, first_y
+      }
+    }' > "${2}"
+    rm -f ./tectoplot_tmp.gmt
+}
+
+
+function kml_to_points() {
+  ogr2ogr -f "OGR_GMT" ./tectoplot_tmp.gmt "${1}"
+  gawk < ./tectoplot_tmp.gmt '
+    BEGIN {
+      count=0
+    }
+    ($1+0==$1) {
+      print $1, $2
+    }' > "${2}"
+    rm -f ./tectoplot_tmp.gmt
+}

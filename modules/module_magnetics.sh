@@ -18,7 +18,15 @@ function tectoplot_defaults_magnetics() {
   EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
   EMAG_V2_BYTES="233388712"
 
+  MAGTRANS=0
+  F_MAG="./magnetics/"
+
   MAG_CPT=${F_CPTS}"mag.cpt"
+  DEF_MAG_CPT="vik"
+
+  MAGGRAD="-I+d"
+
+
 
 }
 
@@ -35,9 +43,10 @@ function tectoplot_args_magnetics()  {
 cat <<-EOF
 modules/module_magnetics.sh
 -m:            plot global crustal magnetization
--m [[transparency]]
+-m [[transparency]] [[nograd]]
 
   Plots EMAG_V2 crustal magnetization.
+  nograd: Don't plot gradient intensity
 
 Example: Magnetization surrounding the East Pacific Rise
   tectoplot -r -95 -85 -45 -35 -m
@@ -48,12 +57,17 @@ EOF
       shift
 
   		plotmag=1
-  		if arg_is_flag $1; then
-  			info_msg "[-m]: No magnetism transparency set. Using default"
-  		else
+  		if arg_is_positive_float $1; then
   			MAGTRANS="${1}"
   			shift
+        ((tectoplot_module_shift++))
   		fi
+
+      if [[ $1 == "nograd" ]]; then
+        MAGGRAD=""
+        shift
+        ((tectoplot_module_shift++))
+      fi
 
   		info_msg "[-m]: Magnetic data to plot is ${MAGMODEL}, transparency is ${MAGTRANS}"
   		plots+=("magnetics")
@@ -67,6 +81,16 @@ EOF
 
   	  ;;
 
+      # -magtile)
+      # shift
+      #
+      # CUSTOMGRIDFILE=${F_MAG}"mag.tif"
+      # plotcustomtopo=1
+      # USE_SHADED_RELIEF_TOPTILE=1
+      # tectoplot_module_caught=1
+
+      # ;;
+
   esac
 }
 
@@ -74,6 +98,8 @@ EOF
 # be accessing the data itself.
 
 function tectoplot_calculate_magnetics()  {
+
+  [[ ! -d ${F_MAG} ]] && mkdir -p ${F_MAG}
 
   if [[ ! -s $EMAG_V2 ]]; then
 
@@ -92,6 +118,12 @@ function tectoplot_calculate_magnetics()  {
     esac
   fi
 
+  # Cut out and store the magnetics data
+  # This makes a terrible hash of it (GMT 6.1.1):
+  # gmt grdcut $EMAG_V2 -G${F_MAG}/mag.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
+
+  # This works
+  [[ ! -s ${F_MAG}mag.nc ]] && gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of NetCDF $EMAG_V2 ${F_MAG}mag.nc > /dev/null 2>&1
 }
 
 function tectoplot_cpt_magnetics() {
@@ -99,7 +131,7 @@ function tectoplot_cpt_magnetics() {
   magnetics)
     touch $MAG_CPT
     MAG_CPT=$(abs_path $MAG_CPT)
-    gmt makecpt -Crainbow -Z -Do -T-250/250/10 $VERBOSE > $MAG_CPT
+    gmt makecpt -C${DEF_MAG_CPT} -Z -Do -T-250/250/1 $VERBOSE > $MAG_CPT
     tectoplot_cpt_caught=1
     ;;
   esac
@@ -109,7 +141,9 @@ function tectoplot_plot_magnetics() {
   case $1 in
   magnetics)
     info_msg "Plotting magnetic data"
-    gmt grdimage $EMAG_V2 $GRID_PRINT_RES -C$MAG_CPT -t$MAGTRANS $RJOK -Q $VERBOSE >> map.ps
+    gmt grdimage ${F_MAG}mag.nc $GRID_PRINT_RES $MAGGRAD -C$MAG_CPT -t$MAGTRANS $RJOK -Q $VERBOSE >> map.ps
+  #   [[ ! -s ${F_MAG}mag.tif ]] && gmt grdimage ${F_MAG}mag.nc $MAGGRAD -C$MAG_CPT -t$MAGTRANS -A${F_MAG}mag.tif -R -J
+  # echo out
     tectoplot_plot_caught=1
     ;;
   esac

@@ -994,5 +994,5 @@ function haversine_m(lon1, lat1, lon2, lat2) {
   hav_lon2_r=deg2rad(lon2)
   hav_lat2_r=deg2rad(lat2)
 
-  return 2*6371000*asin(sqrt( sqr((hav_lat2_r-hav_lat1_r)/2) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
+  return 2*6371000*asin(sqrt( sqr(sin((hav_lat2_r-hav_lat1_r)/2)) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
 }

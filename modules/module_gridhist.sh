@@ -5,6 +5,11 @@ TECTOPLOT_MODULES+=("gridhist")
 function tectoplot_defaults_gridhist() {
   GRIDHIST_WIDTH="2i"
   GRIDHIST_HEIGHT="5i"
+  GRIDHIST_FILE=${F_TOPO}dem.nc  # Default is dem
+  GRIDHIST_CPT=${F_CPTS}topo.cpt
+  GRIDHIST_YLABEL="Elevation (m)"
+  GRIDHIST_BINWIDTH=100
+
   gridhist_weighted=1  # If set to 0, don't weight histogram by actual cell area - dangerous!
 }
 
@@ -16,13 +21,55 @@ function tectoplot_args_gridhist()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
+  -gridhistbin)
+  shift
+  if arg_is_positive_float ${1}; then
+    GRIDHIST_BINWIDTH="${1}"
+    shift
+    ((tectoplot_module_shift++))
+  fi
+  tectoplot_module_caught=1
+  ;;
+
+  -gridhistclip)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+modules/module_gridhist.sh
+
+-gridhistclip:   define a clipping region for the grid histogram calculation
+-gridhistclip [file]
+
+  File can be a KML with a polygon or an XY (lon lat) file.
+  The first object in the KML file will be closed if necessary, so a line path
+    will work.
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+fi
+  shift
+  if ! arg_is_flag ${1}; then
+    if [[ -s ${1} ]]; then
+      GRIDHIST_CLIPFILE=$(abs_path "${1}")
+      if [[ $GRIDHIST_CLIPFILE == *".kml" ]]; then
+        kml_to_first_poly ${GRIDHIST_CLIPFILE} gridhist_clip.xy
+        GRIDHIST_CLIPFILE=$(abs_path gridhist_clip.xy)
+      fi
+      gridhistclipflag=1
+    fi
+    shift
+    ((tectoplot_module_shift++))
+  fi
+  tectoplot_module_caught=1
+  ;;
+
   -gridhist)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 modules/module_gridhist.sh
 
 -gridhist:     plot a histogram of values of the topography grid
--gridhist [[polygonfile]] [[width_in=]] [[height_in=]]
+-gridhist [[width_in=${GRIDHIST_WIDTH}]] [[height_in=${GRIDHIST_HEIGHT}]]
 
   Will be extended to include custom grid
 
@@ -31,14 +78,7 @@ Example: None
 EOF
 fi
     shift
-    if ! arg_is_flag ${1}; then
-      if [[ -s ${1} ]]; then
-        GRIDHIST_CLIPFILE=$(abs_path "${1}")
-        gridhistclipflag=1
-      fi
-      shift
-      ((tectoplot_module_shift++))
-    fi
+
     if ! arg_is_flag ${1}; then
       GRIDHIST_WIDTH="${1}"
       shift
@@ -53,6 +93,53 @@ fi
     tectoplot_module_caught=1
     ;;
 
+
+  -gridhistfile)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+modules/module_gridhist.sh
+
+-gridhistfile:   Change the file that is subjected to the histogram analysis
+-gridhistfile [grid_file_path] [bin_width] [cpt_file] [[label label text here]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+fi
+  shift
+
+  if ! arg_is_flag "${1}"; then
+    GRIDHIST_FILE="${1}"
+    shift
+    ((tectoplot_module_shift++))
+  fi
+
+  if arg_is_positive_float "${1}"; then
+    GRIDHIST_BINWIDTH="${1}"
+    shift
+    ((tectoplot_module_shift++))
+  fi
+
+  if ! arg_is_flag "${1}"; then
+    GRIDHIST_CPT="${1}"
+    shift
+    ((tectoplot_module_shift++))
+  fi
+
+  if [[ $1 == "label" ]]; then
+    GRIDHIST_YLABEL=""
+    shift
+    ((tectoplot_module_shift++))
+    while ! arg_is_flag "${1}"; do
+      GRIDHIST_YLABEL=${GRIDHIST_YLABEL}" ${1}"
+      shift
+      ((tectoplot_module_shift++))
+    done
+  fi
+
+
+  tectoplot_module_caught=1
+  ;;
 
   -gridhistint)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -83,7 +170,7 @@ fi
     ((tectoplot_module_shift++))
     gridhist_dointcalc=1
   fi
-
+  gridhistintflag=1
   tectoplot_module_caught=1
   ;;
 
@@ -98,16 +185,19 @@ function tectoplot_plot_gridhist() {
 
 function tectoplot_post_gridhist() {
   # case $1 in
-  # gridhist)
-    if [[ -s ${F_TOPO}dem.nc && $gridhist_hasrun -eq 0 ]]; then
+  # gridhist
+
+    if [[ -s ${GRIDHIST_FILE} && $gridhist_hasrun -eq 0 ]]; then
       gridhist_hasrun=1
       # Non-cumulative data
       # Bin centers using -F
 
       mkdir ./module_gridhist/
-      gmt grd2xyz ${F_TOPO}dem.nc > ./module_gridhist/histdata.txt
 
-      DEMDETAILS=($(gmt grdinfo -C ${F_TOPO}dem.nc))
+      gmt grdcut ${GRIDHIST_FILE} -R -J -G./module_gridhist/gridhistcut.nc
+
+      gmt grd2xyz ./module_gridhist/gridhistcut.nc > ./module_gridhist/histdata.txt
+      DEMDETAILS=($(gmt grdinfo -C ${GRIDHIST_FILE}))
       GRIDRES_X=${DEMDETAILS[7]}
       GRIDRES_Y=${DEMDETAILS[8]}
 
@@ -233,8 +323,8 @@ function tectoplot_post_gridhist() {
           }' > ./module_gridhist/histdata_weighted.txt
       fi
 
-      HISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -T10 -F -i2,3 -Vn -I))
-      CUMHISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -Q -T10 -F -i2,3 -Vn -I))
+      HISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
+      CUMHISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -Q -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
 
       # echo ${HISTRANGE[@]}
 
@@ -243,20 +333,25 @@ function tectoplot_post_gridhist() {
       HISTRANGE[1]=$(echo "${HISTRANGE[1]} - ${HISTXDIFF}/20" | bc -l)
       # echo ${HISTRANGE[1]} ${HISTXDIFF}
 
-
       HISTYDIFF=$(echo "${HISTRANGE[3]} - ${HISTRANGE[2]}" | bc -l)
       HISTRANGE[3]=$(echo "${HISTRANGE[3]} + ${HISTYDIFF}/3" | bc -l)
       CUMHISTRANGE[3]=$(echo "${CUMHISTRANGE[3]}*11/10" | bc -l)
 
-      gmt pshistogram ./module_gridhist/histdata_weighted.txt -T10 -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"Elevation (m)" --FONT_LABEL=12p,black -Byaf+l"Relative frequency" -Gdarkgray -F -i2,3 -Vn -A -N -K > ./module_gridhist/gridhist.ps
+      if [[ -s ${GRIDHIST_CPT} ]]; then
+        GRIDHIST_CPTCMD="-C${GRIDHIST_CPT}"
+      else
+        GRIDHIST_CPTCMD="-Ggray"
+      fi
 
-      gmt pshistogram ./module_gridhist/histdata_weighted.txt -Q -T10 -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=12p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> ./module_gridhist/gridhist.ps
+      gmt pshistogram ./module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=12p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -N -K > ./module_gridhist/gridhist.ps
+
+      gmt pshistogram ./module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=12p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> ./module_gridhist/gridhist.ps
 
       gmt psconvert ./module_gridhist/gridhist.ps -Tf -A+m0.5i
     # ;;
     #
-    # gridhistint)
-      if [[ -s ./module_gridhist/histdata_weighted.txt ]]; then
+
+      if [[ -s ./module_gridhist/histdata_weighted.txt && $gridhistintflag -eq 1 ]]; then
         # This is inefficient but works
         # awk '{ printf("%'"'"'d\n", $0) }'
         LC_ALL=en_US.UTF-8 gawk < ./module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW} -v high=${GRIDHIST_INT_HIGH} '
@@ -267,8 +362,9 @@ function tectoplot_post_gridhist() {
           sumarea+=$5
         }
         END {
-          print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between ", low, "and", high, "meters elevation (", sprintf("%0.01f", sumarea * 100 / 511217755) "% of Earth surface)"
-        }'
+          print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between", low, "and", high, "meters elevation (" sprintf("%0.01f", sumarea * 100 / 511217755) "% of Earth surface)"
+        }
+        '
       fi
     fi
 

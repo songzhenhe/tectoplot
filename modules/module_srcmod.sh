@@ -185,9 +185,8 @@ function tectoplot_plot_srcmod() {
     # Create an empty 0 raster with a resolution of LONKM
     #echo | gmt xyz2grd -di0 -R -I"$LONKM"km -Gzero.nc
 
-    gmt grdmath $VERBOSE -R -I"$LONKM"km 0 = slip.nc
+    gmt grdmath $VERBOSE -R -I"$LONKM"k 0 = slip.nc
     #rm -f slip2.nc
-
     v=($(cat srcmod_eqs.txt | tr ' ' '\n'))
     i=0
 
@@ -229,8 +228,8 @@ function tectoplot_plot_srcmod() {
       # echo "array is ${responsearr[@]}"
       for thiseq in ${responsearr[@]}; do
         grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk  '{print $2, $1, $6}' > temp1.xyz
-        gmt blockmean temp1.xyz -I"$LONKM"km $VERBOSE -R > temp.xyz
-        gmt triangulate temp.xyz -I"$LONKM"km -Gtemp.nc -R $VERBOSE
+        gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
+        gmt triangulate temp.xyz -I"$LONKM"k -Gtemp.nc -R $VERBOSE
         gmt grdmath $VERBOSE temp.nc $SLIPMINIMUM LE 1 NAN = mask.grd
         gmt grdmath $VERBOSE temp.nc mask.grd OR = slipfinal.grd
         gmt grdimage slipfinal.grd -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -J -O -K $VERBOSE >> map.ps

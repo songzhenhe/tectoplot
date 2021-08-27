@@ -10,6 +10,7 @@ TECTOPLOT_MODULES+=("resgrid")
 
 function tectoplot_defaults_resgrid() {
   SWATH=${BASHSCRIPTDIR}"swath.sh"
+  GRAVCPT=${CPTDIR}"grav2.cpt"
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
   RESGRID_CPTRANGE=145
 }

@@ -414,7 +414,7 @@ function tectoplot_plot_gis() {
     tectoplot_plot_caught=1
   ;;
 
-  gis)
+  gis_point)
     info_msg "Plotting point dataset $current_userpointfilenumber: ${POINTDATAFILE[$current_userpointfilenumber]}"
     if [[ ${pointdatacptflag[$current_userpointfilenumber]} -eq 1 ]]; then
       gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -W$POINTLINEWIDTH,$POINTLINECOLOR -C${POINTDATACPT[$current_userpointfilenumber]} -G+z -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps

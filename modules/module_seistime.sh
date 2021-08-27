@@ -83,7 +83,7 @@ function tectoplot_post_seistime() {
         SEIS_CPT=$SEISDEPTH_CPT
       fi
 
-      gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf > seistime.ps
+      gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
 
       gmt psconvert seistime.ps -Tf -A+m0.5i
   fi

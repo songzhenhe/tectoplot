@@ -2369,21 +2369,21 @@ fi
     clipdemflag=1
     ;;
 
-  -clipgrav)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--clipgrav:     save clipped gravity file as grav.nc
--clipgrav
-
-Example: Clip a Bouguer gravity anomaly to the AOI of Albania
-  tectoplot -r AL -v BG 0 -clipgrav
-  gmt grdinfo tempfiles_to_delete/grav/grav.nc
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    clipgravflag=1
-    ;;
+#   -clipgrav)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -clipgrav:     save clipped gravity file as grav.nc
+# -clipgrav
+#
+# Example: Clip a Bouguer gravity anomaly to the AOI of Albania
+#   tectoplot -r AL -v BG 0 -clipgrav
+#   gmt grdinfo tempfiles_to_delete/grav/grav.nc
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     clipgravflag=1
+    # ;;
 
   -clipon|-clipout)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4217,6 +4217,28 @@ fi
 
     ;;
 
+
+    -colorinfo)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-colorinfo:       print the names of GMT builtin CPTs and color names
+-colorinfo
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+    echo "GMT builtin CPTs:"
+    echo "-------------------------------"
+    cat ${GMTCPTS} | column
+    echo
+    echo "GMT colors:"
+    echo "-------------------------------"
+    cat ${GMTCOLORS} | column
+    exit 1
+    ;;
 #   -oca)
 # if [[ $USAGEFLAG -eq 1 ]]; then
 # cat <<-EOF
@@ -4379,6 +4401,16 @@ fi
         echo $GBM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GBM_SOURCESTRING >> ${LONGSOURCES}
         ;;
+      PB)
+        POLESRC=$PB2003SRC
+        PLATES=$PB2003PLATES
+        POLES=$PB2003POLES
+        DEFREF="PA"
+        EDGES=$PB2003PLATEEDGES
+        MIDPOINTS=$PB2003MIDPOINTS
+        echo $PB2003_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+        echo $PB2003_SOURCESTRING >> ${LONGSOURCES}
+        ;;
 			*) # Unknown plate model
 				info_msg "[-p]: Unknown plate model $PLATEMODEL... using MORVEL56 instead"
 				PLATEMODEL="MORVEL"
@@ -4412,6 +4444,26 @@ fi
 		fi
 		info_msg "[-p]: Plate tectonic model is ${PLATEMODEL}"
 	  ;;
+
+  -pp)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-pp:              plot Euler pole locations
+-pp [[Pole1]] [[Pole2]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  plots+=("eulerpoles")
+  while ! arg_is_flag ${2}; do
+    PP_SELECT+=("${2}")
+    shift
+  done
+
+  ;;
 
   -ppole)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4500,8 +4552,8 @@ fi
   -pe|--plateedge)  # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pe:           color plates
--pe [[random]] [[transparency]]
+-pe:           plot plate boundary lines
+-pe [[width=${PLATELINE_WIDTH}]] [[color=${PLATELINE_COLOR}]]
 
   Draw lines along plate boundaries.
 
@@ -4551,6 +4603,40 @@ fi
       PLATEVEC_TEXT_PLOT=0
       shift
     fi
+    ;;
+
+  -pi)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-pi:           create grid from a file of specified points
+-pi [file]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+    if arg_is_flag "${2}"; then
+      info_msg "[-pi]: No file specified"
+    else
+      if [[ ! -s "${2}" ]]; then
+        info_msg "[-pi]: File ${2} does not exist"
+      else
+        PI_GRIDFILE=$(abs_path "${2}")
+        shift
+
+        if [[ ${PI_GRIDFILE} == *".kml" ]]; then
+          # echo "KML input file"
+          kml_to_points ${PI_GRIDFILE} kml_points.xy
+          PI_GRIDFILE=$(abs_path kml_points.xy)
+        fi
+
+        makegridflag_gridfile=1
+        makegridflag=1
+      fi
+    fi
+
     ;;
 
   -ppf)
@@ -5254,32 +5340,43 @@ fi
       # Set region to be the same as an input file (raster, XY file)
       elif [[ -e "${2}" ]]; then
         info_msg "[-r]: File specified; trying to determine extent."
-        # First check if it is a text file with X Y coordinates in the first two columns
-        case $(file "${2}") in
-          (*\ text|*\ text\ *)
-              info_msg "[-r]: Input file is text: assuming X Y data"
 
-              # Could add different file formats here, KML etc.
-              XYRANGE=($(xy_range "${2}"))
-              MINLON=${XYRANGE[0]}
-              MAXLON=${XYRANGE[1]}
-              MINLAT=${XYRANGE[2]}
-              MAXLAT=${XYRANGE[3]}
-              ;;
-          (*\ directory|*\ directory\ *)
-              info_msg "[-r]: Input file is an existing directory. Not a valid extent."
-              exit 1
-              ;;
-          (*)
-              info_msg "[-r]: Input file is binary: assuming it is a grid file"
-              rasrange=$(gmt grdinfo $(abs_path $2) -C -Vn)
-              MINLON=$(echo $rasrange | gawk  '{print $2}')
-              MAXLON=$(echo $rasrange | gawk  '{print $3}')
-              MINLAT=$(echo $rasrange | gawk  '{print $4}')
-              MAXLAT=$(echo $rasrange | gawk  '{print $5}')
-              ;;
-          esac
-        shift
+        if [[ $2 == *".kml" ]]; then
+          kml_to_first_xy ${2} profile_align.xy
+          XYRANGE=($(xy_range profile_align.xy))
+          MINLON=${XYRANGE[0]}
+          MAXLON=${XYRANGE[1]}
+          MINLAT=${XYRANGE[2]}
+          MAXLAT=${XYRANGE[3]}
+          shift
+        else
+          # First check if it is a text file with X Y coordinates in the first two columns
+          case $(file "${2}") in
+            (*\ text|*\ text\ *)
+                info_msg "[-r]: Input file is text: assuming X Y data"
+
+                # Could add different file formats here, KML etc.
+                XYRANGE=($(xy_range "${2}"))
+                MINLON=${XYRANGE[0]}
+                MAXLON=${XYRANGE[1]}
+                MINLAT=${XYRANGE[2]}
+                MAXLAT=${XYRANGE[3]}
+                ;;
+            (*\ directory|*\ directory\ *)
+                info_msg "[-r]: Input file is an existing directory. Not a valid extent."
+                exit 1
+                ;;
+            (*)
+                info_msg "[-r]: Input file is binary: assuming it is a grid file"
+                rasrange=$(gmt grdinfo $(abs_path $2) -C -Vn)
+                MINLON=$(echo $rasrange | gawk  '{print $2}')
+                MAXLON=$(echo $rasrange | gawk  '{print $3}')
+                MINLAT=$(echo $rasrange | gawk  '{print $4}')
+                MAXLAT=$(echo $rasrange | gawk  '{print $5}')
+                ;;
+            esac
+          shift
+        fi
 
         if arg_is_positive_float "${2}"; then
           REGION_BUFDEG="${2}"
@@ -5821,7 +5918,7 @@ fi
 
         # Calculate circumference of a small circle with given pole passing through center point
         # Note that there are too many conversions back and forth, not great...
-        SMALLC_CIRC=$(gawk -v lon1=${CENTRALLON} -v lat1=${CENTRALLAT} -v lon2=${POLELON} -v lat2=$POLELAT '
+        SMALLC_CIRC=$(gawk -v lon1=${CENTRALLON} -v lat1=${CENTRALLAT} -v lon2=${POLELON} -v lat2=${POLELAT} '
           @include "tectoplot_functions.awk"
           BEGIN {
             val=haversine_m(lon1, lat1, lon2, lat2)
@@ -7917,21 +8014,28 @@ Example: TRI of Nevada, USA, UTM
 EOF
 shift && continue
 fi
-		GRAVMODEL="${2}"
-		GRAVTRANS="${3}"
+
     GRAVCPT=$WGMFREEAIR_CPT
-		shift
-		shift
-    if arg_is_flag $2; then
-			info_msg "[-v]: No rescaling of gravity CPT specified"
-		elif [[ ${2} =~ "rescale" ]]; then
-      rescalegravflag=1
-			info_msg "[-v]: Rescaling gravity CPT to AOI"
-			shift
-    else
-      info_msg "[-v]: Unrecognized option ${2}"
-      shift
-		fi
+    GRAVGRAD="-I+d"
+
+    while ! arg_is_flag $2; do
+
+      if [[ $2 == "BG" || $2 == "FA" || $2 == "IS" || $2 == "SW " ]]; then
+  		  GRAVMODEL="${2}"
+        shift
+      elif arg_is_positive_float $2; then
+  	    GRAVTRANS="${2}"
+        shift
+      elif [[ ${2} =~ "rescale" ]]; then
+        rescalegravflag=1
+  			info_msg "[-v]: Rescaling gravity CPT to AOI"
+  			shift
+      elif [[ $2 == "nograd" ]]; then
+        GRAVGRAD=""
+        shift
+      fi
+    done
+
 		case $GRAVMODEL in
 			FA)
 				GRAVDATA=$WGMFREEAIR
@@ -7965,6 +8069,8 @@ fi
 		info_msg "[-v]: Gravity data to plot is ${GRAVDATA}, transparency is ${GRAVTRANS}"
 		plots+=("grav")
     cpts+=("grav")
+    clipgravflag=1
+
 	  ;;
 
   -vcurv)
@@ -8066,9 +8172,9 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -w:            plot velocity field from a specified euler pole on grid points
--w [pole_lat] [pole_lon] [omega] [[fill color]]
+-w [pole_lat] [pole_lon] [omega]
 
-  Requires -px or -pf option to generate grid points
+  Requires -px, -pf, or -pi option to generate grid points
 
 Example: Global Euler pole velocity field on a Fibonacci grid
   tectoplot -RJ W -a -pf 1000 -w 10 20 0.2
@@ -8078,23 +8184,43 @@ shift && continue
 fi
 
     # Check the number of arguments
-    if [[ ! $(number_nonflag_args "${@}") -ge 3 ]]; then
-      echo "[-w]: Requires 3-4 arguments. tectoplot usage -w"
-      exit 1
-    fi
-
-    eulervecflag=1
-    eulerlat="${2}"
-    eulerlon="${3}"
-    euleromega="${4}"
-    shift
-    shift
-    shift
-
-    if ! arg_is_flag $2; then
-      EULER_VEC_FILLCOLOR="${2}"
+    if [[ $(number_nonflag_args "${@}") -eq 3 ]]; then
+      eulerlat="${2}"
+      eulerlon="${3}"
+      euleromega="${4}"
       shift
+      shift
+      shift
+      eulervecflag=1
+
+    elif [[ $(number_nonflag_args "${@}") -eq 6 ]]; then
+
+
+      EULER_SUM=($(echo $2 $3 $4 $5 $6 $7 | gawk -f $EULERADD_AWK))
+
+      eulerlat="${EULER_SUM[0]}"
+      eulerlon="${EULER_SUM[1]}"
+      euleromega="${EULER_SUM[2]}"
+      echo "[-w]: Using Euler sum of poles [$2, $3, $4] and [$5, $6, $7] is [${EULER_SUM[0]}, ${EULER_SUM[1]}, ${EULER_SUM[2]}]"
+      shift
+      shift
+      shift
+      shift
+      shift
+      shift
+      eulervecflag=1
+
+
+
+
     fi
+
+
+
+    # if ! arg_is_flag $2; then
+    #   EULER_VEC_FILLCOLOR="${2}"
+    #   shift
+    # fi
 
     plots+=("euler")
     ;;
@@ -9600,6 +9726,11 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
   gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
 fi
 
+if [[ $makegridflag_gridfile -eq 1 ]]; then
+  cp $PI_GRIDFILE gridfile.txt
+  gawk < $PI_GRIDFILE '{print $2, $1}' > gridswap.txt
+fi
+
 ##### MAKE LAT/LON REGULAR GRID
 if [[ $makelatlongridflag -eq 1 ]]; then
   for i in $(seq $MINLAT $GRIDSTEP $MAXLAT); do
@@ -9698,6 +9829,12 @@ info_msg ">>>>>>>>> Legend order is ${legendwords[@]} <<<<<<<<<<<<<"
 #### END OF BOOKKEEPING SECTION
 
 #### BEGIN DATA PROCESSING SECTION
+
+# GRAVITY CLIP
+
+if [[ $clipgravflag -eq 1 ]]; then
+  gmt grdcut $GRAVDATA -G${F_GRAV}grav.nc -R -J $VERBOSE
+fi
 
 ################################################################################
 #####         Download Sentinel image                                      #####
@@ -13867,10 +14004,7 @@ for plot in ${plots[@]} ; do
       ;;
 
     grav)
-      if [[ $clipgravflag -eq 1 ]]; then
-        gmt grdcut $GRAVDATA -G${F_GRAV}grav.nc -R -J $VERBOSE
-      fi
-      gmt grdimage $GRAVDATA $GRID_PRINT_RES -C$GRAV_CPT -t$GRAVTRANS $RJOK $VERBOSE >> map.ps
+      gmt grdimage $GRAVDATA $GRID_PRINT_RES ${GRAVGRAD} -C$GRAV_CPT -t$GRAVTRANS $RJOK $VERBOSE >> map.ps
       ;;
 
     gravcurv)
@@ -14091,8 +14225,28 @@ for plot in ${plots[@]} ; do
           info_msg "Adding custom axes labels to sprof"
           echo "L ${PROFILE_X_LABEL}|${PROFILE_Y_LABEL}|${PROFILE_Z_LABEL}" >> sprof.control
         fi
-        if [[ $plotcustomtopo -eq 1 ]]; then
-          info_msg "Adding custom topo grid to sprof"
+
+        if [[ -s ${F_GRAV}grav.nc ]]; then
+          info_msg "Adding gravity grid to sprof as swath and top tile"
+          echo "S ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "G ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${GRAV_CPT}" >> sprof.control
+
+          # Make the gravity top tile and set
+          gmt grdimage $GRAVDATA -A${F_GRAV}grav.tif ${GRAVGRAD} -t$GRAVTRANS -C${GRAV_CPT} -R -J ${VERBOSE}
+          COLORED_RELIEF=${F_GRAV}grav.tif
+          echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
+        elif [[ -s ${F_MAG}mag.nc ]]; then
+          info_msg "Adding magnetics grid to sprof as swath and top tile"
+          echo "S ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "G ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${MAG_CPT}" >> sprof.control
+
+          # Make the magnetics top tile and set
+          gmt grdimage ${F_MAG}mag.nc -A${F_MAG}mag.tif ${MAGGRAD} -t$MAGTRANS -C${MAG_CPT} -R -J ${VERBOSE}
+          COLORED_RELIEF=${F_MAG}mag.tif
+          echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
+
+        elif [[ $plotcustomtopo -eq 1 ]]; then
+          info_msg "Adding custom grid to sprof"
           echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
         elif [[ -e $BATHY ]]; then
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
@@ -14100,10 +14254,8 @@ for plot in ${plots[@]} ; do
           echo "G ${F_TOPO}dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
           echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
         fi
-        if [[ -e ${F_GRAV}grav.nc ]]; then
-          info_msg "Adding gravity grid to sprof as swath"
-          echo "S ${F_GRAV}grav.nc 1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-        fi
+
+
         if [[ -e ${F_SEIS}eqs.txt ]]; then
           info_msg "Adding eqs to sprof as seis-xyz"
 
@@ -14187,15 +14339,21 @@ for plot in ${plots[@]} ; do
         fi
       done
 
+      # PLOT_PROFILETRACKS=1
       # Plot the gridtrack tracks, for debugging
-      # for track_file in *_profiletable.txt; do
-      #    # echo $track_file
-      #   gmt psxy $track_file -W0.15p,black $RJOK $VERBOSE >> map.ps
-      # done
+      if [[ ${PROFILETRACKS} -eq 1 ]]; then
+        for track_file in ${F_PROFILES}*_profiletable.txt; do
+           # echo $track_file
+          gmt psxy $track_file -W0.15p,black $RJOK $VERBOSE >> map.ps
+        done
+      fi
 
-      # for proj_pts in projpts*;  do
-      #   gmt psxy $proj_pts -Sc0.03i -Gred -W0.15p,black $RJOK $VERBOSE >> map.ps
-      # done
+      # PLOT_PROFILEPOINTS=1
+      if [[ ${PLOT_PROFILEPOINTS} -eq 1 ]]; then
+        for track_file in ${F_PROFILES}*_profiletable.txt; do
+          gmt psxy $track_file -Sc0.003i -Gblack $RJOK $VERBOSE >> map.ps
+        done
+      fi
 
 
       # Plot the buffers around the polylines, for debugging
@@ -14461,6 +14619,32 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         gawk < ${F_PLATES}paz1ss1_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 + cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2}}' | gmt psxy -SV"${PVHEAD}"+r+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
         gawk < ${F_PLATES}paz1ss2_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 - cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2 }}' | gmt psxy -SV"${PVHEAD}"+l+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
       ;;
+
+
+    eulerpoles)
+
+      if [[ ${#PP_SELECT[@]} -gt 0 ]]; then
+        echo "Plotting only selected poles"
+        for this_plate in ${PP_SELECT[@]}; do
+          polefile=$(ls -1q ${F_PLATES}${this_plate}*.pole | head -n 1)
+          echo Polefile is ${polefile}
+          if [[ -s ${polefile} ]]; then
+            echo "plotting ${polefile}"
+            POLEDATA=($(head -n 1 ${polefile}))
+            gmt psxy ${polefile} -Ss0.1i -Gred -W1p,black $RJOK $VERBOSE >> map.ps
+            printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[0]} ${POLEDATA[1]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
+          fi
+        done
+      else
+        for polefile in ${F_PLATES}*.pole; do
+          # echo "Plotting pole ${polefile}"
+          POLEDATA=($(head -n 1 ${polefile}))
+          gmt psxy ${polefile} -Ss0.1i -Gred -W1p,black $RJOK $VERBOSE >> map.ps
+          printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[0]} ${POLEDATA[1]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
+        done
+      fi
+      [[ -s polelabels.txt ]] && gmt pstext polelabels.txt -F+f+a+j $RJOK $VERBOSE >> map.ps
+    ;;
 
     plateedge)
       info_msg "Drawing plate edges"
@@ -15208,68 +15392,68 @@ done
 
 #### SECTION: DATA FRAMES BELOW OR BESIDE THE MAP (incompatible with onmap profiles)
 
-#### Plot seismicty vs depth in a projected (X) frame below the map frame
-#
-# if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
-#
-#   depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
-#     BEGIN {
-#       getline
-#       maxdepth=$3
-#       mindepth=$3
-#     }
-#     {
-#       maxdepth=($3>maxdepth)?$3:maxdepth
-#       mindepth=($3<mindepth)?$3:mindepth
-#     }
-#     END {
-#       range=maxdepth-mindepth
-#       print -(maxdepth+range/20), -(mindepth-range/10)
-#     }'))
-#
-#     gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
-#     gawk '
-#       (NR==FNR) {
-#         projx[NR]=$1
-#         projy[NR]=$2
-#       }
-#       (NR>FNR) {
-#         $1=projx[FNR]
-#         $2=-$3
-#         print
-#       }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled.txt
-#
-#     if [[ $zctimeflag -eq 1 ]]; then
-#       SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
-#       SEIS_INPUTORDER2="-i0,1,6"
-#       SEIS_CPT=${F_CPTS}"eqtime.cpt"
-#     elif [[ $zcclusterflag -eq 1 ]]; then
-#       SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
-#       SEIS_INPUTORDER2="-i0,1,7"
-#       SEIS_CPT=${F_CPTS}"eqcluster.cpt"
-#     else
-#       SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
-#       SEIS_INPUTORDER2="-i0,1,2"
-#       SEIS_CPT=$SEISDEPTH_CPT
-#     fi
-#
-#
-#     if [[ $SCALEEQS -eq 1 ]]; then
-#       gmt_init_tmpdir
-#
-#       gmt psbasemap -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
-#       PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-#       PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54 + 0.15}')
-#
-#       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
-#       gmt gmtset PROJ_LENGTH_UNIT p
-#       # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
-#       gmt psxy ${F_SEIS}proj_eqs_scaled.txt -Ya-${PS_HEIGHT_IN_NOLABELS}i -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Bxaf -Byaf -BEbWt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
-#       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
-#
-#       gmt_remove_tmpdir
-#     fi
-# fi
+### Plot seismicty vs depth in a projected (X) frame below the map frame
+
+if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+
+  depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
+    BEGIN {
+      getline
+      maxdepth=$3
+      mindepth=$3
+    }
+    {
+      maxdepth=($3>maxdepth)?$3:maxdepth
+      mindepth=($3<mindepth)?$3:mindepth
+    }
+    END {
+      range=maxdepth-mindepth
+      print -(maxdepth+range/20), -(mindepth-range/10)
+    }'))
+
+    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gawk '
+      (NR==FNR) {
+        projx[NR]=$1
+        projy[NR]=$2
+      }
+      (NR>FNR) {
+        $1=projx[FNR]
+        $2=-$3
+        print
+      }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled.txt
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,6"
+      SEIS_CPT=${F_CPTS}"eqtime.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,7"
+      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,2"
+      SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      gmt_init_tmpdir
+
+      gmt psbasemap -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+      PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54 + 0.15}')
+
+      OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+      gmt gmtset PROJ_LENGTH_UNIT p
+      # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
+      gmt psxy ${F_SEIS}proj_eqs_scaled.txt -Ya-${PS_HEIGHT_IN_NOLABELS}i -R${MINPROJ_X}/${MAXPROJ_X}/${depth_range[0]}/${depth_range[1]} -JX${PSSIZE}i/${SEISPROJHEIGHT_X}i -Bxaf -Byaf+l"Depth" -BrbWt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+      gmt_remove_tmpdir
+    fi
+fi
 
 # plotbinprojflag=1
 #
@@ -15415,7 +15599,7 @@ if [[ $plotseisprojflag_y -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
 
-      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf -Byaf -BlNrS -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf+l"Depth" -Byaf -BlNrb -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
       gmt_remove_tmpdir

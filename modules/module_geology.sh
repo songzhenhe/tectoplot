@@ -135,11 +135,10 @@ fi
     if arg_is_flag $1; then
       info_msg "[-oc]: No ocean age CPT specified. Using $OCA_CPT"
     else
-      if [[ -s $(abs_path ${1}) ]]; then
-        OCA_CPT="$(abs_path ${1})"
+      customocagecpt=1
+      OC_AGE_CPT="${1}"
         # cp $(abs_path ${1}) custom_oca.cpt
         # OCA_CPT=custom_oca.cpt
-      fi
       shift
       ((tectoplot_module_shift++))
     fi
@@ -306,8 +305,12 @@ fi
 function tectoplot_cpt_geology() {
   case $1 in
   geoage)
-    cp ${CPTDIR}geoage.cpt ${GEOAGE_CPT}
-    tectoplot_cpt_caught=1
+    if [[ $customocagecpt -eq 1 ]]; then
+      gmt makecpt -C${OC_AGE_CPT} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/1 -Z > ${GEOAGE_CPT}
+    else
+      cp ${CPTDIR}geoage.cpt ${GEOAGE_CPT}
+      tectoplot_cpt_caught=1
+    fi
   ;;
   esac
 }

@@ -912,15 +912,16 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
 
       # Sample the input grid along space cross-profile
       gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
-cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
+# cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
       if [[ ${istopgrid[$i]} -eq 1 ]]; then
+        # echo "Trying to figure out what to do about top tile"
+        # echo "USE_SHADED_RELIEF_TOPTILE=${USE_SHADED_RELIEF_TOPTILE}"
         if [[ $USE_SHADED_RELIEF_TOPTILE -eq 1 ]]; then
           COLOR_SOURCE=${COLORED_RELIEF}
-          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_TOPO}colored_relief_red.tif
-          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_TOPO}colored_relief_green.tif
-          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_TOPO}colored_relief_blue.tif
-
+          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_red.tif
+          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_green.tif
+          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_blue.tif
         else
           if [[ ! -s ${F_PROFILES}topgrid_relief.tif ]]; then
             info_msg "Making new colored grid for toptile extraction"
@@ -930,12 +931,12 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
             gdaldem color-relief -q ${F_PROFILES}${gridfilesellist[$i]} ${F_CPTS}gdal_topocolor.dat ${F_PROFILES}topgrid_relief.tif
           fi
           COLOR_SOURCE="${F_PROFILES}topgrid_relief.tif"
-          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_TOPO}colored_relief_red.tif
-          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_TOPO}colored_relief_green.tif
-          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_TOPO}colored_relief_blue.tif
+          gdal_translate -q -b 1 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_red.tif
+          gdal_translate -q -b 2 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_green.tif
+          gdal_translate -q -b 3 ${COLOR_SOURCE} ${F_PROFILES}colored_relief_blue.tif
         fi
 
-        gmt grdtrack -N -Vn -G${F_TOPO}colored_relief_red.tif -G${F_TOPO}colored_relief_green.tif  -G${F_TOPO}colored_relief_blue.tif ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
+        gmt grdtrack -N -Vn -G${F_PROFILES}colored_relief_red.tif -G${F_PROFILES}colored_relief_green.tif  -G${F_PROFILES}colored_relief_blue.tif ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 
         if [[ -s ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt ]]; then
@@ -1327,11 +1328,11 @@ EOF
         if [[ $ZOFFSETflag -eq 1 && $dozflag -eq 1 ]]; then
           # echo ZOFFSETflag is set
           XZEROINDEX=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt '{if ($1 > 0) { exit } } END {print NR}')
-          echo "XZEROINDEX is" ${XZEROINDEX}
+          # echo "XZEROINDEX is" ${XZEROINDEX}
 
           ZOFFSET_NUM=$(head -n $XZEROINDEX ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | tail -n 1 | gawk '{print 0-$3}')
         fi
-        echo "Z offset is" ${ZOFFSET_NUM}
+        # echo "Z offset is" ${ZOFFSET_NUM}
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary_pre.txt | gawk -v zoff="${ZOFFSET_NUM}" '{print $1+zoff, $2+zoff, $3+zoff, $4+zoff, $5+zoff}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt
 
         # profilesummary.txt is min q1 q2 q3 max
