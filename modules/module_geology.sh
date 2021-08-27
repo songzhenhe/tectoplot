@@ -336,7 +336,7 @@ function tectoplot_plot_geology() {
       ;;
 
     oceanage)
-      gmt grdimage $MULLER_OCAGE $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t$OC_TRANS $RJOK $VERBOSE >> map.ps
+      gmt grdimage $OC_AGE $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t$OC_TRANS $RJOK $VERBOSE >> map.ps
       tectoplot_plot_caught=1
       ;;
 
