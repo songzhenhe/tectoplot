@@ -10277,7 +10277,7 @@ if [[ $plotseis -eq 1 ]]; then
       gawk -F, < ${F_SEIS}anss_extract_tiles.cat '
       @include "tectoplot_functions.awk"
       {
-        type=tolower(substr($6,1,2))
+        type=tolower($6)
         if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
           # NEIC mb > Mw Weatherill, 2016
           oldval=$5

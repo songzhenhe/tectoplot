@@ -158,9 +158,10 @@ selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLA
 for this_file in ${selected_files[@]}; do
     # echo unzip -p $ANSS_TILEZIP ${this_file}
 
+    rm -f ${F_SEIS}isc_extract.txt
     # If the start time is earlier than the break between old and new
     if [[ "${STARTTIME}" < "${ARG_OLDDATE}" ]]; then
-      unzip -p $ISC_TILEOLDZIP ${this_file} 2>/dev/null >> ${F_SEIS}isc_extract.txt
+      unzip -p $ISC_TILEOLDZIP ${this_file} 2>/dev/null > ${F_SEIS}isc_extract.txt
     fi
     # If the end time is later than the break between old and new
 

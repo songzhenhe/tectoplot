@@ -22,15 +22,41 @@ if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 modules/module_seistime.sh
 -seistime:     create a seismicity vs. time plot, colored by depth OR cluster
--seistime
+-seistime [[fixscale]]
 
   Output is seistime.pdf
+  fixscale: use fixed 0 to 10 magnitude scale
 
 Example: None
 --------------------------------------------------------------------------------
 EOF
 fi
-    tectoplot_module_shift=0
+    shift
+
+    if arg_is_float "${1}"; then
+      seistimefixminz=1
+      seistimeminz="${1}"
+      ((tectoplot_module_shift++))
+      shift
+    fi
+    if arg_is_float "${1}"; then
+      seistimefixmaxz=1
+      seistimemaxz="${1}"
+      ((tectoplot_module_shift++))
+      shift
+    fi
+    if ! arg_is_flag "${1}"; then
+      seistimefixminx=1
+      seistimeminx="${1}"
+      ((tectoplot_module_shift++))
+      shift
+    fi
+    if ! arg_is_flag "${1}"; then
+      seistimefixmaxx=1
+      seistimemaxx="${1}"
+      ((tectoplot_module_shift++))
+      shift
+    fi
     tectoplot_module_caught=1
     ;;
   esac
@@ -82,6 +108,13 @@ function tectoplot_post_seistime() {
         SEIS_INPUTORDER="-i4,3,2+s${SEISSCALE}"
         SEIS_CPT=$SEISDEPTH_CPT
       fi
+
+      [[ $seistimefixminx -eq 1 ]] && date_and_mag_range[0]=$seistimeminx
+      [[ $seistimefixmaxx -eq 1 ]] && date_and_mag_range[1]=$seistimemaxx
+
+      [[ $seistimefixminz -eq 1 ]] && date_and_mag_range[2]=$seistimeminz
+      [[ $seistimefixmaxz -eq 1 ]] && date_and_mag_range[3]=$seistimemaxz
+
 
       gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc0.05i  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
 

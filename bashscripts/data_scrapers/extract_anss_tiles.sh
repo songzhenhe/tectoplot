@@ -198,8 +198,6 @@ selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLA
 # The CSV files can have commas within the ID string messing up fields.
 # Remove these and also the quotation marks in ID strings to give a parsable CSV file
 
- # echo ${selected_files[@]} | tr ' ' '\n'
-
 # Old method reading from non-zipped tiles.
 # gawk < $this_file -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
 
@@ -207,9 +205,10 @@ selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLA
 for this_file in ${selected_files[@]}; do
     # echo unzip -p $ANSS_TILEZIP ${this_file}
 
+    rm -f ${F_SEIS}anss_extract.txt
     # If the start time is earlier than the break between old and new
     if [[ "${STARTTIME}" < "${ARG_OLDDATE}" ]]; then
-      unzip -p $ANSS_TILEOLDZIP ${this_file} 2>/dev/null >> ${F_SEIS}anss_extract.txt
+      unzip -p $ANSS_TILEOLDZIP ${this_file} 2>/dev/null > ${F_SEIS}anss_extract.txt
     fi
     # If the end time is later than the break between old and new
 
