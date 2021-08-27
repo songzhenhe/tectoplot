@@ -56,6 +56,9 @@ fi
         GRIDHIST_CLIPFILE=$(abs_path gridhist_clip.xy)
       fi
       gridhistclipflag=1
+    else
+      echo "[-gridhistclip]: Clipping file ${1} not found or is empty"
+      exit 1
     fi
     shift
     ((tectoplot_module_shift++))
@@ -109,7 +112,12 @@ fi
   shift
 
   if ! arg_is_flag "${1}"; then
-    GRIDHIST_FILE="${1}"
+    if [[ -s "${1}" ]]; then
+      GRIDHIST_FILE="${1}"
+    else
+      echo "[-gridhistfile]: Input file ${1} not found"
+      exit 1
+    fi
     shift
     ((tectoplot_module_shift++))
   fi
@@ -194,31 +202,43 @@ function tectoplot_post_gridhist() {
       # Non-cumulative data
       # Bin centers using -F
 
-      mkdir ./module_gridhist/
+      mkdir module_gridhist/
 
-      gmt grdcut ${GRIDHIST_FILE} -R -J -G./module_gridhist/gridhistcut.nc
+      gmt grdcut ${GRIDHIST_FILE} -R -J -Gmodule_gridhist/gridhistcut.nc
 
-      gmt grd2xyz ./module_gridhist/gridhistcut.nc > ./module_gridhist/histdata.txt
+      gmt grd2xyz module_gridhist/gridhistcut.nc > module_gridhist/histdata_pre.txt
       DEMDETAILS=($(gmt grdinfo -C ${GRIDHIST_FILE}))
       GRIDRES_X=${DEMDETAILS[7]}
       GRIDRES_Y=${DEMDETAILS[8]}
 
-
-      # echo "X/Y res is ${GRIDRES_X}/${GRIDRES_Y}"
       # histdata.txt is lon lat Z
 
       # we need to weight the histogram by the area of the observation points.
 
 
       if [[ $gridhistclipflag -eq 1 ]]; then
-        gmt gmtselect ./module_gridhist/histdata.txt -F${GRIDHIST_CLIPFILE} > ./module_gridhist/histdata_clip.txt
-        mv ./module_gridhist/histdata_clip.txt ./module_gridhist/histdata.txt
+        gmt gmtselect module_gridhist/histdata_pre.txt -F${GRIDHIST_CLIPFILE} > module_gridhist/histdata.txt
+
+        # But what if the
+        if [[ ! -s module_gridhist/histdata.txt ]]; then
+          info_msg "[-gridhistclip]: Shifting polygon by +360 degrees and re-trying clip."
+          gawk < ${GRIDHIST_CLIPFILE} '
+          {
+            print $1+360, $2
+          }' > gridhistclipregion_fixed.txt
+          GRIDHIST_CLIPFILE=gridhistclipregion_fixed.txt
+
+          gmt gmtselect module_gridhist/histdata_pre.txt -F${GRIDHIST_CLIPFILE} > module_gridhist/histdata.txt
+        fi
+      else
+        cp module_gridhist/histdata_pre.txt module_gridhist/histdata.txt
+
       fi
 
       if [[ $gridhist_weighted -eq 1 ]]; then
 
         # Assumes grid registered points
-        gawk < ./module_gridhist/histdata.txt -v gridresx=${GRIDRES_X} -v gridresy=${GRIDRES_Y} '
+        gawk < module_gridhist/histdata.txt -v gridresx=${GRIDRES_X} -v gridresy=${GRIDRES_Y} '
 
         function sqr(x)        { return x*x                     }
         function max(x,y)      { return (x>y)?x:y               }
@@ -278,11 +298,11 @@ function tectoplot_post_gridhist() {
             area=spherical_gridcell_area(r,lon1,lon2,lat1,lat2)
 
             print $1, $2, $3, area/ref_area, area/1000000
-          }' > ./module_gridhist/histdata_weighted.txt
+          }' > module_gridhist/histdata_weighted.txt
       else
 
         # Assumes grid registered points
-        gawk < ./module_gridhist/histdata.txt  -v gridresx=${GRIDRES_X} -v gridresy=${GRIDRES_Y} '
+        gawk < module_gridhist/histdata.txt  -v gridresx=${GRIDRES_X} -v gridresy=${GRIDRES_Y} '
         function sqr(x)        { return x*x                     }
         function max(x,y)      { return (x>y)?x:y               }
         function min(x,y)      { return (x<y)?x:y               }
@@ -322,11 +342,11 @@ function tectoplot_post_gridhist() {
           }
           {
             print $1, $2, $3, 1, ref_area/1000000
-          }' > ./module_gridhist/histdata_weighted.txt
+          }' > module_gridhist/histdata_weighted.txt
       fi
 
-      HISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
-      CUMHISTRANGE=($(gmt pshistogram ./module_gridhist/histdata_weighted.txt -Z1+w -Q -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
+      HISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
+      CUMHISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -Q -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
 
       # echo ${HISTRANGE[@]}
 
@@ -345,17 +365,17 @@ function tectoplot_post_gridhist() {
         GRIDHIST_CPTCMD="-Ggray"
       fi
 
-      gmt pshistogram ./module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=12p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -N -K > ./module_gridhist/gridhist.ps
+      gmt pshistogram module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=12p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -N -K > module_gridhist/gridhist.ps
 
-      gmt pshistogram ./module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=12p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> ./module_gridhist/gridhist.ps
+      gmt pshistogram module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=12p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
 
-      gmt psconvert ./module_gridhist/gridhist.ps -Tf -A+m0.5i
+      gmt psconvert module_gridhist/gridhist.ps -Tf -A+m0.5i
     # ;;
     #
-      if [[ -s ./module_gridhist/histdata_weighted.txt && $gridhistintflag -eq 1 ]]; then
+      if [[ -s module_gridhist/histdata_weighted.txt && $gridhistintflag -eq 1 ]]; then
         for gridind in $(seq 1 ${#GRIDHIST_INT_LOW[@]}); do
           thisgrid=$(echo "$gridind - 1" | bc)
-          LC_ALL=en_US.UTF-8 gawk < ./module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW[$thisgrid]} -v high=${GRIDHIST_INT_HIGH[$thisgrid]} '
+          LC_ALL=en_US.UTF-8 gawk < module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW[$thisgrid]} -v high=${GRIDHIST_INT_HIGH[$thisgrid]} '
           BEGIN {
             sumarea=0
           }
@@ -368,6 +388,8 @@ function tectoplot_post_gridhist() {
           '
         done
       fi
+    else
+      [[ $gridhist_hasrun -eq 0 ]] && echo "[-gridhist]: Target file ${GRIDHISTFILE} does not exist or is empty." && gridhist_hasrun=1
     fi
 
     # ;;
