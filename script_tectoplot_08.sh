@@ -7154,11 +7154,11 @@ cat <<-EOF
 -tuni:         add unidirectional hillshade to terrain intensity
 -tuni [[sun_az=${HS_AZ}]] [[sun_alt=${HS_ALT}]] [[fact=${UNIHS_FACT}]]
 
-  Multiple hillshade is a combination of illumination from different directions
-  under a constant solar altitude.
+  Unidirectional hillshade is illumination from one direction and solar
+  altitude.
 
 Example: Multiple hillshade map of Laos
-  tectoplot -r LA -t -tmult -tx
+  tectoplot -r LA -t -tuni -tx
 --------------------------------------------------------------------------------
 EOF
 shift && continue
