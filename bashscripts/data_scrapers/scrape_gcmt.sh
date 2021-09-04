@@ -39,7 +39,11 @@
 
 cd $GCMTDIR
 
-BEFORE=$(wc -l < gcmt_extract.cat)
+if [[ ! -s gcmt_extract.cat ]]; then
+  BEFORE=0
+else
+  BEFORE=$(wc -l < gcmt_extract.cat)
+fi
 
 [[ ! -e jan76_dec17.ndk ]] && curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/jan76_dec17.ndk" > jan76_dec17.ndk
 
@@ -61,6 +65,10 @@ done
 rm -f gcmt_quick.cmt
 
 for ndkfile in *.ndk; do
+  if [[ $ndkfile == "quick.ndk" ]]; then
+    echo "Skipping QuickCMT"
+    continue
+  fi
   res=$(grep 404 $ndkfile)
   if [[ $res =~ "<title>404" ]]; then
     echo "ndk file $ndkfile was not correctly downloaded... deleting."

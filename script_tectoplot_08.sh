@@ -4445,11 +4445,11 @@ fi
 		info_msg "[-p]: Plate tectonic model is ${PLATEMODEL}"
 	  ;;
 
-  -pp)
+  -ppole)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pp:              plot Euler pole locations
--pp [[Pole1]] [[Pole2]]
+-ppole:              plot Euler pole locations
+-ppole [[Pole1]] [[Pole2]]
 
 Example: None
 --------------------------------------------------------------------------------
@@ -4548,6 +4548,22 @@ shift && continue
 fi
     plots+=("grid")
     ;;
+
+  -ptj)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-ptj:         plot plate triple junction points as stars
+-ptj
+
+  Finds triple junctions in the plate edge database and plots them as stars
+
+Example:
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plots+=("triplejunctions")
+  ;;
 
   -pe|--plateedge)  # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -5073,6 +5089,22 @@ fi
 #     info_msg "[-pt]: PT${userpointfilenumber}: ${POINTDATAFILE[$userpointfilenumber]}"
 #     plots+=("points")
 #     ;;
+
+  -pvl)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-pvl:           plot plate edges colored by (convergent, divergent, transform)
+-pvl
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  doplateedgesflag=1
+  plots+=("plateedgecolor")
+
+  ;;
 
   -pv) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -10180,14 +10212,14 @@ if [[ $clipdemflag -eq 1 && -e $BATHY ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.nc"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
-      flatten_sea ${BATHY} ${F_TOPO}dem.nc
+      flatten_sea ${BATHY} ${F_TOPO}dem.nc -1
     else
       cp $BATHY ${F_TOPO}dem.nc
     fi
   else
     if [[ $tflatflag -eq 1 ]]; then
       gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-      flatten_sea ${F_TOPO}dem_preflat.nc ${F_TOPO}dem.nc
+      flatten_sea ${F_TOPO}dem_preflat.nc ${F_TOPO}dem.nc -1
       cleanup ${F_TOPO}dem_preflat.nc
     else
       # echo gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
@@ -11850,6 +11882,24 @@ if [[ $plotplates -eq 1 ]]; then
 
   # Cut the plate file by the ROI.
 
+
+  # PLATES is a file containing closed, oriented plate polygons
+  # > ID_N
+  # lon1 lat1
+  # lon2 lat2
+  # ...
+  # lonN latN
+
+  # POLES is a file containing Euler poles:
+  # ID LON LAT RATE
+
+  # gawk < $PLATES '{
+  #   print $1, $2, $3
+  # }'
+
+
+  # Not sure why we need to clip the plate polygons in any case?
+
   # This step FAILS to select plates on the other side of the dateline...
   gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_a.txt
 
@@ -11962,10 +12012,36 @@ if [[ $plotplates -eq 1 ]]; then
         };
       }' > ${F_PLATES}plateazfile.txt
 
+
+      gawk < ${F_PLATES}geodin.txt '{print $1, $2, $3, $4}' | gawk  '
+      @include "tectoplot_functions.awk"
+      # function acos(x) { return atan2(sqrt(1-x*x), x) }
+          {
+            if ($1 == ">") {
+              # nothing
+              # print $1, $2;
+              fake=1
+            }
+            else {
+              lon1 = $1*3.14159265358979/180;
+              lat1 = $2*3.14159265358979/180;
+              lon2 = $3*3.14159265358979/180;
+              lat2 = $4*3.14159265358979/180;
+              Bx = cos(lat2)*cos(lon2-lon1);
+              By = cos(lat2)*sin(lon2-lon1);
+              latMid = atan2(sin(lat1)+sin(lat2), sqrt((cos(lat1)+Bx)*(cos(lat1)+Bx)+By*By));
+              lonMid = lon1+atan2(By, cos(lat1)+Bx);
+              theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
+              d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
+              printf "%.5f %.5f %.3f %.3f %s %s %s %s\n", lonMid*180/3.14159265358979, latMid*180/3.14159265358979, (theta*180/3.14159265358979+360-90)%360, d, $1, $2, $3, $4;
+            };
+          }' > ${F_PLATES}plateazfile_withpts.txt
+
   # plateazfile.txt now contains midpoints with azimuth and distance of segments. Multiple
   # headers per plate are possible if multiple disconnected lines were generated
   # outfile is midpointlon midpointlat azimuth
 
+  # This removes the lines starting with >
   cat ${F_PLATES}plateazfile.txt | gawk  '{if (!/^>/) print $1, $2}' > ${F_PLATES}halfwaypoints.txt
   # output is lat1 lon1 midlat1 midlon1 az backaz distance
 
@@ -12236,6 +12312,13 @@ if [[ $plotplates -eq 1 ]]; then
   # This calculation is time consuming for large areas because my implementation is... algorithmically
   # poor. So, intead we load the data from a pre-calculated results file if it already exists.
 
+
+
+  # I can certainly do this faster and better with gawk
+
+
+
+
   if [[ $doplateedgesflag -eq 1 ]]; then
     # Load pre-calculated data if it exists - MUCH faster but may need to recalc if things change
     # To re-build, use a global region -r -180 180 -90 90 and copy id_pts_euler.txt to $MIDPOINTS file
@@ -12246,59 +12329,192 @@ if [[ $plotplates -eq 1 ]]; then
         if ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat) {
           print
         }
-      }' > ${F_PLATES}id_pts_euler.txt
+      }' > ${F_PLATES}id_pts_euler_2.txt
     else
       echo "Midpoints file $MIDPOINTS does not exist"
       if [[ $MINLAT -eq "-90" && $MAXLAT -eq "90" && $MINLON -eq "-180" && $MAXLON -eq "180" ]]; then
         echo "Your region is global. After this script ends, you can copy id_pts_euler.txt and define it as a MIDPOINT file."
       fi
-
-    	# Create a file with all points one one line beginning with the plate ID only
-      # The sed '$d' deletes the 'END' line
-      gawk < ${F_PLATES}plateazfile.txt '{print $1, $2 }' | tr '\n' ' ' | sed -e $'s/>/\\\n/g' | grep '\S' | tr -s '\t' ' ' | sed '$d' > ${F_PLATES}map_plates_oneline.txt
-
-    	# Create a list of unique block edge points.  Not sure I actually need this
-      gawk -F" " '!_[$1][$2]++' ${F_PLATES}plateazfile.txt | gawk  '($1 != ">") {print $1, $2}' > ${F_PLATES}map_plates_uniq.txt
-
-      # Primary output is id_pts.txt, containing properties of segment midpoints
-      # id_pts.txt
-      # lon lat seg_az seg_dist plate1_id plate2_id p1lat p1lon p1rate p2lat p2lon p2rate
-      # > nba_1
-      # -0.23807 -54.76466 322.920 32.154 nba_1 an_1 65.42 -118.11 0.25 47.68 -68.44 0.292
-
-      while read p; do
-        if [[ ${p:0:1} == '>' ]]; then  # We encountered a plate segment header. All plate pairs should be referenced to this plate
-          curplate=$(echo $p | gawk  '{print $2}')
-          echo $p >> ${F_PLATES}id_pts.txt
-          pole1=($(grep "${curplate}\s" < ${F_PLATES}polesextract.txt))
-          info_msg "Current plate is $curplate with pole ${pole1[1]} ${pole1[2]} ${pole1[3]}"
-        else
-          q=$(echo $p | gawk '{print $1, $2}')
-          resvar=($(grep -n -- "${q}" < ${F_PLATES}map_plates_oneline.txt | gawk  -F" " '{printf "%s\n", $2}'))
-          numres=${#resvar[@]}
-          if [[ $numres -eq 2 ]]; then   # Point is between two plates
-            if [[ ${resvar[0]} == $curplate ]]; then
-              plate1=${resvar[0]}
-              plate2=${resvar[1]}
-            else
-              plate1=${resvar[1]} # $curplate
-              plate2=${resvar[0]}
-            fi
-          else                          # Point is not between plates or is triple point
-              plate1=${resvar[0]}
-              plate2=${resvar[0]}
-          fi
-          pole2=($(grep "${plate2}\s" < ${F_PLATES}polesextract.txt))
-          info_msg " Plate 2 is $plate2 with pole ${pole2[1]} ${pole2[2]} ${pole2[3]}"
-          echo -n "${p} " >> ${F_PLATES}id_pts.txt
-          echo ${plate1} ${plate2} ${pole2[1]} ${pole2[2]} ${pole2[3]} ${pole1[1]} ${pole1[2]} ${pole1[3]} | gawk  '{printf "%s %s ", $1, $2; print $3, $4, $5, $6, $7, $8}' >> ${F_PLATES}id_pts.txt
-        fi
-      done < ${F_PLATES}plateazfile.txt
-
-      # Do the plate relative motion calculations all at once.
-      gawk -f $EULERVECLIST_AWK ${F_PLATES}id_pts.txt > ${F_PLATES}id_pts_euler.txt
+      #
+    	# # Create a file with all points one one line beginning with the plate ID only
+      # # The sed '$d' deletes the 'END' line
+      # gawk < ${F_PLATES}plateazfile.txt '{print $1, $2 }' | tr '\n' ' ' | sed -e $'s/>/\\\n/g' | grep '\S' | tr -s '\t' ' ' | sed '$d' > ${F_PLATES}map_plates_oneline.txt
+      #
+    	# # Create a list of unique block edge points.  Not sure I actually need this
+      # gawk -F" " '!_[$1][$2]++' ${F_PLATES}plateazfile.txt | gawk  '($1 != ">") {print $1, $2}' > ${F_PLATES}map_plates_uniq.txt
+      #
+      # # Primary output is id_pts.txt, containing properties of segment midpoints
+      # # id_pts.txt
+      # # lon lat seg_az seg_dist plate1_id plate2_id p1lat p1lon p1rate p2lat p2lon p2rate
+      # # > nba_1
+      # # -0.23807 -54.76466 322.920 32.154 nba_1 an_1 65.42 -118.11 0.25 47.68 -68.44 0.292
+      #
+      # while read p; do
+      #   if [[ ${p:0:1} == '>' ]]; then  # We encountered a plate segment header. All plate pairs should be referenced to this plate
+      #     curplate=$(echo $p | gawk  '{print $2}')
+      #     echo $p >> ${F_PLATES}id_pts.txt
+      #     pole1=($(grep "${curplate}\s" < ${F_PLATES}polesextract.txt))
+      #     info_msg "Current plate is $curplate with pole ${pole1[1]} ${pole1[2]} ${pole1[3]}"
+      #   else
+      #     q=$(echo $p | gawk '{print $1, $2}')
+      #     resvar=($(grep -n -- "${q}" < ${F_PLATES}map_plates_oneline.txt | gawk  -F" " '{printf "%s\n", $2}'))
+      #     numres=${#resvar[@]}
+      #     if [[ $numres -eq 2 ]]; then   # Point is between two plates
+      #       if [[ ${resvar[0]} == $curplate ]]; then
+      #         plate1=${resvar[0]}
+      #         plate2=${resvar[1]}
+      #       else
+      #         plate1=${resvar[1]} # $curplate
+      #         plate2=${resvar[0]}
+      #       fi
+      #     else                          # Point is not between plates or is triple point
+      #         plate1=${resvar[0]}
+      #         plate2=${resvar[0]}
+      #     fi
+      #     pole2=($(grep "${plate2}\s" < ${F_PLATES}polesextract.txt))
+      #     info_msg " Plate 2 is $plate2 with pole ${pole2[1]} ${pole2[2]} ${pole2[3]}"
+      #     echo -n "${p} " >> ${F_PLATES}id_pts.txt
+      #     echo ${plate1} ${plate2} ${pole2[1]} ${pole2[2]} ${pole2[3]} ${pole1[1]} ${pole1[2]} ${pole1[3]} | gawk  '{printf "%s %s ", $1, $2; print $3, $4, $5, $6, $7, $8}' >> ${F_PLATES}id_pts.txt
+      #   fi
+      # done < ${F_PLATES}plateazfile.txt
+      # #
+      # #
+      # #
+      # # Do the plate relative motion calculations all at once.
+      # gawk -f $EULERVECLIST_AWK ${F_PLATES}id_pts.txt > ${F_PLATES}id_pts_euler_2.txt
 
     fi
+
+    gawk '
+      @include "tectoplot_functions.awk"
+      function midpoint_azimuth_distance(lon1_d, lat1_d, lon2_d, lat2_d) {
+        lon1 = deg2rad(lon1_d)
+        lat1 = deg2rad(lat1_d)
+        lon2 = deg2rad(lon2_d)
+        lat2 = deg2rad(lat2_d)
+        Bx = cos(lat2)*cos(lon2-lon1)
+        By = cos(lat2)*sin(lon2-lon1)
+        latMid = rad2deg(atan2(sin(lat1)+sin(lat2), sqrt((cos(lat1)+Bx)*(cos(lat1)+Bx)+By*By)))
+        lonMid = rad2deg(lon1+atan2(By, cos(lat1)+Bx))
+        theta_a = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1))
+        theta=(rad2deg(theta_a)+270)%360
+        d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371
+      }
+
+      # Load the Euler poles
+      (NR==FNR) {
+        poleid[$1]=$1
+        polelat[$1]=$2
+        polelon[$1]=$3
+        polerate[$1]=$4
+      }
+      # Load the plate edges
+      (NR != FNR) {
+        if ($1==">") {
+          # Store the actual plate ID_N
+          thisplate=$2
+          # Find the ID
+          split($2,pn,"_")
+          thisplateshort=pn[1]
+          plates[thisplateshort]=thisplateshort
+          thisplatecount=0
+          lastlon=""
+          lastlat=""
+          # print "starting plate", thisplateshort > "/dev/stderr"
+
+        } else {
+
+          newlon=sprintf("%0.05f", $1)
+          newlat=sprintf("%0.05f", $2)
+
+          # print "Examining point", newlon, newlat, "following from", lastlon, lastlat > "/dev/stderr"
+
+          # If we have moved to a new vertex from a plate vertex
+          if (thisplatecount >= 1) {
+            if (! (lastlon == newlon && lastlat == newlat)) {
+              midpoint_azimuth_distance(lastlon, lastlat, newlon, newlat)
+              midpointsegment[lonMid][latMid]=sprintf("%s %s %s %s", lastlon, lastlat, newlon, newlat)
+              midpointaz[thisplateshort][lonMid][latMid]=theta
+              midpointdist[thisplateshort][lonMid][latMid]=d
+              midpointcount[lonMid][latMid]++
+              if (midpointlist[lonMid][latMid]=="") {
+                midpointlist[lonMid][latMid]=thisplate
+              } else {
+                midpointlist[lonMid][latMid]=sprintf("%s %s", midpointlist[lonMid][latMid], thisplateshort)
+              }
+          #    print lastlon, lastlat, newlon, newlat, lonMid, latMid, theta, d, thisplateshort
+            }
+          }
+          lastlon=newlon
+          lastlat=newlat
+          thisplatecount++
+        }
+      }
+      END {
+        for (lon in midpointcount) {
+          for (lat in midpointcount[lon]) {
+
+            # If there is a shared Euler pole along this midpoint
+
+            if (midpointcount[lon][lat]>=2) {
+
+              split(midpointlist[lon][lat], thislist, " ")
+              # for (element in thislist) {
+              #   print thislist[element], polelat[thislist[element]], polelon[thislist[element]], polerate[thislist[element]]
+              # }
+              # midlon midlat seg_az seg_dist plate1_id plate2_id p1lat p1lon p1rate p2lat p2lon p2rate
+              split(thislist[1], short, "_")
+              thisplate=short[1]
+              split(thislist[2], short, "_")
+              thatplate=short[1]
+
+              print lon, lat, midpointaz[thisplate][lon][lat], midpointdist[thisplate][lon][lat], thisplate, thatplate, polelat[thatplate], polelon[thatplate], polerate[thatplate], polelat[thisplate], polelon[thisplate], polerate[thisplate] >> "./id_pts.txt"
+
+              # print lon, lat, midpointaz[thatplate][lon][lat], midpointdist[thatplate][lon][lat], thatplate, thisplate, polelat[thisplate], polelon[thisplate], polerate[thisplate], polelat[thatplate], polelon[thatplate], polerate[thatplate] >> "./id_pts.txt"
+
+              print midpointsegment[lon][lat], midpointaz[thatplate][lon][lat] > "./segaz.txt"
+            }
+          }
+        }
+      }' $POLES ${F_PLATES}map_plates_clip.txt
+
+      mv ./id_pts.txt ${F_PLATES}id_pts.txt
+
+      gawk -f $EULERVECLIST_AWK ${F_PLATES}id_pts.txt > ${F_PLATES}id_pts_euler_half.txt
+
+    # Concatenate back with the file that contains segment information
+
+    # paste ${F_PLATES}plateazfile_withpts.txt ${F_PLATES}id_pts_euler.txt | gawk '{
+    #   diff=$23-$11
+    #   while (diff > 180) { diff -= 360 }
+    #   while (diff < -180) { diff += 360 }
+    #
+    #   print "> -Z" diff
+    #   print $5, $6
+    #   print $7, $8
+    # }'> ${F_PLATES}segment_obliquity.txt
+
+    paste segaz.txt ${F_PLATES}id_pts_euler_half.txt | gawk '{
+      diff=$5-$20+180
+      while (diff > 180) { diff -= 360 }
+      while (diff <= -180) { diff += 360 }
+
+      print "> -Z" diff
+      print $1, $2
+      print $3, $4
+    }'> ${F_PLATES}segment_obliquity.txt
+
+    gawk < ${F_PLATES}id_pts_euler_half.txt '{
+      # 156.896 -8.6285 199.522 8.98173 au pa -63.58 114.7 0.651 33.86 37.94 0.632 -94.9869 -29.4279 252.786
+      print
+      az=$3-180
+      while (az > 180) { az -= 360 }
+      while (az < -180) { az += 360 }
+      eaz=$15-180
+      while (eaz > 180) { eaz -= 360 }
+      while (eaz < -180) { eaz += 360 }
+      print $1, $2, az, $4, $6, $5, $10, $11, $12, $7, $8, $9, -$13, -$14, eaz
+    }' > ${F_PLATES}id_pts_euler.txt
 
   	grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '{print $1, $2, $3, 0.5}' >  ${F_PLATES}paz1.txt
   	grep "^[^>]" < ${F_PLATES}id_pts_euler.txt | gawk  '{print $1, $2, $15, 0.5}' >  ${F_PLATES}paz2.txt
@@ -12353,8 +12569,6 @@ if [[ $plotplates -eq 1 ]]; then
       if (diff >= 110 || diff <= -110) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' > ${F_PLATES}paz1normal.txt
   fi #  if [[ $doplateedgesflag -eq 1 ]]; then
 fi # if [[ $plotplates -eq 1 ]]
-
-
 
 ### MODULE CALCULATION FUNCTIONS
 
@@ -14518,12 +14732,23 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       # gmt psconvert -Tf -A0.3i az_histogram.ps
       ;;
 
+    plateedgecolor)
+
+      gmt makecpt -Ccyclic -D -T-180/180/1 > ${F_CPTS}az.cpt
+      if [[ -s ${F_PLATES}segment_obliquity.txt ]]; then
+        gmt psxy ${F_PLATES}segment_obliquity.txt -W${PLATELINE_WIDTH}+cl -C${F_CPTS}az.cpt ${RJOK} ${VERBOSE} >> map.ps
+      fi
+      # Plot segment midpoints for debugging purposes
+      # gawk < ${F_PLATES}id_pts_euler_half.txt '{print $1, $2}' | gmt psxy -Sc0.1i -Gorange -W0.3p,black ${RJOK} ${VERBOSE} >> map.ps
+      ;;
+
     platediffv)
       # Plot velocity across plate boundaries
       # Excludes plotting of adjacent points closer than a cutoff distance (Degrees).
       # Plots any point with [lat,lon] values that have already been plotted.
       # input data are in what m/yr
       # Convert to PSVELO?
+
 
       info_msg "Drawing plate relative velocities"
       info_msg "velscale=$VELSCALE"
@@ -14615,13 +14840,15 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         gawk < ${F_PLATES}paz1normal_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 + sin($3*3.14159265358979/180)*poff, $2 + cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SV"${PVFORMAT}" -W0p,$PLATEARROW_NORMAL_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_NORMAL_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
         gawk < ${F_PLATES}paz1thrust_cutoff.txt -v poff=$POFFS -v minv=$MINVV -v gpsscalefac=$VELSCALE '{ if ($4<minv && $4 != 0) {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2} else {print $1 - sin($3*3.14159265358979/180)*poff, $2 - cos($3*3.14159265358979/180)*poff, $3, $4*gpsscalefac/2}}' | gmt psxy -SVh"${PVFORMAT}" -W0p,$PLATEARROW_THRUST_COLOR@$PLATEARROW_TRANS -G$PLATEARROW_THRUST_COLOR@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
 
-        # Shift symbols based on azimuth of line segment to make nice strike-slip half symbols
-        gawk < ${F_PLATES}paz1ss1_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 + cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2}}' | gmt psxy -SV"${PVHEAD}"+r+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
-        gawk < ${F_PLATES}paz1ss2_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 - cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2 }}' | gmt psxy -SV"${PVHEAD}"+l+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        # # Shift symbols based on azimuth of line segment to make nice strike-slip half symbols
+        # gawk < ${F_PLATES}paz1ss1_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 + cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2}}' | gmt psxy -SV"${PVHEAD}"+r+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR1}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
+        # gawk < ${F_PLATES}paz1ss2_cutoff.txt -v poff=$POFFS -v gpsscalefac=$VELSCALE '{ if ($4!=0) { print $1 - cos($3*3.14159265358979/180)*poff, $2 - sin($3*3.14159265358979/180)*poff, $3, 0.1/2 }}' | gmt psxy -SV"${PVHEAD}"+l+jb+m+a33+h0 -W0p,${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS -G${PLATEARROW_SS_COLOR2}@$PLATEARROW_TRANS $RJOK $VERBOSE >> map.ps
       ;;
 
 
     eulerpoles)
+
+      gmt makecpt -Croma -T0/2/0.01 -Z > ${F_CPTS}polerate.cpt
 
       if [[ ${#PP_SELECT[@]} -gt 0 ]]; then
         echo "Plotting only selected poles"
@@ -14631,16 +14858,16 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           if [[ -s ${polefile} ]]; then
             echo "plotting ${polefile}"
             POLEDATA=($(head -n 1 ${polefile}))
-            gmt psxy ${polefile} -Ss0.1i -Gred -W1p,black $RJOK $VERBOSE >> map.ps
-            printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[0]} ${POLEDATA[1]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
+            gmt psxy ${polefile} -: -Sc0.1i -C${F_CPTS}polerate.cpt -W1p,black+cf $RJOK $VERBOSE >> map.ps
+            printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[1]} ${POLEDATA[0]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
           fi
         done
       else
         for polefile in ${F_PLATES}*.pole; do
           # echo "Plotting pole ${polefile}"
           POLEDATA=($(head -n 1 ${polefile}))
-          gmt psxy ${polefile} -Ss0.1i -Gred -W1p,black $RJOK $VERBOSE >> map.ps
-          printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[0]} ${POLEDATA[1]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
+          gmt psxy ${polefile} -: -Sc0.1i -C${F_CPTS}polerate.cpt -W1p,black+cf $RJOK $VERBOSE >> map.ps
+          printf "%f %f 5p,Helvetica,black 0 TR %s-%s(%0.1f d/M)\n" ${POLEDATA[1]} ${POLEDATA[0]} $(basename ${polefile} | gawk -F_ '{print $1}') $DEFREF ${POLEDATA[2]} >> polelabels.txt
         done
       fi
       [[ -s polelabels.txt ]] && gmt pstext polelabels.txt -F+f+a+j $RJOK $VERBOSE >> map.ps
@@ -14648,10 +14875,40 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
     plateedge)
       info_msg "Drawing plate edges"
-
       # Plot edges of plates
-      gmt psxy $EDGES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
+
+      # gmt psxy $EDGES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
+      gmt psxy $PLATES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
+
       ;;
+
+
+    triplejunctions)
+
+      # Find the locations of points that are shared by more than two polygons
+      # These are the triple (or quadruple+) junctions.
+      gawk < ${EDGES} '
+        ($1==">") {
+          # We are on a different plate
+          platecount++
+        }
+        ($1+0==$1 && $2+0==$2) {
+            # Do not count same points from same plate - these close the plate polygon!
+            if (lastcount[$1][$2] != platecount) {
+              seen[$1][$2]++
+              lastcount[$1][$2]=platecount
+            }
+        }
+        END {
+          for (i in seen) {
+            for (j in seen[i]) {
+              if (seen[i][j] > 2) {
+                print i, j, seen[i][j]
+              }
+            }
+          }
+        }' | gmt psxy -St0.075i -W0.75p,black -Gred ${RJOK} >> map.ps
+    ;;
 
     platelabel)
       info_msg "Labeling plates"
@@ -15309,14 +15566,14 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               fi
               if [[ $(echo "${IMAGE_FACT} == 1" | bc) -ne 1 ]]; then
                 alpha_value ${F_TOPO}image.tif ${IMAGE_FACT} ${F_TOPO}image_alpha.tif
-  # values of 255 in image.tif are set to nodata in image_alpha.tif
-
+                # values of 255 in image.tif are set to nodata in image_alpha.tif
+                # This seems to have fixed the issue?
+                gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
                 multiply_combine ${F_TOPO}image_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
               else
               # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
 
                 multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-echo              multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
               fi
               INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
           fi
@@ -15653,6 +15910,18 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   for legend_plot in ${legendbarwords[@]} ; do
   	case $legend_plot in
+
+      eulerpoles)
+        echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}polerate.cpt 0.2i 0.1i+malu -Bxa1f0.2+l\"Rotation rate (degrees/Myr)\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
+      ;;
+
+      plateedgecolor)
+        echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}az.cpt 0.2i 0.1i+malu -Bxa90f45+l\"Obliquity (degrees)\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
+      ;;
 
       cmt|seis)
         # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
@@ -16094,11 +16363,11 @@ if [[ $makelegendflag -eq 1 ]]; then
 
       ;;
     esac
-    if [[ $count -eq 3 ]]; then
+    if [[ $count -eq 4 ]]; then
       count=0
       LEG2_X=$(echo "$LEG2_X + $NEXTX" | bc -l)
       # echo "Updated LEG2_X to $LEG2_X"
-      LEG2_Y=${MAP_PS_HEIGHT_IN}
+      LEG2_Y=$(echo "${MAP_PS_HEIGHT_IN} + 0.1" | bc -l)
     fi
   done
 

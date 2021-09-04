@@ -13,6 +13,8 @@ function tectoplot_defaults_resgrid() {
   GRAVCPT=${CPTDIR}"grav2.cpt"
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
   RESGRID_CPTRANGE=145
+  RESGRID_TRANS=0
+
 }
 
 function tectoplot_args_resgrid()  {
@@ -22,6 +24,27 @@ function tectoplot_args_resgrid()  {
 
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
+
+  -vrestrans)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+modules/module_resgrid.sh
+-vresrtans:     set transparency of plotted -vres grid
+-vrestrans [[trans]]
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+fi
+  shift
+
+  if arg_is_positive_float ${1}; then
+    RESGRID_TRANS=$1
+    shift
+    ((tectoplot_module_shift++))
+  fi
+  tectoplot_module_caught=1
+  ;;
 
   -vres)  # Calculate residual gravity or other grid within specified distance of a provided XY line
 
@@ -220,9 +243,9 @@ function tectoplot_plot_resgrid() {
         GRAVICMD=""
       fi
       if [[ $PLOTAVGRID -eq 1 ]]; then
-        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
       else
-        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
       fi
       [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
     fi

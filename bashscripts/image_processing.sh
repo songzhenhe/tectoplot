@@ -46,16 +46,21 @@ function multiply_combine() {
 function alpha_value() {
   info_msg "Executing alpha transparency of $1 by factor $2 [0-1]. Result=$3."
 
-  if [[ $GDAL_VERSION_GT_3_2 -eq 1 ]]; then
-    gdal_calc.py --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
-                   ((A/255.)*(1-${2})+(255/255.)*(${2}))
-                   ) * 255 )" --outfile="${3}"
-  else
-    gdal_calc.py –-NoDataValue=none --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
-                   ((A/255.)*(1-${2})+(255/255.)*(${2}))
-                   ) * 255 )" --outfile="${3}"
-    gdal_edit.py -unsetnodata "${3}"
-  fi
+  # if [[ $GDAL_VERSION_GT_3_2 -eq 1 ]]; then
+  #   gdal_calc.py --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
+  #                  ((A/255.)*(1-${2})+(255/255.)*(${2}))
+  #                  ) * 255 )" --outfile="${3}"
+  # else
+  #   gdal_calc.py --NoDataValue=none --overwrite --quiet -A "${1}" --allBands=A --calc="uint8( ( \
+  #                  ((A/255.)*(1-${2})+(255/255.)*(${2}))
+  #                  ) * 255 )" --outfile="${3}"
+  #   gdal_edit.py -unsetnodata "${3}"
+  # fi
+  gdal_calc.py --NoDataValue=255 --overwrite --quiet -A "${1}" --allBands=A --calc "uint8( ( \
+                 ((A/255.)*(1-${2})+(255/255.)*(${2}))
+                 ) * 255 )" --outfile "${3}"
+  gdal_edit.py -unsetnodata "${3}"
+
 }
 
 # function alpha_multiply_combine() {
@@ -228,8 +233,14 @@ function overlay_combine() {
 }
 
 function flatten_sea() {
-  info_msg "Setting DEM elevations less than 0 to 0"
-  gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A "${1}" --calc="((A>=0)*A + (A<0)*0)" --outfile="${2}"
+  if [[ -z ${3} ]]; then
+    setval=0
+  else
+    setval=${3}
+  fi
+  info_msg "Setting DEM elevations less than or equal to 0 to ${setval}"
+
+  gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A "${1}" --calc="((A>0)*A + (A<=0)*${setval})" --outfile="${2}"
 }
 
 # Takes a RGB tiff ${1} and a DEM ${2} and sets R=${3} G=${4} B=${5} for cells where DEM<=0, output to ${6}
@@ -250,12 +261,51 @@ function is_gmtcpt() {
 }
 
 
+# This function takes a CPT file in a variety of input formats and turns it
+# into a tectoplot standard CPT:
+# # any commented line is reproduced as-is
+
+
+function clean_cpt() {
+
+gawk '{
+  if(NR == FNR){
+    colors[$1] = $2
+  } else {
+    if (substr($1,1,1)=="#") {
+      print
+    } else {
+
+      beforelabel=1
+      # Process the CPT lines
+      for(i=1;i<=NF;i++) {
+        if ($(i)==";") {
+          beforelabel=0
+        }
+        if (beforelabel==1) {
+          if ($(i) in colors) {
+            $(i)=colors[$(i)]
+          }
+          # split($(i),j,"/")
+          # for(k=1;k<=length(j);k++) {
+          #   printf("%s ", j[k])
+          # }
+        }
+        printf("%s ", $(i))
+      }
+      printf("\n")
+    }
+  }
+}' ${GMTCOLORS} $1
+}
+
 # This function reformats an input CPT file to be in r/g/b (or h/s/v) format,
 # replacing GMT color names (e.g. seashell4) with r/g/b colors. Comments, BFN,
 # and trailing annotation fields are also printed.
 
+# Currently fails if first line is a color name
+
 function replace_gmt_colornames_rgb() {
-  cp $1 thisfile.cpt
   gawk '
   BEGIN {
     firstline=0
@@ -450,4 +500,27 @@ function rescale_cpt() {
       }
     }
   }'
+}
+
+# This function takes a clean CPT (no color words, R/G/B format) and converts it
+# to grayscale using the luminosity method
+
+function grayscale_cpt() {
+  gawk < "${1}" '
+  {
+    if ($1+0==$1) {
+      split($2,rgb,"/")
+      gray1=0.299*rgb[1] + 0.587*rgb[2] + 0.114*rgb[3]
+      printf("%s %s/%s/%s ", $1, gray1, gray1, gray1)
+      if ($3+0==$3) {
+        split($4,rgb,"/")
+        gray2=0.299*rgb[1] + 0.587*rgb[2] + 0.114*rgb[3]
+        printf("%s %s/%s/%s", $3, gray2, gray2, gray2)
+      }
+      printf("\n")
+    } else {
+      print
+    }
+  }
+  '
 }

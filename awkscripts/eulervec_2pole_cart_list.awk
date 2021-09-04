@@ -35,8 +35,8 @@
 # lon      lat      seg_az  seglen   plate1  plate2  p1lat  p1lon  p1rate  p2lat  p2lon  p2rate
 # 90.31501 -0.58031 67.529  512.321  in      cp      50.37  -3.29  0.544   44.44  23.09  0.608
 # Output is
-# 1   2   3       4      5      6      7     8     9      10    11		12		 13 14
-# lon lat azimuth seglen plate1 plate2 p1lat p1lon p1rate p2lat p2lon p2rate VN VE
+# 1   2   3       4      5      6      7     8     9      10    11		12		 13 14 15
+# lon lat azimuth seglen plate1 plate2 p1lat p1lon p1rate p2lat p2lon p2rate VN VE VAz
 
 
 # A spherical Earth with a radius of 6371 km is assumed.

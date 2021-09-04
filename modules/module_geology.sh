@@ -24,6 +24,8 @@ function tectoplot_defaults_geology() {
   GLOBAL_GEO=${TECTFABRICSDIR}"Global_Geology/Global_Geology.tif"
   GLOBAL_GEO_TRANS=0
 
+  OC_STRIPE_AGE=1  # Width of 'stripe' coloring in Myr
+
   EARTHBYTE_SOURCESTRING="EarthByte data from GPlates2.2.0, converted to GMT format using GPlates: https://www.earthbyte.org/gplates-2-2-software-and-data-sets/"
   EARTHBYTE_SHORT_SOURCESTRING="EarthByte"
 
@@ -233,19 +235,19 @@ fi
             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
 
-            if ! arg_is_flag "${2}"; then
-              EBISOWIDTH="${2}"
-              shift
-              ((tectoplot_module_shift++))
-            fi
-
-            if ! arg_is_flag "${2}"; then
-              EBISOCOLOR="-W${EBISOWIDTH},${2}"
-              shift
-              ((tectoplot_module_shift++))
-            else
-              EBISOCOLOR="-aZ=FROMAGE -W${EBISOWIDTH}+cl -C${GEOAGE_CPT}"
-            fi
+            # if ! arg_is_flag "${2}"; then
+            #   EBISOWIDTH="${2}"
+            #   shift
+            #   ((tectoplot_module_shift++))
+            # fi
+            #
+            # if ! arg_is_flag "${2}"; then
+            #   EBISOCOLOR="-W${EBISOWIDTH},${2}"
+            #   shift
+            #   ((tectoplot_module_shift++))
+            # else
+            #   EBISOCOLOR="-aZ=FROMAGE -W${EBISOWIDTH}+cl -C${GEOAGE_CPT}"
+            # fi
 
           ;;
           pf)
@@ -298,15 +300,15 @@ fi
 # We download the relevant data in the _calculate_ function as this is the first time we should
 # be accessing the data itself.
 
-# function tectoplot_calculate_geology()  {
-#
-# }
+function tectoplot_calculate_geology()  {
+  mkdir -p ./modules/geology/
+}
 
 function tectoplot_cpt_geology() {
   case $1 in
   geoage)
     if [[ $customocagecpt -eq 1 ]]; then
-      gmt makecpt -C${OC_AGE_CPT} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/1 -Z > ${GEOAGE_CPT}
+      gmt makecpt -C${OC_AGE_CPT} -Z ${VERBOSE} > ${GEOAGE_CPT}
     else
       cp ${CPTDIR}geoage.cpt ${GEOAGE_CPT}
       tectoplot_cpt_caught=1
@@ -336,7 +338,26 @@ function tectoplot_plot_geology() {
       ;;
 
     oceanage)
-      gmt grdimage $OC_AGE $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t$OC_TRANS $RJOK $VERBOSE >> map.ps
+
+      gmt grdcut ${OC_AGE} -R -J -G./modules/geology/oceanage.nc
+
+      zrange=($(grid_zrange ./modules/geology/oceanage.nc -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn))
+
+      # Set the range of the colorbar based on the range of the data
+      GEOAGE_COLORBAR_MAX=$(gawk -v endval="${zrange[1]}" '
+        @include "tectoplot_functions.awk"
+        BEGIN {
+          print ru(endval, 10)
+        }')
+
+
+      # Make a grayscale CPT from categorical and use for the intensity to show the color bars...?
+      gmt makecpt -Ccategorical -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} -Z ${VERBOSE} > ${F_CPTS}categ.cpt
+      clean_cpt ${F_CPTS}categ.cpt > ${F_CPTS}cleangeoage.cpt
+      grayscale_cpt ${F_CPTS}cleangeoage.cpt > ${F_CPTS}geogray.cpt
+
+      gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -I+d -C${F_CPTS}geogray.cpt -t${OC_TRANS} -Q $RJOK $VERBOSE >> map.ps
+      gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE  >> map.ps
       tectoplot_plot_caught=1
       ;;
 
@@ -397,14 +418,21 @@ function tectoplot_plot_geology() {
 function tectoplot_legendbar_geology() {
   case $1 in
     geoage)
-      if [[ -e $GEOAGE_CPT ]]; then
-
+      if [[ -e $GEOAGE_CPT && $madegeolegendbar -ne 1 ]]; then
+        madegeolegendbar=1
         # Reduce the CPT to the used scale range
         # cp $GEOAGE_CPT ${F_CPTS}geoage_colorbar.cpt
-        gmt makecpt -C$GEOAGE_CPT -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
+
+        gmt makecpt -C${F_CPTS}geogray.cpt -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}geoage_gray_colorbar.cpt
+
+              # gmt makecpt -Cgeogray.cpt -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} | gawk -v trans=${OC_TRANS} '{$2=sprintf("%s@%d", $2, trans); print}' > ${F_CPTS}geoage_gray_colorbar.cpt
+
+        gmt makecpt -C$GEOAGE_CPT -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
         #
 
         echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}geoage_gray_colorbar.cpt 0.2i 0.1i+malu -Btlbr -Bxa1000" >> legendbars.txt
+        echo "G -0.21i" >> legendbars.txt
         echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i 0.1i+malu -Bxa100f50+l\"Age (Ma)\"" >> legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_caught_legendbar=1
@@ -413,8 +441,234 @@ function tectoplot_legendbar_geology() {
   esac
 }
 
-# function tectoplot_legend_geology() {
-# }
+function tectoplot_legend_geology() {
+  case $1 in
+    tectonic_fabrics)
+    for this_fabric in ${tectonic_fabrics[@]}; do
+      # Create a new blank map with the same -R -J as our main map
+      gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > legendentry.ps
+
+      EXTRALON=$(echo "$CENTERLON + (${MAXLON} - ${CENTERLON})/4" | bc -l)
+      EXTRALON2=$(echo "$CENTERLON + (${MAXLON} - ${CENTERLON})/20" | bc -l)
+      EXTRALON3=$(echo "$CENTERLON - (${MAXLON} - ${CENTERLON})/2" | bc -l)
+
+
+      echo $CENTERLON $CENTERLAT > line.txt
+      echo $EXTRALON $CENTERLAT >> line.txt
+
+      case $this_fabric in
+
+        cp)
+          gmt psxy line.txt  -W0.1p,black -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Continental polygon" | gmt pstext -X-0.125i -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        dz)
+          gmt psxy line.txt  -W0.5p,green -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Discordant zone" | gmt pstext -X-0.025i -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+
+        fz)
+          gmt psxy line.txt  -W0.5p,black -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Fracture zone" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        ht)
+          echo ${CENTERLON} ${CENTERLAT} | gmt psxy -Sc0.1i -Gred -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$CENTERLON $CENTERLAT Hotspot" | gmt pstext -F+f6p,Helvetica,black+jCM $VERBOSE -J -R -X0.5i -O  >> legendentry.ps
+        ;;
+
+        is)
+
+C1=$(echo "$CENTERLON + 1*(${MAXLON} - ${CENTERLON})/100" | bc -l)
+C5=$(echo "$CENTERLON + 5*(${MAXLON} - ${CENTERLON})/100" | bc -l)
+C10=$(echo "$CENTERLON + 10*(${MAXLON} - ${CENTERLON})/100" | bc -l)
+C15=$(echo "$CENTERLON + 15*(${MAXLON} - ${CENTERLON})/100" | bc -l)
+C20=$(echo "$CENTERLON + 20*(${MAXLON} - ${CENTERLON})/100" | bc -l)
+
+cat <<-EOF > isochron.txt
+# @VGMT1.0 @GLINESTRING
+# @R-180/180/-74.9045/89.8197
+# @Je4326
+# @Jp"+proj=longlat +datum=WGS84 +no_defs"
+# @Jw"GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST],AUTHORITY[\"EPSG\",\"4326\"]]"
+# @NPLATEID1|FROMAGE
+# @Tinteger|double
+# FEATURE_DATA
+>
+# @D205|1
+${CENTERLON} ${CENTERLAT}
+${C1} ${CENTERLAT}
+>
+# @D206|30
+${C1} ${CENTERLAT}
+${C5} ${CENTERLAT}
+>
+# @D207|75
+${C5} ${CENTERLAT}
+${C10} ${CENTERLAT}
+>
+# @D208|150
+${C10} ${CENTERLAT}
+${C15} ${CENTERLAT}
+>
+# @D838|250
+${C15} ${CENTERLAT}
+${C20} ${CENTERLAT}
+EOF
+
+          gmt psxy isochron.txt ${EBISOCOLOR} $RJOK ${VERBOSE}  >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Isochron" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.1i -O  >> legendentry.ps
+        ;;
+        pf)
+          gmt psxy line.txt -W0.5p,orange -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Psuedofault" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        pr)
+          gmt psxy line.txt -W0.5p,yellow -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Propagating ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        sr)
+          gmt psxy line.txt -W0.5p,red -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Spreading ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        va)
+          gmt psxy line.txt -W0.5p,pink -R -J -O -K ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT V-shaped anomaly" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+        ;;
+        vp)
+
+cat <<-EOF > blob.txt
+0.003769102	0.017664679
+-0.00148757	0.01959869
+-0.007516059	0.023869588
+-0.018242991	0.026997658
+-0.034873152	0.029838496
+-0.037934259	0.029323951
+-0.048422736	0.02333353
+-0.053559472	0.020709266
+-0.057927704	0.015748257
+-0.062950532	0.008564149
+-0.060976418	0.005372509
+-0.056257278	-0.003347142
+-0.047165466	-0.00710556
+-0.035442958	-0.011830659
+-0.021642011	-0.014444581
+-0.013099994	-0.015122902
+-0.002143928	-0.017508586
+0.003117723	-0.019442396
+0.008380082	-0.021375791
+0.015283567	-0.022680385
+0.024600375	-0.024120388
+0.035947838	-0.024755926
+0.042275527	-0.023689734
+0.048409776	-0.021564252
+0.051186982	-0.018912929
+0.052983691	-0.016184238
+0.05006764	-0.013296432
+0.046443645	-0.010735894
+0.043036046	-0.007434098
+0.036782353	-0.003907169
+0.028115643	0.00132758
+0.020658202	0.005709269
+0.017254498	0.009012116
+0.013775542	0.010924301
+0.010016089	0.014135665
+0.003769102	0.017664679
+0.003769102	0.017664679
+EOF
+
+cat <<-EOF > volcprov.txt
+# @VGMT1.0 @GMULTIPOLYGON
+# @R-180/180/-86.1611995695/86.6826992038
+# @Je4326
+# @Jp"+proj=longlat +datum=WGS84 +no_defs "
+# @Jw"GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+# @NPLATEID1|FROMAGE
+# @Tinteger|double
+# FEATURE_DATA
+EOF
+
+scale=$(echo "(${MAXLON} - ${MINLON})/360 / 0.02" | bc -l)
+
+gawk < blob.txt -v date=1 -v scale=${scale} -v xshift=0.1 -v clon=${CENTERLON} -v clat=${CENTERLAT} '
+  BEGIN {
+    print ">"
+    print "# @D" int(date) "|" date
+  }
+  {
+    print ($1+xshift)*scale+clon, $2*scale+clat
+  }' >> volcprov.txt
+
+gawk < blob.txt -v date=30 -v scale=${scale} -v xshift=0.3 -v clon=${CENTERLON} -v clat=${CENTERLAT} '
+  BEGIN {
+    print ">"
+    print "# @D" int(date) "|" date
+  }
+  {
+    print ($1+xshift)*scale+clon, $2*scale+clat
+  }' >> volcprov.txt
+
+  gawk < blob.txt -v date=75 -v scale=${scale} -v xshift=0.5 -v clon=${CENTERLON} -v clat=${CENTERLAT} '
+  BEGIN {
+    print ">"
+    print "# @D" int(date) "|" date
+  }
+  {
+    print ($1+xshift)*scale+clon, $2*scale+clat
+  }' >> volcprov.txt
+
+  gawk < blob.txt -v date=150 -v scale=${scale} -v xshift=0.7 -v clon=${CENTERLON} -v clat=${CENTERLAT} '
+  BEGIN {
+    print ">"
+    print "# @D" int(date) "|" date
+  }
+  {
+    print ($1+xshift)*scale+clon, $2*scale+clat
+  }' >> volcprov.txt
+
+  gawk < blob.txt -v date=250 -v scale=${scale} -v xshift=0.9 -v clon=${CENTERLON} -v clat=${CENTERLAT} '
+  BEGIN {
+    print ">"
+    print "# @D" int(date) "|" date
+  }
+  {
+    print ($1+xshift)*scale+clon, $2*scale+clat
+  }' >> volcprov.txt
+
+
+          gmt psxy volcprov.txt -W0.1p,black+cf -aZ=FROMAGE -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> legendentry.ps
+          echo "$EXTRALON2 $CENTERLAT Volcanic province" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.13i -O  >> legendentry.ps
+
+        ;;
+
+
+      esac
+      # Calculate the width and height of the graphic with a margin of 0.05i
+      PS_DIM=$(gmt psconvert legendentry.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+
+      # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
+      # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
+      # (The typewriter approach)
+
+      gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i legendentry.eps $RJOK ${VERBOSE} >> $LEGMAP
+      LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+      count=$count+1
+      NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
+
+      if [[ $count -eq 4 ]]; then
+        count=0
+        LEG2_X=$(echo "$LEG2_X + $NEXTX" | bc -l)
+        # echo "Updated LEG2_X to $LEG2_X"
+        LEG2_Y=$(echo "${MAP_PS_HEIGHT_IN} + 0.1" | bc -l)
+      fi
+
+    done
+    ;;
+  esac
+
+
+}
 
 # function tectoplot_post_geology() {
 #   echo "none"

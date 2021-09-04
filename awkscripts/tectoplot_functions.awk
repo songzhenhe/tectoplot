@@ -435,6 +435,11 @@ function rd(n, multipleOf)
   return num
 }
 
+function ru(n, multipleOf)
+{
+  return rd(n, multipleOf) + multipleOf
+}
+
 ################################################################################
 # Data selection by longitude range potentially spanning dateline
 # Returns 1 if longitude is within AOI of minlon/maxlon, 0 otherwise
