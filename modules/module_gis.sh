@@ -32,6 +32,19 @@ function tectoplot_defaults_gis() {
   current_userlinefilenumber=1
   current_userpointfilenumber=1
   current_usergridnumber=1
+  current_smallcirclenumber=1
+
+  usergridfilenumber=0
+  userlinefilenumber=0
+  userpointfilenumber=0
+  userpolyfilenumber=0
+  smallcnumber=0
+
+  #############################################################################
+  ### Small circle options
+
+  SMALLCWIDTH_DEF="1p"
+  SMALLCCOLOR_DEF="black"
 
 }
 
@@ -369,6 +382,94 @@ EOF
 
       tectoplot_module_caught=1
     ;;
+
+    # Plot small circle with given angular radius, color, linewidth
+    -smallc)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+modules/module_gis.sh
+-smallc:       plot small circle centered on a geographic point
+-smallc [lon] [lat] [radius] [[linewidth]] [[color]] [["dash"]]
+
+  Multiple calls to -smallc can be made; they will plot in map layer order.
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+  fi
+      shift
+
+
+      smallcnumber=$(echo "$smallcnumber + 1" | bc -l)
+
+      if arg_is_float $1; then
+        SMALLCLON[$smallcnumber]=$1
+        shift
+        ((tectoplot_module_shift++))
+      fi
+
+      if arg_is_float $1; then
+        SMALLCLAT[$smallcnumber]=$1
+        shift
+        ((tectoplot_module_shift++))
+      fi
+
+      if arg_is_float $1; then
+        SMALLCDEG[$smallcnumber]=$1
+        shift
+        ((tectoplot_module_shift++))
+      fi
+
+      # if ! arg_is_flag $1; then
+      #   SMALLCWIDTH[$smallcnumber]="${1}"
+      #   shift
+      #   ((tectoplot_module_shift++))
+      # else
+      #   SMALLCWIDTH[$smallcnumber]=${SMALLCWIDTH_DEF}
+      # fi
+      #
+      #
+
+      SMALLCPOLE[$smallcnumber]=0
+      SMALLCDASH[$smallcnumber]=""
+
+      while ! arg_is_flag $1; do
+        case $1 in
+          dash)
+            SMALLCDASH[$smallcnumber]=",-"
+            ;;
+          pole)
+            SMALLCPOLE[$smallcnumber]="1"
+            ;;
+          color)
+            shift
+            ((tectoplot_module_shift++))
+            if ! arg_is_flag $1; then
+              SMALLCCOLOR[$smallcnumber]="${1}"
+            else
+              SMALLCCOLOR[$smallcnumber]=${SMALLCCOLOR_DEF}
+            fi
+            ;;
+          stroke)
+            shift
+            ((tectoplot_module_shift++))
+            if ! arg_is_flag $1; then
+              SMALLCWIDTH[$smallcnumber]="${1}"
+            else
+              SMALLCWIDTH[$smallcnumber]=${SMALLCWIDTH_DEF}
+            fi
+            ;;
+        esac
+        shift
+        ((tectoplot_module_shift++))
+      done
+
+      info_msg "[-smallc]: Small circle defined: ${SMALLCLON[$smallcnumber]} ${SMALLCLAT[$smallcnumber]} ${SMALLCWIDTH[$smallcnumber]} ${SMALLCCOLOR[$smallcnumber]} ${SMALLCDASH[$smallcnumber]}"
+
+      plots+=("gis_small_circle")
+      tectoplot_module_caught=1
+    ;;
+
   esac
 }
 
@@ -432,11 +533,37 @@ function tectoplot_plot_gis() {
     gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
     current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)
     tectoplot_plot_caught=1
-
   ;;
 
   gis_image)
     gmt grdimage ${IMAGENAME} -Q $RJOK $VERBOSE >> map.ps
+    tectoplot_plot_caught=1
+  ;;
+
+  gis_small_circle)
+    info_msg "Creating small circle ${current_smallcirclenumber}"
+
+    # Somehow, lon=38 lat=32 FAILS but lon=38 lat=32.0001 doesn't (GMT 6.1.1) ?????
+    polelat=${SMALLCLAT[$current_smallcirclenumber]}
+    polelon=${SMALLCLON[$current_smallcirclenumber]}
+
+    poleantilat=$(echo "0 - (${polelat}+0.0000001)" | bc -l)
+    poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
+
+    gmt_init_tmpdir
+
+    echo gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDEG[$current_smallcirclenumber]} -L-360/0 $VERBOSE \| gawk '{print $1, $2}' \> ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt
+
+gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDEG[$current_smallcirclenumber]} -L-360/0 $VERBOSE | gawk '{print $1, $2}' > ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt
+    gmt_remove_tmpdir
+
+    gmt psxy ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt -W${SMALLCWIDTH[$current_smallcirclenumber]},${SMALLCCOLOR[$current_smallcirclenumber]}${SMALLCDASH[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps
+
+    if [[ ${SMALLCPOLE[$current_smallcirclenumber]} -eq 1 ]]; then
+      echo "$polelon $polelat" | gmt psxy -Sc0.1i -G${SMALLCCOLOR[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps
+    fi
+
+    current_smallcirclenumber=$(echo "$current_smallcirclenumber + 1" | bc -l)
     tectoplot_plot_caught=1
   ;;
   esac

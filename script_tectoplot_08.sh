@@ -481,11 +481,7 @@ touch ${INFO_MSG}
 
 cmtfilenumber=0
 seisfilenumber=0
-usergridfilenumber=0
-userlinefilenumber=0
 usergpsfilenumber=0
-userpointfilenumber=0
-userpolyfilenumber=0
 cprofnum=0
 
 ################################################################################
@@ -4221,7 +4217,7 @@ fi
     -colorinfo)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--colorinfo:       print the names of GMT builtin CPTs and color names
+-colorinfo:       print info about GMT and colorcet CPTs, GMT color names
 -colorinfo
 
 Example: None
@@ -4230,12 +4226,28 @@ EOF
 shift && continue
 fi
 
+    echo "-------------------------------"
     echo "GMT builtin CPTs:"
-    echo "-------------------------------"
     cat ${GMTCPTS} | column
-    echo
-    echo "GMT colors:"
     echo "-------------------------------"
+    echo "Colorcet CPTs:"
+    for cfile in ${CPTDIR}colorcet/*.cpt; do
+
+      gawk < $cfile '
+        (NR==1) {
+          split($2,str,"/")
+          split(str[2],atr,".")
+          split(atr[1],btr,"-")
+
+          printf("%s : ", btr[2])
+        }
+        (NR==5) {
+          gsub(/#/,"")
+          print
+        }'
+    done
+    echo "-------------------------------"
+    echo "GMT colors:"
     cat ${GMTCOLORS} | column
     exit 1
     ;;
@@ -7244,19 +7256,42 @@ fi
 # c = continuous
 
 
+  # Check if it's a file path;
+  # If not, check if its a builtin GMT CPT
+
   if ! arg_is_flag "${2}"; then
-    if [[ -s "${2}" ]]; then
-      TOPO_CPT_DEF=$(abs_path ${2})
-      info_msg "[-tcpt]: Setting CPT to ${TOPO_CPT_DEF}"
-    elif gmt makecpt -C${2} > /dev/null 2>&1; then
-      info_msg "[-tcpt]: CPT ${2} is a builtin GMT CPT."
-      TOPO_CPT_DEF="${2}"
+    if get_cpt_path ${2}; then
+      echo "[-tcpt]: Setting CPT to ${CPT_PATH}"
+      TOPO_CPT_DEF=${CPT_PATH}
     else
-      echo "[-tcpt]: ${2} is not a valid CPT"
-      echo -n "GMT builtin CPTS (see gmt -makecpt): "
-      gmt makecpt 2>&1 | gawk '($2==":"){printf("%s "), $1} END { printf("\n")}'
+      info_msg "[-tcpt]: $2 is not a valid CPT specification"
       exit 1
     fi
+
+    # if [[ -s "${2}" ]]; then
+    #   TOPO_CPT_DEF=$(abs_path ${2})
+    #   info_msg "[-tcpt]: Setting CPT to ${TOPO_CPT_DEF}"
+    # elif gmt makecpt -C${2} > /dev/null 2>&1; then
+    #   info_msg "[-tcpt]: CPT ${2} is a builtin GMT CPT."
+    #   TOPO_CPT_DEF="${2}"
+    # elif [[ -s ${CPTDIR}${2} ]]; then
+    #   info_msg "[-tcpt]: CPT ${2} is a builtin tectoplot CPT in ${CPTDIR}."
+    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}${2})
+    # elif [[ -s ${CPTDIR}${2}.cpt ]]; then
+    #   info_msg "[-tcpt]: CPT ${2}.cpt is a builtin tectoplot CPT in ${CPTDIR}."
+    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}${2}.cpt)
+    # elif [[ -s ${CPTDIR}colorcet/CET-${2}.cpt ]]; then
+    #   info_msg "[-tcpt]: CET-${2}.cpt is colorcet CPT in ${CPTDIR}/colorcet/"
+    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}colorcet/CET-${2}.cpt)
+    # elif [[ -s ${CPTDIR}colorcet/${2} ]]; then
+    #   info_msg "[-tcpt]: CPT ${2} is colorcet CPT in ${CPTDIR}/colorcet/"
+    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}"colorcet/"${2})
+    # else
+    #   echo "[-tcpt]: ${2} is not a valid CPT"
+    #   echo -n "GMT builtin CPTS (see gmt -makecpt): "
+    #   gmt makecpt 2>&1 | gawk '($2==":"){printf("%s "), $1} END { printf("\n")}'
+    #   exit 1
+    # fi
     shift
   fi
 
@@ -8870,14 +8905,21 @@ EOF
 shift && continue
 fi
   if ! arg_is_flag "${2}"; then
-    if is_gmtcpt "${2}"; then
-      SEIS_CPT="${2}"
+    if get_cpt_path "${2}"; then
+      SEIS_CPT="${CPT_PATH}"
     else
-      SEIS_CPT=$(abs_path "${2}")
+      echo "[-zccpt]: CPT $2 not recognized."
     fi
     shift
-    echo SEIS_CPT=${SEIS_CPT}
   fi
+
+  if [[ $2 == "inv" ]]; then
+    SEIS_CPT_INV="-I"
+    shift
+  else
+    SEIS_CPT_INV=""
+  fi
+
   ;;
 
   -zcolor)
@@ -9750,9 +9792,6 @@ if [[ $gridfibonacciflag -eq 1 ]]; then
           print longitude, latitude
         }
       }
-      # if (((longitude <= maxlon && longitude >= minlon) || (longitude+360 <= maxlon && longitude+360 >= minlon)) && {
-      #   print longitude, latitude
-      # }
     }
   }' > gridfile.txt
   gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
@@ -11777,8 +11816,6 @@ fi
     [[ -e cmt_strikeslip.txt ]] && mv cmt_strikeslip.txt ../${F_CMT}
     [[ -e cmt.dat ]] && mv cmt.dat ../${F_CMT}
 
-    # This code was clearly patched in to deal with a slab issue
-
   touch kin_thrust.txt kin_normal.txt kin_strikeslip.txt
 
 	# Generate the kinematic vectors
@@ -11788,15 +11825,15 @@ fi
   gawk < kin_thrust.txt -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($4+90) % 360, symsize; else print $1, $2, ($7+90) % 360, symsize;  }' > thrust_gen_slip_vectors_np1_downdip.txt
   gawk < kin_thrust.txt -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($4) % 360, symsize ; else print $1, $2, ($7) % 360, symsize ;  }' > thrust_gen_slip_vectors_np1_str.txt
 
-  gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($4+270) % 360, symsize; else print $1, $2, ($7+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np2.txt
-  gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($7+90) % 360, symsize; else print $1, $2, ($4+90) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_downdip.txt
-  gawk 'NR > 1' kin_thrust.txt | gawk  -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($7) % 360, symsize ; else print $1, $2, ($4) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_str.txt
+  gawk  < kin_thrust.txt -v symsize=$SYMSIZE1 '{if($8 > 45) print $1, $2, ($4+270) % 360, symsize; else print $1, $2, ($7+270) % 360, symsize;  }' > thrust_gen_slip_vectors_np2.txt
+  gawk < kin_thrust.txt -v symsize=$SYMSIZE2 '{if($8 > 45) print $1, $2, ($7+90) % 360, symsize; else print $1, $2, ($4+90) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_downdip.txt
+  gawk < kin_thrust.txt -v symsize=$SYMSIZE3 '{if($8 > 45) print $1, $2, ($7) % 360, symsize ; else print $1, $2, ($4) % 360, symsize ;  }' > thrust_gen_slip_vectors_np2_str.txt
 
-  gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > strikeslip_slip_vectors_np1.txt
-  gawk 'NR > 1' kin_strikeslip.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > strikeslip_slip_vectors_np2.txt
+  gawk < kin_strikeslip.txt -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > strikeslip_slip_vectors_np1.txt
+  gawk < kin_strikeslip.txt  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > strikeslip_slip_vectors_np2.txt
 
-  gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > normal_slip_vectors_np1.txt
-  gawk 'NR > 1' kin_normal.txt | gawk  -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
+  gawk < kin_normal.txt  -v symsize=$SYMSIZE1 '{ print $1, $2, ($7+270) % 360, symsize }' > normal_slip_vectors_np1.txt
+  gawk < kin_normal.txt -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
   cd ..
 
@@ -12261,7 +12298,7 @@ if [[ $plotplates -eq 1 ]]; then
         rm -f ${F_PLATES}${v[$i]}.smallcircles
         for j2 in $(seq $colatmin $LATSTEPS $colatmax); do
           echo "> -Z${j2}" >> ${F_PLATES}${v[$i]}.smallcircles
-          echo gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${j2} -L-360/0
+          # echo gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${j2} -L-360/0
           gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${j2} -L-360/0 $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}${v[$i]}.smallcircles
         done
 
@@ -13225,16 +13262,39 @@ for cptfile in ${cpts[@]} ; do
       else
         # Make a color stretch CPT
         SEISDEPTH_CPT=$(abs_path $SEISDEPTH_CPT)
-        gmt makecpt -N -C${SEIS_CPT} -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}"/1 -Z $VERBOSE > $SEISDEPTH_CPT
+        gmt makecpt -Fr -C${SEIS_CPT} ${SEIS_CPT_INV} > ${F_CPTS}origseis.cpt
+        gmt makecpt -N -C${SEIS_CPT} ${SEIS_CPT_INV} -Fr -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}"/1 -Z $VERBOSE > $SEISDEPTH_CPT
         cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
 
+        CPTBOUNDS=($(gawk < $SEISDEPTH_CPT '
+        BEGIN {
+          hasfirst=0
+        }
+        ($1+0==$1) {
+          if (hasfirst==0) {
+            hasfirst=1
+            firstval=$1
+            firstrgb=$2
+          }
+          lastrgb=$2
+          if ($3+0==$3) {
+            lastval=$3
+            lastrgb=$4
+          }
+        }
+        END {
+          print firstval, firstrgb, lastval, lastrgb
+        }'))
+
+        # echo CPT bounds ${CPTBOUNDS[@]}
+
         # This needs to be customized!
-        echo "${EQMAXDEPTH_COLORSCALE}	0/17.937/216.21	6370	0/0/255" >> $SEISDEPTH_CPT
-        echo "B	170/0/0" >> $SEISDEPTH_CPT
-        echo "F	0/0/205" >> $SEISDEPTH_CPT
+        echo "${CPTBOUNDS[2]}	${CPTBOUNDS[3]}	6370	${CPTBOUNDS[3]}" >> $SEISDEPTH_CPT
+        echo "B	${CPTBOUNDS[1]}" >> $SEISDEPTH_CPT
+        echo "F	${CPTBOUNDS[3]}" >> $SEISDEPTH_CPT
         echo "N	127.5" >> $SEISDEPTH_CPT
-        echo "B	170/0/0" >> $SEISDEPTH_NODEEPEST_CPT
-        echo "F	0/0/205" >> $SEISDEPTH_NODEEPEST_CPT
+        echo "B	${CPTBOUNDS[1]}" >> $SEISDEPTH_NODEEPEST_CPT
+        echo "F	${CPTBOUNDS[3]}" >> $SEISDEPTH_NODEEPEST_CPT
         echo "N	127.5" >> $SEISDEPTH_NODEEPEST_CPT
       fi
 
@@ -13513,7 +13573,6 @@ for plot in ${plots[@]} ; do
     caxes)
 
       for kinfile in ${F_KIN}*_axes_*.txt; do
-        echo "Converting file $kinfile"
         gawk < $kinfile -v scale=${CMTAXESSCALE} '
           @include "tectoplot_functions.awk"
           {
@@ -14271,19 +14330,19 @@ for plot in ${plots[@]} ; do
 
     kinsv)
       # Plot the slip vectors for focal mechanism nodal planes
-      info_msg "Plotting kinematic slip vectors"
+      info_msg "Plotting kinematic slip vectors; kinthrustflag=$kinthrustflag; kinnormalflag=$kinnormalflag; kinssflag=$kinssflag, NP1_COLOR=$NP1_COLOR, NP2_COLOR=$NP2_COLOR"
 
-      if [[ kinthrustflag -eq 1 ]]; then
-        [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-        [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+      if [[ $kinthrustflag -eq 1 ]]; then
+        [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+        [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
       fi
-      if [[ kinnormalflag -eq 1 ]]; then
-        [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.7p,green -Ggreen ${F_KIN}normal_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-        [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.5p,green -Ggreen ${F_KIN}normal_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+      if [[ $kinnormalflag -eq 1 ]]; then
+        [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}normal_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+        [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}normal_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
       fi
-      if [[ kinssflag -eq 1 ]]; then
-        [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.7p,blue -Gblue ${F_KIN}strikeslip_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-        [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.5p,blue -Gblue ${F_KIN}strikeslip_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+      if [[ $kinssflag -eq 1 ]]; then
+        [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}strikeslip_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+        [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}strikeslip_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
       fi
       ;;
 
@@ -15349,7 +15408,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             i)
               info_msg "Calculating terrain ruggedness index"
               gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
-              zrange=$(grid_zrange ${F_TOPO}tri.nc -C -Vn)
+              zrange=($(grid_zrange ${F_TOPO}tri.nc -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
               weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -15359,7 +15418,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               gmt grdfilter ${F_TOPO}dem.nc -Dp -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${F_TOPO}dem.nc -G${F_TOPO}quantile.nc
               gmt grdmath ${F_TOPO}dem.nc ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
 
-              zrange=$(grid_zrange ${F_TOPO}quantile_diff.nc -C -Vn)
+              zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 1 254 ${F_TOPO}quantile_diff.nc ${F_TOPO}quantile_gray.tif -q
               weighted_average_combine ${F_TOPO}quantile_gray.tif ${F_TOPO}intensity.tif ${QUANTILE_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -15513,8 +15572,12 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             # Rescale and gamma correct the intensity layer
             g)
               info_msg "Rescale stretching and gamma correcting intensity layer"
-              zrange=$(grid_zrange ${F_TOPO}intensity.tif -C -Vn)
+              zrange=($(grid_zrange ${F_TOPO}intensity.tif -C -Vn))
+
               histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
+
+              echo histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
+
               mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
             ;;
 

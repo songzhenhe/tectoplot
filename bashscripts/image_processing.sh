@@ -207,8 +207,11 @@ function image_setval() {
 
 # Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
 function histogram_rescale_stretch() {
+  echo gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"
   gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"
 }
+
+# histogram_rescale_stretch topo/intensity.tif 15.000000 237.000000 0.621513 1 254 2 topo/intensity_cor.tif
 
 # Select cells from $1 within a [$2 $3] value range; else set to $4. Output to $5
 function histogram_select() {
@@ -258,6 +261,35 @@ function recolor_sea() {
 
 function is_gmtcpt() {
   gawk -v key=$1 < ${GMTCPTS} '($1==key) { found=1; exit } END { exit (found==1)?0:1 }'
+}
+
+# Returns the absolute path to a CPT file from several possible locations
+function get_cpt_path() {
+  local cptarg="${1}"
+  if [[ -s ${cptarg} ]]; then
+    CPT_PATH=$(abs_path ${cptarg})
+    info_msg "[-tcpt]: Setting CPT to ${CPT_PATH}"
+  elif gmt makecpt -C${cptarg} > /dev/null 2>&1; then
+    info_msg "[-tcpt]: CPT ${cptarg} is a builtin GMT CPT."
+    CPT_PATH="${cptarg}"
+  elif [[ -s ${CPTDIR}${cptarg} ]]; then
+    info_msg "[-tcpt]: CPT ${cptarg} is a builtin tectoplot CPT in ${CPTDIR}."
+    CPT_PATH=$(abs_path ${CPTDIR}${cptarg})
+  elif [[ -s ${CPTDIR}${cptarg}.cpt ]]; then
+    info_msg "[-tcpt]: CPT ${cptarg}.cpt is a builtin tectoplot CPT in ${CPTDIR}."
+    CPT_PATH=$(abs_path ${CPTDIR}${cptarg}.cpt)
+  elif [[ -s ${CPTDIR}colorcet/CET-${cptarg}.cpt ]]; then
+    info_msg "[-tcpt]: CET-${cptarg}.cpt is colorcet CPT in ${CPTDIR}/colorcet/"
+    CPT_PATH=$(abs_path ${CPTDIR}colorcet/CET-${cptarg}.cpt)
+  elif [[ -s ${CPTDIR}colorcet/${cptarg} ]]; then
+    info_msg "[-tcpt]: CPT ${cptarg} is colorcet CPT in ${CPTDIR}/colorcet/"
+    CPT_PATH=$(abs_path ${CPTDIR}"colorcet/"${cptarg})
+  else
+    echo "${cptarg} is not a valid CPT"
+    CPT_PATH=""
+    return 1
+  fi
+  return 0
 }
 
 
