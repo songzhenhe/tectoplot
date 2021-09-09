@@ -39,6 +39,7 @@ function tectoplot_defaults_gis() {
   userpointfilenumber=0
   userpolyfilenumber=0
   smallcnumber=0
+  greatcnumber=0
 
   #############################################################################
   ### Small circle options
@@ -470,6 +471,54 @@ EOF
       tectoplot_module_caught=1
     ;;
 
+    # Plot small circle with given angular radius, color, linewidth
+    -greatc)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+modules/module_gis.sh
+-greatc:       plot great circles passing through points with given azimuths
+-greatc [lon1] [lat1] [azimuth1] [[lon2]] [[lat2]] [[azimuth2]] ..
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+  fi
+      shift
+
+      while ! arg_is_flag $1; do
+        greatcnumber=$(echo "${greatcnumber} + 1" | bc -l)
+
+        if arg_is_float $1; then
+          GREATCLON[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        fi
+
+        if arg_is_float $1; then
+          GREATCLAT[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        fi
+
+        if arg_is_float $1; then
+          GREATCAZ[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-greatc]: Requires arguments: lon lat az"
+          exit 1
+        fi
+
+      done
+
+      info_msg "[-greatc]: ${greatcnumber} great circles defined"
+
+      plots+=("gis_great_circle")
+      tectoplot_module_caught=1
+    ;;
+
+
+
   esac
 }
 
@@ -538,6 +587,14 @@ function tectoplot_plot_gis() {
   gis_image)
     gmt grdimage ${IMAGENAME} -Q $RJOK $VERBOSE >> map.ps
     tectoplot_plot_caught=1
+  ;;
+
+  gis_great_circle)
+
+    for this_gc in $(seq 1 $greatcnumber); do
+      gmt project -C${GREATCLON[$this_gc]}/${GREATCLAT[$this_gc]} -A${GREATCAZ[$this_gc]} -G0.5 -L-360/0 > great_circle_${this_gc}.txt
+      gmt psxy great_circle_${this_gc}.txt -W1p,black $RJOK $VERBOSE >> map.ps
+    done
   ;;
 
   gis_small_circle)

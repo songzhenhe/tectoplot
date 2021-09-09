@@ -4906,6 +4906,21 @@ fi
     shift
     ;;
 
+  -plist)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-plist:        print rotation poles relative to reference frame
+-plist
+
+Example:
+  tectoplot -p MORVEL WL -plist
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plistflag=1
+  ;;
+
   -pr) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8239,9 +8254,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -w:            plot velocity field from a specified euler pole on grid points
--w [pole_lat] [pole_lon] [omega]
+-w [pole_lat] [pole_lon] [omega] [[pole_lat_2]] [[pole_lon_2]] [[pole_omega_2]]
 
   Requires -px, -pf, or -pi option to generate grid points
+
+  If two Euler poles are specified, add them and use the resulting Euler pole
 
 Example: Global Euler pole velocity field on a Fibonacci grid
   tectoplot -RJ W -a -pf 1000 -w 10 20 0.2
@@ -12605,6 +12622,18 @@ if [[ $plotplates -eq 1 ]]; then
       if (diff < -180) { diff = diff + 360 }
       if (diff >= 110 || diff <= -110) { print $1, $2, $15, sqrt($13*$13+$14*$14) }}' > ${F_PLATES}paz1normal.txt
   fi #  if [[ $doplateedgesflag -eq 1 ]]; then
+
+  if [[ $plistflag -eq 1 ]]; then
+    cd ${F_PLATES}
+    echo "PlateID-RefID Lat Lon Rate(deg/Myr)"
+    for polefile in *.pole; do
+      echo ${polefile} ${REFPLATE} | gawk '{ split($1,a,"_"); split($2,b,"_"); printf("%s-%s ", a[1], b[1])}'
+      head -n 1 $polefile
+    done
+    cd ..
+  fi
+
+
 fi # if [[ $plotplates -eq 1 ]]
 
 ### MODULE CALCULATION FUNCTIONS
