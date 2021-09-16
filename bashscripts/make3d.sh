@@ -1767,7 +1767,7 @@ EOF
               }
               END {
                 thisboundary=2
-                print "Printing vertices through number", lowerboxnum > "/dev/stderr"
+               #  print "Printing vertices through number", lowerboxnum > "/dev/stderr"
                 for(i=9;i<lowerboxnum+8;i++) {
                   printf("l %d %d\n", i, i+1)
                   # if (i == boundary[thisboundary]) {
@@ -1819,18 +1819,17 @@ EOF
         echo "map_d Textures/"${PLY_TEXNAME} >> ${F_3D}materials.mtl
         echo "d 0.5" >> ${F_3D}materials.mtl
       elif [[ $plymaptiffflag -eq 1 && -s ./map.tiff ]]; then
-        echo "Converting map to PNG"
+        info_msg "[-makeply]: Converting map to PNG"
         mkdir -p ${F_3D}Textures/
         gdal_translate -q -of "PNG" map.tiff ${F_3D}Textures/${PLY_TEXNAME}
       elif [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
         mkdir -p ${F_3D}Textures/
         if [[ -s ${F_TOPO}colored_relief.tif ]]; then
-          echo "Using colored_relief.tif as PNG"
-
+          info_msg "[-makeply]: Using colored_relief.tif as PNG"
           gdal_translate -q -of "PNG" ${F_TOPO}colored_relief.tif ${F_3D}Textures/${PLY_TEXNAME}
         fi
       else
-        echo "Using colored_intensity.tif"
+        info_msg "[-makeply]: Using colored_intensity.tif"
         mkdir -p ${F_3D}Textures/
         gdal_translate -q -of "PNG" ${F_TOPO}colored_intensity.tif ${F_3D}Textures/${PLY_TEXNAME}
       fi

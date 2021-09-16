@@ -21,7 +21,7 @@ function tectoplot_defaults_geology() {
 
   TECTFABRICSDIR=${PLATEMODELSDIR}"TectonicFabrics/"
 
-  GLOBAL_GEO=${TECTFABRICSDIR}"Global_Geology/Global_Geology.tif"
+  GLOBAL_GEO=${TECTFABRICSDIR}"Global_Geology.tif"
   GLOBAL_GEO_TRANS=0
 
   OC_STRIPE_AGE=1  # Width of 'stripe' coloring in Myr
@@ -332,7 +332,8 @@ function tectoplot_plot_geology() {
     #   ;;
 
     globalgeo)
-      gmt grdimage ${GLOBAL_GEO} $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+      gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut.tif
+      gmt grdimage ./modules/geology/geocut.tif $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
 
       tectoplot_plot_caught=1
       ;;

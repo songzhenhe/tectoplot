@@ -3226,15 +3226,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -geotiff:      create a georeferenced rgb geotiff from the map document
--geotiff [filename]
+-geotiff [resolution]
 
     This option will reset the map projection and region to the Cartesian
     projection required for export to GeoTIFF using gmt psconvert.
 
     The output file is saved with the same name as the output PDF, but as .tif
 
-    The resolution of the image is set by a currently internal variable.
-
+    resolution: the resolution (in dpi) of the output GeoTIFF file.
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -3242,13 +3241,19 @@ shift && continue
 fi
 
     if [[ $regionsetflag -ne 1 ]]; then
-      info_msg "[-geotiff]: Region should be set with -r before -geotiff flag is set. Using default region."
+      info_msg "[-geotiff]: WARNING: Region should be set with -r before -geotiff flag is set. Using default region."
     fi
     gmt gmtset MAP_FRAME_TYPE inside
     RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
     usecustomrjflag=1
     insideframeflag=1
     tifflag=1
+
+    if arg_is_positive_float $1; then
+      GEOTIFFRES="${1}"
+      shift
+    fi
+
     ;;
 
   -gls)
@@ -7555,31 +7560,31 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -makeply:      make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
--makeply [[options]]
+-makeply [[option1 value1]] [[option2 value2]] ...
 
-    Topo, seismicity, focal mechanisms, and Slab2 geometries will be generated
-    automatically if the equivalent -t, -z, -c, or -b commands are given.
+    Topo, seismicity, focal mechanisms, GPS velocities, volcanoes, and Slab2 geometries will be generated
+    automatically if the equivalent -t, -z, -c, -g, -vf, or -b commands are given.
 
     Options:
-    [[landkm ${PLY_FIB_KM}]]          Spacing of surface grid pts if no DEM given
-    [[scale ${PLY_SCALE}]]            Rescale scaleable items by multiplying by this factor
-    [[vexag ${PLY_VEXAG}]]            Vertical exaggeration of data
-    [[topoexag ${PLY_VEXAG_TOPO}]]    Vertical exaggeration of DEM
+    [[landkm spacing=${PLY_FIB_KM}]]          Spacing of surface grid pts if no DEM given
+    [[scale factor=${PLY_SCALE}]]            Rescale scaleable items by multiplying by this factor
+    [[vexag factor=${PLY_VEXAG}]]            Vertical exaggeration of data
+    [[topoexag factor=${PLY_VEXAG_TOPO}]]    Vertical exaggeration of DEM
     [[demonly]]                       Only make DEM mesh and texture, not other 3D data
-    [[addz ${PLY_ZOFFSET}]]           Vertical shift (positive away from Earth center) in km
-    [[maxsize ${PLY_MAXSIZE}]]        Resample DEM to given maximum width (cells)
-    [[alpha]]         Apply alpha mask to DEM texture using transparent PNG
-    [[sidebox ${PLY_SIDEBOXDEPTH} ${PLY_SIDEBOXCOLOR}]]   Make sides and bottom of box under topo
+    [[addz offset=${PLY_ZOFFSET}]]           Vertical shift (positive away from Earth center) in km
+    [[maxsize size=${PLY_MAXSIZE}]]        Resample DEM to given maximum width (cells) before meshing
+    [[alpha value=${PLY_ALPHACUT}]]         Apply alpha mask to DEM texture using transparent PNG
+    [[sidebox depth=${PLY_SIDEBOXDEPTH} color=${PLY_SIDEBOXCOLOR}]]   Make sides and bottom of box under topo
     [[sidetext on|off v_int h_int]]   Plot text on sidebox? If on, v_int in km, h_int in degrees
-    [[maptiff]]  Use the map TIFF as the texture for the DEM
-    [[mtl ${PLY_MTLNAME}]]            Name of DEM OBJ and its corresponding material
-    [[fault file1 file2 ...]]         Make colored mesh of gridded fault
+    [[maptiff]]  Use the rendered map TIFF and not just shaded relief as the texture for the DEM
+    [[mtl name=${PLY_MTLNAME}]]            Name of DEM OBJ and its corresponding material
+    [[fault file1 file2 ...]]         Make colored mesh of gridded fault data
     [[ocean depth(km)=${PLY_OCEANDEPTH}]]               Make ocean layer at given ocean depth
-    [[box depth(km)]]                 Draw box encompassing seismicity OR at fixed depth
+    [[box depth(km)=${PLY_BOXDEPTH}]]                 Draw box encompassing seismicity OR at fixed depth
     [[text depth(km) string of words ]]   Print text at center of plane defined by corner points
     [[floattext lon lat depth scale string of words]]
 
-Not implemented:    [[addobj path/to/directory/]]     Include OBJ files from specified directory
+    See also: -addobj    Include OBJ files from specified directory
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -12163,6 +12168,7 @@ if [[ $plotplates -eq 1 ]]; then
 	# Set the GPS to the reference plate if not overriding it from the command line
 
 	if [[ $gpsoverride -eq 0 ]]; then
+    echo "REFPLATE is ${REFPLATE}"
     if [[ $defaultrefflag -eq 1 ]]; then
       # ITRF08 is likely similar to other reference frames.
       GPS_FILE=$(echo ${GPSDIR}"/GPS_ITRF08.gmt")
@@ -15605,7 +15611,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
               histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
 
-              echo histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
+              # echo histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
 
               mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
             ;;
