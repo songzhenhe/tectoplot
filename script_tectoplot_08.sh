@@ -7801,6 +7801,7 @@ fi
       fi
       ;;
     scale)
+      shift
       if arg_is_positive_float "${2}"; then
         PLY_SCALE="${2}"
         shift
