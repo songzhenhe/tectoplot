@@ -7800,6 +7800,15 @@ fi
         shift
       fi
       ;;
+    scale)
+      if arg_is_positive_float "${2}"; then
+        PLY_SCALE="${2}"
+        shift
+      else
+        info_msg "[-makeply]: scale option requires positive number argument"
+        exit 1
+      fi
+      ;;
     *)
       echo "[-makeply]: Option ${2} not recognized... ignoring"
       shift
