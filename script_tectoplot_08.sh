@@ -7579,7 +7579,7 @@ cat <<-EOF
     [[maptiff]]  Use the rendered map TIFF and not just shaded relief as the texture for the DEM
     [[mtl name=${PLY_MTLNAME}]]            Name of DEM OBJ and its corresponding material
     [[fault file1 file2 ...]]         Make colored mesh of gridded fault data
-    [[ocean depth(km)=${PLY_OCEANDEPTH}]]               Make ocean layer at given ocean depth
+    [[ocean]]                         Make ocean layer at given ocean depth
     [[box depth(km)=${PLY_BOXDEPTH}]]                 Draw box encompassing seismicity OR at fixed depth
     [[text depth(km) string of words ]]   Print text at center of plane defined by corner points
     [[floattext lon lat depth scale string of words]]
@@ -7899,14 +7899,20 @@ fi
     if arg_is_flag $2; then
       info_msg "[-timg]: No image given. Ignoring."
     else
-      P_IMAGE=$(abs_path ${2})
-      shift
-      if [[ $sentinelnotopoflag -eq 1 ]]; then
-        topoctrlstring="p"
+
+      if [[ ! -s ${2} ]]; then
+        echo "[-timg]: File $2 not found or is empty"
+        exit 1
       else
-        topoctrlstring=${topoctrlstring}"p"
+        P_IMAGE=$(abs_path ${2})
+        shift
+        if [[ $sentinelnotopoflag -eq 1 ]]; then
+          topoctrlstring="p"
+        else
+          topoctrlstring=${topoctrlstring}"p"
+        fi
+        useowntopoctrlflag=1
       fi
-      useowntopoctrlflag=1
     fi
     if arg_is_positive_float $2; then
       IMAGE_FACT=$2
