@@ -332,8 +332,13 @@ function tectoplot_plot_geology() {
     #   ;;
 
     globalgeo)
-      gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut.tif
-      gmt grdimage ./modules/geology/geocut.tif $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+
+      # This currently fails across the dateline
+
+      gmt grdimage ${GLOBAL_GEO} $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+
+      # gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut.tif
+      # gmt grdimage ./modules/geology/geocut.tif $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
 
       tectoplot_plot_caught=1
       ;;
