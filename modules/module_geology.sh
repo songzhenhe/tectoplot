@@ -335,10 +335,29 @@ function tectoplot_plot_geology() {
 
       # This currently fails across the dateline
 
-      gmt grdimage ${GLOBAL_GEO} $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+      if [[ $(echo "${MINLON} < -180 && ${MAXLON} > -180" | bc) -eq 1 ]]; then
+        ADJ_MINLON=$(echo "${MINLON}+360" | bc -l)
+        ADJ_MAXLON=$(echo "${MAXLON}+360" | bc -l)
 
-      # gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut.tif
-      # gmt grdimage ./modules/geology/geocut.tif $GRID_PRINT_RES -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+        gdal_translate -q -of GTiff -projwin ${ADJ_MINLON} ${MAXLAT} 180 ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut2.tif
+        gdal_translate -q -of GTiff -projwin -180 ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut3.tif
+
+        gmt grdimage ./modules/geology/geocut2.tif $GRID_PRINT_RES -Q -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+        gmt grdimage ./modules/geology/geocut3.tif $GRID_PRINT_RES -Q -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+
+      elif [[ $(echo "${MINLON} < 180 && ${MAXLON} > 180" | bc) -eq 1 ]]; then
+        ADJ_MAXLON=$(echo "${MAXLON}-360" | bc -l)
+
+        gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} 180 ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut2.tif
+        gdal_translate -q -of GTiff -projwin -180 ${MAXLAT} ${ADJ_MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut3.tif
+
+        gmt grdimage ./modules/geology/geocut2.tif $GRID_PRINT_RES -Q -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+        gmt grdimage ./modules/geology/geocut3.tif $GRID_PRINT_RES -Q -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+
+      else
+        gdal_translate -q -of GTiff -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${GLOBAL_GEO} ./modules/geology/geocut.tif
+        gmt grdimage ./modules/geology/geocut.tif $GRID_PRINT_RES -Q -t$GLOBAL_GEO_TRANS $RJOK $VERBOSE >> map.ps
+      fi
 
       tectoplot_plot_caught=1
       ;;
