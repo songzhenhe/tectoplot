@@ -14685,7 +14685,7 @@ for plot in ${plots[@]} ; do
         fi
       done
 
-      PROFILETRACKS=1
+      # PROFILETRACKS=1
       # Plot the gridtrack tracks, for debugging
       if [[ ${PROFILETRACKS} -eq 1 ]]; then
         for track_file in ${F_PROFILES}*_profiletable.txt; do
