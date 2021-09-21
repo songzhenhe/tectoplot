@@ -1228,6 +1228,28 @@ EOF
   shift && continue
 fi
   ;;
+
+  -colorblind)
+    if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-colorblind:   use colorblind-friendlier CPTs from Colorcet or other sources
+-colorblind
+
+  Seismicity:
+  Topography:
+
+Example:
+  tectoplot -colorblind
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  colorblindflag=1
+  # Do the required changes now
+    SEIS_CPT=${CPTDIR}"colorcet/CET-CBL2.cpt"
+    SEIS_CPT_INV="-I"
+  ;;
+
   -compile)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -14655,7 +14677,7 @@ for plot in ${plots[@]} ; do
           # NOTE: IT IS UNCLEAR WHETHER WE SHOULD USE psxy -A to draw straight lines or psxy [not -A] to draw
           # geodesic arcs. It will depend on what grdtrack uses...
 
-          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy -A $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
+          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
           # info_msg "is it this"
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} -Si0.1i $RJOK  >> map.ps
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} -Si0.1i $RJOK  >> map.ps
@@ -14663,7 +14685,7 @@ for plot in ${plots[@]} ; do
         fi
       done
 
-      # PLOT_PROFILETRACKS=1
+      PROFILETRACKS=1
       # Plot the gridtrack tracks, for debugging
       if [[ ${PROFILETRACKS} -eq 1 ]]; then
         for track_file in ${F_PROFILES}*_profiletable.txt; do

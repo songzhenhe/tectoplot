@@ -70,6 +70,8 @@
 # T GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
 # Grid swath profile
 # S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
+# Interpolate XYZ data onto profile and plot as colored grid
+# I XYZVFILE ZSCALE INTERPDISTANCE
 # Top grid for oblique profile
 # G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
 # Point labels
@@ -641,23 +643,33 @@ cleanup ${F_PROFILES}geodin_${LINEID}_trackfile.txt
 
     # Script to return azimuth and midpoint between a pair of input points.
     # Comes within 0.2 degrees of geod() results over large distances, while being symmetrical which geod isn't
-    # We need perfect symmetry in order to create exact point pairs in adjacent polygons
+    # We need perfect midpoint symmetry in order to create exact point pairs in adjacent polygons
 
     # Note: this calculates the NORMAL DIRECTION to the profile and not its AZIMUTH
 
-    gawk < ${F_PROFILES}geodin_${LINEID}_trackfile.txt 'function acos(x) { return atan2(sqrt(1-x*x), x) }
+    gawk < ${F_PROFILES}geodin_${LINEID}_trackfile.txt -v width="${MAXWIDTH_KM}" -v color="${COLOR}" -v lineval="${LINETOTAL}" -v folderid=${F_PROFILES} -v lineid=${LINEID} '
+        function acos(x) { return atan2(sqrt(1-x*x), x) }
         {
-            lon1 = $1*3.14159265358979/180;
-            lat1 = $2*3.14159265358979/180;
-            lon2 = $3*3.14159265358979/180;
-            lat2 = $4*3.14159265358979/180;
+            lon1 = $1*3.14159265358979/180
+            lat1 = $2*3.14159265358979/180
+            lon2 = $3*3.14159265358979/180
+            lat2 = $4*3.14159265358979/180
             Bx = cos(lat2)*cos(lon2-lon1);
             By = cos(lat2)*sin(lon2-lon1);
             latMid = atan2(sin(lat1)+sin(lat2), sqrt((cos(lat1)+Bx)*(cos(lat1)+Bx)+By*By));
             lonMid = lon1+atan2(By, cos(lat1)+Bx);
             theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
             printf "%.5f %.5f %.3f\n", lonMid*180/3.14159265358979, latMid*180/3.14159265358979, (theta*180/3.14159265358979+360-90)%360;
+            # Print the back-projection to end_points.txt
+            theta = atan2(sin(lon1-lon2)*cos(lat1), cos(lat2)*sin(lat1)-sin(lat2)*cos(lat1)*cos(lon1-lon2))
+            print $3, $4, (theta*180/3.14159265358979+180-90)%360, width, color, lineid >> "my_end_points.txt"
         }' > ${F_PROFILES}az_${LINEID}_trackfile.txt
+
+        if [[ -s my_end_points.txt ]]; then
+          tail -n 2 my_end_points.txt | head -n 1 > ${F_PROFILES}${LINEID}_end.txt
+          tail -n 2 my_end_points.txt | head -n 1 >> end_points.txt
+          rm -f my_end_points.txt
+        fi
 
     paste ${F_PROFILES}${LINEID}_trackfile.txt ${F_PROFILES}az_${LINEID}_trackfile.txt > ${F_PROFILES}jointrack_${LINEID}.txt
 
@@ -677,11 +689,11 @@ cleanup ${F_PROFILES}geodin_${LINEID}_trackfile.txt
         print $1, $2, angle, width, color, lineid >> "mid_points.txt"
         lastval=$5
       }
-      END {
-        filename=sprintf("%s%s_end.txt", folderid, lineid)
-        print $1, $2, lastval, width, color, folderid >> filename
-        print $1, $2, lastval, width, color, lineid >> "end_points.txt"
-      }
+      # END {
+      #   filename=sprintf("%s%s_end.txt", folderid, lineid)
+      #   print $1, $2, $5, width, color, folderid >> filename
+      #   print $1, $2, $5, width, color, lineid >> "end_points.txt"
+      # }
       '
 
     xoffsetflag=0
