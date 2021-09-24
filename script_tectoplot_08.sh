@@ -561,6 +561,8 @@ declare -a on_exit_move_items
   np2flag=1
   platediffvcutoffflag=1
 
+sprofnumber=0
+
 ###### The list of things to plot starts empty
 
 plots=()
@@ -3744,11 +3746,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -legend:       plot a map legend above the main map area
--legend [width_in] [[onmap]]
+-legend [width_in=${LEGEND_WIDTH}] [[onmap]] [[notext]]
 
   Plots colorbars and various map elements depending on what has been plotted on
   the map. Also printes the short data source tags of included data.
-  width_in: width of color bars
+  width_in: width of color bars, requires a unit (2.5i)
   onmap: Place the legend above the map
 
 
@@ -3759,22 +3761,25 @@ EOF
 shift && continue
 fi
     makelegendflag=1
+    legendovermapflag=0
 
-    # legend by default goes into new file
-    if [[ ${2} =~ "onmap" ]]; then
-      shift
-      legendovermapflag=1
-    else
-      legendovermapflag=0
-    fi
+    while ! arg_is_flag "${2}"; do
 
-    if arg_is_flag $2; then
-      info_msg "[-legend]: No width for color bars specified. Using $LEGEND_WIDTH"
-    else
-      LEGEND_WIDTH="${2}"
-      shift
-      info_msg "[-legend]: Legend width for color bars is $LEGEND_WIDTH"
-    fi
+      # legend by default goes into new file
+      if [[ ${2} =~ "onmap" ]]; then
+        shift
+        legendovermapflag=1
+      elif [[ ${2} =~ "notext" ]]; then
+        shift
+        legendnotextflag=1
+      elif [[ $2 == *"i" ]]; then
+        LEGEND_WIDTH="${2}"
+        shift
+      else
+        echo "[-legend]: Argument ${2} not recognized"
+        exit 1
+      fi
+    done
     ;;
 
   -litho1)
@@ -6541,6 +6546,87 @@ fi
   PROFILE_CUSTOMAXES_FLAG=1
   ;;
 
+  -tomoslice)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tomoslice:    Plot depth slice of Submachine tomography data
+-tomoslice [file]
+
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  TOMOSLICE_TRANS=0
+
+  if [[ -s "${2}" ]]; then
+    TOMOSLICEFILE=$(abs_path "${2}")
+    shift
+    plots+=("tomoslice")
+    cpts+=("tomography")
+  fi
+
+  if arg_is_positive_float "${2}"; then
+    TOMOSLICE_TRANS="${2}"
+    shift
+  fi
+
+  ;;
+
+  -tomo)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tomo:         Load Submachine tomography profile data
+-tomo [file1] [[file2]] ...
+
+  Notes: Data file needs to already have been downloaded from Submachine
+         Data file has format X Y Z V
+         Data will be added to -sprof, -aprof, etc profiles where close to lines
+
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  # Check if a file exists, if so, translate it to lon lat depth V
+  while [[ -s $2 ]]; do
+
+    gawk < $2 '
+    function sqr(x)        { return x*x                     }
+    function getpi()       { return atan2(0,-1)             }
+    function rad2deg(rad)  { return (180 / getpi()) * rad   }
+    ($1+0==$1 && $2+0==$2 && $3+0==$3) {
+      x=$1
+      y=$2
+      z=$3
+      rxy = sqrt(sqr(x)+sqr(y))
+      # print "rxy:", rxy
+      lon = rad2deg(atan2($2, $1))
+      lat = rad2deg(atan2($3, rxy))
+      val=($1*$1) + ($2*$2) + ($3*$3)
+      if (val<0) {
+        print "What:", $1, $2, $3, val
+      }
+      rxyz = sqrt(sqr(x)+sqr(y)+sqr(z))
+      depth = 6371.0 - rxyz
+
+      print lon, lat, depth, $4
+    }' >> ${TMP}tomography.txt
+
+    shift
+  done
+
+  if [[ -s ${TMP}tomography.txt ]]; then
+    tomographyflag=1
+    cpts+=("tomography")
+  fi
+
+
+
+
+  ;;
+
   -sprof) # args lon1 lat1 lon2 lat2 width res
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6551,6 +6637,9 @@ cat <<-EOF
   resolution is the along-profile sample spacing
   width and resolution is specified with a unit (e.g. 100k)
 
+  This option can be called multiple times to add several profiles.
+  The width and resolution must be specified for each profile
+
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -6560,10 +6649,11 @@ fi
     # Create a single profile across by constructing a new mprof) file with relevant data types
     # Needs some argument checking logic as too few arguments will mess things up spectacularly
     sprofflag=1
-    SPROFLON1="${2}"
-    SPROFLAT1="${3}"
-    SPROFLON2="${4}"
-    SPROFLAT2="${5}"
+    ((sprofnumber++))
+    SPROFLON1[${sprofnumber}]="${2}"
+    SPROFLAT1[${sprofnumber}]="${3}"
+    SPROFLON2[${sprofnumber}]="${4}"
+    SPROFLAT2[${sprofnumber}]="${5}"
     SPROFWIDTH="${6}"
     SPROF_RES="${7}"
     shift
@@ -8501,13 +8591,13 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-      info_msg "[-zcnoscale]:  No earthquake scale given. Using ${SEISSIZE}."
-      ZSFILLCOLOR="black"
+      info_msg "[-zcnoscale]:  No earthquake scale given. Using ${NOSCALE_SEISSIZE}."
     else
-      SEISSIZE="${2}"
+      NOSCALE_SEISSIZE="${2}"
       shift
     fi
-    SCALEEQS=0
+    # SCALEEQS=0
+    zcnoscaleflag=1
     ;;
 
   -zcrescale)
@@ -11766,6 +11856,7 @@ fi
     CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
   fi
 
+
   ##############################################################################
   # Save focal mechanisms in a psmeca+ format based on the selected format type
   # so that we can plot them with psmeca.
@@ -11921,31 +12012,17 @@ if [[ $REMOVE_DEFAULTDEPTHS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
   mv ${F_SEIS}tmp.dat ${F_SEIS}eqs.txt
 fi
 
-# Print 8 fields in case we are declustering
-if [[ $SCALEEQS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
-  [[ -e ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
-  gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+if [[ $zcnoscaleflag -eq 1 ]]; then
+  if [[ -e ${F_SEIS}eqs.txt ]]; then
+    gawk < ${F_SEIS}eqs.txt -v nssize=${NOSCALE_SEISSIZE} '{print $1, $2, $3, nssize, $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+  fi
+else
+  # Print 8 fields in case we are declustering
+  if [[ $SCALEEQS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
+    [[ -e ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
+    gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+  fi
 fi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -12720,6 +12797,10 @@ fi
 
 for cptfile in ${cpts[@]} ; do
 	case $cptfile in
+
+    tomography)
+      gmt makecpt -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
+    ;;
 
     eqtime)
 
@@ -13641,7 +13722,14 @@ for plot in ${plots[@]} ; do
 
     #  gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0
 
+    tomoslice)
 
+      gmt_init_tmpdir
+      gawk < ${TOMOSLICEFILE} '($1+0==$1){print ($1>=180)?$1-360:$1, $2, $3}' | gmt surface  -R-180/180/-90/90 -G${TMP}tomography_slice.nc -i0,1,2 -I0.5 ${VERBOSE} >/dev/null 2>&1
+      gmt_remove_tmpdir
+      gmt grdimage tomography_slice.nc -t${TOMOSLICE_TRANS} -C${F_CPTS}tomography.cpt ${RJOK} ${VERBOSE} >> map.ps
+
+    ;;
 
     caxes)
 
@@ -14601,7 +14689,10 @@ for plot in ${plots[@]} ; do
           echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
         fi
 
-
+        if [[ -s tomography.txt ]]; then
+          info_msg "Adding tomography to sprof as gridded-xyz"
+          echo "I tomography.txt ${SPROFWIDTH} -1" >> sprof.control
+        fi
         if [[ -e ${F_SEIS}eqs.txt ]]; then
           info_msg "Adding eqs to sprof as seis-xyz"
 
@@ -14612,7 +14703,12 @@ for plot in ${plots[@]} ; do
             EQWCOM="-W${EQLINEWIDTH},${EQLINECOLOR}"
           fi
 
-          echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 ${EQWCOM}" >> sprof.control
+          if [[ -s ${F_SEIS}eqs_scaled.txt ]]; then
+            echo "E ${F_SEIS}eqs_scaled.txt ${SPROFWIDTH} -1 ${EQWCOM}" >> sprof.control
+          else
+            echo "E ${F_SEIS}eqs.txt ${SPROFWIDTH} -1 ${EQWCOM}" >> sprof.control
+
+          fi
         fi
         if [[ -e ${F_CMT}cmt.dat ]]; then
           info_msg "Adding cmt to sprof"
@@ -14639,7 +14735,10 @@ for plot in ${plots[@]} ; do
           fi
         fi
         if [[ $sprofflag -eq 1 ]]; then
-          echo "P P1 black N N ${SPROFLON1} ${SPROFLAT1} ${SPROFLON2} ${SPROFLAT2}" >> sprof.control
+
+          for thissprof in $(seq 1 $sprofnumber); do
+            echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
+          done
         fi
         if [[ $cprofflag -eq 1 ]]; then
           cat ${F_PROFILES}cprof_profs.txt >> sprof.control
@@ -15258,8 +15357,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
       gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
       gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
-
-
       ;;
 
     # slab2)
@@ -16047,6 +16144,12 @@ if [[ $makelegendflag -eq 1 ]]; then
   for legend_plot in ${legendbarwords[@]} ; do
   	case $legend_plot in
 
+      tomoslice)
+        echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}tomography.cpt 0.2i 0.1i+malu -Bxa1f0.2+l\"Velocity anomaly (percent)\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
+      ;;
+
       eulerpoles)
         echo "G 0.2i" >> legendbars.txt
         echo "B ${F_CPTS}polerate.cpt 0.2i 0.1i+malu -Bxa1f0.2+l\"Rotation rate (degrees/Myr)\"" >> legendbars.txt
@@ -16507,12 +16610,16 @@ if [[ $makelegendflag -eq 1 ]]; then
     fi
   done
 
-  info_msg "Legend: printing data sources"
-  # gmt pstext tectoplot.shortplot -F+f6p,Helvetica,black $KEEPOPEN $VERBOSE >> map.ps
-  # x y fontinfo angle justify linespace parwidth parjust
-  echo "> 0 0 9p Helvetica,black 0 l 0.1i ${INCH}i l" > datasourceslegend.txt
-  uniq ${SHORTSOURCES} | gawk  'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
 
+  if [[ $legendnotextflag -ne 1 ]]; then
+    info_msg "Legend: printing data sources"
+    # gmt pstext tectoplot.shortplot -F+f6p,Helvetica,black $KEEPOPEN $VERBOSE >> map.ps
+    # x y fontinfo angle justify linespace parwidth parjust
+    echo "> 0 0 9p Helvetica,black 0 l 0.1i ${INCH}i l" > datasourceslegend.txt
+    uniq ${SHORTSOURCES} | gawk  'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
+  else
+    touch datasourceslegend.txt
+  fi
   # gmt gmtset FONT_ANNOT_PRIMARY 8p,Helvetica-bold,black
 
   # NUMLEGBAR=$(wc -l < legendbars.txt)

@@ -538,7 +538,7 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} " >> ${F_PROFILES}data_id.txt
 
   # X is an xyz dataset; E is an earthquake dataset
-  elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" ]]; then        # Found an XYZ dataset
+elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" || ${FIRSTWORD:0:1} == "I" ]]; then        # Found an XYZ dataset
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
     # This is where we would load datasets to be displayed
     FILE_P=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
@@ -558,6 +558,8 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
     # We mark the seismic data that are subject to rescaling (or any data with a scalable fourth column...)
     [[ ${FIRSTWORD:0:1} == "E" ]] && xyzscaleeqsflag[$i]=1
+    # We mark the data that we want to grid for display (tomography)
+    [[ ${FIRSTWORD:0:1} == "I" ]] && xyzgridflag[$i]=1
 
     # echo "Found a dataset to load: ${xyzfilelist[$i]}"
     # echo "Scale factor for Z units is ${xyzunitlist[$i]}"
@@ -1586,18 +1588,39 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       else
 
+        if [[ ${xyzgridflag[i]} -eq 1 && -s ${F_PROFILES}finaldist_${FNAME} ]]; then
+            info_msg "Plotting gridded XYZ data"
+            # Discover the distance and depth ranges of the projected data
+            PROJRANGE=($(xy_range ${F_PROFILES}finaldist_${FNAME}))
+            MAXXRANGE=$(echo "${PROJRANGE[1]}+100" | bc -l)
+            # Generate the tomographic image over the relevant XY range
+            # Outer core is at 2200 km depth
+            gmt surface ${F_PROFILES}finaldist_${FNAME} -R0/${MAXXRANGE}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gtomography_${FNAME}.nc -i0,1,3 -I10 ${VERBOSE} >/dev/null 2>&1
 
-        # PLOT ON THE MAP PS
-        # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
-        # We aren't actually supposed to use the -C here...
+            # PLOT ON THE MAP PS
+            echo "gmt grdimage tomography_${FNAME}.nc -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> "${PSFILE}"" >> plot.sh
 
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+            # PLOT ON THE FLAT SECTION PS
+            echo "gmt grdimage tomography_${FNAME}.nc -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
-        # PLOT ON THE FLAT SECTION PS
-        echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+            # PLOT ON THE OBLIQUE SECTION PS
+            [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage tomography_${FNAME}.nc -p -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
-        # PLOT ON THE OBLIQUE SECTION PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+            # gmt grdimage tomography.nc -Cseis
+        else
+
+          # PLOT ON THE MAP PS
+          # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} ${SEIS_INPUTORDER1} -G$COLOR ${xyzcommandlist[i]} -C$SEISDEPTH_CPT -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+          # We aren't actually supposed to use the -C here...
+
+          echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> "${PSFILE}"" >> plot.sh
+
+          # PLOT ON THE FLAT SECTION PS
+          echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+          # PLOT ON THE OBLIQUE SECTION PS
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        fi
       fi
 
       rm -f presort_${FNAME}
