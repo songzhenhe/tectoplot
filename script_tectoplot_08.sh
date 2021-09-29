@@ -8725,8 +8725,20 @@ fi
 
   zcclusterflag=1
   seisdeclusterflag=1
-  cpts+=("eqcluster")
+
+  # Replace one occurrence of seisdepth with eqtime in cpts list
+  for thiscpt_num in ${#cpts[@]}; do
+    ((thiscpt_num--))
+    if [[ ${cpts[$thiscpt_num]} =~ "seisdepth" ]]; then
+      replaceseiscptflag=1
+      cpts[$thiscpt_num]="eqcluster"
+      break
+    fi
+  done
+
+  [[ $replaceseiscptflag -eq 0 ]] && cpts+=("eqcluster")
   plots+=("eqcluster")
+
   ;;
 
   -zconland)
@@ -8799,7 +8811,22 @@ fi
       }')
     info_msg "[-zctime]: Epoch start and end times are: $COLOR_TIME_START $COLOR_TIME_END"
     zctimeflag=1
-    cpts+=("eqtime")
+
+    replaceseiscptflag=0
+
+    # Replace one occurrance of seisdepth with eqtime in cpts list
+    for thiscpt_num in ${#cpts[@]}; do
+      ((thiscpt_num--))
+      if [[ ${cpts[$thiscpt_num]} =~ "seisdepth" ]]; then
+        replaceseiscptflag=1
+        cpts[$thiscpt_num]="eqtime"
+        break
+      fi
+    done
+
+    [[ $replaceseiscptflag -eq 0 ]] && cpts+=("eqtime")
+    # legendbarwords+=("eqtime")
+    # cpts+=("eqtime")
     plots+=("eqtime")
   ;;
 
@@ -12902,13 +12929,16 @@ for cptfile in ${cpts[@]} ; do
       # Make a random color CPT
       gawk 'BEGIN {
         srand(1)
-        for(i=2;i<=20000;i++) {
+        print 1, "0/0/0", "L"
+        for(i=2;i<=100;i++) {
           print i, int(rand()*255) "/" int(rand()*255) "/" int(rand()*255), "L"
         }
-        print "B	black"
+        print "B black"
         print "F white"
         print "N 127.5"
       }' > ${F_CPTS}"eqcluster.cpt"
+
+
 
     ;;
 
@@ -15339,6 +15369,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         fi
 
         if [[ $SCALEEQS -eq 1 ]]; then
+
           # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
           [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
           gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
@@ -15927,7 +15958,6 @@ if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       SEIS_CPT=$SEISDEPTH_CPT
     fi
 
-
     if [[ $SCALEEQS -eq 1 ]]; then
       gmt_init_tmpdir
 
@@ -16164,12 +16194,27 @@ if [[ $makelegendflag -eq 1 ]]; then
 
       cmt|seis)
         # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
-        if [[ $plottedneiscptflag -eq 0 && ! $seisfillcolorflag -eq 1 ]]; then
+        if [[ $plottedneiscptflag -eq 0 && ! $seisfillcolorflag -eq 1 && $replaceseiscptflag -eq 0 ]]; then
           plottedneiscptflag=1
           echo "G 0.2i" >> legendbars.txt
           echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu+e -Bxaf+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
           barplotcount=$barplotcount+1
         fi
+        ;;
+
+      eqcluster)
+
+        # Calculate the number of clusters to display in the legend bar?
+        gawk < $SEIS_CPT '
+          ($1+0==$1 && $1 < 30) {
+            print
+          }
+          ($1+0!=$1) {
+            print
+          }' > ${F_CPTS}cluster_truncate.cpt
+        echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}cluster_truncate.cpt 0.2i 0.1i+malu+e -S+c+s -Bxa10 -B+l\"EQ cluster number\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
         ;;
 
       eqtime)
