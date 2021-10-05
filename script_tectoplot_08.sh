@@ -8659,7 +8659,6 @@ fi
         shift
       fi
       SCALEEQS=0
-      echo "SCALEEQSa=${SCALEEQS}"
       zcnoscaleflag=1
       ;;
 
@@ -10527,10 +10526,6 @@ fi
 #     mv dem180.nc ${F_TOPO}dem.nc
 #   fi
 # fi
-
-
-#COMEBACK
-echo "SCALEEQS=${SCALEEQS}"
 
 ################################################################################
 #####          Grid contours                                               #####
@@ -15435,8 +15430,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           SEIS_INPUTORDER2="-i0,1,2"
           SEIS_CPT=$SEISDEPTH_CPT
         fi
-
-        echo "seis scaleeqs is ${SCALEEQS}"
 
         if [[ $SCALEEQS -eq 1 ]]; then
 
