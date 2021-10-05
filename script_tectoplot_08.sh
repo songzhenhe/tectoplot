@@ -341,6 +341,8 @@ else
   esac
 fi
 
+# gmt gmtset GMT_AUTO_DOWNLOAD on
+
 if ! command -v ${OPENPROGRAM} &> /dev/null; then
     echo "PDF viewing command ${OPENPROGRAM} doesn't work. Setting default based on OS."
     case "$OSTYPE" in
@@ -3250,7 +3252,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -geotiff:      create a georeferenced rgb geotiff from the map document
--geotiff [resolution]
+-geotiff [[resolution]]
 
     This option will reset the map projection and region to the Cartesian
     projection required for export to GeoTIFF using gmt psconvert.
@@ -3273,8 +3275,8 @@ fi
     insideframeflag=1
     tifflag=1
 
-    if arg_is_positive_float $1; then
-      GEOTIFFRES="${1}"
+    if arg_is_positive_float $2; then
+      GEOTIFFRES="${2}"
       shift
     fi
 
@@ -6880,7 +6882,29 @@ fi
   #   fi
   #   ;;
 
+# Plot text from a file
+# lon lat font 0 justification labeltext
     -text)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-text:         Plot simple text strings at points
+-text [file] [[xoffset]] [[yoffset]]
+
+  Plots text strings in white boxes at specified locations.
+  file has columns in the format:
+    lon lat font 0 justification text strings go here
+  e.g.
+    34.0 -21.1 12p,Helvetica,black 0 ML This is a string
+  xoffset: shift all text sidways by this amount (requires unit, e.g. 0.5i)
+  yoffset: shift all text up/down by this amount (requires unit, e.g. 0.5i)
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+# -text [file] [xoff] [yoff]
     if ! arg_is_flag "${2}"; then
       TEXTFILE=$(abs_path "${2}")
       shift
@@ -6888,6 +6912,20 @@ fi
       info_msg "[-text]: text file needed as argument"
       exit
     fi
+
+    TEXTXOFF=0
+    TEXTYOFF=0
+
+    if ! arg_is_flag "${2}"; then
+      TEXTXOFF="${2}"
+      shift
+    fi
+
+    if ! arg_is_flag "${2}"; then
+      TEXTYOFF="${2}"
+      shift
+    fi
+
     plots+=("text")
     ;;
 
@@ -8017,12 +8055,14 @@ Example: TRI of Nevada, USA, UTM
 EOF
 shift && continue
 fi
+
+    echo "${@}"
     fasttopoflag=0
     if arg_is_flag $2; then
       info_msg "[-timg]: No image given. Ignoring."
     else
 
-      if [[ ! -s ${2} ]]; then
+      if [[ ! -s ${2} && "${2}" != "sentinel.tif" ]]; then
         echo "[-timg]: File $2 not found or is empty"
         exit 1
       else
@@ -8599,6 +8639,30 @@ fi
     # SCALEEQS=0
     zcnoscaleflag=1
     ;;
+
+    -zcfixsize)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zcfixsize:    earthquake/focal mechanisms have only one specified size
+-zcfixsize
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+      if arg_is_flag $2; then
+        info_msg "[-zcfixsize]:  No earthquake symbol size given. Using ${SEISSCALE}."
+      else
+        SEISSCALE="${2}"
+        shift
+      fi
+      SCALEEQS=0
+      echo "SCALEEQSa=${SCALEEQS}"
+      zcnoscaleflag=1
+      ;;
+
 
   -zcrescale)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -10463,6 +10527,10 @@ fi
 #     mv dem180.nc ${F_TOPO}dem.nc
 #   fi
 # fi
+
+
+#COMEBACK
+echo "SCALEEQS=${SCALEEQS}"
 
 ################################################################################
 #####          Grid contours                                               #####
@@ -15368,6 +15436,8 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           SEIS_CPT=$SEISDEPTH_CPT
         fi
 
+        echo "seis scaleeqs is ${SCALEEQS}"
+
         if [[ $SCALEEQS -eq 1 ]]; then
 
           # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
@@ -15439,7 +15509,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       ;;
 
     text)
-      gmt pstext ${TEXTFILE}  -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
+      gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
       # -Dj-0.05i/0.025i+v0.7p,black
     ;;
 

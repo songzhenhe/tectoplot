@@ -98,15 +98,28 @@ function tectoplot_post_seistime() {
         print mindate, maxdate, minmag-0.1, maxmag+0.1
       }'))
 
-      if [[ $zctimeflag -eq 1 ]]; then
-        SEIS_INPUTORDER="-i4,3,6,3+s0.03"
-        SEIS_CPT=${F_CPTS}"eqtime.cpt"
-      elif [[ $zcclusterflag -eq 1 ]]; then
-        SEIS_INPUTORDER="-i4,3,7,3+s0.03"
-        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      if [[ $SCALEEQS -eq 1 ]]; then
+        if [[ $zctimeflag -eq 1 ]]; then
+          SEIS_INPUTORDER="-i4,3,6,3+s0.03"
+          SEIS_CPT=${F_CPTS}"eqtime.cpt"
+        elif [[ $zcclusterflag -eq 1 ]]; then
+          SEIS_INPUTORDER="-i4,3,7,3+s0.03"
+          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+        else
+          SEIS_INPUTORDER="-i4,3,2,3+s0.03"
+          SEIS_CPT=$SEISDEPTH_CPT
+        fi
       else
-        SEIS_INPUTORDER="-i4,3,2,3+s0.03"
-        SEIS_CPT=$SEISDEPTH_CPT
+        if [[ $zctimeflag -eq 1 ]]; then
+          SEIS_INPUTORDER="-i4,3,6"
+          SEIS_CPT=${F_CPTS}"eqtime.cpt"
+        elif [[ $zcclusterflag -eq 1 ]]; then
+          SEIS_INPUTORDER="-i4,3,7"
+          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+        else
+          SEIS_INPUTORDER="-i4,3,2"
+          SEIS_CPT=$SEISDEPTH_CPT
+        fi
       fi
 
       [[ $seistimefixminx -eq 1 ]] && date_and_mag_range[0]=$seistimeminx
@@ -116,8 +129,14 @@ function tectoplot_post_seistime() {
       [[ $seistimefixmaxz -eq 1 ]] && date_and_mag_range[3]=$seistimemaxz
 
 
+      if [[ $SCALEEQS -eq 1 ]]; then
+        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
+      else
+        echo noscale
+        echo gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
+        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
+      fi
 
-      gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t40 -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} -Sc  -C${SEIS_CPT} -JX6iT/2i -Bpaf -Bx+l"Time" -By+l"Magnitude" > seistime.ps
 
       gmt psconvert seistime.ps -Tf -A+m0.5i
 
