@@ -10955,6 +10955,48 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     [[ -s ${F_SEIS}eqselected.dat ]] && cp ${F_SEIS}eqselected.dat ${F_SEIS}eqs.txt
   fi
 
+# Select seismicity based on proximity to Slab2
+
+  [[ cmtslab2filterflag -eq 1 ]] && zslab2filterflag=1 && ZSLAB2VERT=${CMTSLAB2VERT}
+
+  if [[ $zslab2filterflag -eq 1 ]]; then
+    if [[ ! $numslab2inregion -eq 0 ]]; then
+
+      # For each slab in the region
+
+      for i in $(seq 1 $numslab2inregion); do
+        echo "Sampling seismicity events on ${slab2inregion[$i]}"
+        depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+
+        # -N flag is needed in case events fall outside the domain
+        gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile ${VERBOSE} -Z -N >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
+        paste ${F_SEIS}eqs.txt ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt
+        
+        info_msg "Selecting interplate seismicity for slab ${slab2inregion[$i]}"
+        echo "ZSLAB2VERT=${ZSLAB2VERT}"
+        gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
+          function abs(v) { return (v>0)?v:-v}
+          ($(NF)!="NaN"){
+            depth=$3
+            slab2depth=(0-$(NF))     # now it is positive down, matching CMT depth
+
+            # If it is in the slab region and the depth is within the offset
+            if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff) {
+              $(NF)=""   # Destroy the last column - slab depth
+              print $0
+            }
+          }' >> ${F_SEIS}seis_nearslab.txt
+
+
+        wc -l ${F_SEIS}seis_nearslab.txt
+        #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
+        #   rm -f ./cmt_thrust_nodalplane.txt
+      done
+    fi
+    [[ -s ${F_SEIS}seis_nearslab.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_preslab2.txt && cp ${F_SEIS}seis_nearslab.txt ${F_SEIS}eqs.txt
+  fi
+
+
 
   #### Decluster seismicity using one of several available algorithms
 
@@ -11502,6 +11544,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
         # -N flag is needed in case events fall outside the domain
         gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} >> ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt
+
         paste ${CMTFILE} ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt > ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt
 
         info_msg "Selecting interplate thrust focal mechanisms: v ${CMTSLAB2VERT} / s ${CMTSLAB2STR} / d ${CMTSLAB2DIP}"
@@ -11835,7 +11878,8 @@ fi
                      (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
                      # This CMT [j] is a duplicate of the seismicity event [i]
                     printme=0
-                    mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
+                    # mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
+                    mixedid = sprintf("%s %s+%s",idcode[j],idcode[j],idcode[indd])
                     break
                 }
               }
@@ -11851,7 +11895,7 @@ fi
                 printf("%s ", printout[i]) >> "./eq_culled.txt"
               }
               printf("%s\n", printout[numf]) >> "./eq_culled.txt"
-              print mixedid >> "./eq_idcull.sed"
+              print mixedid >> "./eq_idcull.dat"
             }
           }
         }
@@ -11861,20 +11905,36 @@ fi
       [[ -s ${F_SEIS}eqs_notculled.txt ]] && cp ${F_SEIS}eqs_notculled.txt ${F_SEIS}eqs.txt
       [[ -s ./eq_culled.txt ]] && mv ./eq_culled.txt ${F_SEIS}
 
-
       after_e=$(wc -l < ${F_SEIS}eqs.txt)
 
       info_msg "Before equivalent EQ culling: $before_e events ; after culling: $after_e events."
 
       info_msg "Replacing IDs in CMT catalog with combined CMT/Seis IDs"
 
-      [[ -e ./eq_idcull.sed ]] && sed -f eq_idcull.sed ${CMTFILE} > newids.txt && CMTFILE=$(abs_path newids.txt)
+      if [[ -s ./eq_idcull.dat ]]; then
+        gawk '
+          # Populate an array with key / replacement
+          (NR==FNR) {
+            replace[$1]=$2
+          }
+          # Replace second entry with replacement if key exists
+          (NR!=FNR) {
+            if (replace[$2]!="") {
+              $2=replace[$2]
+            }
+            print $0
+          }
+        ' eq_idcull.dat ${CMTFILE} > ${F_CMT}cmt_merged_ids.txt
+        CMTFILE=$(abs_path ${F_CMT}cmt_merged_ids.txt)
+        rm -f ./eq_idcull.dat
+      fi
 
-      info_msg "Merging cluster IDs with CMT catalog"
 
   fi
 
   if [[ -s ${F_SEIS}eq_culled.txt && -s ${F_SEIS}catalog_clustered.txt && -s $CMTFILE ]]; then
+    info_msg "Merging cluster IDs with CMT catalog"
+
     # cat ${F_SEIS}catalog_clustered.txt ${F_SEIS}catalog_clustered.txt > ${F_SEIS}pre_cluster_cmt.txt
     cat ${F_SEIS}eq_culled.txt ${F_SEIS}eqs.txt > ${F_SEIS}pre_cluster_cmt.txt
     gawk '
@@ -12993,7 +13053,7 @@ for cptfile in ${cpts[@]} ; do
       gawk 'BEGIN {
         srand(1)
         print 1, "0/0/0", "L"
-        for(i=2;i<=100;i++) {
+        for(i=2;i<=20000;i++) {
           print i, int(rand()*255) "/" int(rand()*255) "/" int(rand()*255), "L"
         }
         print "B black"
@@ -15417,19 +15477,34 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
         # Potential problems include coloring on profiles, sorting, etc.
 
-        if [[ $zctimeflag -eq 1 ]]; then
-          SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
-          SEIS_INPUTORDER2="-i0,1,6"
-          SEIS_CPT=${F_CPTS}"eqtime.cpt"
-        elif [[ $zcclusterflag -eq 1 ]]; then
-          SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
-          SEIS_INPUTORDER2="-i0,1,7"
-          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+        if [[ $SCALEEQS -eq 1 ]]; then
+
+          if [[ $zctimeflag -eq 1 ]]; then
+            SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+            SEIS_INPUTORDER2="-i0,1,6"
+            SEIS_CPT=${F_CPTS}"eqtime.cpt"
+          elif [[ $zcclusterflag -eq 1 ]]; then
+            SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+            SEIS_INPUTORDER2="-i0,1,7"
+            SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+          else
+            SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+            SEIS_INPUTORDER2="-i0,1,2"
+            SEIS_CPT=$SEISDEPTH_CPT
+          fi
         else
-          SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
-          SEIS_INPUTORDER2="-i0,1,2"
-          SEIS_CPT=$SEISDEPTH_CPT
+          if [[ $zctimeflag -eq 1 ]]; then
+            SEIS_INPUTORDER="-i0,1,6"
+            SEIS_CPT=${F_CPTS}"eqtime.cpt"
+          elif [[ $zcclusterflag -eq 1 ]]; then
+            SEIS_INPUTORDER="-i0,1,7"
+            SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+          else
+            SEIS_INPUTORDER="-i0,1,2"
+            SEIS_CPT=$SEISDEPTH_CPT
+          fi
         fi
+
 
         if [[ $SCALEEQS -eq 1 ]]; then
 

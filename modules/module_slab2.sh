@@ -29,6 +29,7 @@ function tectoplot_defaults_slab2() {
 }
 
 function tectoplot_args_slab2()  {
+
   # The following line is required for all modules
   tectoplot_module_caught=0
   tectoplot_module_shift=0

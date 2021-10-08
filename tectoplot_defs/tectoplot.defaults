@@ -30,6 +30,8 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+SEIS_DEFAULTMAG=5
+
 NOSCALE_SEISSIZE=4
 
 OLDCAT_DATE="2021-08-12T00:53:36"

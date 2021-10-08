@@ -165,6 +165,21 @@ function tectoplot_legend_volcanoes() {
   esac
 }
 
-# function tectoplot_post_volcanoes() {
-#   echo "no post"
-# }
+function tectoplot_post_volcanoes() {
+
+  # If Slab2.0 is loaded and at least one slab exists, sample the slab data at volcano positions and
+  # output a file into volcanoes/
+    for i in $(seq 1 $numslab2inregion); do
+      echo "Sampling earthquake events on ${slab2inregion[$i]}"
+      depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+      strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
+      dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
+
+      [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
+
+      echo $depthfile $strikefile $dipfile
+
+      # -N flag is needed in case events fall outside the domain
+      gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
+    done
+}
