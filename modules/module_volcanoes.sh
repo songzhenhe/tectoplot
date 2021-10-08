@@ -198,9 +198,15 @@ function tectoplot_post_volcanoes() {
         gmt grdedit -L+n $depthfile
         gmt grdedit -L+n $strikefile
         gmt grdedit -L+n $dipfile
-
         # -N flag is needed in case events fall outside the domain
+
         gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
+
+        gmt grdedit -L+p $depthfile
+        gmt grdedit -L+p $strikefile
+        gmt grdedit -L+p $dipfile
+        # -N flag is needed in case events fall outside the domain
+        gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2_v2.txt
       done
     fi
 }
