@@ -19,6 +19,7 @@ function tectoplot_defaults_volcanoes() {
   SMITHVOLC=$DATAROOT"Smithsonian/GVP_4.8.8_lat_lon_elev.txt"
   WHELLEYVOLC=$DATAROOT"Smithsonian/Whelley_2015_volcanoes.txt"
   JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
+  HARISVOLC=${TECTFABRICSDIR}"HarisVolcElev.txt"
 
 }
 
@@ -88,12 +89,12 @@ function tectoplot_calculate_volcanoes()  {
       }
     }' >> ${F_VOLC}volcanoes.dat
 
-    # lon lat elevation elevation
-    cat $JAPANVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+    # lat lon elevation
+    cat $HARISVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
     @include "tectoplot_functions.awk"
     {
-      lon=$1
       lat=$2
+      lon=$1
       elev=$3
       if (minlat <= lat && lat <= maxlat) {
         if (test_lon(minlon, maxlon, lon)==1) {
@@ -101,6 +102,20 @@ function tectoplot_calculate_volcanoes()  {
         }
       }
     }' >> ${F_VOLC}volcanoes.dat
+
+    # # lon lat elevation elevation
+    # cat $JAPANVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+    # @include "tectoplot_functions.awk"
+    # {
+    #   lon=$1
+    #   lat=$2
+    #   elev=$3
+    #   if (minlat <= lat && lat <= maxlat) {
+    #     if (test_lon(minlon, maxlon, lon)==1) {
+    #       print lon, lat, elev
+    #     }
+    #   }
+    # }' >> ${F_VOLC}volcanoes.dat
 
     # Polygon select
 
@@ -169,17 +184,19 @@ function tectoplot_post_volcanoes() {
 
   # If Slab2.0 is loaded and at least one slab exists, sample the slab data at volcano positions and
   # output a file into volcanoes/
-    for i in $(seq 1 $numslab2inregion); do
-      echo "Sampling earthquake events on ${slab2inregion[$i]}"
-      depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
-      strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
-      dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
+    if [[ $numslab2inregion -gt 0 ]]; then
+      for i in $(seq 1 $numslab2inregion); do
+        echo "Sampling earthquake events on ${slab2inregion[$i]}"
+        depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
+        strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
+        dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
 
-      [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
+        [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
 
-      echo $depthfile $strikefile $dipfile
+        echo $depthfile $strikefile $dipfile
 
-      # -N flag is needed in case events fall outside the domain
-      gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
-    done
+        # -N flag is needed in case events fall outside the domain
+        gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
+      done
+    fi
 }
