@@ -390,7 +390,13 @@ EOF
 cat <<-EOF
 modules/module_gis.sh
 -smallc:       plot small circle centered on a geographic point
--smallc [lon] [lat] [radius] [[linewidth]] [[color]] [["dash"]]
+-smallc [lon] [lat] [radius] [[argid arg]] ...
+
+  argid:
+  color     Color of small circle line
+  pole      Activate plotting of pole location as point
+  stroke    Pen width (e.g. 1p)
+  dash      Activate dashed line styl
 
   Multiple calls to -smallc can be made; they will plot in map layer order.
 
@@ -417,6 +423,11 @@ EOF
 
       if arg_is_float $1; then
         SMALLCDEG[$smallcnumber]=$1
+        shift
+        ((tectoplot_module_shift++))
+      elif ! arg_is_flag $1; then
+        # If argument is not a pure number, assume it is a kilometer value
+        SMALLCDEG[$smallcnumber]=$(echo "$1 ${SMALLCLAT[$smallcnumber]}" | gawk '{print cos($2*3.14159/180)*($1+0) / 111.325}')
         shift
         ((tectoplot_module_shift++))
       fi

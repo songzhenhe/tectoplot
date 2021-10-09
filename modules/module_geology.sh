@@ -364,24 +364,34 @@ function tectoplot_plot_geology() {
 
     oceanage)
 
-      gmt grdcut ${OC_AGE} -R -J -G./modules/geology/oceanage.nc
+      gmt_init_tmpdir
+      gmt grdcut ${OC_AGE} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -G${TMP}/modules/geology/oceanage.nc
+      gmt_remove_tmpdir
 
-      zrange=($(grid_zrange ./modules/geology/oceanage.nc -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn))
+      zrange=($(grid_zrange ./modules/geology/oceanage.nc -C -Vn))
 
       # Set the range of the colorbar based on the range of the data
+
+      # GEOAGE_COLORBAR_MIN=$(gawk -v endval="${zrange[0]}" '
+      #   @include "tectoplot_functions.awk"
+      #   BEGIN {
+      #     print max(rd(endval, 10), 0)
+      #   }')
+
       GEOAGE_COLORBAR_MAX=$(gawk -v endval="${zrange[1]}" '
         @include "tectoplot_functions.awk"
         BEGIN {
           print ru(endval, 10)
         }')
 
-
       # Make a grayscale CPT from categorical and use for the intensity to show the color bars...?
       gmt makecpt -Ccategorical -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} -Z ${VERBOSE} > ${F_CPTS}categ.cpt
       clean_cpt ${F_CPTS}categ.cpt > ${F_CPTS}cleangeoage.cpt
       grayscale_cpt ${F_CPTS}cleangeoage.cpt > ${F_CPTS}geogray.cpt
 
+      echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -I+d -C${F_CPTS}geogray.cpt -t${OC_TRANS} -Q
       gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -I+d -C${F_CPTS}geogray.cpt -t${OC_TRANS} -Q $RJOK $VERBOSE >> map.ps
+      echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE
       gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE  >> map.ps
       tectoplot_plot_caught=1
       ;;
