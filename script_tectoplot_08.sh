@@ -6435,10 +6435,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seissum:      compute a moment magnitude seismic release map
--seissum [[resolution]] [[transparency]]
+-seissum [[resolution=${SSRESC}]] [[transparency]] [[uniform]]
 
   Sums the moment magnitude of catalog seismicity per grid cell.
   Usually used with -znoplot to suppress plotting of the seismicity data
+
+  resolution is in the form Xd (e.g. 0.1d)
+
+  uniform:  sum earthquake counts and not magnitudes
+
 
 Example:
   tectoplot -r US.CO -t -scale 200k C
@@ -6446,18 +6451,25 @@ Example:
 EOF
 shift && continue
 fi
-    if arg_is_flag $2; then
-      info_msg "[-seissum]: Using default resolution command ${SSRESC}"
-    else
+    if [[ "$2" =~ "d" ]]; then
       SSRESC="${2}"
       shift
-    fi
-    if arg_is_flag $2; then
-      SSTRANS="0"
     else
+      info_msg "[-seissum]: Using default resolution command ${SSRESC}"
+    fi
+
+    if arg_is_positive_float $2; then
       SSTRANS="${2}"
       shift
+    else
+      SSTRANS="0"
     fi
+
+    if [[ $2 == "uniform" ]]; then
+      SSUNIFORM=1
+      shift
+    fi
+
     plots+=("seissum")
     ;;
 
@@ -6695,17 +6707,33 @@ fi
   -sv|--slipvector) # args: filename
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--sv:           plot slip vector azimuths specified in a file (lon lat azimuth)
--sv [filename]
+-sv:           plot slip vector azimuths specified in a file (lon lat azimuth [length])
+-sv [filename] [[scale fieldnum]]
+
+  If option "scale" is given, it is followed by a field number
+    (first field is 1, default field is 4 (4th column))
+  containing length of the bar to plot
 
 Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-    plots+=("slipvecs")
     SVDATAFILE=$(abs_path $2)
     shift
+
+    if [[ $2 == "scale" ]]; then
+      plots+=("slipvecs_scale")
+      shift
+      if arg_is_positive_float $2; then
+        SVSCALEFIELD=$2
+        shift
+      else
+        SVSCALEFIELD=4
+      fi
+    else
+      plots+=("slipvecs")
+    fi
     ;;
 
   -t|--topo) # args: ID | filename { args }
@@ -10971,7 +10999,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
         # -N flag is needed in case events fall outside the domain
         gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile ${VERBOSE} -Z -N >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
         paste ${F_SEIS}eqs.txt ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt
-        
+
         info_msg "Selecting interplate seismicity for slab ${slab2inregion[$i]}"
         echo "ZSLAB2VERT=${ZSLAB2VERT}"
         gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
@@ -15521,11 +15549,22 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 			;;
 
     seissum)
+
       # Convert Mw to M0 and sum within grid nodes, then take the log10 and plot.
-      gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
-      gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
-      gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
-      gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+
+      if [[ $SSUNIFORM -eq 1 ]]; then
+        # Use a magnitude of 4 for all events
+        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 1}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
+        gmt grd2cpt -Qo -I -Cturbo ${F_SEIS}seissum.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+        gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+      else
+        # Use the true magnitude for all events
+        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
+        gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
+        gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+        gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+      fi
+
       ;;
 
     # slab2)
@@ -15574,6 +15613,13 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       info_msg "Slip vectors"
       # Plot a file containing slip vector azimuths
       gawk < ${SVDATAFILE} '($1 != "end") {print $1, $2, $3, 0.2}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
+      ;;
+
+    slipvecs_scale)
+      info_msg "Slip vectors"
+      # Plot a file containing slip vector azimuths
+      gawk < ${SVDATAFILE} -v field=${SVSCALEFIELD} '($1 != "end") {print $1, $2, $3, $(field)}'
+      gawk < ${SVDATAFILE} -v field=${SVSCALEFIELD} '($1 != "end") {print $1, $2, $3, $(field)}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
       ;;
 
     text)
@@ -16443,9 +16489,15 @@ if [[ $makelegendflag -eq 1 ]]; then
   		# 	;;
 
       seissum)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${CPTDIR}seisout.cpt 0.2i 0.1i+malu -Bxaf+l\"M0 (x10^N)\"" -W0.001 >> legendbars.txt
+        if [[ $SSUNIFORM -eq 1 ]]; then
+          echo "G 0.2i" >> legendbars.txt
+          echo "B ${F_CPTS}seissum.cpt 0.2i 0.1i+malu -Bxaf+l\"Earthquake count\"" >> legendbars.txt
+        else
+          echo "G 0.2i" >> legendbars.txt
+          echo "B ${F_CPTS}seissum.cpt 0.2i 0.1i+malu -Bxaf+l\"M0 (x10^N)\"" -W0.001 >> legendbars.txt
+        fi
         barplotcount=$barplotcount+1
+
         ;;
 
       topo)

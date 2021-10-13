@@ -1544,6 +1544,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           SEIS_CPT=${F_CPTS}"eqcluster.cpt"
         fi
 
+        echo using $SEIS_INPUTORDER1
+
 
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
           # Plotting in km instead of in map geographic coords
@@ -1567,7 +1569,12 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         fi
 
         # PLOT ON THE MAP PS
-        gawk < ${F_PROFILES}finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{$4=($4^str)/(sref^(str-1)); print}' > ${F_PROFILES}stretch_finaldist_${FNAME}
+        # gawk < ${F_PROFILES}finaldist_${FNAME} -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{$4=($4^str)/(sref^(str-1)); print}' > ${F_PROFILES}stretch_finaldist_${FNAME}
+
+        # The data is already stretched and we were stretching it again! Because I was specifying eqs.txt and
+        # not eqs_scaled.txt!!! So can probably get rid of this stretch_finaldist file.
+        cp ${F_PROFILES}finaldist_${FNAME} ${F_PROFILES}stretch_finaldist_${FNAME}
+
 
         echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> plot.sh
         echo "gmt gmtset PROJ_LENGTH_UNIT p" >> plot.sh
