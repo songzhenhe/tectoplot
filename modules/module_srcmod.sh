@@ -37,8 +37,13 @@ function tectoplot_args_srcmod()  {
     -s|--srcmod) # args: none
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--s:            plot earthquake slip data from srcmod
--s
+-s:            plot earthquake slip data from SRCMOD
+-s [[arguments]]
+
+  arguments:
+  update        Try to update SRCMOD catalog of events
+  all           Plot all events within AOI
+  *             Any other strings are used to filter events based on ID info
 
   This function has not been tested in a loooooong time!
 
@@ -190,11 +195,14 @@ function tectoplot_plot_srcmod() {
     v=($(cat srcmod_eqs.txt | tr ' ' '\n'))
     i=0
 
+    # If any earthquakes exist within the AOI, then:
     if [[ ${#v[@]} -gt 0 ]]; then
 
+      # If we are plotting all, populate the array
       if [[ $allsrcmod -eq 1 ]]; then
         responsearr=($(seq 0 $(echo "${#v[@]}-1" | bc)))
       else
+        # Otherwise, check each potential earthquake for match to a grepstring
         while [[ $i -lt ${#v[@]} ]]; do
           thiseq=$(grep "Event : " "$SRCMODFSPFOLDER"${v[$i]} | gawk -F'\t' '{print $3, $5}')
 
@@ -213,7 +221,7 @@ function tectoplot_plot_srcmod() {
           fi
           i=$(echo "$i+1" | bc)
         done
-
+        
         if [[ ${#responsearr[@]} -eq 0 ]]; then
           read -r -p "Enter earthquake ID numbers to plot, space separated (or enter all or none): " response
           if [[ $response == "all" ]]; then
@@ -225,6 +233,7 @@ function tectoplot_plot_srcmod() {
           fi
         fi
       fi
+
       # echo "array is ${responsearr[@]}"
       for thiseq in ${responsearr[@]}; do
         grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk  '{print $2, $1, $6}' > temp1.xyz
