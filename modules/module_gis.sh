@@ -244,8 +244,16 @@ EOF
 fi
     shift
     # Required arguments
-    userlinefilenumber=$(echo "$userlinefilenumber + 1" | bc -l)
-    USERLINEDATAFILE[$userlinefilenumber]=$(abs_path $1)
+
+    if [[ $1 == *kml ]]; then
+      userlinefilenumber=$(echo "$userlinefilenumber + 1" | bc -l)
+      kml_to_first_xy ${1} gis_line_${userlinefilenumber}.txt
+      USERLINEDATAFILE[$userlinefilenumber]=$(abs_path gis_line_${userlinefilenumber}.txt)
+    else
+      userlinefilenumber=$(echo "$userlinefilenumber + 1" | bc -l)
+      USERLINEDATAFILE[$userlinefilenumber]=$(abs_path $1)
+    fi
+
     shift
     ((tectoplot_module_shift++))
 
