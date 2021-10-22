@@ -1544,9 +1544,6 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           SEIS_CPT=${F_CPTS}"eqcluster.cpt"
         fi
 
-        echo using $SEIS_INPUTORDER1
-
-
         if  [[ $REMOVE_DEFAULTDEPTHS -eq 1 ]]; then
           # Plotting in km instead of in map geographic coords
           gawk < ${F_PROFILES}finaldist_${FNAME} -v defdepmag=${REMOVE_DEFAULTDEPTHS_MAXMAG} '{

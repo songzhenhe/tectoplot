@@ -186,27 +186,31 @@ function tectoplot_post_volcanoes() {
   # output a file into volcanoes/
     if [[ $numslab2inregion -gt 0 ]]; then
       for i in $(seq 1 $numslab2inregion); do
-        echo "Sampling earthquake events on ${slab2inregion[$i]}"
+        info_msg "Sampling volcanoes on ${slab2inregion[$i]}"
         depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
         strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
         dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
 
         [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
 
-        echo $depthfile $strikefile $dipfile
+        sample_grid_360 ${F_VOLC}volcanoes.dat $depthfile $strikefile $dipfile >>  ${F_VOLC}volcano_slab2.txt
 
-        gmt grdedit -L+n $depthfile
-        gmt grdedit -L+n $strikefile
-        gmt grdedit -L+n $dipfile
-        # -N flag is needed in case events fall outside the domain
-
-        gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
-
-        gmt grdedit -L+p $depthfile
-        gmt grdedit -L+p $strikefile
-        gmt grdedit -L+p $dipfile
-        # -N flag is needed in case events fall outside the domain
-        gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2_v2.txt
+        #
+        #
+        # echo $depthfile $strikefile $dipfile
+        #
+        # gmt grdedit -L+n $depthfile
+        # gmt grdedit -L+n $strikefile
+        # gmt grdedit -L+n $dipfile
+        # # -N flag is needed in case events fall outside the domain
+        #
+        # gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
+        #
+        # gmt grdedit -L+p $depthfile
+        # gmt grdedit -L+p $strikefile
+        # gmt grdedit -L+p $dipfile
+        # # -N flag is needed in case events fall outside the domain
+        # gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2_v2.txt
       done
     fi
 }

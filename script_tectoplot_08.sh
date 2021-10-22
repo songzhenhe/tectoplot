@@ -2728,7 +2728,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cdeep:        select focal mechanisms in lower plate below slab2 model
--cdeep [[buffer_distance]]
+-cdeep [[buffer_distance=${CMTSLAB2VERT}]]
 
   Buffer distance shifts the Slab2 model down (negative) or up (positive) [km]
   For this option only, buffer_distance also applies to Earth's surface so
@@ -2742,7 +2742,7 @@ shift && continue
 fi
   cmtslab2_deep_filterflag=1
   if arg_is_float $2; then
-    SLAB2_BUFFER=${2}
+    CMTSLAB2VERT=${2}
     shift
   fi
   ;;
@@ -2751,11 +2751,9 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cshallow:     select focal mechanisms in upper plate above slab2 model
--cshallow [[buffer_distance]]
+-cshallow [[buffer_distance=${CMTSLAB2VERT}]]
 
   Buffer distance shifts the Slab2 model down (negative) or up (positive) [km]
-
-
 
 Example: None
 --------------------------------------------------------------------------------
@@ -2764,7 +2762,7 @@ shift && continue
 fi
   cmtslab2_shallow_filterflag=1
   if arg_is_float $2; then
-    SLAB2_BUFFER=${2}
+    CMTSLAB2VERT=${2}
     shift
   fi
   ;;
@@ -11028,7 +11026,11 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
         depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
 
         # -N flag is needed in case events fall outside the domain
-        gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile ${VERBOSE} -Z -N >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
+        # echo gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile -Z -N \>\> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
+        # gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile -Z -N >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
+
+        sample_grid_360 ${F_SEIS}eqs.txt $depthfile >>  ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
+
         paste ${F_SEIS}eqs.txt ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt
 
         # Select interplate seismicity
@@ -11614,7 +11616,7 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   #     In case the same event is selected multiple times, only take first one
 
-  if [[ $cmtslab2filterflag -eq 1 ]]; then
+  if [[ $cmtslab2filterflag -eq 1 || $cmtslab2_deep_filterflag -eq 1 || $cmtslab2_shallow_filterflag -eq 1 ]]; then
     if [[ ! $numslab2inregion -eq 0 ]]; then
 
       # Extract the lon, lat of all focal mechanisms based on CMTTYPE
@@ -11632,194 +11634,256 @@ if [[ $calccmtflag -eq 1 ]]; then
       # For each slab in the region
 
       for i in $(seq 1 $numslab2inregion); do
-        info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+        info_msg "Sampling CMT events near plate interface of ${slab2inregion[$i]}"
         depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
         strikefile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/str/')
         dipfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dip/')
 
-        # -N flag is needed in case events fall outside the domain
-        gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} >> ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt
+        # # -N flag is needed in case events fall outside the domain
+        # gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} >> ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt
+
+        sample_grid_360 ${F_CMT}cmt_lonlat.txt $depthfile $strikefile $dipfile >>  ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt
 
         paste ${CMTFILE} ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}.txt > ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt
 
-        info_msg "Selecting interplate thrust focal mechanisms: v ${CMTSLAB2VERT} / s ${CMTSLAB2STR} / d ${CMTSLAB2DIP}"
-        touch ${F_CMT}cmt_nodalplane.txt
-        gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
-          function abs(v) { return (v>0)?v:-v}
-          {
-            slab2depth=(0-$40)     # now it is positive down, matching CMT depth
-            slab2strike=$41
-            slab2dip=$42
-            events1=$16; eventd1=$17;  # Strike and dip of nodal planes
-            events2=$19; eventd2=$20;
-            if (cmttype=="ORIGIN") {
-              lon=$8; lat=$9; depth=$10
-            } else {
-              lon=$5; lat=$6; depth=$7
-            }
-
-            # If it is in the slab region and the depth is within the offset
-            if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff)
+        # If we are looking for plate interface events
+        if [[ $cmtslab2filterflag -eq 1 ]]; then
+          info_msg "Selecting interplate thrust focal mechanisms: v ${CMTSLAB2VERT} / s ${CMTSLAB2STR} / d ${CMTSLAB2DIP}"
+          touch ${F_CMT}cmt_nodalplane.txt
+          gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
             {
-              # If the strike and dip of one nodal plane matches the slab
-              printme=0
-              if (abs(slab2strike-events1) < strikediff && (abs(slab2dip-eventd1)<dipdiff)) {
-                printme=1
-                nodalplane=1
-              } else if (abs(slab2strike-events2) < strikediff && (abs(slab2dip-eventd2)<dipdiff)) {
-                printme=1
-                nodalplane=2
+              slab2depth=(0-$40)     # now it is positive down, matching CMT depth
+              slab2strike=$41
+              slab2dip=$42
+              events1=$16; eventd1=$17;  # Strike and dip of nodal planes
+              events2=$19; eventd2=$20;
+              if (cmttype=="ORIGIN") {
+                lon=$8; lat=$9; depth=$10
+              } else {
+                lon=$5; lat=$6; depth=$7
               }
-              if (printme==1) {
+
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff)
+              {
+                # If the strike and dip of one nodal plane matches the slab
+                printme=0
+                if (abs(slab2strike-events1) < strikediff && (abs(slab2dip-eventd1)<dipdiff)) {
+                  printme=1
+                  nodalplane=1
+                } else if (abs(slab2strike-events2) < strikediff && (abs(slab2dip-eventd2)<dipdiff)) {
+                  printme=1
+                  nodalplane=2
+                }
+                if (printme==1) {
+                  $42=""
+                  $41=""
+                  $40=""
+                  print $0
+                  print nodalplane, $3, $16, vertdiff >> "./cmt_thrust_nodalplane.txt"
+                }
+              }
+            }' >> ${F_CMT}cmt_slabselected.txt
+          #   wc -l ../${F_CMT}cmt_thrust_nearslab.txt
+          #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
+          #   rm -f ./cmt_thrust_nodalplane.txt
+        fi
+        # If we are looking for shallow events
+        if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
+          gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            {
+              slab2depth=(0-$40)     # now it is positive down, matching CMT depth
+              slab2strike=$41
+              slab2dip=$42
+              events1=$16; eventd1=$17;  # Strike and dip of nodal planes
+              events2=$19; eventd2=$20;
+              if (cmttype=="ORIGIN") {
+                lon=$8; lat=$9; depth=$10
+              } else {
+                lon=$5; lat=$6; depth=$7
+              }
+
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && depth<slab2depth-vertdiff)
+              {
                 $42=""
                 $41=""
                 $40=""
                 print $0
-                print nodalplane, $3, $16, vertdiff >> "./cmt_thrust_nodalplane.txt"
               }
-            }
-          }' >> ${F_CMT}cmt_nearslab.txt
-        #   wc -l ../${F_CMT}cmt_thrust_nearslab.txt
-        #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
-        #   rm -f ./cmt_thrust_nodalplane.txt
+            }' >> ${F_CMT}cmt_slabselected.txt
+        fi
+
+        # If we are looking for deep events
+        if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
+          gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            {
+              slab2depth=(0-$40)     # now it is positive down, matching CMT depth
+              slab2strike=$41
+              slab2dip=$42
+              events1=$16; eventd1=$17;  # Strike and dip of nodal planes
+              events2=$19; eventd2=$20;
+              if (cmttype=="ORIGIN") {
+                lon=$8; lat=$9; depth=$10
+              } else {
+                lon=$5; lat=$6; depth=$7
+              }
+
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && depth>slab2depth+vertdiff)
+              {
+                $42=""
+                $41=""
+                $40=""
+                print $0
+              }
+            }' >> ${F_CMT}cmt_slabselected.txt
+        fi
       done
     fi
-    [[ -s ${F_CMT}cmt_nearslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_nearslab.txt)
+    [[ -s ${F_CMT}cmt_slabselected.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_slabselected.txt)
   fi
 
 ##### Filter to select only earthquakes NOT above a Slab2 model
-
-if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
-  if [[ ! $numslab2inregion -eq 0 ]]; then
-
-    # Extract the lon, lat of all focal mechanisms based on CMTTYPE
-
-    gawk < $CMTFILE -v cmttype=$CMTTYPE '
-      {
-        if (cmttype=="CENTROID") {
-          lon=$5; lat=$6; depth=$7;
-        } else {
-          lon=$8; lat=$9; depth=$10;
-        }
-        print lon, lat
-      }' > ${F_CMT}cmt_lonlat.txt
-
-    # For each slab in the region
-
-    for i in $(seq 1 $numslab2inregion); do
-      info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
-      ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
-    done
-
-      # -N flag is needed in case events fall outside the domain
-    gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_under_slab2_sample.txt
-
-    paste ${CMTFILE} ${F_CMT}cmt_under_slab2_sample.txt > ${F_CMT}cmt_under_slab2_sample_pasted.txt
-
-    info_msg "Selecting focal mechanisms beneath or away from slab"
-    touch ${F_CMT}cmt_nodalplane.txt
-
-    # Fields 40+ are slab depth samples.
-    # If one of them is not NaN and is less than slab2depth, exclude the
-    gawk < ${F_CMT}cmt_under_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
-      {
-          if (cmttype=="ORIGIN") {
-            lon=$8; lat=$9; depth=$10
-          } else {
-            lon=$5; lat=$6; depth=$7
-          }
-          printme=1
-          for (i=40; i<= NF; i++) {
-            # If the focal mechanism is above the slab interface (0-$(i) is positive down)
-            if (depth < (0-$(i)) - buf ) {
-              printme=0
-            }
-            # Delete the field for eventual printing
-            $(i)=""
-          }
-
-          # If it is outside the slab2 region OR is beneath the slab
-          if (printme==1)
-          {
-            print $0
-          }
-      }' >> ${F_CMT}cmt_underslab.txt
-
-
-    # Problem: if there are multiple slabs, then all mechanisms will appear
-    # because of NaN... we really want to EXCLUDE strike slip events in the
-    # UPPER PLATE.
-
-  fi
-  [[ -s ${F_CMT}cmt_underslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_underslab.txt)
-fi
+#
+# if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
+#   if [[ ! $numslab2inregion -eq 0 ]]; then
+#
+#     # Extract the lon, lat of all focal mechanisms based on CMTTYPE
+#
+#     gawk < $CMTFILE -v cmttype=$CMTTYPE '
+#       {
+#         if (cmttype=="CENTROID") {
+#           lon=$5; lat=$6; depth=$7;
+#         } else {
+#           lon=$8; lat=$9; depth=$10;
+#         }
+#         print lon, lat
+#       }' > ${F_CMT}cmt_lonlat.txt
+#
+#     # For each slab in the region
+#
+#     for i in $(seq 1 $numslab2inregion); do
+#       info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+#       ss_depthfile+=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
+#     done
+#
+#     sample_grid_360 ${F_CMT}cmt_lonlat.txt ${ss_depthfile[@]} >>  ${F_CMT}cmt_under_slab2_sample.txt
+#
+#       # -N flag is needed in case events fall outside the domain
+#     # gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_under_slab2_sample.txt
+#
+#
+#
+#     paste ${CMTFILE} ${F_CMT}cmt_under_slab2_sample.txt > ${F_CMT}cmt_under_slab2_sample_pasted.txt
+#
+#     info_msg "Selecting focal mechanisms beneath or away from slab"
+#     touch ${F_CMT}cmt_nodalplane.txt
+#
+#     # Fields 40+ are slab depth samples.
+#     # If one of them is not NaN and is less than slab2depth, exclude the
+#     gawk < ${F_CMT}cmt_under_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
+#       {
+#           if (cmttype=="ORIGIN") {
+#             lon=$8; lat=$9; depth=$10
+#           } else {
+#             lon=$5; lat=$6; depth=$7
+#           }
+#           printme=1
+#           for (i=40; i<= NF; i++) {
+#             # If the focal mechanism is above the slab interface (0-$(i) is positive down)
+#             if (depth < (0-$(i)) - buf ) {
+#               printme=0
+#             }
+#             # Delete the field for eventual printing
+#             $(i)=""
+#           }
+#
+#           # If it is outside the slab2 region OR is beneath the slab
+#           if (printme==1)
+#           {
+#             print $0
+#           }
+#       }' >> ${F_CMT}cmt_underslab.txt
+#
+#
+#     # Problem: if there are multiple slabs, then all mechanisms will appear
+#     # because of NaN... we really want to EXCLUDE strike slip events in the
+#     # UPPER PLATE.
+#
+#   fi
+#   [[ -s ${F_CMT}cmt_underslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_underslab.txt)
+# fi
 
 ##### Filter to select only earthquakes ABOVE a Slab2 model
-
-if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
-  if [[ ! $numslab2inregion -eq 0 ]]; then
-
-    # Extract the lon, lat of all focal mechanisms based on CMTTYPE
-
-    gawk < $CMTFILE -v cmttype=$CMTTYPE '
-      {
-        if (cmttype=="CENTROID") {
-          lon=$5; lat=$6; depth=$7;
-        } else {
-          lon=$8; lat=$9; depth=$10;
-        }
-        print lon, lat
-      }' > ${F_CMT}cmt_lonlat.txt
-
-    # For each slab in the region
-
-    for i in $(seq 1 $numslab2inregion); do
-      info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
-      ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
-    done
-
-      # -N flag is needed in case events fall outside the domain
-    gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_shallow_slab2_sample.txt
-
-    paste ${CMTFILE} ${F_CMT}cmt_shallow_slab2_sample.txt > ${F_CMT}cmt_shallow_slab2_sample_pasted.txt
-
-    info_msg "Selecting focal mechanisms beneath or away from slab"
-    touch ${F_CMT}cmt_nodalplane.txt
-
-    # Fields 40+ are slab depth samples.
-    # If one of them is not NaN and is less than slab2depth, exclude the
-    gawk < ${F_CMT}cmt_shallow_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
-      {
-          if (cmttype=="ORIGIN") {
-            lon=$8; lat=$9; depth=$10
-          } else {
-            lon=$5; lat=$6; depth=$7
-          }
-          printme=0
-          for (i=40; i<= NF; i++) {
-            # Select if the focal mechanism is above a slab interface (0-$(i) is positive down)
-            if ($(i) != "NaN" && depth < (0-$(i)) - buf ) {
-              printme=1
-            }
-            # Delete the field for eventual printing
-            $(i)=""
-          }
-
-          # If it is outside the slab2 region OR is beneath the slab
-          if (printme==1)
-          {
-            print $0
-          }
-      }' >> ${F_CMT}cmt_aboveslab.txt
-
-
-    # Problem: if there are multiple slabs, then all mechanisms will appear
-    # because of NaN... we really want to EXCLUDE strike slip events in the
-    # UPPER PLATE.
-
-  fi
-  [[ -s ${F_CMT}cmt_aboveslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_aboveslab.txt)
-fi
+#
+# if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
+#   if [[ ! $numslab2inregion -eq 0 ]]; then
+#
+#     # Extract the lon, lat of all focal mechanisms based on CMTTYPE
+#
+#     gawk < $CMTFILE -v cmttype=$CMTTYPE '
+#       {
+#         if (cmttype=="CENTROID") {
+#           lon=$5; lat=$6; depth=$7;
+#         } else {
+#           lon=$8; lat=$9; depth=$10;
+#         }
+#         print lon, lat
+#       }' > ${F_CMT}cmt_lonlat.txt
+#
+#     # For each slab in the region
+#
+#     for i in $(seq 1 $numslab2inregion); do
+#       info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
+#       ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
+#     done
+#
+#       # -N flag is needed in case events fall outside the domain
+#     gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_shallow_slab2_sample.txt
+#
+#     paste ${CMTFILE} ${F_CMT}cmt_shallow_slab2_sample.txt > ${F_CMT}cmt_shallow_slab2_sample_pasted.txt
+#
+#     info_msg "Selecting focal mechanisms beneath or away from slab"
+#     touch ${F_CMT}cmt_nodalplane.txt
+#
+#     # Fields 40+ are slab depth samples.
+#     # If one of them is not NaN and is less than slab2depth, exclude the
+#     gawk < ${F_CMT}cmt_shallow_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
+#       {
+#           if (cmttype=="ORIGIN") {
+#             lon=$8; lat=$9; depth=$10
+#           } else {
+#             lon=$5; lat=$6; depth=$7
+#           }
+#           printme=0
+#           for (i=40; i<= NF; i++) {
+#             # Select if the focal mechanism is above a slab interface (0-$(i) is positive down)
+#             if ($(i) != "NaN" && depth < (0-$(i)) - buf ) {
+#               printme=1
+#             }
+#             # Delete the field for eventual printing
+#             $(i)=""
+#           }
+#
+#           # If it is outside the slab2 region OR is beneath the slab
+#           if (printme==1)
+#           {
+#             print $0
+#           }
+#       }' >> ${F_CMT}cmt_aboveslab.txt
+#
+#
+#     # Problem: if there are multiple slabs, then all mechanisms will appear
+#     # because of NaN... we really want to EXCLUDE strike slip events in the
+#     # UPPER PLATE.
+#
+#   fi
+#   [[ -s ${F_CMT}cmt_aboveslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_aboveslab.txt)
+# fi
 
 # Backtilt focal mechanisms based on Slab2 strike and dip.
 

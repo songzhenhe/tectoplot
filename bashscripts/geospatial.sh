@@ -171,3 +171,100 @@ function kml_to_points() {
     }' > "${2}"
     rm -f ./tectoplot_tmp.gmt
 }
+
+# Sample one or more grids at point locations using gmt grdtrack, accounting
+# for the possibility that the grid is in an incorrect 360 degree range.
+
+# sample_grid_360 points_file grid1 grid2 ... gridN
+
+# Output is piped to stdout
+
+function sample_grid_360() {
+  local gridlist
+  num_args=${#@}
+
+  points_file=$1
+  shift
+
+  rm -f collated.tmp
+
+  while [[ ${#@} -gt 0 ]]; do
+    grid_file=$1
+    shift
+
+    gmt grdtrack $points_file -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+
+    # Check whether we just got NaNs
+
+    shouldredo=$(gawk < output.tmp '
+      BEGIN {
+        redo=1
+      }
+      ($(NF) != "NaN") {
+        redo=0
+        exit
+      }
+      END {
+        print redo
+      }
+    ')
+
+    if [[ $shouldredo -eq 1 ]]; then
+      gawk < $points_file '
+      {
+        $1=$1+360
+        print $0
+      }' > newfile.txt
+
+      gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+
+      shouldredo=$(gawk < output.tmp '
+        BEGIN {
+          redo=1
+        }
+        ($(NF) != "NaN") {
+          redo=0
+          exit
+        }
+        END {
+          print redo
+        }
+      ')
+
+      if [[ $shouldredo -eq 1 ]]; then
+        gawk < $points_file '
+        {
+          $1=$1-360
+          print $0
+        }' > newfile.txt
+
+        gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+
+        shouldredo=$(gawk < output.tmp '
+          BEGIN {
+            redo=1
+          }
+          ($(NF) != "NaN") {
+            redo=0
+            exit
+          }
+          END {
+            print redo
+          }
+        ')
+
+        if [[ $shouldredo -eq 1 ]]; then
+          echo "Warning: Could not sample Slab2 with input points... all NaN in output."
+        fi
+      fi
+    fi
+    if [[ -s collated.tmp ]]; then
+      paste collated.tmp output.tmp > collated_new.tmp
+      mv collated_new.tmp collated.tmp
+    else
+      mv output.tmp collated.tmp
+    fi
+  done
+  cat collated.tmp
+  rm -f collated.tmp output.tmp collated_new.tmp
+}
