@@ -18,12 +18,13 @@ function tectoplot_defaults_srcmod() {
 
   ################################################################################
   ### SRCMOD slip distributions
-  SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
+  SLIPMINIMUM=1                # SRCMOD minimum slip that is colored (m)
   SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
   SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)
 
   SLIPRESOL=300
   SRCMOD_TRANS=40
+  SRCMOD_NOGRID=0
 }
 
 function tectoplot_args_srcmod()  {
@@ -43,6 +44,7 @@ cat <<-EOF
   arguments:
   update        Try to update SRCMOD catalog of events
   all           Plot all events within AOI
+  nogrid        Only plot slip contours
   *             Any other strings are used to filter events based on ID info
 
   This function has not been tested in a loooooong time!
@@ -67,6 +69,11 @@ EOF
           allsrcmod=1
           shift
           ((tectoplot_module_shift++))
+          ;;
+        nogrid)
+          shift
+          ((tectoplot_module_shift++))
+          SRCMOD_NOGRID=1
           ;;
         *)
           # Assume this is a grep target
@@ -142,7 +149,7 @@ function tectoplot_calculate_srcmod()  {
 function tectoplot_cpt_srcmod() {
   touch $FAULTSLIP_CPT
   FAULTSLIP_CPT=$(abs_path $FAULTSLIP_CPT)
-  gmt makecpt -Chot -I -Do -T$SLIPMINIMUM/$SLIPMAXIMUM/0.1 -N $VERBOSE > $FAULTSLIP_CPT
+  gmt makecpt -Chot -I -Do -T0/$SLIPMAXIMUM/0.1 -N $VERBOSE > $FAULTSLIP_CPT
 }
 
 function tectoplot_plot_srcmod() {
@@ -221,7 +228,7 @@ function tectoplot_plot_srcmod() {
           fi
           i=$(echo "$i+1" | bc)
         done
-        
+
         if [[ ${#responsearr[@]} -eq 0 ]]; then
           read -r -p "Enter earthquake ID numbers to plot, space separated (or enter all or none): " response
           if [[ $response == "all" ]]; then
@@ -238,11 +245,14 @@ function tectoplot_plot_srcmod() {
       for thiseq in ${responsearr[@]}; do
         grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk  '{print $2, $1, $6}' > temp1.xyz
         gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
-        gmt triangulate temp.xyz -I"$LONKM"k -Gtemp.nc -R $VERBOSE
-        gmt grdmath $VERBOSE temp.nc $SLIPMINIMUM LE 1 NAN = mask.grd
+        gmt triangulate temp.xyz -I"$LONKM"k -Gtemp2.nc -R $VERBOSE
+        gmt surface temp.xyz -I"$LONKM"k -Ll0 -Gtemp.nc -R $VERBOSE
+        gmt grdmath $VERBOSE temp2.nc $SLIPMINIMUM LE 1 NAN = mask.grd
         gmt grdmath $VERBOSE temp.nc mask.grd OR = slipfinal.grd
-        gmt grdimage slipfinal.grd -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -J -O -K $VERBOSE >> map.ps
-        gmt grdcontour slipfinal.grd -S3 -C$SLIPCONTOURINTERVAL $RJOK $VERBOSE >> map.ps
+        if [[ $SRCMOD_NOGRID -eq 0 ]]; then
+          gmt grdimage slipfinal.grd -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -J -O -K $VERBOSE >> map.ps
+        fi
+        gmt grdcontour slipfinal.grd -A5 -S3 -C$SLIPCONTOURINTERVAL $RJOK $VERBOSE >> map.ps
       done
 
       # Leftovers from the old 'fused' style
@@ -270,9 +280,9 @@ function tectoplot_plot_srcmod() {
 function tectoplot_legendbar_srcmod() {
   case $1 in
     srcmod)
-      # echo "G 0.2i" >> legendbars.txt
-      # echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
-      # barplotcount=$barplotcount+1
+      echo "G 0.2i" >> legendbars.txt
+      echo "B $FAULTSLIP_CPT 0.2i 0.1i+malu -Bxa5f1+l\"Slip (nT)\"" >> legendbars.txt
+      barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;
   esac

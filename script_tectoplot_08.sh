@@ -3176,12 +3176,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gadd:         plot custom gps velocity file in gmt psvelo format
--gadd [velocityFile]
+-gadd [velocityFile] [[color colorID=$EXTRAGPS_FILLCOLOR]]
 
-  GPS velocities are plotted with a fixed color (pink?) and the reference frame
+  GPS velocities are plotted with filled arrows. The reference frame
   is assumed to be correct for the given map.
-  psvelo format is:
+
+  This command can be called multiple times
+
+  NOTE: psvelo format is:
   lon lat VE VN SVE SVN XYCOR SITEID INFO
+
 Example: Plot a hypothetical plate velocity in Turkey
   echo "39 39 -45 45 1 1 0.1 KEB Fake-GPS" > gps.dat
   tectoplot -r TR -t -p MORVEL -pe -pl -pf 100 -g eu -gadd gps.dat
@@ -3190,14 +3194,8 @@ Example: Plot a hypothetical plate velocity in Turkey
 EOF
 shift && continue
 fi
-    # if arg_is_flag $2; then
-    #   info_msg "[-gadd]: No extra GPS file given. Exiting"
-    #   exit 1
-    # else
-    #   EXTRAGPS=$(abs_path $2)
-    #   info_msg "[-gadd]: Plotting GPS velocities from $EXTRAGPS"
-    #   shift
-    # fi
+
+
 
     # Required arguments
     usergpsfilenumber=$(echo "$usergpsfilenumber + 1" | bc -l)
@@ -3208,17 +3206,30 @@ fi
       exit 1
     fi
     # Optional arguments
-    # Look for symbol code
-    if arg_is_flag $2; then
-      info_msg "[-gadd]: No color specified. Using $USERGPSCOLOR."
-      USERGPSCOLOR_arr[$usergpsfilenumber]=$EXTRAGPS_FILLCOLOR
-    else
-      USERGPSCOLOR_arr[$usergpsfilenumber]="${2}"
-      shift
-      info_msg "[-li]: User line color specified. Using ${USERGPSCOLOR_arr[$usergpsfilenumber]}."
-    fi
 
-    info_msg "[-gadd]: GPS ${usergpsfilenumber}: ${USERGPSDATAFILE[$usergpsfilenumber]}"
+    USERGPSCOLOR_arr[$usergpsfilenumber]=$EXTRAGPS_FILLCOLOR
+    USERGPSLOG_arr[$usergpsfilenumber]=0
+
+    # Look for other arguments
+    while ! arg_is_flag $2; do
+      case $2 in
+        color)
+          shift
+          if ! arg_is_flag $2; then
+            info_msg "[-gadd]: Using color ${2}."
+            USERGPSCOLOR_arr[$usergpsfilenumber]="${2}"
+            shift
+          else
+            info_msg "[-gadd]: color command should be followd by a color"
+          fi
+        ;;
+        log)
+          shift
+          USERGPSLOG_arr[$usergpsfilenumber]=1
+        ;;
+      esac
+    done
+
     plots+=("extragps")
 
     ;;
@@ -6722,6 +6733,11 @@ fi
     SVDATAFILE=$(abs_path $2)
     shift
 
+    if [[ ! -s $SVDATAFILE ]]; then
+      echo "-s: data file $SVDATAFILE is empty or missing"
+      exit 1
+    fi
+
     if [[ $2 == "scale" ]]; then
       plots+=("slipvecs_scale")
       shift
@@ -8672,7 +8688,9 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcfixsize:    earthquake/focal mechanisms have only one specified size
--zcfixsize
+-zcfixsize [[size=${SEISSCALE}]]
+
+  Size has unit, e.g. 0.01i
 
 Example: None
 --------------------------------------------------------------------------------
@@ -10838,8 +10856,14 @@ if [[ $plotseis -eq 1 ]]; then
     # We keep the first event, so prioritization is by order of specified catalogs
 if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     info_msg "Culling multiple input seismic catalogs..."
+
+    # Copy the extracted catalog to the precull catalog
     cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_precull.txt
+
+    # Find the number of events in the precull catalog
     num_eqs_precull=$(wc -l < ${F_SEIS}eqs_precull.txt | tr -d ' ')
+
+    # Do the culling. n=
     gawk < ${F_SEIS}eqs_precull.txt -v n=${num_eqs_precull} '
     @include "tectoplot_functions.awk"
     BEGIN {
@@ -10852,9 +10876,10 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     (NR <= n) {
       data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)"\x99"NR
     }
-    (NR > n) {
-      data[NR]=$5"\x99"$0"\x99"0"\x99"iso8601_to_epoch($5)"\x99"NR
-    }
+    # (NR > n) {
+    #   data[NR]=$5"\x99"$0"\x99"0"\x99"iso8601_to_epoch($5)"\x99"NR
+    #   print "Event", NR, "is not imported" > "/dev/stderr"
+    # }
     END {
       asort(data)
       for(i=1;i<=NR;i++)
@@ -10884,6 +10909,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
           # Check only the 10 closest events in time
         for(j=i-5;j<=i+5;++j)
         {
+          # is_imported[] is no longer used and should be removed
           if (j>=1 && j<=NR && j != i && is_imported[j] == 1)
           {
             if ((abs(epoch[i]-epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff) && (linenumber[i] > linenumber[j]) )
@@ -10900,8 +10926,9 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
           print event[i]
         }
       }
-    }' > ${F_SEIS}eqs.txt
+    }' > ${F_SEIS}eqs_culled.txt
     [[ -s culled_seismicity.txt ]] && mv culled_seismicity.txt ${F_SEIS}
+    [[ -s ${F_SEIS}eqs_culled.txt ]] && cp ${F_SEIS}eqs_culled.txt ${F_SEIS}eqs.txt
 
     num_after_cull=$(wc -l < ${F_SEIS}eqs.txt | tr -d ' ')
     info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
@@ -10909,13 +10936,16 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
 
   # Secondary select of combined seismicity using the actual AOI polygon which
   # may differ from the lat/lon box.
+  #
+  # # In most cases this won't be necessary so maybe we should move into if-fi above?
+  # info_msg "Selecting seismicity within AOI polygon"
+  # # This command is screwing up some fields in the output file. WHY???
 
-  # In most cases this won't be necessary so maybe we should move into if-fi above?
-  info_msg "Selecting seismicity within AOI polygon"
-  if [[ -s ${F_SEIS}eqs.txt ]]; then
-    mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
-    gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-  fi
+
+  # if [[ -s ${F_SEIS}eqs.txt ]]; then
+  #   mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
+  #   gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+  # fi
 
   # Alternative method using the bounding box which really doesn't work with global extents
   # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
@@ -10926,7 +10956,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   # Select seismicity that falls within a specified polygon.
 
   if [[ $polygonselectflag -eq 1 ]]; then
-    info_msg "Selecting seismicity within speficied AOI polygon ${POLYGONAOI}"
+    info_msg "Selecting seismicity within specified AOI polygon ${POLYGONAOI}"
     mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
     gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
     # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
@@ -10984,44 +11014,75 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   fi
 
 # Select seismicity based on proximity to Slab2
+  ZSLAB2VERT=${CMTSLAB2VERT}
+  [[ $cmtslab2filterflag -eq 1 ]] && zslab2filterflag=1
+  [[ $cmtslab2_shallow_filterflag -eq 1 ]] && zslab2_shallow_filterflag=1
+  [[ $cmtslab2_deep_filterflag -eq 1 ]] && zslab2_deep_filterflag=1
 
-  [[ cmtslab2filterflag -eq 1 ]] && zslab2filterflag=1 && ZSLAB2VERT=${CMTSLAB2VERT}
-
-  if [[ $zslab2filterflag -eq 1 ]]; then
+  if [[ $zslab2filterflag -eq 1 || $zslab2_shallow_filterflag -eq 1 || $zslab2_deep_filterflag -eq 1 ]]; then
     if [[ ! $numslab2inregion -eq 0 ]]; then
 
       # For each slab in the region
 
       for i in $(seq 1 $numslab2inregion); do
-        echo "Sampling seismicity events on ${slab2inregion[$i]}"
         depthfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
 
         # -N flag is needed in case events fall outside the domain
         gmt grdtrack ${F_SEIS}eqs.txt -G$depthfile ${VERBOSE} -Z -N >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt
         paste ${F_SEIS}eqs.txt ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}_pre.txt >> ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt
 
-        info_msg "Selecting interplate seismicity for slab ${slab2inregion[$i]}"
-        echo "ZSLAB2VERT=${ZSLAB2VERT}"
-        gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
-          function abs(v) { return (v>0)?v:-v}
-          ($(NF)!="NaN"){
-            depth=$3
-            slab2depth=(0-$(NF))     # now it is positive down, matching CMT depth
+        # Select interplate seismicity
+        if [[ $zslab2filterflag -eq 1 ]]; then
+          info_msg "Selecting interplate seismicity for slab ${slab2inregion[$i]}"
+          gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            ($(NF)!="NaN"){
+              depth=$3
+              slab2depth=(0-$(NF))     # now it is positive down, matching EQ depth
 
-            # If it is in the slab region and the depth is within the offset
-            if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff) {
-              $(NF)=""   # Destroy the last column - slab depth
-              print $0
-            }
-          }' >> ${F_SEIS}seis_nearslab.txt
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff) {
+                $(NF)=""   # Destroy the last column - slab depth
+                print $0
+              }
+            }' >> ${F_SEIS}seis_slabselect.txt
+        fi
+        # Select seismicity above plate interface
+        if [[ $zslab2_shallow_filterflag -eq 1 ]]; then
+          info_msg "Selecting interplate seismicity above plate interface for slab ${slab2inregion[$i]}"
+          gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            ($(NF)!="NaN"){
+              depth=$3
+              slab2depth=(0-$(NF))     # now it is positive down, matching earthquake depth
 
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && slab2depth-depth>vertdiff) {
+                $(NF)=""   # Destroy the last column - slab depth
+                print $0
+              }
+            }' >> ${F_SEIS}seis_slabselect.txt
+        fi
 
-        wc -l ${F_SEIS}seis_nearslab.txt
-        #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
-        #   rm -f ./cmt_thrust_nodalplane.txt
+        if [[ $zslab2_deep_filterflag -eq 1 ]]; then
+          info_msg "Selecting interplate seismicity below plate interface for ${slab2inregion[$i]}"
+          gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
+            function abs(v) { return (v>0)?v:-v}
+            ($(NF)!="NaN"){
+              depth=$3
+              slab2depth=(0-$(NF))     # now it is positive down, matching earthquake depth
+
+              # If it is in the slab region and the depth is within the offset
+              if (slab2depth != "NaN" && depth-slab2depth>vertdiff) {
+                $(NF)=""   # Destroy the last column - slab depth
+                print $0
+              }
+            }' >> ${F_SEIS}seis_slabselect.txt
+        fi
+
       done
     fi
-    [[ -s ${F_SEIS}seis_nearslab.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_preslab2.txt && cp ${F_SEIS}seis_nearslab.txt ${F_SEIS}eqs.txt
+    [[ -s ${F_SEIS}seis_slabselect.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_preslab2.txt && cp ${F_SEIS}seis_slabselect.txt ${F_SEIS}eqs.txt
   fi
 
 
@@ -11545,8 +11606,14 @@ if [[ $calccmtflag -eq 1 ]]; then
 
   ##### Select focal mechanisms based on SLAB2 interface
 
-  ##### Filter GMT format thrust CMTs based on proximity to Slab2 surface
+
+
+
+  ##### Filter GMT format thrust CMTs based on proximity to Slab2 surface and
+  #     consistency of at least one nodal plane with the fault surface
+
   #     In case the same event is selected multiple times, only take first one
+
   if [[ $cmtslab2filterflag -eq 1 ]]; then
     if [[ ! $numslab2inregion -eq 0 ]]; then
 
@@ -13012,8 +13079,10 @@ for cptfile in ${cpts[@]} ; do
         {
           if ($1=="B") {
             print oldstr, ";", substr(timeend,1,endstr_end)
-            print
           } else if ($1+0 != $1) {
+            if ($2=="white") {
+              $2="gray"
+            }
             print
           } else {
             if (NR!=1) {
@@ -13026,6 +13095,7 @@ for cptfile in ${cpts[@]} ; do
             oldstr=$0
           }
         }' > ${F_CPTS}"eqtime.cpt"
+
         # echo gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE}
         gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
           BEGIN {
@@ -13060,6 +13130,9 @@ for cptfile in ${cpts[@]} ; do
               print oldstr, ";", substr(timeend,1,endstr_end)
               print
             } else if ($1+0 != $1) {
+              if ($2=="white") {
+                $2="gray"
+              }
               print
             } else {
               if (NR!=1) {
@@ -14422,7 +14495,18 @@ for plot in ${plots[@]} ; do
     extragps)
 
       # info_msg "Plotting extra GPS dataset ${USERGPSDATAFILE[$current_userlinefilenumber]}"
-      gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      # if [[ ${USERGPSLOG_arr[$current_usergpsfilenumber]} -eq 1 ]]; then
+      #   # gawk < ${USERGPSDATAFILE[$current_usergpsfilenumber]} '
+      #   #   function abs(x) { return (x>0)?x:-x }
+      #   #   function sign(x) { return (x>1)?1:-1 }
+      #   #   {
+      #   #     print $1, $2, sign($3)*log(abs($3)), sign($4)*log(abs($4)), sign($5)*log(abs($5)), sign($6)*log(abs($6)), $7
+      #   #   }
+      #   #   '
+      #   #   # | gmt psvelo  -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      # else
+        gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      # fi
       # Generate XY data for reference
       # gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${USERGPSDATAFILE[$current_userlinefilenumber]} > ${F_GPS}extragps_${$current_usergpsfilenumber}.xy.txt
 
@@ -15618,7 +15702,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
     slipvecs_scale)
       info_msg "Slip vectors"
       # Plot a file containing slip vector azimuths
-      gawk < ${SVDATAFILE} -v field=${SVSCALEFIELD} '($1 != "end") {print $1, $2, $3, $(field)}'
       gawk < ${SVDATAFILE} -v field=${SVSCALEFIELD} '($1 != "end") {print $1, $2, $3, $(field)}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
       ;;
 

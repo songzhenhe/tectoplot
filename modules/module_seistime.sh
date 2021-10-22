@@ -95,6 +95,7 @@ fi
         ;;
       esac
     done
+    doseistimeflag=1
     tectoplot_module_caught=1
 
     ;;
@@ -167,11 +168,10 @@ function tectoplot_post_seistime() {
       [[ $seistimefixminz -eq 1 ]] && date_and_mag_range[2]=$seistimeminz
       [[ $seistimefixmaxz -eq 1 ]] && date_and_mag_range[3]=$seistimemaxz
 
-
       if [[ $SCALEEQS -eq 1 ]]; then
-        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} -K > seistime.ps
+        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} ${VERBOSE} -K > seistime.ps
       else
-        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} -K > seistime.ps
+        gmt psxy ${F_SEIS}eqs.txt ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} -K ${VERBOSE} > seistime.ps
       fi
 
       gmt psbasemap -R -J -Bpaf -BtrSW -Bx+l"Date" -By+l"Magnitude" -O --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p >>  seistime.ps
