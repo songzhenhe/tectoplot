@@ -12322,6 +12322,31 @@ if [[ $plotplates -eq 1 ]]; then
   # This step FAILS to select plates on the other side of the dateline...
   gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_a.txt
 
+  # Some cases will fail with the Antarctica plate being included but only along the lower
+  # edge of the map, messing up everything.
+
+  # THIS NEEDS TO BE ACTUALLY SOLVED - THIS IS CURRENTLY A HACK THAT REMOVES an FROM ALL MODELS!
+
+  gawk < ${F_PLATES}map_plates_clip_a.txt -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+  BEGIN {
+    dontprint=0
+  }
+  ($1 == ">") {
+    if (substr($2,1,2) == "an") {
+      dontprint=1
+    } else {
+      dontprint=0
+    }
+  }
+  {
+    if (dontprint==0) {
+      print
+    }
+  }' > stripan.txt
+  mv stripan.txt ${F_PLATES}map_plates_clip_a.txt
+
+
+
   # Stupid tests for longitude range because gmt spatial has problem cutting everywhere
   if [[ $(echo "$MINLON < -180 && $MAXLON > -180" | bc) -eq 1 ]]; then
     echo "Also cutting on other side of dateline neg:"
