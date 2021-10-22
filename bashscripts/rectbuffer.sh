@@ -39,6 +39,18 @@
 # Input: polyline.xy buffer_dist(km)
 # Output: buffer.xy
 
+function tecto_tac() {
+  gawk '{
+    data[NR]=$0
+  }
+  END {
+    num=NR
+    for(i=num;i>=1;i--) {
+      print data[i]
+    }
+  }' "$@"
+}
+
 # Track file is lon lat whitespace delimited columns
 TRACK=$1
 [[ ! -e $TRACK ]] && exit 1
@@ -106,5 +118,5 @@ while read d; do
 done < az_trackfile.txt
 
 # Create and close the polygon
-tail -r rectbuf_back.txt >> track_buffer.txt
+tecto_tac rectbuf_back.txt >> track_buffer.txt
 head -n 1 track_buffer.txt >> track_buffer.txt
