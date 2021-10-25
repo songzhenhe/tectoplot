@@ -2560,7 +2560,7 @@ chmod a+x ./plot_flat_profiles.sh
 ./plot_flat_profiles.sh $min_z $max_z
 
 # FOR THE OBLIQUE SECTIONS
-if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
+if [[ $MAKE_OBLIQUE_PROFILES -eq 1 ]]; then
    chmod a+x ./plot_oblique_profiles.sh
    ./plot_oblique_profiles.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC} ${PERSPECTIVE_EXAG}
 fi

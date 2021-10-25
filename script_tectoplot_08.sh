@@ -3881,6 +3881,9 @@ cat <<-EOF
 
   Outputs: Profile PDFS are stored in ${TMP}/profiles/*.pdf
 
+  If -showprof is used, place oblique profiles onto the map document instead
+  of the flat profiles.
+
 Example: Make oblique perspective cross section the Eastern Mediterranean
   tectoplot -r 21 37 23 39 -t -aprof LT 10k 1k -litho1 Vp -mob -profdepth -30 5
 --------------------------------------------------------------------------------
@@ -3889,6 +3892,8 @@ shift && continue
 fi
     clipdemflag=1
     PLOT_SECTIONS_PROFILEFLAG=1
+    MAKE_OBLIQUE_PROFILES=1
+
     if arg_is_flag $2; then
       if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+$ || $2 =~ ^[-+]?[0-9]+$ ]]; then
         PERSPECTIVE_AZ="${2}"
@@ -10846,12 +10851,12 @@ if [[ $plotseis -eq 1 ]]; then
   fi
 
 
-    # Cull the combined catalogs by removing global events that fall within a
-    # specified space-time-magnitude window of an event in the custom catalog
+    # Cull the combined catalogs by removing equivalent events based on a
+    # specified space-time-magnitude window, keeping first-specified catalog
+
 [[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
 [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
 
-    # We keep the first event, so prioritization is by order of specified catalogs
 if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     info_msg "Culling multiple input seismic catalogs..."
 
@@ -14241,15 +14246,6 @@ for plot in ${plots[@]} ; do
       fi
       ;;
 
-#     coasts)
-#       info_msg "Plotting coastlines"
-#
-#       gmt pscoast $COAST_QUALITY ${RIVER_COMMAND} -W1/$COAST_LINEWIDTH,$COAST_LINECOLOR -W2/$LAKE_LINEWIDTH,$LAKE_LINECOLOR $FILLCOASTS -A$COAST_KM2 $RJOK $VERBOSE >> map.ps
-#
-# #      gmt pscoast $COAST_QUALITY -W1/$COAST_LINEWIDTH,$COAST_LINECOLOR $FILLCOASTS -A$COAST_KM2 $RJOK $VERBOSE >> map.ps
-#       # [[ $coastplotbordersflag -eq 1 ]] &&
-#       ;;
-
     contours)
       # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
       AFLAG=-A$TOPOCONTOURINT
@@ -14691,15 +14687,8 @@ for plot in ${plots[@]} ; do
 
         ;;
 
-
-
       esac
-    # FE_SEISMIC_ZONES=${FE_DIR}"flinn_engdahl_seismic_regions.gmt"
-    # FE_SEISMIC_LABELS=${FE_DIR}"flinn_engdahl_seismic_regions_labels.txt"
-    # FE_REGION_ZONES=${FE_DIR}"flinn_engdahl_geographic_regions.gmt"
-    # FE_REGION_LABELS=${FE_DIR}"flinn_engdahl_geographic_regions_labels.txt"
       ;;
-
 
     gebcotid)
       gmt makecpt -Ccategorical -T1/100/1 ${VERBOSE} > ${F_CPTS}gebco_tid.cpt
@@ -14710,57 +14699,6 @@ for plot in ${plots[@]} ; do
       info_msg "Plotting GEM active faults"
       gmt psxy $GEMFAULTS -W$AFLINEWIDTH,$AFLINECOLOR $RJOK $VERBOSE >> map.ps
       ;;
-
-
-    # tectonic_fabrics)
-    #   for this_fabric in ${tectonic_fabrics[@]}; do
-    #     case $this_fabric in
-    #       cp)
-    #         info_msg "[-tf]: Plotting continental polygons"
-    #         gmt psxy ${TECTFABRICS_CP} -W0.1p,black+cf -aZ=PLATEID1 -C${PLATEID_CPT} $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       dz)
-    #         info_msg "[-tf]: Plotting discordant zones"
-    #         gmt psxy ${EARTHBYTE_DZ} -W0.5p,green $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       fz)
-    #         info_msg "[-tf]: Plotting fracture zones"
-    #         gmt psxy ${EARTHBYTE_FZ} -W0.5p,black $RJOK ${VERBOSE} >> map.ps
-    #         gmt psxy ${EARTHBYTE_FZLC} -W0.3p,black $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       pf)
-    #         info_msg "[-tf]: Plotting pseudofaults"
-    #         gmt psxy ${EARTHBYTE_PF} -W0.5p,orange $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       pr)
-    #         info_msg "[-tf]: Plotting propagating ridges"
-    #         gmt psxy ${EARTHBYTE_PR} -W0.5p,yellow $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       sr)
-    #         info_msg "[-tf]: Plotting spreading ridges"
-    #         gmt psxy ${TECTFABRICS_SR} -W0.5p,red $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       va)
-    #         info_msg "[-tf]: Plotting v-shaped anomalies"
-    #         gmt psxy ${EARTHBYTE_UNCV} -W0.5p,white $RJOK ${VERBOSE} >> map.ps
-    #         gmt psxy ${EARTHBYTE_VANOM} -W0.5p,pink $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #       vp)
-    #         info_msg "[-tf]: Plotting volcanic provinces" # including extinct ridges"
-    #         gmt psxy ${TECTFABRICS_VP} -W0.1p,black+cf -aZ=FROMAGE -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> map.ps
-    #       ;;
-    #     esac
-    #   done
-    #   ;;
-
-
-    # ebiso)
-    #   gmt psxy ${EARTHBYTE_ISOCHRONS_GMT} -aZ=FROMAGE -W1p+cl -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> map.ps
-    #   ;;
-    #
-    # ebhot)
-    #   gmt psxy ${EARTHBYTE_HOTSPOTS_GMT} -Sc0.1i -Gred $RJOK ${VERBOSE} >> map.ps
-    #   ;;
 
     gps)
       info_msg "Plotting GPS"
@@ -14955,8 +14893,6 @@ for plot in ${plots[@]} ; do
       # ARROWREFLAT=${ARROWAPROF[1]}
       # ARROWLENLAT=${ARROWAPROF[1]}
       # shift
-
-
 
       # The values of SCALECMD will be set by the scale) section
       ARROWCMD="-Tdg${ARROWREFLON}/${ARROWREFLAT}+w${ARROWSIZE}"
@@ -15263,11 +15199,19 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           echo "${p[0]},${p[1]},${p[5]}" | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jRB+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
         done < ${F_PROFILES}start_points.txt
 
-      MAP_PROF_SPACING=0.25 # inches
-      # If we are placing a profile onto the map, do it here.
+
+      MAP_PROF_SPACING=0.45 # inches
+      # If we are placing one or more profiles onto the map, do it here.
       if [[ $plotprofileonmapflag -eq 1 ]]; then
         PS_HEIGHT_IN=$MAP_PROF_SPACING
-        grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_flat_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
+
+        # Select the flat profiles
+        if [[ $MAKE_OBLIQUE_PROFILES -eq 1 ]]; then
+          grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
+        else
+          grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_flat_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
+        fi
+
         for profile_number in ${SHOWPROFLIST[@]}; do
           if [[ $profile_number -eq 0 ]]; then
             # Find size of ${F_PROFILES}all_profiles.ps
@@ -15279,7 +15223,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           else
             SLURP_PROFID=$(gawk < ${F_PROFILES}profile_filenames.txt -v ind=${profile_number} '(NR==ind) {print}')
             if [[ -s ${F_PROFILES}$SLURP_PROFID.ps ]]; then
-              echo "Plotting line ${profile_number} from file $SLURP_PROFID.ps"
+              info_msg "Plotting line ${profile_number} from file $SLURP_PROFID.ps"
               PS_DIM=$(gmt psconvert ${F_PROFILES}${SLURP_PROFID}.ps -F${F_PROFILES}${SLURP_PROFID} -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
               PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
               PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${PROFILE_WIDTH_IN} '{print ($1/2.54-(p_orig+0))/2}')
@@ -17076,6 +17020,15 @@ if [[ $tsaveflag -eq 1 ]]; then
   fi
 fi
 
+# RUN MODULE POST-PROCESSING
+# Maybe this should be outside the if..fi $noplotflag -eq 1?
+for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
+  if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
+    info_msg "Running module post-processing for ${this_mod}"
+    cmd="tectoplot_post_${this_mod}"
+    "$cmd" ${this_mod}
+  fi
+done
 
 # Export TECTOPLOT call and GMT command history from PS file to .history file
 
@@ -17267,15 +17220,6 @@ if [[ $kmlflag -eq 1 ]]; then
   # echo "$MAXLAT" >> map.tfw
 fi
 
-# RUN MODULE POST-PROCESSING
-# Maybe this should be outside the if..fi $noplotflag -eq 1?
-for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
-  if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
-    info_msg "Running module post-processing for ${this_mod}"
-    cmd="tectoplot_post_${this_mod}"
-    "$cmd" ${this_mod}
-  fi
-done
 
 
 fi ### if [[ $noplotflag -ne 1 ]]; then....
