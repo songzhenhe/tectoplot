@@ -475,6 +475,10 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     rm -f ${F_PROFILES}tmp.nc
     gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
 
+    if [[ ! -s ${F_PROFILES}tmp.nc ]]; then
+      cp ${gridfilelist[$i]} ${F_PROFILES}tmp.nc
+    fi
+
     info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
     gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
 

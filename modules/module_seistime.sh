@@ -211,7 +211,7 @@ function tectoplot_post_seistime() {
         # echo "It is" ${SEISTIME_PS_DIM[@]}
         gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps $RJOK ${VERBOSE} >> map.ps
 
-        # Set PS_HEIGH_IN so another module can concatenate a panel
+        # Set PS_HEIGHT_IN so another module can concatenate a panel
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
 

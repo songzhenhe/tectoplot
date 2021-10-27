@@ -152,6 +152,9 @@ GMTCOLORS="$DEFDIR"tectoplot.gmtcolors
 TECTOPLOT_FORMATS=$DEFDIR"tectoplot.formats"
 TECTOPLOT_HEADERS=$DEFDIR"tectoplot.headers"
 
+TILETOPODIR=${DATAROOT}"TopographyTiles/"
+[[ -d ${DATAROOT} && ! -d ${TILETOPODIR} ]] && mkdir -p ${TILETOPODIR}
+
 SAVEDTOPODIR=${DATAROOT}"SavedTopography/"
 [[ -d ${DATAROOT} && ! -d ${SAVEDTOPODIR} ]] && mkdir -p ${SAVEDTOPODIR}
 

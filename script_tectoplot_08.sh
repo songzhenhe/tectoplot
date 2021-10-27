@@ -3937,6 +3937,10 @@ cat <<-EOF
 -kprof:        Plot profiles using multiple XY lines extracted from a KML file
 -kprof [kmlfile] [width] [resolution]
 
+  Formats accepted:
+  Google Earth KML
+  ESRI Shapefile (polyline)
+
 
 EOF
 shift && continue
@@ -6796,6 +6800,9 @@ fi
 			shift
 		fi
     clipdemflag=1
+
+    GRIDDIR=$TILETOPODIR
+
 		case $BATHYMETRY in
       01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
         plottopo=1
@@ -6827,7 +6834,7 @@ fi
         ;;
 			SRTM30)
 			  plottopo=1
-				GRIDDIR=$SRTM30DIR
+				# GRIDDIR=$SRTM30DIR
 				GRIDFILE=$SRTM30FILE
 				plots+=("topo")
         echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -6836,7 +6843,7 @@ fi
 				;;
       GEBCO20)
         plottopo=1
-        GRIDDIR=$GEBCO20DIR
+        # GRIDDIR=$GEBCO20DIR
         GRIDFILE=$GEBCO20FILE
         plots+=("topo")
         echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -6844,7 +6851,7 @@ fi
         ;;
       GEBCO1)
         plottopo=1
-        GRIDDIR=$GEBCO1DIR
+        # GRIDDIR=$GEBCO1DIR
         GRIDFILE=$GEBCO1FILE
         plots+=("topo")
         echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -6852,7 +6859,7 @@ fi
         ;;
       GMRT)
         plottopo=1
-        GRIDDIR=$GMRTDIR
+        # GRIDDIR=$GMRTDIR
         plots+=("topo")
         echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
@@ -6861,9 +6868,12 @@ fi
         plottopo=1
         plotcustomtopo=1
         info_msg "Using custom grid"
-        BATHYMETRY="custom"
-        GRIDDIR=$(abs_dir $1)
-        GRIDFILE=$(abs_path $1)  # We already shifted
+        # GRIDDIR=$(abs_dir $BATHYMETRY)
+        GRIDFILE=$(abs_path $BATHYMETRY)  # We already shifted
+        if [[ ! -s ${GRIDFILE} ]]; then
+          echo "Custom topography file $GRIDFILE does not exist or is empty"
+          exit 1
+        fi
         plots+=("topo")
         ;;
     esac
@@ -6885,26 +6895,6 @@ fi
       reprojecttopoflag=1
       shift
     fi
-    # # Specify a CPT file
-    # if arg_is_flag $2; then
-    #   info_msg "[-t]: No topo CPT specified. Using default."
-    # else
-    #   customgridcptflag=1
-    #   CPTNAME="${2}"
-    #   CUSTOMCPT=$(abs_path $2)
-    #   shift
-    #   if ! [[ -e $CUSTOMCPT ]]; then
-    #     info_msg "CPT $CUSTOMCPT does not exist... looking for $CPTNAME in $CPTDIR"
-    #     if [[ -e $CPTDIR$CPTNAME ]]; then
-    #       CUSTOMCPT=$CPTDIR$CPTNAME
-    #       info_msg "Found CPT $CPTDIR$CPTNAME"
-    #     else
-    #       info_msg "No CPT could be assigned. Using $TOPO_CPT_DEF"
-    #       CUSTOMCPT=$TOPO_CPT_DEF
-    #     fi
-    #   fi
-    # fi
-    #
     cpts+=("topo")
     fasttopoflag=1
 
@@ -10021,29 +10011,39 @@ fi
 # Build kprof profiles
 
 if [[ $kprofflag -eq 1 ]]; then
+
+  # CPL_LOG is set to suppress Warnings from ogr2ogr
+
   if [[ ${KPROFFILE} =~ ".kml" ]]; then
     info_msg "[-kprof]: KML file specified for XY file. Converting lines to XY format."
-    ogr2ogr -f "OGR_GMT" ${F_PROFILES}kprof_profiles.gmt ${KPROFFILE}
-    gawk < ${F_PROFILES}kprof_profiles.gmt -v align=${PROFILE_ALIGNZ} '
-      BEGIN {
-        count=0
-      }
-      ($1==">") {
-        count++
-        if (count>1) {
-          printf("\n")
-        }
-        printf("P P_%d black 0 %s ", count, align)
-      }
-      ($1+0==$1) {
-        printf("%f %f ", $1, $2)
-      }
-      END {
-        printf("\n")
-      }' >> ${F_PROFILES}kprof_profs.txt
+    CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}kprof_profiles.gmt ${KPROFFILE}
   fi
+  if [[ ${KPROFFILE} =~ ".shp" ]]; then
+    info_msg "[-kprof]: SHP file specified for XY file. Converting lines to XY format."
+    CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}kprof_profiles.gmt ${KPROFFILE}
+  fi
+  if [[ ${KPROFFILE} =~ ".gmt" ]]; then
+    info_msg "[-kprof]: GMT file specified for XY file. Using lines in XY format."
+    cp ${KPROFFILE} ${F_PROFILES}kprof_profiles.gmt
+  fi
+  gawk < ${F_PROFILES}kprof_profiles.gmt -v align=${PROFILE_ALIGNZ} '
+    BEGIN {
+      count=0
+    }
+    ($1==">") {
+      count++
+      if (count>1) {
+        printf("\n")
+      }
+      printf("P P_%d black 0 %s ", count, align)
+    }
+    ($1+0==$1) {
+      printf("%s %s ", $1, $2)
+    }
+    END {
+      printf("\n")
+    }' >> ${F_PROFILES}kprof_profs.txt
 fi
-
 
 ################################################################################
 #####          Manage grid spacing and style                               #####
@@ -10368,6 +10368,19 @@ fi
 #####          Manage topography/bathymetry data                           #####
 ################################################################################
 
+# We have to manage several cases:
+
+# GMRT: Download and manage GMRT tiles
+# BEST: Get GMRT/01s tiles and merge ourselves
+# GMT online datasets: download but let GMT manage them
+# Built-in tectoplot datasets: GEBCO20, GEBCO1, SRTM30, etc: Just use
+# Custom datasets: Just use
+
+# For each dataset, we automatically save a clipped version of the dataset in
+# order to minimize the time for re-plotting and to allow calculations to be
+# run (e.g. hillshading and advanced topo visualizations) on subsets of very
+# large DEMS (e.g. GEBCO20)
+
 # Change to use DEM_MAXLON and allow -tclip to set, to avoid downloading too much data
 # when we are clipping the DEM anyway.
 
@@ -10384,19 +10397,23 @@ if [[ $DEM_MINLON =~ "unset" ]]; then
 fi
 
 if [[ $plottopo -eq 1 ]]; then
-  info_msg "Making basemap $BATHYMETRY"
 
+  # Check if we are plotting best quality topography and look for a merged tile with the DEM AOI
   if [[ $besttopoflag -eq 1 ]]; then
     bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
     if [[ -e $bestname ]]; then
-      info_msg "Best topography already exists."
+      info_msg "Best merged topography tile already exists."
       BATHY=$bestname
       bestexistsflag=1
       demiscutflag=1
     fi
   fi
 
-  if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then   # We manage GMRT tiling ourselves
+  # We manage GMRT tiling ourselves
+  # If we are plotting GMRT data, either alone or as BEST, then...
+
+  # I'm amazed that this logic expression works...
+  if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
 
     minlon360=$(echo $DEM_MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
     maxlon360=$(echo $DEM_MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
@@ -10413,10 +10430,6 @@ if [[ $plottopo -eq 1 ]]; then
 
     maxlatfloor=$(echo $DEM_MAXLAT | cut -f1 -d".")
     maxlatceil=$(echo "$maxlatfloor + 1" | bc)
-
-    #echo $MINLON $MAXLON "->" $minlonfloor $maxlonfloor
-    #echo $MINLAT $MAXLAT "->" $minlatfloor $maxlatfloor
-
     maxlonceil=$(echo "$maxlonfloor + 1" | bc)
 
     if [[ $(echo "$minlonfloor > 180" | bc) -eq 1 ]]; then
@@ -10438,10 +10451,7 @@ if [[ $plottopo -eq 1 ]]; then
 
           info_msg "Downloading GMRT_${i}_${iplus}_${j}_${jplus}.nc ($tilecount out of $GMRTTILENUM)"
           curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${i}&maxlongitude=${iplus}&minlatitude=${j}&maxlatitude=${jplus}&format=netcdf&resolution=max&layer=topo" > $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc"
-          # We have to set the coordinate system information ourselves
-          # This command was for when we downloaded GeoTiff tiles and is no longer needed (we get NC now)
-          # gdal_edit.py -a_srs "+proj=longlat +datum=WGS84 +no_defs" $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif"
-          #
+
           # Test whether the file was correctly downloaded
           fsize=$(wc -c < $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc")
           if [[ $(echo "$fsize < 12000000" | bc) -eq 1 ]]; then
@@ -10474,44 +10484,67 @@ if [[ $plottopo -eq 1 ]]; then
     if [[ $BATHYMETRY =~ "GMRT" ]]; then
       BATHY=$name
     elif [[ $besttopoflag -eq 1 ]]; then
+
+      # If we are making BEST bathymetry, the negative elevations are equivalent to the GMRT tile
+
       NEGBATHYGRID=$name
     fi
   fi
 
+
+  # If we are NOT using GMRT data, either alone or in BEST mode
   if [[ ! $BATHYMETRY =~ "GMRT" && $bestexistsflag -eq 0 ]]; then
 
+    # We have specified a custom topo file
     if [[ $plotcustomtopo -eq 1 ]]; then
-      name="${F_TOPO}dem.nc"
-      info_msg "[-t]: Using custom topography file ${GRIDFILE}"
-      if [[ $reprojecttopoflag -eq 1 ]]; then
-        info_msg "[-t]: reprojecting source file to WGS1984"
-        gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.nc -q -of "NetCDF" -t_srs "+proj=longlat +ellps=WGS84"
-        GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.nc)
-      fi
-    # gmt grdcut sometimes does strange things with DEMs...
-      info_msg "gdal_translate -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}"
-      gdal_translate -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
-  #    gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-      BATHY=$name
-    else
-      info_msg "[-t]: Using grid file $GRIDFILE"
-
-      # Output is a NetCDF format grid
-    	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
-
-    	if [[ -e $name ]]; then
-    		info_msg "DEM file $name already exists"
-        demiscutflag=1
-    	else
-        case $BATHYMETRY in
-          SRTM30|GEBCO20|GEBCO1|01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-          demiscutflag=1
-          ;;
-        esac
-    	fi
-    	BATHY=$name
+  #     info_msg "[-t]: Using custom topography file ${GRIDFILE}"
+  #     if [[ $reprojecttopoflag -eq 1 ]]; then
+  #       info_msg "[-t]: reprojecting source file to WGS1984"
+  #       gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.nc -q -of "NetCDF" -t_srs "+proj=longlat +ellps=WGS84"
+  #       GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.nc)
+  #     fi
+  #   # gmt grdcut sometimes does strange things with DEMs
+  #   # Probably need some logic here to not use -projwin for some rasters...
+  #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.nc"
+  #     gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.nc
+  #     GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE}))
+  #     DEM_MINLON=${GRDINFO[1]}
+  #     DEM_MAXLON=${GRDINFO[2]}
+  #     DEM_MINLAT=${GRDINFO[3]}
+  #     DEM_MAXLAT=${GRDINFO[4]}
+  #     BATHY=${F_TOPO}dem.nc
+  #     TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+  # #gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+      BATHYMETRY="custom_$(basename ${GRIDFILE})"
+      # We should have a different way of marking these types of files by basename
     fi
+
+    # We have not specified a custom topo file. GRIDDIR is the destination directory for tiles
+    # and BATHYMETRY contains the code for the data type
+
+    info_msg "[-t]: Using grid file $GRIDFILE"
+
+    # BIG CHANGE: NOW STORING TILES AS GEOTIFF
+  	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+
+  	if [[ -e $name ]]; then
+  		info_msg "DEM file $name already exists"
+      demiscutflag=1
+  	else
+      case $BATHYMETRY in
+        01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
+          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        ;;
+        SRTM30|GEBCO20|GEBCO1|custom*)
+
+        # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
+          gdal_translate -q -of "GTIFF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
+
+        demiscutflag=1
+        ;;
+      esac
+  	fi
+  	BATHY=$name
   fi
 fi
 
@@ -10536,7 +10569,13 @@ if [[ $tflatflag -eq 1 ]]; then
   clipdemflag=1
 fi
 
-if [[ $clipdemflag -eq 1 && -e $BATHY ]]; then
+# At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
+
+# test
+clipdemflag=0
+# end test
+
+if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.nc"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
@@ -10550,11 +10589,19 @@ if [[ $clipdemflag -eq 1 && -e $BATHY ]]; then
       flatten_sea ${F_TOPO}dem_preflat.nc ${F_TOPO}dem.nc -1
       cleanup ${F_TOPO}dem_preflat.nc
     else
-      # echo gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-      gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.nc ]]; then
+        info_msg gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+        gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      fi
     fi
   fi
+  TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+else
+  TOPOGRAPHY_DATA=${BATHY}
 fi
+
+
+
 
 # If the grid has longitudes greater than 180 or less than -180, shift it into the -180:180 range.
 # This happens for some GMT EarthRelief DEMs for rotated globes
@@ -10593,7 +10640,7 @@ fi
 
 # Contour interval for grid if not specified using -cn
 if [[ $topocontourcalcflag -eq 1 ]]; then
-  zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+  zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT -C -Vn)
   MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
   MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
   TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
@@ -10972,9 +11019,9 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
 
   if [[ $zconlandflag -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
     info_msg "Selecting seismicity on land or at sea"
-    if [[ -s ${F_TOPO}dem.nc ]]; then
+    if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
-      gmt grdtrack ${F_SEIS}eqs.txt -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
+      gmt grdtrack ${F_SEIS}eqs.txt -N -Z -Vn -G${TOPOGRAPHY_DATA} | gawk -v landorsea=${zc_land_or_sea} '
       {
         if (landorsea==1) {
           # Land
@@ -11578,7 +11625,7 @@ if [[ $calccmtflag -eq 1 ]]; then
   ##### Select focal mechanisms on land
 
   if [[ $zconlandflag -eq 1 && -s $CMTFILE ]]; then
-    if [[ -s ${F_TOPO}dem.nc ]]; then
+    if [[ -s ${TOPOGRAPHY_DATA} ]]; then
       case $CMTTYPE in
         ORIGIN)
           gawk < ${CMTFILE} '{print $8, $9}' > ${F_CMT}cmt_epicenter.dat
@@ -11588,7 +11635,7 @@ if [[ $calccmtflag -eq 1 ]]; then
           ;;
       esac
 
-      gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${F_TOPO}dem.nc | gawk -v landorsea=${zc_land_or_sea} '
+      gmt grdtrack ${F_CMT}cmt_epicenter.dat -N -Z -Vn -G${TOPOGRAPHY_DATA} | gawk -v landorsea=${zc_land_or_sea} '
       {
         if (landorsea==1) {
           # Land
@@ -13371,7 +13418,7 @@ for cptfile in ${cpts[@]} ; do
 
       # 1. Determine the range of the DEM
 
-      zrange=$(grid_zrange $BATHY -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+      zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT -C -Vn)
       MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
       MAXZ=$(echo $zrange | gawk  '{printf "%d\n", $2}')
 
@@ -14971,11 +15018,11 @@ for plot in ${plots[@]} ; do
 
         elif [[ $plotcustomtopo -eq 1 ]]; then
           info_msg "Adding custom grid to sprof"
-          echo "S $CUSTOMGRIDFILE 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
         elif [[ -e $BATHY ]]; then
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
-          echo "S ${F_TOPO}dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-          echo "G ${F_TOPO}dem.nc 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
+          echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "G ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
           echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
         fi
 
@@ -15180,8 +15227,6 @@ cleanup ${F_PROFILES}mid_profile_lines.txt ${F_PROFILES}end_profile_lines.txt ${
 cleanup ${F_PROFILES}startpoint1.txt ${F_PROFILES}startpoint2.txt
 cleanup ${F_PROFILES}midpoint1.txt ${F_PROFILES}midpoint2.txt
 cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
-
-
 
       # Plot the intersection point of the profile with the 0-distance datum line as triangle
       if [[ -e ${F_PROFILES}all_intersect.txt ]]; then
@@ -15769,20 +15814,20 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         else
 
           # If a topography dataset exists, then...
-          if [[ -e ${F_TOPO}dem.nc ]]; then
+          if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
 
             if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
               echo "Smoothing DEM"
-              gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${F_TOPO}dem.nc -Gdem_smooth.nc
-              mv dem_smooth.nc ${F_TOPO}dem.nc
+              # MODIFIED DEM DATA FILE
+              gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.nc
+              TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.nc
             fi
 
             if [[ $FILLGRIDNANS -eq 1 ]]; then
-              # cp ${F_TOPO}dem.nc olddem.nc
               info_msg "Filling grid file NaN values with nearest non-NaN value"
-              gmt grdfill ${F_TOPO}dem.nc -An -Gdem_no_nan.nc ${VERBOSE}
-              mv dem_no_nan.nc ${F_TOPO}dem.nc
+              gmt grdfill ${TOPOGRAPHY_DATA} -An -G${F_TOPO}dem_no_nan.nc ${VERBOSE}
+              TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.nc
             fi
 
             # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
@@ -15792,16 +15837,21 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
                 sent_dimx=${sentinel_dim[9]}
                 sent_dimy=${sentinel_dim[10]}
 
-                dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
+                dem_dim=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -L -Vn))
                 dem_dimx=${dem_dim[9]}
                 dem_dimy=${dem_dim[10]}
 
                 if [[ $SENTINEL_DOWNSAMPLE -eq 1 ]]; then
                   echo "Resampling DEM to match downloaded Sentinel image size"
-                  gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${F_TOPO}dem.nc ${F_TOPO}dem_warp.nc
+                  echo gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.nc
+                  gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.nc
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
-                  cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
+                  # cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
+                  rm -f ${F_TOPO}dem.nc
+                  echo in
                   gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+                  TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+                  echo out
                 else
                   echo "Resampling Sentinel image to match DEM resolution"
                   gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel.tif ./sentinel_warp.tif
@@ -15815,7 +15865,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
                 # elevation and set all cells in sentinel.tif to that color (to make a uniform ocean color?)
                 if [[ $sentinelrecolorseaflag -eq 1 ]]; then
                   info_msg "Recoloring sea areas of Sentinel image"
-                  recolor_sea ${F_TOPO}dem.nc ./sentinel.tif ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.tif
+                  recolor_sea ${TOPOGRAPHY_DATA} ./sentinel.tif ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.tif
                   mv ./sentinel_recolor.tif ./sentinel.tif
                 fi
             fi
@@ -15825,7 +15875,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # Not implemented
             fi
 
-            CELL_SIZE=$(gmt grdinfo -C ${F_TOPO}dem.nc -Vn | gawk '{print $8}')
+            CELL_SIZE=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} -Vn | gawk '{print $8}')
             info_msg "Grid cell size = ${CELL_SIZE}"
             # We now do all color ramps via gdaldem and derive intensity maps from
             # the selected procedures. We fuse them using gdal_calc.py. This gives us
@@ -15894,7 +15944,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             w)
               info_msg "Clipping DEM to new AOI"
 
-              gdal_translate -q -of NetCDF -projwin ${CLIP_MINLON} ${CLIP_MAXLAT} ${CLIP_MAXLON} ${CLIP_MINLAT} ${F_TOPO}dem.nc ${F_TOPO}dem_clip.nc
+              gdal_translate -q -of NetCDF -projwin ${CLIP_MINLON} ${CLIP_MAXLAT} ${CLIP_MAXLON} ${CLIP_MINLAT} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_clip.nc
               DEM_MINLON=${CLIP_MINLON}
               DEM_MAXLON=${CLIP_MAXLON}
               DEM_MINLAT=${CLIP_MINLAT}
@@ -15904,11 +15954,12 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # gmt grdcut ../${F_TOPO}dem.nc -R${CLIP_MINLON}/${CLIP_MAXLON}/${CLIP_MINLAT}/${CLIP_MAXLAT} -G../${F_TOPO}clip.nc ${VERBOSE}
               # cd ..
               cp ${F_TOPO}dem_clip.nc ${F_TOPO}dem.nc
+              TOPOGRAPHY_DATA=${F_TOPO}dem.nc
             ;;
 
             i)
               info_msg "Calculating terrain ruggedness index"
-              gdaldem TRI -q -of NetCDF ${F_TOPO}dem.nc ${F_TOPO}tri.nc
+              gdaldem TRI -q -of NetCDF ${TOPOGRAPHY_DATA} ${F_TOPO}tri.nc
               zrange=($(grid_zrange ${F_TOPO}tri.nc -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
               weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
@@ -15916,8 +15967,8 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
             q)
               info_msg "Calculating height above local quantile"
-              gmt grdfilter ${F_TOPO}dem.nc -Dp -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${F_TOPO}dem.nc -G${F_TOPO}quantile.nc
-              gmt grdmath ${F_TOPO}dem.nc ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
+              gmt grdfilter ${TOPOGRAPHY_DATA} -Dp -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${TOPOGRAPHY_DATA} -G${F_TOPO}quantile.nc
+              gmt grdmath ${TOPOGRAPHY_DATA} ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
 
               zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 1 254 ${F_TOPO}quantile_diff.nc ${F_TOPO}quantile_gray.tif -q
@@ -15926,19 +15977,19 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
 
             t)
-              demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $10}')
-              demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $11}')
-              demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $2}')
-              demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $3}')
-              demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $4}')
-              demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $5}')
+              demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+              demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+              demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+              demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+              demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+              demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
               info_msg "Calculating and rendering texture map"
 
               # Calculate the texture shade
               # Project from WGS1984 to Mercator / HDF format
-              # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${F_TOPO}dem.nc has NaNs filled.
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+              # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${TOPOGRAPHY_DATA} has NaNs filled.
+              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -15969,21 +16020,21 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
             m)
               info_msg "Creating multidirectional hillshade"
-              gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}multiple_hillshade.tif -q
+              gdaldem hillshade -multidirectional -compute_edges -alt ${HS_ALT} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}multiple_hillshade.tif -q
               weighted_average_combine ${F_TOPO}multiple_hillshade.tif ${F_TOPO}intensity.tif ${MULTIHS_FACT} ${F_TOPO}intensity.tif
             ;;
 
             # Compute and render a one-sun hillshade
             h)
               info_msg "Creating unidirectional hillshade"
-              gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}single_hillshade.tif -q
+              gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
               weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
             ;;
 
             # Compute and render the slope map
             s)
               info_msg "Creating slope map"
-              gdaldem slope -compute_edges -s $MULFACT ${F_TOPO}dem.nc ${F_TOPO}slopedeg.tif -q
+              gdaldem slope -compute_edges -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}slopedeg.tif -q
               echo "5 254 254 254" > ${F_TOPO}slope.txt
               echo "80 30 30 30" >> ${F_TOPO}slope.txt
               gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
@@ -15993,16 +16044,16 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             # Compute and render the sky view factor
             v)
 
-              demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $10}')
-              demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $11}')
-              demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $2}')
-              demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $3}')
-              demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $4}')
-              demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $5}')
+              demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+              demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+              demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+              demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+              demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+              demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
               info_msg "Creating sky view factor"
 
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16033,15 +16084,15 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             d)
               info_msg "Creating cast shadow map"
 
-              demwidth=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $10}')
-              demheight=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $11}')
-              demxmin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $2}')
-              demxmax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $3}')
-              demymin=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $4}')
-              demymax=$(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE} | gawk '{print $5}')
+              demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+              demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+              demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+              demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+              demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+              demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
 
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${F_TOPO}dem.nc ${F_TOPO}dem.flt -q
+              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16092,7 +16143,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             # Set intensity of DEM values with elevation=0 to 254
             u)
               info_msg "Resetting 0 elevation cells to white"
-              image_setval ${F_TOPO}intensity.tif ${F_TOPO}dem.nc 0 254 ${F_TOPO}unset.tif
+              image_setval ${F_TOPO}intensity.tif ${TOPOGRAPHY_DATA} 0 254 ${F_TOPO}unset.tif
               cp ${F_TOPO}unset.tif ${F_TOPO}intensity.tif
             ;;
 
@@ -16114,7 +16165,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               #   P_MAXLAT=${MAXLAT}
               #   P_MINLAT=${MINLAT}
               # fi
-              dem_dim=($(gmt grdinfo ${F_TOPO}dem.nc -C -L -Vn))
+              dem_dim=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -L -Vn))
               dem_dimx=${dem_dim[9]}
               dem_dimy=${dem_dim[10]}
               info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
@@ -16144,25 +16195,26 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
           if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
             info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
-            gdaldem color-relief ${F_TOPO}dem.nc ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
+            gdaldem color-relief ${TOPOGRAPHY_DATA} ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
             alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
             multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
             COLORED_RELIEF=${F_TOPO}colored_intensity.tif
           else
             COLORED_RELIEF=$INTENSITY_RELIEF
           fi
-          BATHY=${F_TOPO}dem.nc
+          BATHY=${TOPOGRAPHY_DATA}
         fi
       fi  # fasttopoflag = 0
 
       if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
         [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else # If we are doing fast topo visualization
-        [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${F_TOPO}dem.nc ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        # echo gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE}
+        [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
 
         # Do save the colored_relief.tif though
         gmt_init_tmpdir
-          gmt grdimage ${F_TOPO}dem.nc ${ILLUM} -C${TOPO_CPT} -t$TOPOTRANS -R${F_TOPO}dem.nc -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+          gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -t$TOPOTRANS -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
         gmt_remove_tmpdir
         COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
       fi
