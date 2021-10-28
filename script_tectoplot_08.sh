@@ -3974,6 +3974,53 @@ fi
 
   ;;
 
+  -profras)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profras:     Choose an alternative raster to sample using profile tools
+-profras [file] [[z_mult]]
+
+  This will replace the top tile raster and swath sampling raster for
+  -sprof, -kprof, -cprof, etc tools with the specified raster. This
+  allows sampling of a raster other than topography, or sampling of
+  high-resolution topography over a large area while plotting lower
+  resolution topography on the basemap.
+
+
+
+EOF
+shift && continue
+fi
+
+  if [[ -s $2 ]]; then
+    PROFRASTER_SCALE=0.001
+    PROFRASTER=$(abs_path $2)
+    profrasflag=1
+    shift
+    if arg_is_float $2; then
+      PROFRASTER_SCALE=$2
+      shift
+    fi
+  else
+    case $2 in
+      grav)
+        PROFRASTER=$2
+        profrasflag=1
+        shift
+      ;;
+      mag)
+        PROFRASTER=$2
+        profrasflag=1
+        shift
+      ;;
+      *)
+        echo "[-profras]: File $2 does not exist or is empty; specify file or grav or mag"
+        exit 1
+      ;;
+    esac
+  fi
+  ;;
+
   -mprof)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6809,7 +6856,6 @@ fi
         GRIDDIR=$EARTHRELIEFDIR
         GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
         plots+=("topo")
-        remotetileget=1
         echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
 
@@ -6822,7 +6868,6 @@ fi
         GRIDDIR=$EARTHRELIEFDIR
         GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
         plots+=("topo")
-        remotetileget=1
         besttopoflag=1
         echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
@@ -6839,7 +6884,6 @@ fi
 				plots+=("topo")
         echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
-        remotetileget=1
 				;;
       GEBCO20)
         plottopo=1
@@ -10535,10 +10579,14 @@ if [[ $plottopo -eq 1 ]]; then
         01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
           gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         ;;
-        SRTM30|GEBCO20|GEBCO1|custom*)
+        SRTM30|GEBCO20|GEBCO1)
+        # GMT grdcut works on these
+          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        ;;
+        custom*)
 
         # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
-          gdal_translate -q -of "GTIFF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
+        gdal_translate -q -of "GTIFF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
 
         demiscutflag=1
         ;;
@@ -14997,28 +15045,45 @@ for plot in ${plots[@]} ; do
           echo "L ${PROFILE_X_LABEL}|${PROFILE_Y_LABEL}|${PROFILE_Z_LABEL}" >> sprof.control
         fi
 
-        if [[ -s ${F_GRAV}grav.nc ]]; then
-          info_msg "Adding gravity grid to sprof as swath and top tile"
-          echo "S ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-          echo "G ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${GRAV_CPT}" >> sprof.control
+        if [[ $profrasflag -eq 1 ]]; then
+          case $PROFRASTER in
+            grav)
+              info_msg "Adding gravity grid to sprof as swath and top tile"
+              echo "S ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              echo "G ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${GRAV_CPT}" >> sprof.control
+              PROFILE_Z_LABEL="Gravity (mgal*0.1)"
+              # Make the gravity top tile and set
+              gmt grdimage $GRAVDATA -A${F_GRAV}grav.tif ${GRAVGRAD} -t$GRAVTRANS -C${GRAV_CPT} -R -J ${VERBOSE}
+              COLORED_RELIEF=${F_GRAV}grav.tif
+              echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
+            ;;
+            mag)
+              info_msg "Adding magnetics grid to sprof as swath and top tile"
+              echo "S ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              echo "G ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${MAG_CPT}" >> sprof.control
+              PROFILE_Z_LABEL="Magnetization (nT*0.1)"
 
-          # Make the gravity top tile and set
-          gmt grdimage $GRAVDATA -A${F_GRAV}grav.tif ${GRAVGRAD} -t$GRAVTRANS -C${GRAV_CPT} -R -J ${VERBOSE}
-          COLORED_RELIEF=${F_GRAV}grav.tif
-          echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
-        elif [[ -s ${F_MAG}mag.nc ]]; then
-          info_msg "Adding magnetics grid to sprof as swath and top tile"
-          echo "S ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
-          echo "G ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${MAG_CPT}" >> sprof.control
+              # Make the magnetics top tile and set
+              gmt grdimage ${F_MAG}mag.nc -A${F_MAG}mag.tif ${MAGGRAD} -t$MAGTRANS -C${MAG_CPT} -R -J ${VERBOSE}
+              COLORED_RELIEF=${F_MAG}mag.tif
+              echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
+            ;;
+            *)
+              info_msg "Adding custom grid to sprof as swath / shaded relief toptile WITH topo cpt"
+              echo "S ${PROFRASTER} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              # echo "G ${PROFRASTER} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
+            ;;
+          esac
+          # if [[ -s ${F_GRAV}grav.nc ]]; then
+          #
+          # elif [[ -s ${F_MAG}mag.nc ]]; then
+          #
+          # fi
+          # echo "G ${TOPOGRAPHY_DATA} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${PROFRASTER_CPT}" >> sprof.control
+        # elif [[ $plotcustomtopo -eq 1 ]]; then
+        #   info_msg "Adding custom grid to sprof"
+        #   echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
 
-          # Make the magnetics top tile and set
-          gmt grdimage ${F_MAG}mag.nc -A${F_MAG}mag.tif ${MAGGRAD} -t$MAGTRANS -C${MAG_CPT} -R -J ${VERBOSE}
-          COLORED_RELIEF=${F_MAG}mag.tif
-          echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
-
-        elif [[ $plotcustomtopo -eq 1 ]]; then
-          info_msg "Adding custom grid to sprof"
-          echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
         elif [[ -e $BATHY ]]; then
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
           echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control

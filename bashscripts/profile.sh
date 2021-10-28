@@ -384,9 +384,9 @@ for i in $(seq 1 $k); do
   # L changes aspects of plot axis labels
   if [[ ${FIRSTWORD:0:1} == "L" ]]; then
     # Remove leading and trailing whitespaces from the axis labels
-    x_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$2);gsub(/[ \t]+$/,"",$2);print $2}')
-    y_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$3);gsub(/[ \t]+$/,"",$2);print $3}')
-    z_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$4);gsub(/[ \t]+$/,"",$2);print $4}')
+    x_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{split($1,a," "); gsub(/^[ \t]+/,"",a[2]);gsub(/[ \t]+$/,"",a[2]);print a[2]}')
+    y_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$2);gsub(/[ \t]+$/,"",$2);print $2}')
+    z_axis_label=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk -F'|' '{gsub(/^[ \t]+/,"",$2);gsub(/[ \t]+$/,"",$2);print $3}')
 
 echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
@@ -472,15 +472,29 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
     # # Cut the grid to the AOI and multiply by its ZSCALE
     # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
-    rm -f ${F_PROFILES}tmp.nc
-    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    rm -f ${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
 
-    if [[ ! -s ${F_PROFILES}tmp.nc ]]; then
-      cp ${gridfilelist[$i]} ${F_PROFILES}tmp.nc
-    fi
+    GRIDTMPFILE=${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
+    # GMT grdcut is messing us up again. Try gdal_translate
+
+    # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
+    gdal_translate -q -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE} >/dev/null 2>&1 
+
+    # Old gmt grdcut which fails for some rasters
+    # gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+
+    # if [[ ! -s ${GRIDTMPFILE} ]]; then
+    #   cp ${gridfilelist[$i]} ${GRIDTMPFILE}
+    # fi
 
     info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
-    gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+    # echo     gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+
+    # gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+
+    # WEIRD: I need to use GTiff format even though the output is often a different format name (NC)
+
+    gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
 
   # T is a grid sampled along a track line
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
@@ -929,6 +943,7 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
       gridfileflag=1
 
       # Sample the input grid along space cross-profile
+      # echo gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af \> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
       gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
@@ -2431,7 +2446,7 @@ EOF
     echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
     cleanup ${LINEID}_temp_plot.sh
-    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile_plot.sh
 
     echo "./${LINEID}_profile_plot.sh ${line_min_z} ${line_max_z}" >> ./plot_flat_profiles.sh
@@ -2546,7 +2561,7 @@ echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)"  >> plot_combi
 echo "PROFILE_Y_C=\$(echo \${PROFILE_HEIGHT_IN} \${PROFILE_WIDTH_IN} | gawk '{print (\$1+0)+(\$2+0)  \"i\"}')"  >> plot_combined_profiles.sh
 echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
 cat plot.sh >> plot_combined_profiles.sh
-echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"Distance (km)\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
+echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psxy -T -R -J -O -Vn >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps >/dev/null 2>&1" >> plot_combined_profiles.sh
 

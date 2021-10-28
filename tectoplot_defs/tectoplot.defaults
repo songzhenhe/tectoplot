@@ -113,7 +113,7 @@ PLY_BACKGROUND_COLOR="black"
 
 PROFILE_X_LABEL="Distance (km)"
 PROFILE_Y_LABEL="Distance (km)"
-PROFILE_Z_LABEL="Distance (km)"
+PROFILE_Z_LABEL="Elevation (km)"
 
 DEM_LATBUFFER=0.0       # Extra width of DEM vs AOI (Degrees)
 DEM_LONBUFFER=0.0       # Extra height of DEM vs AOI (Degrees)
