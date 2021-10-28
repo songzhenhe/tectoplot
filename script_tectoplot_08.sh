@@ -8785,6 +8785,47 @@ fi
     fi
   ;;
 
+  -seistimeline)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-seistimeline:  create a seismicity vs time plot to the right of the map
+-seistimeline [[startdate]] [[breakdate]] [[enddate]] [[panelwidth]]
+
+  Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
+  width is given in inches, without unit (e.g. 5)
+  Note: Use the -noframe right option to avoid overlapping with map labels
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  SEISTIMELINE_START_TIME="1900-01-01T00:00:00"
+  SEISTIMELINE_BREAK_TIME="2010-01-01T00:00:00"
+  SEISTIMELINE_END_TIME=$(date_shift_utc)
+  SEISTIMELINEWIDTH=5 # inches
+
+
+  if ! arg_is_flag $2; then
+    SEISTIMELINE_START_TIME=$2
+    shift
+  fi
+  if ! arg_is_flag $2; then
+    SEISTIMELINE_BREAK_TIME=$2
+    shift
+  fi
+  if ! arg_is_flag $2; then
+    SEISTIMELINE_END_TIME=$2
+    shift
+  fi
+  if ! arg_is_flag $2; then
+    SEISTIMELINEWIDTH=$2
+    shift
+  fi
+  plotseistimeline=1
+
+  ;;
+
   -seisproj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -14055,8 +14096,8 @@ cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velar
 # So check the label-free width and if it is significantly less than the with-label
 # width, use it instead. Shouldn't change too much honestly.
 
-MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
 # MAP_PS_NOLABELS_BB=($(gmt psconvert base_fake_nolabels.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | gawk -F'[[]' '{print $3}' | gawk -F '[]]' '{print $1}'))
 # MAP_PS_WITHLABELS_BB=($(gmt psconvert base_fake.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | gawk -F'[[]' '{print $3}' | gawk -F '[]]' '{print $1}'))
 # MAP_ANNOT_VDIFF=$(echo )
@@ -16328,7 +16369,80 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 done
 
 
-#### SECTION: DATA FRAMES BELOW OR BESIDE THE MAP (incompatible with onmap profiles)
+#### SECTION: DATA FRAMES BELOW OR BESIDE THE MAP (currently incompatible with onmap profiles)
+#### Hopefully can be moved to modules
+
+### Plot seismicty vs time in a projected frame to the right of the map frame
+
+#### -seistimeline
+
+if [[ $plotseistimeline -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+
+    # Get time of earthquake
+
+    # Project the earthquake data
+    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+
+    # Match the scaled earthquakes to the projected coordinates and print time, Yval as X,Y coordinates
+    gawk '
+      (NR==FNR) {
+        projx[NR]=$1
+        projy[NR]=$2
+      }
+      (NR>FNR) {
+        $1=$5
+        $2=projy[FNR]
+        print
+      }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled_y.txt
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,6"
+      SEIS_CPT=${F_CPTS}"eqtime.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,7"
+      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+      SEIS_INPUTORDER2="-i0,1,2"
+      SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      gmt_init_tmpdir
+
+      PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      MAP_PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      MAP_PS_WIDTH_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+
+      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+
+      # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+
+      PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_IN_NOLABELS | gawk  '{print $1}')
+
+      OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+      gmt gmtset PROJ_LENGTH_UNIT p
+
+      if [[ $SCALEEQS -eq 1 ]]; then
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_IN_NOLABELS}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+
+        secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
+
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_IN_NOLABELS}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+
+      fi
+
+      # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf+l"Depth" -Byaf -BlNrb -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+      gmt_remove_tmpdir
+    fi
+fi
+
+##### -seisproj
 
 ### Plot seismicty vs depth in a projected (X) frame below the map frame
 
