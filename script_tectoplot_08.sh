@@ -11073,18 +11073,22 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
   fi
 
-  # Secondary select of combined seismicity using the actual AOI polygon which
-  # may differ from the lat/lon box.
-  #
-  # # In most cases this won't be necessary so maybe we should move into if-fi above?
-  # info_msg "Selecting seismicity within AOI polygon"
-  # # This command is screwing up some fields in the output file. WHY???
+  # Select combined seismicity using the actual AOI polygon which may differ from the lat/lon box.
+  # This command is somtimes screwing up some fields in the output file or messing up with global
+  # extents. Make sure we normalize longitudes to -180:180
 
-
-  # if [[ -s ${F_SEIS}eqs.txt ]]; then
-  #   mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
-  #   gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-  # fi
+  if [[ -s ${F_SEIS}eqs.txt ]]; then
+    mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
+    gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' | gawk '
+      {
+        if ($1>180) {
+          $1=$1-360
+        } else if ($1 < -180) {
+          $1=$1+360
+        }
+        print $0
+      }' > ${F_SEIS}eqs.txt
+  fi
 
   # Alternative method using the bounding box which really doesn't work with global extents
   # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt

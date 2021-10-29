@@ -478,10 +478,12 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     # GMT grdcut is messing us up again. Try gdal_translate
 
     # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-    gdal_translate -q -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE} >/dev/null 2>&1 
+    # echo     gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
+
+    # gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
 
     # Old gmt grdcut which fails for some rasters
-    # gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn 2>/dev/null
+    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${GRIDTMPFILE} --GMT_HISTORY=false -Vn 2>/dev/null
 
     # if [[ ! -s ${GRIDTMPFILE} ]]; then
     #   cp ${gridfilelist[$i]} ${GRIDTMPFILE}
@@ -490,11 +492,10 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
     # echo     gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
 
-    # gmt grdmath ${F_PROFILES}tmp.nc ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+    gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
 
     # WEIRD: I need to use GTiff format even though the output is often a different format name (NC)
-
-    gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
+    # gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
 
   # T is a grid sampled along a track line
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
