@@ -549,6 +549,8 @@ declare -a on_exit_move_items
   usecustomrjflag=0
   closeglobeflag=0
 
+  clipdemflag=0
+
   # Flags that start with a value of 1
 
   openflag=1
@@ -10659,10 +10661,6 @@ if [[ $tflatflag -eq 1 ]]; then
 fi
 
 # At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
-
-# test
-clipdemflag=0
-# end test
 
 if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.nc"

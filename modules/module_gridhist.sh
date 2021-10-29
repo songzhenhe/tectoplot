@@ -93,6 +93,8 @@ fi
       ((tectoplot_module_shift++))
     fi
     plots+=("gridhist")
+    clipdemflag=1
+
     tectoplot_module_caught=1
     ;;
 
@@ -389,7 +391,7 @@ function tectoplot_post_gridhist() {
         done
       fi
     else
-      [[ $gridhist_hasrun -eq 0 ]] && echo "[-gridhist]: Target file ${GRIDHISTFILE} does not exist or is empty." && gridhist_hasrun=1
+      [[ $gridhist_hasrun -eq 0 ]] && echo "[-gridhist]: Target file ${GRIDHIST_FILE} does not exist or is empty." && gridhist_hasrun=1
     fi
 
     # ;;
