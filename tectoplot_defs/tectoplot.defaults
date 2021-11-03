@@ -30,6 +30,12 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+
+T_AXIS_COLOR="black"
+P_AXIS_COLOR="blue"
+N_AXIS_COLOR="green"
+
+
 SEIS_DEFAULTMAG=5
 
 NOSCALE_SEISSIZE=4
@@ -268,6 +274,8 @@ PERSPECTIVE_TOPO_HALF=""     # Set to "+l" (-msl) (or less obviously "+r") to re
 
 ################################################################################
 # Regular profile options
+
+PROFILE_VERT_EX=1            # Vertical exaggeration of profile
 
 PROFILE_WIDTH_IN="7i"        # Width of profile
 PROFILE_HEIGHT_IN="2i"       # Height of profile

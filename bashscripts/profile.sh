@@ -470,32 +470,32 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
       info_msg "Loading swath grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     fi
 
-    # # Cut the grid to the AOI and multiply by its ZSCALE
-    # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
-    rm -f ${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
 
-    GRIDTMPFILE=${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
-    # GMT grdcut is messing us up again. Try gdal_translate
-
-    # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # echo     gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-
-    # gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-
-    # Old gmt grdcut which fails for some rasters
-    gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${GRIDTMPFILE} --GMT_HISTORY=false -Vn 2>/dev/null
-
-    # if [[ ! -s ${GRIDTMPFILE} ]]; then
-    #   cp ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # fi
-
-    info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
-    # echo     gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
-
-    gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
-
-    # WEIRD: I need to use GTiff format even though the output is often a different format name (NC)
-    # gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
+    # This section could be significantly simplified if we just multiply the outputs of grdtrack by the ZSCALE
+    # and don't do any cutting of the grid file; just sample it directly.
+    #
+    #
+    # # # Cut the grid to the AOI and multiply by its ZSCALE
+    # # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
+    # rm -f ${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
+    #
+    # GRIDTMPFILE=${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
+    # # GMT grdcut is messing us up again. Try gdal_translate
+    # # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
+    # # echo     gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
+    # # gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
+    # # Old gmt grdcut which fails for some rasters
+    # gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${GRIDTMPFILE} --GMT_HISTORY=false -Vn 2>/dev/null
+    #
+    # # if [[ ! -s ${GRIDTMPFILE} ]]; then
+    # #   cp ${gridfilelist[$i]} ${GRIDTMPFILE}
+    # # fi
+    #
+    # info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
+    # # echo     gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+    # gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
+    # # WEIRD: I need to use GTiff format even though the output is often a different format name (NC)
+    # # gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
 
   # T is a grid sampled along a track line
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
@@ -528,33 +528,36 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
     rm -f ${F_PROFILES}tmp.nc
 
+    # We can also get away with not cutting this grid if we just multiply the sampled data by ZSCALE
+    #
+    #
+    # if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+    #   info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}"
+    # else
+    #   info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
+    #   gmt grdedit -L+n ${ptgridfilelist[$i]}
+    #   if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+    #     info_msg "Grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+n"
+    #   else
+    #     info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]} with grdedit -L+n. Trying grdedit -L+p"
+    #     gmt grdedit -L+p ${ptgridfilelist[$i]}
+    #     if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
+    #       info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+p"
+    #     else
+    #       echo "gmt grdcut failed entirely on ${ptgridfilelist[$i]}"
+    #       exit 1
+    #     fi
+    #   fi
+    # fi
 
-    if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-      info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}"
-    else
-      info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
-      gmt grdedit -L+n ${ptgridfilelist[$i]}
-      if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-        info_msg "Grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+n"
-      else
-        info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]} with grdedit -L+n. Trying grdedit -L+p"
-        gmt grdedit -L+p ${ptgridfilelist[$i]}
-        if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-          info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+p"
-        else
-          echo "gmt grdcut failed entirely on ${ptgridfilelist[$i]}"
-          exit 1
-        fi
-      fi
-    fi
-
-    if [[ -e ${F_PROFILES}tmp.nc ]]; then
-      gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
-    fi
+    # if [[ -e ${F_PROFILES}tmp.nc ]]; then
+    #   gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
+    # fi
     if [[ $changebackflag -eq 1 ]]; then
       gmt grdedit -L+p ${ptgridfilelist[$i]}
     fi
-    echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} " >> ${F_PROFILES}data_id.txt
+    # October 29
+    echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} (now ${ptgridfilelist[$i]}) " >> ${F_PROFILES}data_id.txt
 
   # X is an xyz dataset; E is an earthquake dataset
 elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" || ${FIRSTWORD:0:1} == "I" ]]; then        # Found an XYZ dataset
@@ -776,7 +779,6 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
       # 8. Vs2(m/s)
       # 9. eta
 
-
       # First, do the main profile, honoring the XOFFSET_NUM shift
 
       gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${LITHO1_INC}k  > ${F_PROFILES}${LINEID}_litho1_track.txt
@@ -896,17 +898,25 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
       echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
 
-      if [[ -e ${F_PROFILES}${ptgridfilesellist[$i]} ]]; then
+      # if [[ -s ${F_PROFILES}${ptgridfilesellist[$i]} ]]; then
+      if [[ -s ${ptgridfilelist[$i]} ]]; then
+
         # Resample the track at the specified X increment.
         gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -fg -I${ptgridspacinglist[$i]} > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
-cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
+
+        cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt
 
         # Calculate the X coordinate of the resampled track, accounting for any X offset due to profile alignment
         gmt mapproject -G+uk+a ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt | gawk -v xoff="${XOFFSET_NUM}" '{ print $1, $2, $3 + xoff }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
-cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
+
+        cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
+
         # Sample the grid at the points.  Note that -N is needed to avoid paste problems.
 
-        gmt grdtrack -N -Vn -G${F_PROFILES}${ptgridfilesellist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
+        # October 29, 2021:
+        # Following this command, we would multiply the grdtrack results by the relevant ZSCALE
+        # gmt grdtrack -N -Vn -G${F_PROFILES}${ptgridfilesellist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
+        gmt grdtrack -N -Vn -G${ptgridfilelist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
 
         # *_sample.txt is a file containing lon,lat,val
         # We want to reformat to a multisegment polyline that can be plotted using psxy -Ccpt
@@ -916,7 +926,12 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
         # > -Zval2
         paste ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt > ${F_PROFILES}dat.txt
         sed 1d < ${F_PROFILES}dat.txt > ${F_PROFILES}dat1.txt
-      	paste ${F_PROFILES}dat.txt ${F_PROFILES}dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '{ if ($7 && $6 != "NaN" && $12 != "NaN") { print "> -Z"($6+$12)/2*zscale*-1; print $3, $6*zscale; print $9, $12*zscale } }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt
+      	paste ${F_PROFILES}dat.txt ${F_PROFILES}dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '
+          {
+            if ($7 && $6 != "NaN" && $12 != "NaN") {
+              print "> -Z"($6+$12)/2*zscale; print $3, $6*zscale*-1; print $9, $12*zscale*-1
+            }
+          }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt
 
         echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
 
@@ -944,8 +959,11 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
       gridfileflag=1
 
       # Sample the input grid along space cross-profile
-      # echo gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af \> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
-      gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
+      gmt grdtrack -N -Vn -G${gridfilelist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
+
+      # October 29 2021: old version of grdtrack using scaled raster; new version uses original raster
+      # gmt grdtrack -N -Vn -G${F_PROFILES}${gridfilesellist[$i]} ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
+
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt
 
       if [[ ${istopgrid[$i]} -eq 1 ]]; then
@@ -971,6 +989,7 @@ cleanup ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackdist.txt
         fi
 
         gmt grdtrack -N -Vn -G${F_PROFILES}colored_relief_red.tif -G${F_PROFILES}colored_relief_green.tif  -G${F_PROFILES}colored_relief_blue.tif ${F_PROFILES}${LINEID}_trackfile.txt -C${gridwidthlist[$i]}/${gridsamplewidthlist[$i]}/${gridspacinglist[$i]}${PERSPECTIVE_TOPO_HALF} -Af > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
+
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
 
         if [[ -s ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt ]]; then
@@ -992,12 +1011,12 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
       gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '{ print ( $1 * (dinc + 0) + xoff ) }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
 
-      # Construct the profile data table.
-      gawk '{
+      # Construct the profile data table. This is where we can correct by ZSCALE
+      gawk -v zscale=${gridzscalelist[$i]} '{
         if ($1 == ">") {
           printf("\n")
         } else {
-          printf("%s ", $5)
+          printf("%s ", $5*zscale)
         }
       }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | sed '1d' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledata.txt
 
@@ -2262,7 +2281,7 @@ EOF
         if [[ ${OTO_METHOD} =~ "change_z" ]]; then
           info_msg "(-mob) Setting vertical aspect ratio to H=W for profile ${LINEID} by changing Z range"
           line_diffx=$(echo "$line_max_x - $line_min_x" | bc -l)
-          line_hwratio=$(gawk -v h=${PROFILE_HEIGHT_IN} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (h+0)/(w+0) }')
+          line_hwratio=$(gawk -v vertex=${PROFILE_VERT_EX} -v h=${PROFILE_HEIGHT_IN} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print 1/vertex*(h+0)/(w+0) }')
           line_diffz=$(echo "$line_hwratio * $line_diffx" | bc -l)
           line_min_z=$(echo "$line_max_z - $line_diffz" | bc -l)
           info_msg "Profile ${LINEID} new min_z is $line_min_z"
@@ -2275,7 +2294,7 @@ EOF
           line_diffz=$(echo "$line_max_z - $line_min_z" | bc -l)
 
           # calculate new PROFILE_HEIGHT_IN
-          PROFILE_HEIGHT_IN_TMP=$(gawk -v dx=${line_diffx} -v dz=${line_diffz} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (w+0)*(dz+0)/(dx+0) }')"i"
+          PROFILE_HEIGHT_IN_TMP=$(gawk -v vertex=${PROFILE_VERT_EX} -v dx=${line_diffx} -v dz=${line_diffz} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print vertex*(w+0)*(dz+0)/(dx+0) }')"i"
           info_msg "New profile height for ${LINEID} is $PROFILE_HEIGHT_IN_TMP"
         fi
 

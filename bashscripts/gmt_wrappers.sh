@@ -62,7 +62,7 @@ function gmt_version() {
 # usage:
 # gmt_psmeca CPT_FILE {All options other than -Z/-C}
 
-function gmt_psmeca() {
+function gmt_psmeca_wrapper() {
   local CPT_FILE="${1}"
   shift
 

@@ -71,19 +71,19 @@ function tectoplot_post_stereonet() {
     symbolsize=0.1i
 
     if [[ $axescmtthrustflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $30, -$31 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $27, -$28 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $30, -$31 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $27, -$28 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
     if [[ $axescmtnormalflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $24, -$25 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $30, -$31 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $27, -$28 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $24, -$25 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $30, -$31 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $27, -$28 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
     if [[ $axescmtssflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $24, -$25 }' | gmt psxy -St${symbolsize} -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St${symbolsize} -W0.25p,black -Gblue -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St${symbolsize} -W0.25p,black -Ggreen -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $24, -$25 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
     gmt psxy -T -R -J -K -O ${VERBOSE} >> stereo.ps
 

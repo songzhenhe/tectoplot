@@ -837,6 +837,7 @@ do
    ;;
 
   -megadebug)
+    PS4=' \e[33m$(date +"%H:%M:%S"): $LINENO ${FUNCNAME[0]} -> \e[0m'
     set -x
     ;;
 
@@ -1503,10 +1504,30 @@ fi
   shift
   ;;
 
+#   -iscreport)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -iscreport:    plot earthquakes that occurred recently
+# -iscreport [[min_magnitude]]
+#
+#   Create an HTML document with links to ISC event reports for all earthquakes
+#   in the given AOI, above a minimum magnitude.
+#
+#   NOTE: Requires -z -zcat ISC
+#
+# Example: Plot last 1 month of earthquakes in USA
+#   tectoplot -r US.CA -z -zcat ISC -iscreport 7
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#   plots+=("iscreport")
+#   ;;
+
   -recenteq) # args: none | days
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--recenteq:     earthquakes in last n days
+-recenteq:     plot earthquakes that occurred recently
 -recenteq      [[number_of_days=${LASTDAYNUM}]] [[print]]
   Sets options -a a -z -c -time date1 date2 where date1 is number_of_days ago
   and date2 is current date and time (both in UTC).
@@ -1532,6 +1553,7 @@ fi
   ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
   shift
   set -- "blank" "-a" "a" "-z" "-c" "-time" "${STARTTIME}" "${ENDTIME}" "$@"
+  echo $@
   ;;
 
   -latesteqs)
@@ -3143,11 +3165,12 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -g:            plot gps velocities from builtin catalog
--g [refplate]
+-g [[refplate]]
 
   GPS velocities exist for all plates in Kreemer et al., 2014 supplementary
   database. If -p is used, -g will assume the same plate ID as -p unless it is
   overridden with [refplate].
+
   Velocity vector lengths can be scaled using -i.
 
 Example: Plate motions and GPS velocities around Puerto Rico and Cuba (plate na)
@@ -3933,6 +3956,34 @@ fi
     info_msg "[-mob]: az=$PERSPECTIVE_AZ, inc=$PERSPECTIVE_INC, exag=$PERSPECTIVE_EXAG, res=$PERSPECTIVE_RES"
     ;;
 
+  -profsize)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profsize:     Change default size of profiles
+-profsize [x_size] [[y_size]]
+
+  x_size and y_size must have unit letter (e.g. 2i)
+
+Example: none
+EOF
+shift && continue
+fi
+
+  if arg_is_flag $2; then
+    echo "[-profsize]: Must specify at least one size"
+    exit 1
+  else
+    PROFILE_WIDTH_IN=$2
+    shift
+  fi
+
+  if ! arg_is_flag $2; then
+    PROFILE_HEIGHT_IN=$2
+    shift
+  fi
+
+  ;;
+
   -kprof)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -4426,13 +4477,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -oto:          specify one-to-one horizontal=vertical scaling of all profiles
--oto [[method=${OTO_METHOD}]]
+-oto [[method=${OTO_METHOD}]] [[vert_exag]]
 
   Adjusts the maximum depth of the profile to ensure 1:1 H=W ratio
   Options are
     change_h: Change the height of the profile on the page to make H=W
     change_z: Change the maximum depth of the profile to make H=W
     off:      Turn of H=W scaling
+    vert_exag is a number indicating the ratio of vertical to horizontal units
 
 Example: None
 --------------------------------------------------------------------------------
@@ -4446,6 +4498,10 @@ fi
     fi
     if [[ $2 =~ "off" ]]; then
       profileonetooneflag=0
+      shift
+    fi
+    if arg_is_positive_float $2; then
+      PROFILE_VERT_EX="${2}"
       shift
     fi
     ;;
@@ -7320,6 +7376,7 @@ fi
     ;;
 
   # Popular recipes for topo visualization
+
   -t0)  #  Slope/50% Multiple hillshade 45°/50% Gamma=1.4
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8613,6 +8670,8 @@ fi
     shift
     shift
     ;;
+
+
 
 	-z|--seis) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9966,14 +10025,64 @@ if [[ $fixselectpolygonsflag -eq 1 ]]; then
   POLYGONAOI=$(abs_path ${F_MAPELEMENTS}fixed_polygon.xy)
 fi
 
+# Create some template (empty) maps to get basic info about the map itself
 # Determine the range of projected coordinates for the bounding box and save them
-XYRANGE=($(xy_range ${F_MAPELEMENTS}projbounds.txt))
+# DEFINE BSTRING
+
+if [[ $PLOTTITLE == "" ]]; then
+  TITLE=""
+else
+  TITLE="+t\"${PLOTTITLE}\""
+fi
+if [[ $usecustombflag -eq 0 ]]; then
+  bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
+  bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
+  bcmds+=("-B${GRIDCALL}")
+  # bcmds+=("-B${GRIDCALL}${TITLE}")
+  BSTRING=("${bcmds[@]}")
+fi
+
+if [[ $plottitleflag -eq 1 ]]; then
+  gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE -K > base_fake.ps
+  gmt psbasemap "-B+t\"${PLOTTITLE}\"" -R -J $VERBOSE -O >> base_fake.ps
+else
+  gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE > base_fake.ps
+fi
+
+# Turn of the axis labels and make a map, then read its dimensions from the PS file
+# directly. Units are in points, so we multiply by 2.54in/72pts to get inches
+
+gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
+
+PROJDIM=($(grep GMTBoundingBox base_fake_nolabels.ps | gawk '{print $4/72*2.54, $5/72*2.54}'))
+
+# XYRANGE=($(xy_range ${F_MAPELEMENTS}projbounds.txt))
+XYRANGE[0]=0
+XYRANGE[1]=${PROJDIM[0]}
+XYRANGE[2]=0
+XYRANGE[3]=${PROJDIM[1]}
+
 echo ${XYRANGE[@]} > ${F_MAPELEMENTS}projxyrange.txt
 
-MINPROJ_X=${XYRANGE[0]}
-MAXPROJ_X=${XYRANGE[1]}
-MINPROJ_Y=${XYRANGE[2]}
-MAXPROJ_Y=${XYRANGE[3]}
+MINPROJ_X=0
+MAXPROJ_X=${PROJDIM[0]}
+MINPROJ_Y=0
+MAXPROJ_Y=${PROJDIM[1]}
+
+# Here I have replaced the bounding box size estimation with a direct reading of the PS
+# file GMTBoundingBox for the label-free map. This seems to work for oblique projections.
+
+# Could it possibly fail if the bounding box is weird? I guess!
+
+# XYRANGE=($(xy_range ${F_MAPELEMENTS}projbounds.txt))
+# echo ${XYRANGE[@]} > ${F_MAPELEMENTS}projxyrange.txt
+#
+# MINPROJ_X=${XYRANGE[0]}
+# MAXPROJ_X=${XYRANGE[1]}
+# MINPROJ_Y=${XYRANGE[2]}
+# MAXPROJ_Y=${XYRANGE[3]}
+
+
 
 
 gawk -v minlon=${XYRANGE[0]} -v maxlon=${XYRANGE[1]} -v minlat=${XYRANGE[2]} -v maxlat=${XYRANGE[3]} '
@@ -10143,7 +10252,7 @@ fi
 if [[ $gridfibonacciflag -eq 1 ]]; then
   FIB_PHI=1.618033988749895
 
-  echo "" | gawk  -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+  echo "" | gawk -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
   @include "tectoplot_functions.awk"
   # function asin(x) { return atan2(x, sqrt(1-x*x)) }
   BEGIN {
@@ -10240,21 +10349,6 @@ if [[ $GRIDLINESON -eq 1 ]]; then
   GRIDSP_LINE="g${GRIDSP}"
 else
   GRIDSP_LINE=""
-fi
-
-# DEFINE BSTRING
-
-if [[ $PLOTTITLE == "" ]]; then
-  TITLE=""
-else
-  TITLE="+t\"${PLOTTITLE}\""
-fi
-if [[ $usecustombflag -eq 0 ]]; then
-  bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
-  bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
-  bcmds+=("-B${GRIDCALL}")
-  # bcmds+=("-B${GRIDCALL}${TITLE}")
-  BSTRING=("${bcmds[@]}")
 fi
 
 # If grid isn't explicitly turned on but is also not turned off, add it to plots
@@ -12294,16 +12388,39 @@ fi
 
   if [[ $SCALEEQS -eq 1 ]]; then
     info_msg "Scaling CMT earthquake magnitudes for display only"
+
+    # This script applies a stretch function to the magnitudes to allow
+    # non-linear rescaling of focal mechanisms.
+
     gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
       mw=$13
       mwmod = (mw^str)/(sref^(str-1))
       a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
       split(a,b,"+")  # mantissa
       split(a,c,"E")  # exponent
+      oldmantissa=$14
+      oldexponent=$15
       $14=c[1]
       $15=b[2]
+      # New exponent for principal axes
+      $22=b[2]
+      # Scale principal axes by ratio of mantissas
+      $23=$23*c[1]/$14
+      $26=$26*c[1]/$14
+      $29=$29*c[1]/$14
+
+      # New exponent for moment tensor
+      $32=b[2]
+      # Scale moment tensor components by the ratio of the mantissas
+      $33=$33*c[1]/$14
+      $34=$34*c[1]/$14
+      $35=$35*c[1]/$14
+      $36=$36*c[1]/$14
+      $37=$37*c[1]/$14
+      $38=$38*c[1]/$14
+
+      # Output the rescaled focal mechanism file line by line
       print
-      # print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, c[1], b[2], $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
     }' > ${F_CMT}cmt_scale.dat
     CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
   fi
@@ -12337,7 +12454,7 @@ fi
       strike1=$16;dip1=$17;rake1=$18;strike2=$19;dip2=$20;rake2=$21
       Mrr=$33; Mtt=$34; Mpp=$35; Mrt=$36; Mrp=$37; Mtp=$38
       Tval=$23; Taz=$24; Tinc=$25; Nval=$26; Naz=$27; Ninc=$28; Pval=$29; Paz=$30; Pinc=$31;
-      clusterid=$40
+      clusterid=($40+0==$40)?$40:0
 
       epoch=iso8601_to_epoch(iso8601_code)
 
@@ -12365,13 +12482,14 @@ fi
         #
         # } else
         if (fmt == "MomentTensor") {
-          # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat [event_title] altdepth [timecode]
+          # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+          # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
             if (substr($1,2,1) == "T") {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code > "cmt_thrust.txt"
             } else if (substr($1,2,1) == "N") {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_normal.txt"
             } else {
-              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
+              print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_strikeslip.txt"
             }
             print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt.dat"
         }
@@ -12873,7 +12991,7 @@ if [[ $plotplates -eq 1 ]]; then
 
         # Calculate the minimum and maximum colatitudes of points in .pldat file relative to Euler Pole
         #cos(AOB)=cos(latA)cos(latB)cos(lonB-lonA)+sin(latA)sin(latB)
-        grep -v ">" ${F_PLATES}${v[$i]}.pldat | grep "\S" | gawk  -v plat=$polelat -v plon=$polelon '
+        grep -v ">" ${F_PLATES}${v[$i]}.pldat | grep "\S" | gawk -v plat=$polelat -v plon=$polelon '
         @include "tectoplot_functions.awk"
         # function acos(x) { return atan2(sqrt(1-x*x), x) }
           BEGIN {
@@ -14070,16 +14188,10 @@ fi
 cleanup base_fake.ps base_fake.eps base_fake_nolabels.ps base_fake_nolabels.eps
 
 # gmt psbasemap ${BSTRING[@]} ${SCALECMD} $RJOK $VERBOSE >> map.ps
+# gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
 
-# Note that BSTRING needs to be quoted as it has a title with spaces...
 
-gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
-if [[ $plottitleflag -eq 1 ]]; then
-  gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE -K > base_fake.ps
-  gmt psbasemap "-B+t\"${PLOTTITLE}\"" -R -J $VERBOSE -O >> base_fake.ps
-else
-  gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE > base_fake.ps
-fi
+
 gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
 
 # We can just use cp instead of running GMT so many times...
@@ -14098,18 +14210,33 @@ cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velar
 # So check the label-free width and if it is significantly less than the with-label
 # width, use it instead. Shouldn't change too much honestly.
 
+
+# This outputs a single string with two values
+
 MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+# MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+
+
+
+MAP_PS_NOLABELS_DIM_IN=($(grep GMTBoundingBox base_fake_nolabels.ps | gawk '{print $4/72, $5/72}'))
+
+
 # MAP_PS_NOLABELS_BB=($(gmt psconvert base_fake_nolabels.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | gawk -F'[[]' '{print $3}' | gawk -F '[]]' '{print $1}'))
 # MAP_PS_WITHLABELS_BB=($(gmt psconvert base_fake.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | gawk -F'[[]' '{print $3}' | gawk -F '[]]' '{print $1}'))
 # MAP_ANNOT_VDIFF=$(echo )
 
 MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | gawk  '{print $1/2.54}')
 MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | gawk  '{print $2/2.54}')
-MAP_PS_WIDTH_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $1/2.54}')
-MAP_PS_HEIGHT_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $2/2.54}')
-info_msg "Map dimensions (in) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
-info_msg "No label map dimensions (in) are W: $MAP_PS_WIDTH_NOLABELS_IN, H: $MAP_PS_HEIGHT_NOLABELS_IN"
+
+# MAP_PS_WIDTH_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $1/2.54}')
+# MAP_PS_HEIGHT_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $2/2.54}')
+
+MAP_PS_WIDTH_NOLABELS_IN=${MAP_PS_NOLABELS_DIM_IN[0]}
+MAP_PS_HEIGHT_NOLABELS_IN=${MAP_PS_NOLABELS_DIM_IN[1]}
+
+
+info_msg "Labeled map dimensions (in) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
+info_msg "Unlabeled map frame dimensions (in) are W: $MAP_PS_WIDTH_NOLABELS_IN, H: $MAP_PS_HEIGHT_NOLABELS_IN"
 
 # If difference is more than 50% of map width
 if [[ $(echo "$MAP_PS_WIDTH_IN - $MAP_PS_WIDTH_NOLABELS_IN > $MAP_PS_WIDTH_IN/2" | bc) -eq 1 ]]; then
@@ -14231,25 +14358,25 @@ for plot in ${plots[@]} ; do
 
       if [[ $axescmtthrustflag -eq 1 ]]; then
         # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
-        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_thrust.txt.xy -W1p,black -Gpurple -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_thrust.txt.xy -W1p,black -Gdarkblue -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_thrust.txt.xy -W1p,black -Gdarkgreen -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_thrust.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_thrust.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_thrust.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
         # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
         # [[ $axesnflag -eq 1 ]] && gawk  < ${F_KIN}n_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green  -Gblack $RJOK $VERBOSE >> map.ps
       fi
       if [[ $axescmtnormalflag -eq 1 ]]; then
-        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_normal.txt.xy -W1p,black -Gpurple -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_normal.txt.xy -W1p,black -Gdarkblue -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_normal.txt.xy -W1p,black -Gdarkgreen -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_normal.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_normal.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_normal.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
         #
         # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
         # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
         # [[ $axesnflag -eq 1 ]] && gawk  < ${F_KIN}n_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green  -Gblack $RJOK $VERBOSE >> map.ps
       fi
       if [[ $axescmtssflag -eq 1 ]]; then
-        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_strikeslip.txt.xy -W1p,black -Gpurple -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_strikeslip.txt.xy -W1p,black -Gdarkblue -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_strikeslip.txt.xy -W1p,black -Gdarkgreen -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_strikeslip.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_strikeslip.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+        [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_strikeslip.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
 
         # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
         # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
@@ -14373,14 +14500,15 @@ for plot in ${plots[@]} ; do
         SEIS_CPT=$SEISDEPTH_CPT
       fi
 
+#-Ft -Fa0.05i
       if [[ $cmtthrustflag -eq 1 ]]; then
-        gmt_psmeca ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
-        gmt_psmeca ${SEIS_CPT} -E"${CMT_NORMALCOLOR}"  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtssflag -eq 1 ]]; then
-        gmt_psmeca $SEIS_CPT -E"${CMT_SSCOLOR}" ${CMTEXTRA} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper $SEIS_CPT -E"${CMT_SSCOLOR}" ${CMTEXTRA} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
       fi
       ;;
 
@@ -14649,11 +14777,7 @@ for plot in ${plots[@]} ; do
           gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > cmtlabel_map.ps
           uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING[@]} -O $VERBOSE >> cmtlabel_map.ps
         fi
-
       fi
-
-
-
 
       if [[ -e ${F_SEIS}eqs.txt ]]; then
         if [[ $labeleqlistflag -eq 1 && ${#eqlistarray[@]} -ge 1 ]]; then
@@ -14801,7 +14925,7 @@ for plot in ${plots[@]} ; do
       fi
 
       paste -d ' ' ${F_PLATES}eulergrid.txt ${F_PLATES}gridvelocities.txt | gawk  '{print $2, $1, $3, $4, 0, 0, 1, "ID"}' > ${F_PLATES}gridplatevecs.txt
-      cat ${F_PLATES}gridplatevecs.txt | gawk  -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }'  > ${F_PLATES}grideuler.pvec
+      cat ${F_PLATES}gridplatevecs.txt | gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }'  > ${F_PLATES}grideuler.pvec
       gmt psxy -SV$ARROWFMT -W0p,${EULER_VEC_LINECOLOR} -G${EULER_VEC_FILLCOLOR} ${F_PLATES}grideuler.pvec $RJOK $VERBOSE >> map.ps
       ;;
     eqtime)
@@ -14961,7 +15085,7 @@ for plot in ${plots[@]} ; do
       for lat in $(seq $MINLAT $deginc $MAXLAT); do
         echo $MINLAT - $lat - $MAXLAT
         for lon in $(seq $MINLON $deginc $MAXLON); do
-          ${LITHO1_PROG} -p $lat $lon -d $LITHO1_DEPTH  -l ${LITHO1_LEVEL} 2>/dev/null | gawk  -v lat=$lat -v lon=$lon -v extfield=$LITHO1_FIELDNUM '{
+          ${LITHO1_PROG} -p $lat $lon -d $LITHO1_DEPTH  -l ${LITHO1_LEVEL} 2>/dev/null | gawk -v lat=$lat -v lon=$lon -v extfield=$LITHO1_FIELDNUM '{
             print lon, lat, $(extfield)
           }' >> litho1_${LITHO1_DEPTH}.xyz
         done
@@ -15066,10 +15190,10 @@ for plot in ${plots[@]} ; do
 
       if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 ]]; then
         info_msg "Updating mprof to use a newly generated sprof.control file"
-        PROFILE_WIDTH_IN="7i"
-        PROFILE_HEIGHT_IN="2i"
+        # PROFILE_WIDTH_IN="7i"
+        # PROFILE_HEIGHT_IN="2i"
         PROFILE_X="0"
-        PROFILE_Y="-3i"
+        PROFILE_Y=$(echo $PROFILE_HEIGHT_IN | gawk -F'i' '{print -($1+1) "i"}')
         MPROFFILE="sprof.control"
 
         if [[ $PROFILE_ALIGNZ == "0" ]]; then
@@ -15675,10 +15799,10 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
         cd pvdir
         # # Determine the extent of the polygon within the map extent
-        pl_max_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | tail -n 1 | gawk  -v mx=$MAXLON '{print ($1>mx)?mx:$1}')
-        pl_min_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | head -n 1 | gawk  -v mx=$MINLON '{print ($1<mx)?mx:$1}')
-        pl_max_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | tail -n 1 | gawk  -v mx=$MAXLAT '{print ($2>mx)?mx:$2}')
-        pl_min_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | head -n 1 | gawk  -v mx=$MINLAT '{print ($2<mx)?mx:$2}')
+        pl_max_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | tail -n 1 | gawk -v mx=$MAXLON '{print ($1>mx)?mx:$1}')
+        pl_min_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | head -n 1 | gawk -v mx=$MINLON '{print ($1<mx)?mx:$1}')
+        pl_max_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | tail -n 1 | gawk -v mx=$MAXLAT '{print ($2>mx)?mx:$2}')
+        pl_min_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | head -n 1 | gawk -v mx=$MINLAT '{print ($2<mx)?mx:$2}')
         info_msg "Polygon region $pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y"
         # this approach requires a final GMT grdblend command
         # echo platevelres=$PLATEVELRES
@@ -15689,11 +15813,11 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         # zrange=$(grid_zrange ${LEAD}_velraster.nc -C -Vn)
         # MINZ=$(echo $zrange | gawk  '{print $1}')
         # MAXZ=$(echo $zrange | gawk  '{print $2}')
-        # MAXV_I=$(echo $MAXZ | gawk  -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
-        # MINV_I=$(echo $MINZ | gawk  -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
+        # MAXV_I=$(echo $MAXZ | gawk -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
+        # MINV_I=$(echo $MINZ | gawk -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
         # unverified code above...
-        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk  -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
-        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk  -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
+        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
+        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
         # # gmt grdedit -fg -A -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y "$LEAD"_masked.nc -G"$LEAD"_masked_edit.nc
         # echo "${LEAD}_masked_edit.nc -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y 1" >> grdblend.cmd
         cd ../
@@ -16378,10 +16502,13 @@ done
 
 #### -seistimeline
 
-if [[ $plotseistimeline -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
+# Variables expected:
+# MAP_PS_WIDTH_NOLABELS_IN
+# zctimeflag, zcclusterflag
 
-    # Get time of earthquake
+if [[ $plotseistimeline -eq 1 ]]; then
 
+  if [[ -s ${F_SEIS}eqs_scaled.txt ]]; then
     # Project the earthquake data
     gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
 
@@ -16414,34 +16541,136 @@ if [[ $plotseistimeline -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
     if [[ $SCALEEQS -eq 1 ]]; then
       gmt_init_tmpdir
 
-      PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      MAP_PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-      MAP_PS_WIDTH_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      # PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      # MAP_PS_HEIGHT_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      # MAP_PS_WIDTH_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
 
       # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
       # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_IN_NOLABELS | gawk  '{print $1}')
+      PS_OFFSET_IN_NOLABELS=${MAP_PS_WIDTH_NOLABELS_IN}
 
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
 
       if [[ $SCALEEQS -eq 1 ]]; then
-        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_IN_NOLABELS}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
 
         secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
 
-        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_IN_NOLABELS}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
 
       fi
-
-      # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf+l"Depth" -Byaf -BlNrb -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+      gmt_remove_tmpdir
 
+    fi
+  fi
+  if [[ -s $CMTFILE ]]; then
+    # Project the CMT data; thrusts first
+
+    # echo $CMT_THRUSTPLOT
+    # echo $CMT_STRIKESLIPPLOT
+    # echo $CMT_NORMALPLOT
+    # echo $SEIS_CPT
+    #
+    # head $CMT_STRIKESLIPPLOT
+
+    PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_NOLABELS_IN | gawk  '{print $1}')
+
+    OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+    gmt gmtset PROJ_LENGTH_UNIT p
+    secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      SEIS_CPT=${F_CPTS}"eqtime_cmt.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+    if [[ $cmtthrustflag -eq 1 ]]; then
+
+      gmt mapproject ${RJSTRING[@]} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.5  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_thrust.txt ${CMT_THRUSTPLOT} > ${F_CMT}proj_thrust_scaled_y.txt
+
+      gmt_init_tmpdir
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
       gmt_remove_tmpdir
     fi
+
+    if [[ $cmtnormalflag -eq 1 ]]; then
+      gmt mapproject ${RJSTRING[@]} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_normal.txt ${CMT_NORMALPLOT} > ${F_CMT}proj_normal_scaled_y.txt
+
+      gmt_init_tmpdir
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_remove_tmpdir
+
+    fi
+
+    if [[ $cmtssflag -eq 1 ]]; then
+      gmt mapproject ${RJSTRING[@]} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_strikeslip.txt ${CMT_STRIKESLIPPLOT} > ${F_CMT}proj_strikeslip_scaled_y.txt
+
+      gmt_init_tmpdir
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_remove_tmpdir
+    fi
+
+  fi
+
 fi
 
 ##### -seisproj
@@ -16465,7 +16694,9 @@ if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       print -(maxdepth+range/20), -(mindepth-range/10)
     }'))
 
+    echo gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1
     gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+
     gawk '
       (NR==FNR) {
         projx[NR]=$1
@@ -16590,7 +16821,6 @@ fi
 
 if [[ $plotseisprojflag_y -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
 
-
   depth_range=($(gawk < ${F_SEIS}eqs_scaled.txt '
     BEGIN {
       getline
@@ -16638,21 +16868,21 @@ if [[ $plotseisprojflag_y -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
     if [[ $SCALEEQS -eq 1 ]]; then
       gmt_init_tmpdir
 
-      PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      MAP_PS_HEIGHT_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-      MAP_PS_WIDTH_IN_NOLABELS=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      # PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      # MAP_PS_HEIGHT_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      # MAP_PS_WIDTH_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
 
       # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
       # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_IN_NOLABELS | gawk  '{print $1+ 0.15}')
+      PS_OFFSET_IN_NOLABELS=$(echo $MAP_PS_WIDTH_NOLABELS_IN | gawk  '{print $1+ 0.15}')
 
       OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
       gmt gmtset PROJ_LENGTH_UNIT p
 
-      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_IN_NOLABELS}i -Bxaf+l"Depth" -Byaf -BlNrb -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt -Xa${PS_OFFSET_IN_NOLABELS}i -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJWIDTH_Y}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"Depth" -Byaf -BlNrb -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} -O -K $VERBOSE --MAP_FRAME_PEN=thick,black --MAP_FRAME_TYPE=plain >> map.ps
       gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
       gmt_remove_tmpdir
@@ -16938,56 +17168,95 @@ if [[ $makelegendflag -eq 1 ]]; then
         # MEXP_V_S=${MEXP_ARRAY[1]}
         # MEXP_V_T=${MEXP_ARRAY[1]}
 
-        MEXP_N=$(stretched_m0_from_mw $MEXP_V_N)
-        MEXP_S=$(stretched_m0_from_mw $MEXP_V_S)
-        MEXP_T=$(stretched_m0_from_mw $MEXP_V_T)
+        MEXP_N=($(stretched_m0_from_mw $MEXP_V_N))
+        MEXP_S=($(stretched_m0_from_mw $MEXP_V_S))
+        MEXP_T=($(stretched_m0_from_mw $MEXP_V_T))
 
         # if [[ $CMTLETTER == "c" ]]; then
-        #   echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtnormalflag -eq 1 ]]; then
-        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #   fi
         #   echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
-        #   echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtssflag -eq 1 ]]; then
-        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #   fi
         #   echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-        #   echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtthrustflag -eq 1 ]]; then
-        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+        #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #   fi
         #   # echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> mecaleg.ps
         #   echo "$CENTERLON $CENTERLAT reverse" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> mecaleg.ps
         # fi
+
+# Thrust earthquake:
+# GT C122604B 2004-12-26T04:21:29 1104006089 92.79 6.61 13.6 92.96 6.910000 39.200000 GCMT PDE  7.20597 7.227 26 351 27 121 137 67 75 26 7.461 21 65 -0.460 143 14 -6.994 238 20 26 5.260 -0.843 -4.410 3.950 -2.910 2.100 6.7
+# P-axis:
+# 92.96 6.910000 -39.8452 -24.8981 0 0 0
+# T-axis:
+# 92.96 6.910000 7.57264 19.7274 0 0 0
+# N-axis:
+# 92.96 6.910000 29.1969 -38.7456 0 0 0
+
+# Strike-slip earthquake:
+# 94.3 22.930000 75.300000 -0.378 -0.968 1.350 -2.330 0.082 4.790 24 94.32 22.83 C201207290221A 71.9 1343499672
+
+
+
         if [[ $CMTLETTER == "m" ]]; then
-          echo "$CENTERLON $CENTERLAT 10 -3.19 1.95 1.24 -0.968 -0.425 $MEXP_N 0 0 " | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -44.5503 -22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 44.5503 22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -1.30656 3.23385 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 1.30656 -3.23385 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 22.6442 -44.4418 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -22.6442 44.4418 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
+
+
           # echo "$CENTERLON $CENTERLAT normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 10 0.12 -1.42 1.3 0.143 -0.189 $MEXP_S 0 0 " | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
+
+
+          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
+
           if [[ $axescmtssflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 36.6146 -31.8286 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -36.6146 31.8286 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 26.774 38.2372 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -26.774 -38.2372 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -20.8458 -6.77321 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 20.8458 6.77321 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
           # echo "$CENTERLON $CENTERLAT strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
-          echo "$CENTERLON $CENTERLAT 15 2.12 -1.15 -0.97 0.54 -0.603 $MEXP_T 0 0 2016-12-08T17:38:46" | gmt_psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+
+          # Plot thrust event in legend
+
+          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+
           if [[ $axescmtthrustflag -eq 1 ]]; then
-            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
-            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 139 0.96" | gawk  -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 7.57264 19.7274 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -7.57264 -19.7274 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -39.8452 -24.8981 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 39.8452 24.8981 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 29.1969 -38.7456 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -29.1969 38.7456 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
           fi
           echo "$CENTERLON $CENTERLAT R/${MEXP_V_T}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O >> mecaleg.ps
           # echo "$CENTERLON $CENTERLAT reverse" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O >> mecaleg.ps
@@ -17005,14 +17274,14 @@ if [[ $makelegendflag -eq 1 ]]; then
       eqlabel)
         info_msg "Legend: eqlabel"
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk  '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk  '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
 
         cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O ${VERBOSE} >> eqlabel.ps
         PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
