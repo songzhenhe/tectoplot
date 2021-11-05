@@ -2196,12 +2196,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ca:           plot CMT kinematic axes (tpn) for different types (nts)
--ca [[axesstring=${CMTAXESSTRING}]] [[cmttypestring=${CMTAXESTYPESTRING}]]
+-ca [[axesstring=${CMTAXESSTRING}]] [[cmttypestring=${CMTAXESTYPESTRING}]] [[color Tcolor Pcolor Ncolor]]
+
   Plots principal axes
-  axesstring characters: t = T axis (tensional)     color = purple
-                         p = P axis (compressional) color = blue
-                         n = N axis (neutral)       color = green
+  axesstring characters: t = T axis (tensional)     color = ${T_AXIS_COLOR}
+                         p = P axis (compressional) color = ${P_AXIS_COLOR}
+                         n = N axis (neutral)       color = ${N_AXIS_COLOR}
   cmttypestring:         t = thrust, n = normal, s = strike slip
+
+  If axesstring and cmttypestring are BOTH not specified, then colors
+  can still be specified.
 
 Example: Plot P axes for thrust-type focal mechanisms around New Zealand
   tectoplot -r NZ -ca t t -a
@@ -2215,7 +2219,7 @@ fi
 
     if arg_is_flag $2; then
       info_msg "[-ca]: CMT axes eq type not specified. Using default ($CMTAXESSTRING)"
-    else
+    elif [[ $2 != "color" ]]; then
       CMTAXESSTRING="${2}"
       shift
       if arg_is_flag $2; then
@@ -2225,6 +2229,25 @@ fi
         shift
       fi
     fi
+
+    # Change the colors, in T P N order
+    if [[ $2 == "color" ]]; then
+      shift
+      if ! arg_is_flag $2; then
+        T_AXIS_COLOR=$2
+        shift
+      fi
+      if ! arg_is_flag $2; then
+        P_AXIS_COLOR=$2
+        shift
+      fi
+      if ! arg_is_flag $2; then
+        N_AXIS_COLOR=$2
+        shift
+      fi
+    fi
+
+
     [[ "${CMTAXESTYPESTRING}" =~ .*n.* ]] && axescmtnormalflag=1
     [[ "${CMTAXESTYPESTRING}" =~ .*t.* ]] && axescmtthrustflag=1
     [[ "${CMTAXESTYPESTRING}" =~ .*s.* ]] && axescmtssflag=1
@@ -2232,6 +2255,8 @@ fi
     [[ "${CMTAXESSTRING}" =~ .*t.* ]] && axestflag=1
     [[ "${CMTAXESSTRING}" =~ .*n.* ]] && axesnflag=1
     plots+=("caxes")
+
+
     ;;
 
   -cc) # args: none
@@ -9077,20 +9102,23 @@ cat <<-EOF
 
   format codes:
 
+  Note: Only m has been updated to take cluster_id and iso8601 time as output
+        by tectoplot in cmt.dat etc.
+
   Code   GMT or other format info
   ----   -----------------------------------------------------------------------
-    a    psmeca Aki and Richards format (mag= 28. MW)
+    a/A   psmeca Aki and Richards format (mag= 28. MW)
           X Y depth strike dip rake mag [newX newY] [event_title] [newdepth] ...
-          [timecode]
-    c    psmeca GCMT format
+          [epoch]
+    c/C   psmeca GCMT format
           X Y depth strike1 dip1 rake1 aux_strike dip2 rake2 moment ...
-          [newX newY] [event_title] [newdepth] [timecode]
+          [newX newY] [event_title] [newdepth] [epoch]
    /x    psmeca principal axes (Not implemented yet)
    /       X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value ...
-   /       P_azim P_plunge exp [newX newY] [event_title] [newdepth] [timecode]
-    m    psmeca moment tensor format
+   /       P_azim P_plunge exp [newX newY] [event_title] [newdepth] [epoch]
+    m/M   psmeca moment tensor format
           X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title] ...
-          [newdepth] [timecode]
+          [newdepth] [epoch] [cluster_id] [iso8601_time]
 
     a,c,/x,m import as ORIGIN locations; use A,C,/X,M to import as CENTROID
 
@@ -9102,7 +9130,6 @@ cat <<-EOF
     K    NDK format (e.g. from GCMT website)
     Z    GFZ MT format (e.g. from GFZ website)
     T    tectoplot native format (no processing done)
-
 
   By default, if multiple catalogs are specified, then the mechanisms will be
   culled to remove likely duplicate events, with the event from the earlier
