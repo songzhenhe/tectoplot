@@ -149,7 +149,7 @@ TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
 # October  21, 2020: Added -oto option to ensure 1:1 vertical exaggeration of profile plot
 # October  21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
 # October  20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
-# October  20, 2020: Added -clipdem to save a ${F_TOPO}dem.nc file in the temporary data folder, mainly for in-place profile control
+# October  20, 2020: Added -clipdem to save a ${F_TOPO}dem.tif file in the temporary data folder, mainly for in-place profile control
 # October  19, 2020: Initial git commit at kyleedwardbradley/tectoplot
 # October  10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
 # October   9, 2020: Project data only onto the closest profile from the whole collection.
@@ -3718,66 +3718,6 @@ fi
 		plots+=("kinsv")
  		;;
 
-#   -li|--line) # args: file color width
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -li:           plot one or more polyline files
-# -li [filename] [[linecolor]] [[linewidth]]
-#
-#   Can be called multiple times to plot multiple datasets.
-#   Currently does not handle complex symbologies (ornamented, CPT, etc.)
-#
-# Example: Plot a few lines across Romania
-#   printf ">\n21 44\n26 48\n>\n22 46\n27 45\n" > ./xy.dat
-#   tectoplot -r RO -t -li xy.dat red 1p
-#   rm -f ./xy.dat
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#       # Required arguments
-#       userlinefilenumber=$(echo "$userlinefilenumber + 1" | bc -l)
-#       USERLINEDATAFILE[$userlinefilenumber]=$(abs_path $2)
-#       shift
-#       if [[ ! -e ${USERLINEDATAFILE[$userlinefilenumber]} ]]; then
-#         info_msg "[-li]: User line data file ${USERLINEDATAFILE[$userlinefilenumber]} does not exist."
-#         exit 1
-#       fi
-#       # Optional arguments
-#       # Look for symbol code
-#       if arg_is_flag $2; then
-#         info_msg "[-li]: No color specified. Using $USERLINECOLOR."
-#         USERLINECOLOR_arr[$userlinefilenumber]=$USERLINECOLOR
-#       else
-#         USERLINECOLOR_arr[$userlinefilenumber]="${2}"
-#         shift
-#         info_msg "[-li]: User line color specified. Using ${USERLINECOLOR_arr[$userlinefilenumber]}."
-#       fi
-#
-#       # Then look for width
-#       if arg_is_flag $2; then
-#         info_msg "[-li]: No width specified. Using $USERLINEWIDTH."
-#         USERLINEWIDTH_arr[$userlinefilenumber]=$USERLINEWIDTH
-#       else
-#         USERLINEWIDTH_arr[$userlinefilenumber]="${2}"
-#         shift
-#         info_msg "[-li]: Line width specified. Using ${USERLINEWIDTH_arr[$userlinefilenumber]}."
-#       fi
-#
-#       if [[ "${2}" == "fill" ]]; then
-#         info_msg "[-li]: Fillling polygon"
-#         USERLINEFILL_arr[$userlinefilenumber]="-Gred"
-#         shift
-#       else
-#         USERLINEFILL_arr[$userlinefilenumber]=""
-#       fi
-#
-#       info_msg "[-li]: LINE${userlinefilenumber}: ${USERLINEDATAFILE[$userlinefilenumber]}"
-#
-#       plots+=("userline")
-#
-#     ;;
-
   -legend) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -4403,60 +4343,22 @@ fi
     cat ${GMTCOLORS} | column
     exit 1
     ;;
-#   -oca)
+
+#   -open)
 # if [[ $USAGEFLAG -eq 1 ]]; then
 # cat <<-EOF
-# -oca:          plot ocean crust age raster
-# -oca [[transparency]] [[cpt]]
+# -open:         open main PDF at end (NO LONGER USED - LEGACY OPTION)
+# -open
 #
-#   transparency is in percent
-#   cpt is the filename of a CPT file to use (default is geoage)
+#   Uses program specified in ${OPTDIR}/tectoplot.pdfviewer
 #
 # Example:
-#   tectoplot -RJ S 120 20 -t 01d -oca
+#   tectoplot -r IN -oca -a
 # --------------------------------------------------------------------------------
 # EOF
 # shift && continue
 # fi
-#     plots+=("oceanage")
-#     cpts+=("geoage")
-#
-#     echo $OC_AGE_SOURCESTRING >> ${LONGSOURCES}
-#     echo $OC_AGE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#
-#     if arg_is_flag $2; then
-#       info_msg "[-oc]: No transparency set. Using default $OC_TRANS"
-#     else
-#       OC_TRANS="${2}"
-#       shift
-#     fi
-#     if arg_is_flag $2; then
-#       info_msg "[-oc]: No ocean age CPT specified. Using $OCA_CPT"
-#     else
-#       if [[ -s $(abs_path ${2}) ]]; then
-#         OCA_CPT="$(abs_path ${2})"
-#         # cp $(abs_path ${2}) custom_oca.cpt
-#         # OCA_CPT=custom_oca.cpt
-#       fi
-#       shift
-#     fi
 #     ;;
-
-  -open)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--open:         open main PDF at end (NO LONGER USED - LEGACY OPTION)
--open
-
-  Uses program specified in ${OPTDIR}/tectoplot.pdfviewer
-
-Example:
-  tectoplot -r IN -oca -a
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    ;;
 
   -noopen)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4476,15 +4378,14 @@ fi
   -oto)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--oto:          specify one-to-one horizontal=vertical scaling of all profiles
--oto [[method=${OTO_METHOD}]] [[vert_exag]]
+-oto:          specify the horizontal=vertical scaling of all profiles
+-oto [[method=${OTO_METHOD}]] [[vert_exag=${PROFILE_VERT_EX}]]
 
-  Adjusts the maximum depth of the profile to ensure 1:1 H=W ratio
   Options are
-    change_h: Change the height of the profile on the page to make H=W
-    change_z: Change the maximum depth of the profile to make H=W
-    off:      Turn of H=W scaling
-    vert_exag is a number indicating the ratio of vertical to horizontal units
+    change_h: Change the height of the profile on the page to make H=V*W
+    change_z: Change the maximum depth of the profile to make H=V*W
+    off:      Turn off any H=V*W scaling
+    vert_exag (V) is the vertical exaggeration factor
 
 Example: None
 --------------------------------------------------------------------------------
@@ -7003,6 +6904,37 @@ fi
     MULFACT=$(echo "1 / $HS_Z_FACTOR * 111120" | bc -l)     # Effective z factor for geographic DEM with m elevation
 
     ;;
+
+    -tfillnan)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tfillnan:     Plot simple text strings at points
+-tfillnan [[value]]
+-tfillnan spline [[tension=${FILLGRIDNANS_SPLINE_TENSION}]]
+
+  Fill NaN grid in the DEM with nearest value (default) or specified value.
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+    if arg_is_float $2; then
+      FILLGRIDVALUE=$2
+      shift
+      FILLGRIDNANS_VALUE=1
+    elif [[ $2 == "spline" ]]; then
+      shift
+      FILLGRIDNANS_SPLINE=1
+      if arg_is_positive_float $2; then
+        FILLGRIDNANS_SPLINE_TENSION=$2
+        shift
+      fi
+    else
+      FILLGRIDNANS_CLOSEST=1
+    fi
+    ;;
   #
   # -tc|--cpt) # args: filename
   #   customgridcptflag=1
@@ -8778,7 +8710,7 @@ fi
       NOSCALE_SEISSIZE="${2}"
       shift
     fi
-    # SCALEEQS=0
+    SCALEEQS=0
     zcnoscaleflag=1
     ;;
 
@@ -10686,15 +10618,15 @@ if [[ $plottopo -eq 1 ]]; then
   #     fi
   #   # gmt grdcut sometimes does strange things with DEMs
   #   # Probably need some logic here to not use -projwin for some rasters...
-  #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.nc"
-  #     gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.nc
-  #     GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE}))
+  #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif"
+  #     gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
+  #     GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.tif ${VERBOSE}))
   #     DEM_MINLON=${GRDINFO[1]}
   #     DEM_MAXLON=${GRDINFO[2]}
   #     DEM_MINLAT=${GRDINFO[3]}
   #     DEM_MAXLAT=${GRDINFO[4]}
-  #     BATHY=${F_TOPO}dem.nc
-  #     TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+  #     BATHY=${F_TOPO}dem.tif
+  #     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
   # #gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       BATHYMETRY="custom_$(basename ${GRIDFILE})"
       # We should have a different way of marking these types of files by basename
@@ -10708,24 +10640,29 @@ if [[ $plottopo -eq 1 ]]; then
     # BIG CHANGE: NOW STORING TILES AS GEOTIFF
   	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
-  	if [[ -e $name ]]; then
+  	if [[ -s $name ]]; then
   		info_msg "DEM file $name already exists"
       demiscutflag=1
   	else
       case $BATHYMETRY in
         01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         ;;
         SRTM30|GEBCO20|GEBCO1)
         # GMT grdcut works on these
-          gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         ;;
         custom*)
-
         # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
-        gdal_translate -q -of "GTIFF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
 
-        demiscutflag=1
+        # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} cutfirst.tif
+
+        # Assume grdcut will work with the file
+        gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
+
+        name=${F_TOPO}dem.tif
+        # demiscutflag=1
         ;;
       esac
   	fi
@@ -10757,32 +10694,71 @@ fi
 # At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
 
 if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
-  info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.nc"
+  info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.tif"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
-      flatten_sea ${BATHY} ${F_TOPO}dem.nc -1
+      flatten_sea ${BATHY} ${F_TOPO}dem.tif -1
     else
-      cp $BATHY ${F_TOPO}dem.nc
+      # This assumes that BATHY is a tif file.
+      if [[ $BATHY == *tif ]]; then
+        cp $BATHY ${F_TOPO}dem.tif
+      else
+        echo "$BATHY is not a TIF file? Aborting"
+        exit 1
+      fi
     fi
   else
     if [[ $tflatflag -eq 1 ]]; then
-      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-      flatten_sea ${F_TOPO}dem_preflat.nc ${F_TOPO}dem.nc -1
-      cleanup ${F_TOPO}dem_preflat.nc
+      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      flatten_sea ${F_TOPO}dem_preflat.tif ${F_TOPO}dem.tif -1
+      cleanup ${F_TOPO}dem_preflat.tif
     else
-      if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.nc ]]; then
-        info_msg gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-        gmt grdcut ${BATHY} -G${F_TOPO}dem.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.tif ]]; then
+        info_msg gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
       fi
     fi
   fi
-  TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+  TOPOGRAPHY_DATA=${F_TOPO}dem.tif
 else
   TOPOGRAPHY_DATA=${BATHY}
 fi
 
-
-
+# if [[ ${TOPOGRAPHY_DATA} == *nc ]]; then
+#   echo "Checking DEM NetCDF file for reasonable variable names"
+#   ncdfvars=($(ncdump -h ${TOPOGRAPHY_DATA} | grep ":long_name" | gawk '{split($1,a,":"); print a[1]}'))
+#
+#   gdalinfo ${TOPOGRAPHY_DATA} 2>&1 | grep "Warning 1: dimension" > demtest.txt
+#
+#   if [[ -s demtest.txt ]]; then
+#     echo "Won't work"
+#   fi
+#
+#   # case ${ncdfvars[0]} in
+#   #   x|X)
+#   #     echo "lon variable is x or X"
+#   #     ncrename -d ${ncdfvars[0]},lon -v ${ncdfvars[0]},lon ${TOPOGRAPHY_DATA}
+#   #     ;;
+#   #   lon)
+#   #     echo "lon variable is lon"
+#   #     ;;
+#   #   *)
+#   #     echo "first variable is ${ncdfvars[0]}"
+#   #     ;;
+#   # esac
+#   # case ${ncdfvars[1]} in
+#   #   y|Y)
+#   #     echo "lat variable is y or Y"
+#   #     ncrename -d ${ncdfvars[1]},lat -v ${ncdfvars[1]},lat ${TOPOGRAPHY_DATA}
+#   #     ;;
+#   #   lat)
+#   #     echo "lat variable is lat"
+#   #     ;;
+#   #   *)
+#   #     echo "second variable is ${ncdfvars[0]}"
+#   #     ;;
+#   # esac
+# fi
 
 # If the grid has longitudes greater than 180 or less than -180, shift it into the -180:180 range.
 # This happens for some GMT EarthRelief DEMs for rotated globes
@@ -10790,8 +10766,8 @@ fi
 # This might still be necessary for some plots but messes up plots crossing the dateline!!!
 # Leaving here for now in case the issue arises again
 
-# if [[ -e ${F_TOPO}dem.nc ]]; then
-#   GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.nc ${VERBOSE}))
+# if [[ -e ${F_TOPO}dem.tif ]]; then
+#   GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.tif ${VERBOSE}))
 #   GRDMINLON=${GRDINFO[1]}
 #   GRDMAXLON=${GRDINFO[2]}
 #
@@ -10799,8 +10775,8 @@ fi
 #     info_msg "Topo raster has coordinates outside of [-180:180] range. Rotating."
 #     XRES=${GRDINFO[7]}
 #     YRES=${GRDINFO[8]}
-#     gdalwarp -s_srs "+proj=longlat +ellps=WGS84" -t_srs WGS84 ${F_TOPO}dem.nc dem180.nc -if "netCDF" -of "netCDF" -tr $XRES $YRES --config CENTER_LONG 0 -q
-#     mv dem180.nc ${F_TOPO}dem.nc
+#     gdalwarp -s_srs "+proj=longlat +ellps=WGS84" -t_srs WGS84 ${F_TOPO}dem.tif dem180.nc -if "netCDF" -of "netCDF" -tr $XRES $YRES --config CENTER_LONG 0 -q
+#     mv dem180.nc ${F_TOPO}dem.tif
 #   fi
 # fi
 
@@ -11237,7 +11213,6 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
 
   if [[ $eqlistselectflag -eq 1 ]]; then
     echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_SEIS}eqselectlist.txt
-
     gawk '
       NR==FNR {
         A[$1]=1 ; next
@@ -11468,6 +11443,15 @@ if [[ $calccmtflag -eq 1 ]]; then
       cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
     fi
   done
+
+# A list of CMT-related files to cleanup
+
+cleanup ${F_CMT}sub_extract.cat
+cleanup ${F_CMT}cmt_global_aoi.dat
+cleanup ${F_CMT}cmt_merged_ids.txt
+cleanup ${F_CMT}cmt_presort.txt
+cleanup ${F_CMT}cmt_typefilter.dat
+cleanup ${F_CMT}equiv_presort.txt
 
   if [[ ${#CCAT_STRING} -gt 1 && ${CULL_CMT_CATALOGS} -eq 1 ]]; then
 
@@ -12386,44 +12370,44 @@ fi
 
   CMTRESCALE=$(echo "$CMTSCALE * $SEISSCALE " | bc -l)  # * $SEISSCALE
 
-  if [[ $SCALEEQS -eq 1 ]]; then
-    info_msg "Scaling CMT earthquake magnitudes for display only"
-
-    # This script applies a stretch function to the magnitudes to allow
-    # non-linear rescaling of focal mechanisms.
-
-    gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-      mw=$13
-      mwmod = (mw^str)/(sref^(str-1))
-      a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
-      split(a,b,"+")  # mantissa
-      split(a,c,"E")  # exponent
-      oldmantissa=$14
-      oldexponent=$15
-      $14=c[1]
-      $15=b[2]
-      # New exponent for principal axes
-      $22=b[2]
-      # Scale principal axes by ratio of mantissas
-      $23=$23*c[1]/$14
-      $26=$26*c[1]/$14
-      $29=$29*c[1]/$14
-
-      # New exponent for moment tensor
-      $32=b[2]
-      # Scale moment tensor components by the ratio of the mantissas
-      $33=$33*c[1]/$14
-      $34=$34*c[1]/$14
-      $35=$35*c[1]/$14
-      $36=$36*c[1]/$14
-      $37=$37*c[1]/$14
-      $38=$38*c[1]/$14
-
-      # Output the rescaled focal mechanism file line by line
-      print
-    }' > ${F_CMT}cmt_scale.dat
-    CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
-  fi
+  # if [[ $SCALEEQS -eq 1 ]]; then
+  #   info_msg "Scaling CMT earthquake magnitudes for display only"
+  #
+  #   # This script applies a stretch function to the magnitudes to allow
+  #   # non-linear rescaling of focal mechanisms.
+  #
+  #   gawk < $CMTFILE -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
+  #     mw=$13
+  #     mwmod = (mw^str)/(sref^(str-1))
+  #     a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
+  #     split(a,b,"+")  # mantissa
+  #     split(a,c,"E")  # exponent
+  #     oldmantissa=$14
+  #     oldexponent=$15
+  #     $14=c[1]
+  #     $15=b[2]
+  #     # New exponent for principal axes
+  #     $22=b[2]
+  #     # Scale principal axes by ratio of mantissas
+  #     $23=$23*c[1]/$14
+  #     $26=$26*c[1]/$14
+  #     $29=$29*c[1]/$14
+  #
+  #     # New exponent for moment tensor
+  #     $32=b[2]
+  #     # Scale moment tensor components by the ratio of the mantissas
+  #     $33=$33*c[1]/$14
+  #     $34=$34*c[1]/$14
+  #     $35=$35*c[1]/$14
+  #     $36=$36*c[1]/$14
+  #     $37=$37*c[1]/$14
+  #     $38=$38*c[1]/$14
+  #
+  #     # Output the rescaled focal mechanism file line by line
+  #     print
+  #   }' > ${F_CMT}cmt_scale.dat
+  #   CMTFILE=$(abs_path ${F_CMT}cmt_scale.dat)
+  # fi
 
 
   ##############################################################################
@@ -12442,23 +12426,11 @@ fi
   # This should go into an external utility script that converts from tectoplot->psmeca format
 
   cd ${F_KIN}
-  gawk < $CMTFILE -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '
+  gawk < $CMTFILE -v doscale=${SCALEEQS} -v str=${SEISSTRETCH} -v sref=${SEISSTRETCH_REFMAG} -v fmt=$CMTFORMAT -v cmttype=$CMTTYPE -v minmag="${CMT_MINMAG}" -v maxmag="${CMT_MAXMAG}" '
     @include "tectoplot_functions.awk"
     # function abs(v) { return (v>0)?v:-v}
     BEGIN { pi=atan2(0,-1) }
     {
-      event_code=$2
-      iso8601_code=$3
-      Mw=$13
-      mantissa=$14;exponent=$15
-      strike1=$16;dip1=$17;rake1=$18;strike2=$19;dip2=$20;rake2=$21
-      Mrr=$33; Mtt=$34; Mpp=$35; Mrt=$36; Mrp=$37; Mtp=$38
-      Tval=$23; Taz=$24; Tinc=$25; Nval=$26; Naz=$27; Ninc=$28; Pval=$29; Paz=$30; Pinc=$31;
-      clusterid=($40+0==$40)?$40:0
-
-      epoch=iso8601_to_epoch(iso8601_code)
-
-      timecode=$3
       if (cmttype=="CENTROID") {
         lon=$5; lat=$6; depth=$7;
         altlon=$8; altlat=$9; altdepth=$10;
@@ -12469,21 +12441,56 @@ fi
 
       if (lon != "none" && lat != "none") {
 
-        # if (fmt == "GlobalCMT") {
-        #   #  lon lat depth strike1 dip1 rake1 aux_strike dip2 rake2 moment altlon altlat [event_title] altdepth [timecode]
-        #   if (substr($1,2,1) == "T") {
-        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
-        #   } else if (substr($1,2,1) == "N") {
-        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_normal.txt"
-        #   } else {
-        #     print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_strikeslip.txt"
-        #   }
-        #   print lon, lat, depth, strike1, dip1, rake1, strike2, dip2, rake2, mantissa, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt.dat"
-        #
-        # } else
+        event_code=$2
+        iso8601_code=$3
+        Mw=$13
+        mantissa=$14;exponent=$15
+        strike1=$16;dip1=$17;rake1=$18;strike2=$19;dip2=$20;rake2=$21
+        Mrr=$33; Mtt=$34; Mpp=$35; Mrt=$36; Mrp=$37; Mtp=$38
+        Tval=$23; Taz=$24; Tinc=$25; Nval=$26; Naz=$27; Ninc=$28; Pval=$29; Paz=$30; Pinc=$31;
+        clusterid=($40+0==$40)?$40:0
+
+        epoch=iso8601_to_epoch(iso8601_code)
+
+        timecode=$3
+
+        mwmod = (Mw^str)/(sref^(str-1))
+        split_a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
+        split(split_a,split_b,"+")  # mantissa
+        split(split_a,split_c,"E")  # exponent
+
+        # New mantissa and exponent
+        scale_mantissa=split_c[1]
+        scale_exponent=split_b[2]
+
+        # Scale principal axes by ratio of the new and old mantissas
+        scale_Tval=Tval*scale_mantissa/mantissa
+        scale_Nval=Nval*scale_mantissa/mantissa
+        scale_Pval=Pval*scale_mantissa/mantissa
+
+        # Scale moment tensor components by the ratio of the new and old mantissas
+        scale_Mrr=Mrr*scale_mantissa/mantissa
+        scale_Mtt=Mtt*scale_mantissa/mantissa
+        scale_Mpp=Mpp*scale_mantissa/mantissa
+        scale_Mrt=Mrt*scale_mantissa/mantissa
+        scale_Mrp=Mrp*scale_mantissa/mantissa
+        scale_Mtp=Mtp*scale_mantissa/mantissa
+
         if (fmt == "MomentTensor") {
           # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
           # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+          # We simultaneously output a non-scaled data file (cmt.dat) and a scaled data file (cmt_scale.dat)
+
+          if (doscale==1) {
+            if (substr($1,2,1) == "T") {
+              print lon, lat, depth, scale_Mrr, scale_Mtt, scale_Mpp, scale_Mrt, scale_Mrp, scale_Mtp, scale_exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code > "cmt_thrust.txt"
+            } else if (substr($1,2,1) == "N") {
+              print lon, lat, depth, scale_Mrr, scale_Mtt, scale_Mpp, scale_Mrt, scale_Mrp, scale_Mtp, scale_exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_normal.txt"
+            } else {
+              print lon, lat, depth, scale_Mrr, scale_Mtt, scale_Mpp, scale_Mrt, scale_Mrp, scale_Mtp, scale_exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_strikeslip.txt"
+            }
+          } else {
             if (substr($1,2,1) == "T") {
               print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code > "cmt_thrust.txt"
             } else if (substr($1,2,1) == "N") {
@@ -12491,20 +12498,10 @@ fi
             } else {
               print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_strikeslip.txt"
             }
-            print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt.dat"
+          }
+          print lon, lat, depth, Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_noscale.dat"
+          print lon, lat, depth, scale_Mrr, scale_Mtt, scale_Mpp, scale_Mrt, scale_Mrp, scale_Mtp, scale_exponent, altlon, altlat, event_code, altdepth, epoch, clusterid, iso8601_code  > "cmt_rescale.dat"
         }
-      # else if (fmt == "TNP") {
-      #      # y  Best double couple defined from principal axis:
-  	  #      # X Y depth T_value T_azim T_plunge N_value N_azim N_plunge P_value P_azim P_plunge exp [newX newY] [event_title]
-      #     if (substr($1,2,1) == "T") {
-      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid > "cmt_thrust.txt"
-      #     } else if (substr($1,2,1) == "N") {
-      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_normal.txt"
-      #     } else {
-      #       print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid  > "cmt_strikeslip.txt"
-      #     }
-      #     print lon, lat, depth, Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc, exponent, altlon, altlat, event_code, altdepth, epoch, clusterid   > "cmt.dat"
-      #   }
 
         if (substr($1,2,1) == "T") {
           print lon, lat, Taz, Tinc > "t_axes_thrust.txt"
@@ -12535,7 +12532,14 @@ fi
     [[ -e cmt_thrust.txt ]] && mv cmt_thrust.txt ../${F_CMT}
     [[ -e cmt_normal.txt ]] && mv cmt_normal.txt ../${F_CMT}
     [[ -e cmt_strikeslip.txt ]] && mv cmt_strikeslip.txt ../${F_CMT}
-    [[ -e cmt.dat ]] && mv cmt.dat ../${F_CMT}
+    [[ -e cmt_noscale.dat ]] && mv cmt_noscale.dat ../${F_CMT}
+    [[ -e cmt_rescale.dat ]] && mv cmt_rescale.dat ../${F_CMT}
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      ln -s ../${F_CMT}cmt_rescale.dat ../${F_CMT}cmt.dat
+    else
+      ln -s ../${F_CMT}cmt_noscale.dat ../${F_CMT}cmt.dat
+    fi
 
   touch kin_thrust.txt kin_normal.txt kin_strikeslip.txt
 
@@ -12557,6 +12561,8 @@ fi
   gawk < kin_normal.txt -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
   cd ..
+
+
 
 fi
 
@@ -14204,7 +14210,19 @@ gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > eqlabel.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
 gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
 
-cleanup kinsv.ps eqlabel.ps plate.ps mecaleg.ps seissymbol.ps volcanoes.ps velarrow.ps velgps.ps
+cleanup kinsv.ps
+cleanup eqlabel.ps
+cleanup plate.ps
+cleanup mecaleg.ps
+cleanup seissymbol.ps
+cleanup volcanoes.ps
+cleanup velarrow.ps
+cleanup velgps.ps
+cleanup base_fake.ps
+cleanup base_fake.eps
+cleanup base_fake_nolabels.ps
+cleanup gmt.conf
+cleanup gmt.history
 
 # Something about map labels messes up the psconvert call making the bounding box wrong.
 # So check the label-free width and if it is significantly less than the with-label
@@ -14987,7 +15005,7 @@ for plot in ${plots[@]} ; do
 			;;
 
     graticule)
-      gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
+      gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE --FORMAT_GEO_MAP=ddd.xx >> map.ps
   #  gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
       ;;
 
@@ -16031,6 +16049,27 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
    # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
    # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
 
+       if [[ $FILLGRIDNANS_CLOSEST -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values with nearest non-NaN value"
+         gmt grdfill ${TOPOGRAPHY_DATA} -An -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+       elif [[ $FILLGRIDNANS_SPLINE -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values using spline with tension $FILLGRIDNANS_SPLINE_TENSION"
+         gmt grdfill ${TOPOGRAPHY_DATA} -As${FILLGRIDNANS_SPLINE_TENSION} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+       elif [[ $FILLGRIDNANS_VALUE -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values with constant value ${FILLGRIDVALUE}"
+         gmt grdfill ${TOPOGRAPHY_DATA} -Ac${FILLGRIDVALUE} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+       fi
+
+       if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
+         echo "Smoothing DEM"
+         # MODIFIED DEM DATA FILE
+         gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
+         TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.tif
+       fi
+
       plottedtopoflag=1
       if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
 
@@ -16048,20 +16087,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           # If a topography dataset exists, then...
           if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
-
-            if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
-              echo "Smoothing DEM"
-              # MODIFIED DEM DATA FILE
-              gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.nc
-              TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.nc
-            fi
-
-            if [[ $FILLGRIDNANS -eq 1 ]]; then
-              info_msg "Filling grid file NaN values with nearest non-NaN value"
-              gmt grdfill ${TOPOGRAPHY_DATA} -An -G${F_TOPO}dem_no_nan.nc ${VERBOSE}
-              TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.nc
-            fi
-
             # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
             if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
                 # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG?
@@ -16075,21 +16100,21 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
                 if [[ $SENTINEL_DOWNSAMPLE -eq 1 ]]; then
                   echo "Resampling DEM to match downloaded Sentinel image size"
-                  echo gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.nc
-                  gdalwarp -r bilinear -of NetCDF -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.nc
+                  echo gdalwarp -r bilinear -of GTiff -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.tif
+                  gdalwarp -r bilinear -of GTiff -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.tif
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
-                  # cp ${F_TOPO}dem.nc ${F_TOPO}demold.nc
-                  rm -f ${F_TOPO}dem.nc
+                  # cp ${F_TOPO}dem.tif ${F_TOPO}demold.nc
+                  rm -f ${F_TOPO}dem.tif
                   echo in
-                  gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
-                  TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+                  gmt grdcut ${F_TOPO}dem_warp.tif -R${F_TOPO}dem_warp.tif -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
+                  TOPOGRAPHY_DATA=${F_TOPO}dem.tif
                   echo out
                 else
                   echo "Resampling Sentinel image to match DEM resolution"
                   gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel.tif ./sentinel_warp.tif
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
                   cp ./sentinel_warp.tif ./sentinel.tif
-                  # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.nc ${VERBOSE}
+                  # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
                 fi
 
 
@@ -16176,25 +16201,25 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             w)
               info_msg "Clipping DEM to new AOI"
 
-              gdal_translate -q -of NetCDF -projwin ${CLIP_MINLON} ${CLIP_MAXLAT} ${CLIP_MAXLON} ${CLIP_MINLAT} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_clip.nc
+              gdal_translate -q -of GTiff -projwin ${CLIP_MINLON} ${CLIP_MAXLAT} ${CLIP_MAXLON} ${CLIP_MINLAT} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_clip.tif
               DEM_MINLON=${CLIP_MINLON}
               DEM_MAXLON=${CLIP_MAXLON}
               DEM_MINLAT=${CLIP_MINLAT}
               DEM_MAXLAT=${CLIP_MAXLAT}
               # mkdir -p ./tmpcut
               # cd ./tmpcut
-              # gmt grdcut ../${F_TOPO}dem.nc -R${CLIP_MINLON}/${CLIP_MAXLON}/${CLIP_MINLAT}/${CLIP_MAXLAT} -G../${F_TOPO}clip.nc ${VERBOSE}
+              # gmt grdcut ../${F_TOPO}dem.tif -R${CLIP_MINLON}/${CLIP_MAXLON}/${CLIP_MINLAT}/${CLIP_MAXLAT} -G../${F_TOPO}clip.nc ${VERBOSE}
               # cd ..
-              cp ${F_TOPO}dem_clip.nc ${F_TOPO}dem.nc
-              TOPOGRAPHY_DATA=${F_TOPO}dem.nc
+              cp ${F_TOPO}dem_clip.tif ${F_TOPO}dem.tif
+              TOPOGRAPHY_DATA=${F_TOPO}dem.tif
             ;;
 
             i)
               info_msg "Calculating terrain ruggedness index"
-              gdaldem TRI -q -of NetCDF ${TOPOGRAPHY_DATA} ${F_TOPO}tri.nc
-              zrange=($(grid_zrange ${F_TOPO}tri.nc -C -Vn))
-              gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.nc ${F_TOPO}tri.tif -q
-              weighted_average_combine ${F_TOPO}tri.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
+              gdaldem TRI -q -of GTiff ${TOPOGRAPHY_DATA} ${F_TOPO}tri.tif
+              zrange=($(grid_zrange ${F_TOPO}tri.tif -C -Vn))
+              gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.tif ${F_TOPO}tri2.tif -q
+              weighted_average_combine ${F_TOPO}tri2.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
             ;;
 
             q)
@@ -16259,6 +16284,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             # Compute and render a one-sun hillshade
             h)
               info_msg "Creating unidirectional hillshade"
+              echo gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
               gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
               weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16324,7 +16350,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
 
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
+              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16509,8 +16535,19 @@ done
 if [[ $plotseistimeline -eq 1 ]]; then
 
   if [[ -s ${F_SEIS}eqs_scaled.txt ]]; then
+    EQSTOPLOT=${F_SEIS}eqs_scaled.txt
+  elif [[ -s ${F_SEIS}eqs.txt ]]; then
+    EQSTOPLOT=${F_SEIS}eqs.txt
+  fi
+
+  PS_OFFSET_IN_NOLABELS=${MAP_PS_WIDTH_NOLABELS_IN}
+  secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
+
+
+  if [[ -s $EQSTOPLOT ]]; then
+    seistimeline_plotted=1
     # Project the earthquake data
-    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gmt mapproject ${RJSTRING[@]} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
 
     # Match the scaled earthquakes to the projected coordinates and print time, Yval as X,Y coordinates
     gawk '
@@ -16522,7 +16559,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
         $1=$5
         $2=projy[FNR]
         print
-      }' ${F_SEIS}proj_eqs.txt ${F_SEIS}eqs_scaled.txt > ${F_SEIS}proj_eqs_scaled_y.txt
+      }' ${F_SEIS}proj_eqs.txt $EQSTOPLOT > ${F_SEIS}proj_eqs_scaled_y.txt
 
     if [[ $zctimeflag -eq 1 ]]; then
       SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
@@ -16538,37 +16575,34 @@ if [[ $plotseistimeline -eq 1 ]]; then
       SEIS_CPT=$SEISDEPTH_CPT
     fi
 
-    if [[ $SCALEEQS -eq 1 ]]; then
-      gmt_init_tmpdir
+    gmt_init_tmpdir
 
-      # PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      # MAP_PS_HEIGHT_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-      # MAP_PS_WIDTH_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    # PS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    # MAP_PS_HEIGHT_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    # MAP_PS_WIDTH_NOLABELS_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
+    # gmt psbasemap -R${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISPROJHEIGHT_Y}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Btlbr $VERBOSE > ${TMP}seisdepth_fake.ps
 
-      # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    # PS_DIM=$(gmt psconvert seisdepth_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    # PANEL_WIDTH=$(echo $PS_DIM | gawk  '{print $1/2.54}')
 
-      PS_OFFSET_IN_NOLABELS=${MAP_PS_WIDTH_NOLABELS_IN}
 
-      OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
-      gmt gmtset PROJ_LENGTH_UNIT p
+    OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+    gmt gmtset PROJ_LENGTH_UNIT p
 
-      if [[ $SCALEEQS -eq 1 ]]; then
-        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
 
-        secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
+    gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    #
+    # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
 
-        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+    gmt_remove_tmpdir
 
-      fi
-      gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
-      gmt_remove_tmpdir
-
-    fi
   fi
   if [[ -s $CMTFILE ]]; then
+    seistimeline_plotted=1
     # Project the CMT data; thrusts first
 
     # echo $CMT_THRUSTPLOT
@@ -16670,7 +16704,12 @@ if [[ $plotseistimeline -eq 1 ]]; then
     fi
 
   fi
+  # Plot frame
+  if [[ $seistimeline_plotted -eq 1 ]]; then
+    gmt psbasemap -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN  ${VERBOSE} -K -O >> map.ps
 
+    gmt psbasemap -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN  ${VERBOSE} -K -O >> map.ps
+  fi
 fi
 
 ##### -seisproj

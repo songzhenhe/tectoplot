@@ -66,6 +66,8 @@ function gmt_psmeca_wrapper() {
   local CPT_FILE="${1}"
   shift
 
+  # echo calling gmt psmeca ... $@ > "/dev/stderr"
+
   case $(gmt_version) in
     6.2|newer_6.2)
       gmt psmeca -C${CPT_FILE} ${@}

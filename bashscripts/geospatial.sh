@@ -125,6 +125,23 @@ function kml_to_first_xy() {
 }
 
 # Convert first line/polygon element in KML file $1, store output XY file in $2
+
+function kml_to_all_xy() {
+  ogr2ogr -f "OGR_GMT" ./tectoplot_tmp.gmt "${1}"
+  gawk < ./tectoplot_tmp.gmt '
+    BEGIN {
+      count=0
+    }
+    ($1==">") {
+      print
+    }
+    ($1+0==$1) {
+      print $1, $2
+    }' > "${2}"
+    rm -f ./tectoplot_tmp.gmt
+}
+
+# Convert first line/polygon element in KML file $1, store output XY file in $2
 # Close the polygon if necessary
 
 function kml_to_first_poly() {

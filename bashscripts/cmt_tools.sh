@@ -146,7 +146,7 @@ BEGIN {
 
   }
 
-  #  X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title] [newdepth] [timecode]
+  #  X Y depth mrr mtt mff mrt mrf mtf exp [newX newY event_id newdepth epoch cluster_id iso8601_code]
   # Moment tensor   psmeca -Sm
   if (FMT=="m"||FMT=="M") {
     calc_ntp_from_moment_tensor=1
@@ -459,6 +459,7 @@ BEGIN {
     #----------------------------------#
     # X Y depth mrr mtt mpp mrt mrp mtp exp [newX newY] [event_title] [newdepth]
     # FMT=m is moment tensor   psmeca -Sm
+    # m indicates origin location, M indicates centroid location
     if (FMT=="m"||FMT=="M") {
       if (FMT=="m") {
         lon_origin=$1
@@ -479,7 +480,6 @@ BEGIN {
         } else {
           depth_centroid="none"
         }
-
       } else {
         lon_centroid=$1
         lat_centroid=$2
@@ -499,7 +499,6 @@ BEGIN {
         } else {
           depth_origin="none"
         }
-
       }
       Mrr=$4
       Mtt=$5
@@ -510,28 +509,23 @@ BEGIN {
       exponent=$10
 
       ### Optional fields
-      # if (NF > 10) {
-      #   lon_centroid=$11
-      # } else {
-      #   lon_centroid="none"
-      # }
-      # if (NF > 11) {
-      #   lat_centroid=$12
-      # } else {
-      #   lat_centroid="none"
-      # }
       if (NF > 12) {
         event_code=$13
       } else {
         event_code="nocode"
       }
-      # if (NF > 13) {
-      #   depth_centroid=$14
-      # } else {
-      #   depth_centroid="none"
-      # }
       if (NF > 14) {
         id=make_tectoplot_id($15)
+      } else {
+        id=make_tectoplot_id("")
+      }
+      if (NF > 15) {
+        cluster_id=$16
+      } else {
+        cluster_id=0
+      }
+      if (NF > 16) {
+        id=$17
       } else {
         id=make_tectoplot_id("")
       }

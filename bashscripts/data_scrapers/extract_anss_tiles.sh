@@ -48,64 +48,6 @@
 
 # Reads stdin, converts each item in a column and outputs same column format
 
-# function iso8601_to_epoch() {
-#   TZ=UTC
-#
-#   gawk '{
-#     # printf("%s ", $0)
-#     for(i=1; i<=NF; i++) {
-#       done=0
-#       timecode=substr($(i), 1, 19)
-#       split(timecode, a, "-")
-#       year=a[1]
-#       if (year < 1900) {
-#         print -2209013725
-#         done=1
-#       }
-#       month=a[2]
-#       split(a[3],b,"T")
-#       day=b[1]
-#       split(b[2],c,":")
-#
-#       hour=c[1]
-#       minute=c[2]
-#       second=c[3]
-#
-#       if (year == 1982 && month == 01 && day == 01) {
-#         printf("%s ", 378691200 + second + 60*minute * 60*60*hour)
-#         done=1
-#       }
-#       if (year == 1941 && month == 09 && day == 01) {
-#         printf("%s ", -895153699 + second + 60*minute * 60*60*hour)
-#         done=1
-#
-#       }
-#       if (year == 1941 && month == 09 && day == 01) {
-#         printf("%s ", -879638400 + second + 60*minute * 60*60*hour)
-#         done=1
-#       }
-#
-#       if (done==0) {
-#         the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-#         # print the_time > "/dev/stderr"
-#         epoch=mktime(the_time);
-#         printf("%s ", epoch)
-#       }
-#     }
-#     printf("\n")
-#   }'
-# }
-
-# DATADIR=$1
-#
-# if ! [[ -d $DATADIR ]]; then
-#   echo "Seismicity directory $DATADIR does not exist." > /dev/stderr
-#   exit 1
-# fi
-#
-# cd $DATADIR
-
-
 # $EXTRACT_ANSS_TILES $ANSS_TILEOLDZIP $ANSS_TILENEWZIP $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
 
 ANSS_TILEOLDZIP="${1}"
@@ -205,6 +147,7 @@ selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLA
 for this_file in ${selected_files[@]}; do
     # echo unzip -p $ANSS_TILEZIP ${this_file}
 
+
     rm -f ${F_SEIS}anss_extract.txt
     # If the start time is earlier than the break between old and new
     if [[ "${STARTTIME}" < "${ARG_OLDDATE}" ]]; then
@@ -224,4 +167,6 @@ for this_file in ${selected_files[@]}; do
         print
       }
     }' >> ${OUTPUTFILE}
+
+    rm -f anss_extract.txt
 done
