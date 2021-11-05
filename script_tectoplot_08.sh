@@ -12678,31 +12678,35 @@ if [[ $plotplates -eq 1 ]]; then
   # Not sure why we need to clip the plate polygons in any case?
 
   # This step FAILS to select plates on the other side of the dateline...
-  gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_a.txt
 
-  # Some cases will fail with the Antarctica plate being included but only along the lower
-  # edge of the map, messing up everything.
+  gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_b.txt
 
-  # THIS NEEDS TO BE ACTUALLY SOLVED - THIS IS CURRENTLY A HACK THAT REMOVES an FROM ALL MODELS!
 
-  gawk < ${F_PLATES}map_plates_clip_a.txt -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+  # Sometimes gmt spatial will produce a zero-area polygon due to strange geometry issues
+  # So strip out any polygons with zero area
+
+  gmt spatial ${F_PLATES}map_plates_clip_b.txt -Q > ${F_PLATES}plate_areas.txt
+
+  gawk '
   BEGIN {
     dontprint=0
+    numplate=1
   }
-  ($1 == ">") {
-    if (substr($2,1,2) == "an") {
-      dontprint=1
-    } else {
-      dontprint=0
+  (NR==FNR) {
+    area[NR]=$1
+  }
+  (NR != FNR) {
+    if ($1 == ">") {
+      if (area[numplate++] == 0) {
+        dontprint=1
+      } else {
+        dontprint=0
+      }
     }
-  }
-  {
     if (dontprint==0) {
       print
     }
-  }' > stripan.txt
-  mv stripan.txt ${F_PLATES}map_plates_clip_a.txt
-
+  }' ${F_PLATES}plate_areas.txt ${F_PLATES}map_plates_clip_b.txt  > ${F_PLATES}map_plates_clip_a.txt
 
 
   # Stupid tests for longitude range because gmt spatial has problem cutting everywhere
