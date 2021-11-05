@@ -5,7 +5,6 @@ TECTOPLOT_MODULES+=("gridhist")
 function tectoplot_defaults_gridhist() {
   GRIDHIST_WIDTH="2i"
   GRIDHIST_HEIGHT="5i"
-  GRIDHIST_FILE=${F_TOPO}dem.nc  # Default is dem
   GRIDHIST_CPT=${F_CPTS}topo.cpt
   GRIDHIST_YLABEL="Elevation (m)"
   GRIDHIST_BINWIDTH=100
@@ -116,6 +115,7 @@ fi
   if ! arg_is_flag "${1}"; then
     if [[ -s "${1}" ]]; then
       GRIDHIST_FILE="${1}"
+      gridhistfileflag=1
     else
       echo "[-gridhistfile]: Input file ${1} not found"
       exit 1
@@ -198,6 +198,10 @@ function tectoplot_plot_gridhist() {
 function tectoplot_post_gridhist() {
   # case $1 in
   # gridhist
+
+    if [[ $gridhistfileflag -eq 0 ]]; then
+      GRIDHIST_FILE=${TOPOGRAPHY_DATA}  # Default is dem
+    fi
 
     if [[ -s ${GRIDHIST_FILE} && $gridhist_hasrun -eq 0 ]]; then
       gridhist_hasrun=1
