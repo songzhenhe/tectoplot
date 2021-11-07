@@ -916,7 +916,14 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
         # October 29, 2021:
         # Following this command, we would multiply the grdtrack results by the relevant ZSCALE
         # gmt grdtrack -N -Vn -G${F_PROFILES}${ptgridfilesellist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
-        gmt grdtrack -N -Vn -G${ptgridfilelist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
+
+        # Sample the grid accounting for potential 360 degree shifts and paste onto original data
+        sample_grid_360 ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt ${ptgridfilelist[$i]} > tmpsample.txt
+
+        paste ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt tmpsample.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
+
+        rm -f tmpsample.txt
+        # gmt grdtrack -N -Vn -G${ptgridfilelist[$i]} ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_trackinterp.txt > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_sample.txt
 
         # *_sample.txt is a file containing lon,lat,val
         # We want to reformat to a multisegment polyline that can be plotted using psxy -Ccpt

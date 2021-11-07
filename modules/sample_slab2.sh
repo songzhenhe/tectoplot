@@ -16,7 +16,7 @@ function sample_slab2_grid() {
   output_file=$3
 
   # Try to sample the grid
-
+echo try 1
   gmt grdtrack $points_file -G$grid_file ${VERBOSE} -Z -N > $output_file
 
   # Check whether we just got NaNs

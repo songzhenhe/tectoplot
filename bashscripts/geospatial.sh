@@ -191,10 +191,11 @@ function kml_to_points() {
 
 # Sample one or more grids at point locations using gmt grdtrack, accounting
 # for the possibility that the grid is in an incorrect 360 degree range.
+# Only returns the Z values and not the original points_file
 
 # sample_grid_360 points_file grid1 grid2 ... gridN
 
-# Output is piped to stdout
+# Output is piped to stdout.
 
 function sample_grid_360() {
   local gridlist

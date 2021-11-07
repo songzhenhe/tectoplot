@@ -3186,15 +3186,95 @@ fi
 #   plots+=("tectonic_fabrics")
 #   ;;
 
+  -gg)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-gg:         interpolate GPS velocities using GMT gpsgridder
+-gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[flag ...]]
+
+  resolution requires unit (e.g. 2m for 2 minute)
+  poisson is Poisson's ratio for the elastic Greens functions (0-1)
+  flags:
+    residuals  =  plot GPS residuals
+    noave      =  don't plot the average velocities
+
+  Requires -g option
+  Duplicated GPS site locations will be culled, retaining first site.
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if ! arg_is_flag $2; then
+    GPS_GG_RES=$2
+    shift
+  fi
+
+  if arg_is_positive_float $2; then
+    GPS_GG_VAL=$2
+    shift
+  fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      residuals)
+        GG_PLOT_RESIDUALS=1
+        shift
+        ;;
+      noave)
+        GG_NO_AVE=1
+        shift
+        ;;
+      *)
+        echo "[-gg]: Flag $2 not recognized"
+        exit 1
+        ;;
+    esac
+  done
+
+  plots+=("gps_gg")
+  ;;
+
+  -pagegrid)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-pagegrid:     plot gps velocities from builtin catalog
+-pagegrid [[unit=${PAGE_GRID_UNIT}]]
+
+  Plot an inch- or cm-spaced grid around the map document
+
+  Units:
+    i    inches
+    c    centimeters
+
+Example: Plot a page grid
+  tectoplot -t -pagegrid c
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    case $2 in
+      i|c)
+        PAGE_GRID_UNIT=$2
+        shift
+      ;;
+    esac
+    plots+=("pagegrid")
+  ;;
+
 	-g|--gps) # args: none || string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -g:            plot gps velocities from builtin catalog
--g [[refplate]]
+-g [[refplate]] [[noplot]]
 
   GPS velocities exist for all plates in Kreemer et al., 2014 supplementary
   database. If -p is used, -g will assume the same plate ID as -p unless it is
-  overridden with [refplate].
+  overridden using -g [refplate]. Note that plate IDs must match exactly.
+
+  noplot : prevent plotting of the GPS velocities.
 
   Velocity vector lengths can be scaled using -i.
 
@@ -3217,6 +3297,12 @@ fi
       echo $GPS_SOURCESTRING >> ${LONGSOURCES}
       echo $GPS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
 		fi
+
+    if [[ $2 == "noplot" ]]; then
+      GPS_NOPLOT=1
+      shift
+    fi
+
 		plots+=("gps")
 		;;
 
@@ -8803,6 +8889,61 @@ fi
     fi
   ;;
 
+  -seistimeline_c)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-seistimeline_c:  create a seismicity vs time plot to the right of the map
+-seistimeline_c [startdate] [[breakdate1 panelwidth1]] ...
+
+  This option creates a -seistimeline plot with any number of panels, each of
+  which has a specified width and break date. The start date must be specified.
+
+  Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
+  width is given in inches, without unit (e.g. 5)
+
+Example: None
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+seistime_c_num=0
+
+
+if ! arg_is_flag $2; then
+  SEISTIMELINE_C_START_TIME=$2
+  shift
+else
+  echo "[-seistimeline_c]: Start date is required"
+  exit 1
+fi
+
+while ! arg_is_flag $2; do
+  ((seistime_c_num++))
+  SEISTIMELINE_C_BREAK_TIME[$seistime_c_num]=$2
+  shift
+  if arg_is_flag $2; then
+    echo "[-seistimeline_c]: Must specify break time and panel width."
+    exit 1
+  else
+    if arg_is_positive_float $2; then
+      SEISTIMELINE_C_WIDTH[$seistime_c_num]=$2
+      shift
+    else
+      echo "[-seistimeline_c]: Panel width must be a positive float"
+      exit 1
+    fi
+  fi
+done
+
+for i in $(seq 1 $seistime_c_num); do
+  echo "SC: ${SEISTIMELINE_C_BREAK_TIME[$i]} / ${SEISTIMELINE_C_WIDTH[$i]}"
+done
+
+plotseistimeline_c=1
+  ;;
+
+
   -seistimeline)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9558,6 +9699,14 @@ LONSIZE=$(echo "$MAXLON - $MINLON" | bc -l)
 CENTERLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
 CENTERLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
 
+# Calculate the ideal FORMAT_FLOAT_OUT number of decimals given the range '%.2f'
+
+echo $LATSIZE $LONSIZE | gawk '
+  {
+    avesize=($1+$2)/2
+    numtens=log(avesize)
+  }'
+
 if [[ ! $usecustomrjflag -eq 1 ]]; then
   rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
   rj+=("-JQ${CENTERLON}/${PSSIZE}i")
@@ -10266,38 +10415,50 @@ if [[ $(echo "$REFPTLAT > $MINLAT && $REFPTLAT < $MAXLAT && $REFPTLON < $MAXLON 
   info_msg "Reference point moved to $REFPTLON $REFPTLAT"
 fi
 
-
-GRIDSP=$(echo "($MAXLON - $MINLON)/6" | bc -l)
+# Number of desired ticks is ~6
+GRIDSP=$(echo "($MAXLON - $MINLON)/${TICK_NUMBER}" | bc -l)
 
 info_msg "Initial grid spacing = $GRIDSP"
 
 if [[ $(echo "$GRIDSP > 30" | bc) -eq 1 ]]; then
   GRIDSP=30
+  MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 10" | bc) -eq 1 ]]; then
   GRIDSP=10
+  MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 5" | bc) -eq 1 ]]; then
 	GRIDSP=5
+  MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 2" | bc) -eq 1 ]]; then
 	GRIDSP=2
+  MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 1" | bc) -eq 1 ]]; then
 	GRIDSP=1
+  MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 0.5" | bc) -eq 1 ]]; then
 	GRIDSP=0.5
+  FORMAT_FLOAT_OUT='%.1f'
 elif [[ $(echo "$GRIDSP > 0.2" | bc) -eq 1 ]]; then
 	GRIDSP=0.2
+  FORMAT_FLOAT_OUT='%.1f'
 elif [[ $(echo "$GRIDSP > 0.1" | bc) -eq 1 ]]; then
 	GRIDSP=0.1
+  MAP_FORMAT_FLOAT_OUT='%.1f'
 elif [[ $(echo "$GRIDSP > 0.05" | bc) -eq 1 ]]; then
   GRIDSP=0.05
+  MAP_FORMAT_FLOAT_OUT='%.2f'
 elif [[ $(echo "$GRIDSP > 0.02" | bc) -eq 1 ]]; then
   GRIDSP=0.02
+  FORMAT_FLOAT_OUT='%.2f'
 elif [[ $(echo "$GRIDSP > 0.01" | bc) -eq 1 ]]; then
   GRIDSP=0.01
+  MAP_FORMAT_FLOAT_OUT='%.2f'
 else
 	GRIDSP=0.005
+  MAP_FORMAT_FLOAT_OUT='%.3f'
 fi
 
-info_msg "updated grid spacing = $GRIDSP"
+info_msg "Grid spacing is $GRIDSP and decimal place code is ${MAP_FORMAT_FLOAT_OUT}"
 
 if [[ $overridegridlinespacing -eq 1 ]]; then
   GRIDSP=$OVERRIDEGRID
@@ -10540,7 +10701,7 @@ if [[ $plottopo -eq 1 ]]; then
 
   # Check if we are plotting best quality topography and look for a merged tile with the DEM AOI
   if [[ $besttopoflag -eq 1 ]]; then
-    bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.nc"
+    bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
     if [[ -e $bestname ]]; then
       info_msg "Best merged topography tile already exists."
       BATHY=$bestname
@@ -10703,14 +10864,14 @@ if [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
   info_msg "Combining GMRT ($NEGBATHYGRID) and 01s ($BATHY) grids to form best topo grid"
   # grdsample might return NaN?
   # gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $NEGBATHYGRID -Gneg.nc -fg ${VERBOSE}
-  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of NetCDF $NEGBATHYGRID neggdal.nc
-  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of NetCDF $BATHY posgdal.nc
-  gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A posgdal.nc -B neggdal.nc --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.nc
+  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neggdal.tif
+  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY posgdal.tif
+  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A posgdal.tif -B neggdal.tif --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.tif
   # gmt grdsample -Rneg.nc $BATHY -Gpos.nc -fg ${VERBOSE}
   # gmt grdclip -Sb0/0 pos.nc -Gposclip.nc ${VERBOSE}
   # gmt grdclip -Si0/10000000/0 neg.nc -Gnegclip.nc ${VERBOSE}
   # gmt grdmath posclip.nc negclip.nc ADD = merged.nc ${VERBOSE}
-  mv merged.nc $bestname
+  mv merged.tif $bestname
   BATHY=$bestname
 fi
 
@@ -11028,6 +11189,11 @@ if [[ $plotseis -eq 1 ]]; then
     # to import from various common formats. Currently needs tectoplot format data
     # and only ingests lines with 4-7 fields.
 
+    # lon lat depth mag iso8601_time ID [epoch=iso8601 time]
+
+#-69.1646 -19.8668 113.23 3.977 2021-10-13T12:06:13 us6000fu7b 1634097973
+#-69.602026 -21.532711 18.254 1.3 2014-12-31T22:07:13 iquique18964 none
+
     if [[ $eqcattype =~ "custom" ]]; then
       info_msg "[-z]: Loading custom seismicity file ${SEISADDFILE[$customseisindex]}"
         gawk < ${SEISADDFILE[$customseisindex]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
@@ -11051,6 +11217,9 @@ if [[ $plotseis -eq 1 ]]; then
                 if (test_lon(minlon, maxlon, $1) == 1) {
                   if (checkdate==1) {
                     if (mindate <= $5 && $5 <= maxdate) {
+                      if ($7=="none") {
+                        $7=iso8601_to_epoch($5)
+                      }
                       print $1, $2, $3, $4, $5, $6, $7
                     }
                   } else {
@@ -14141,7 +14310,7 @@ gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 100ix100i
 
 echo "gmt gmtset FORMAT_GEO_MAP=D" >> makemap.sh
 
-gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.5p,black
+gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.25p,black
 gmt gmtset FORMAT_GEO_MAP=D
 
 # Font options
@@ -15024,7 +15193,9 @@ for plot in ${plots[@]} ; do
               print
             }
           }' > ${F_GPS}gps.txt
-  				gmt psvelo ${F_GPS}gps.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+          if [[ $GPS_NOPLOT -ne 1 ]]; then
+  				  gmt psvelo ${F_GPS}gps.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+          fi
           # generate XY data
           gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' < ${F_GPS}gps.txt > ${F_GPS}gps.xy
           GPSMAXVEL=$(gawk < ${F_GPS}gps.xy 'BEGIN{ maxv=0 } {if ($4>maxv) { maxv=$4 } } END {print maxv}')
@@ -15035,8 +15206,98 @@ for plot in ${plots[@]} ; do
       fi
 			;;
 
+    gps_gg)
+
+    if [[ -s ${F_GPS}gps.txt ]]; then
+
+      gawk < ${F_GPS}gps.txt '
+        {
+          seen[$1,$2]++
+          if(seen[$1,$2]==1) {
+            if (NF<5) {
+              $5=0
+              $6=0
+              $7=0
+            }
+            print $1, $2, $3, $4, $5, $6, $7
+          }
+        }' > ${F_GPS}gps_cull.txt
+
+      gmt_init_tmpdir
+
+      gmt gpsgridder ${F_GPS}gps_cull.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -S${GPS_GG_VAL} -I${GPS_GG_RES} -fg -W -r -G${F_GPS}gps_strain_%s.nc ${VERBOSE} > /dev/null 2>&1
+
+      # Get the number of GPS velocities within each cell
+      gmt blockmean ${F_GPS}gps_cull.txt -Sn -R${F_GPS}gps_strain_v.nc -C -E -fg > ${F_GPS}gps_ptnum.txt
+
+      gmt xyz2grd ${F_GPS}gps_cull.txt -R${F_GPS}gps_strain_v.nc -An -G${F_GPS}gps_number.nc
+
+      gmt_remove_tmpdir
+
+      if [[ -s ${F_GPS}gps_strain_u.nc && -s ${F_GPS}gps_strain_v.nc ]]; then
+        gmt grdmath ${F_GPS}gps_strain_u.nc SQR ${F_GPS}gps_strain_v.nc SQR ADD SQRT = ${F_GPS}gps_vel.nc
+        # gmt grdimage ${F_GPS}gps_vel.nc -Cturbo ${RJOK} ${VERBOSE} >> map.ps
+
+        # Recover the GPS velocity components
+        gmt grd2xyz ${F_GPS}gps_strain_u.nc > ${F_GPS}gps_strain_u.txt
+        gmt grd2xyz ${F_GPS}gps_strain_v.nc | gawk '{print $3, 0, 0, 0}' > ${F_GPS}gps_strain_v.txt
+
+        paste ${F_GPS}gps_strain_u.txt ${F_GPS}gps_strain_v.txt > ${F_GPS}gps_strain.txt
+
+        gmt grdtrack ${F_GPS}gps_strain.txt -G${F_GPS}gps_number.nc -Z -N | gawk '
+          {
+            if ($1=="NaN") {
+              $1=0
+            }
+            printf("%.0f\n", $1)
+          } '> ${F_GPS}near_num.txt
+
+        paste ${F_GPS}near_num.txt ${F_GPS}gps_strain.txt | gawk '
+          {
+            if ($1>1) {
+              $1=""
+              print $0 > "./gps_g_withdata.txt"
+            } else if ($1==1){
+              $1=""
+              print $0 > "./gps_g_withonedata.txt"
+            } else {
+              $1=""
+              print $0 > "./gps_g_withoutdata.txt"
+            }
+          }'
+
+        mv gps_g_* ${F_GPS}
+
+        if [[ $GG_NO_AVE -ne 1 ]]; then
+          gmt psvelo ${F_GPS}gps_g_withdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gblack -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          gmt psvelo ${F_GPS}gps_g_withonedata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggray -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          gmt psvelo ${F_GPS}gps_g_withoutdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gwhite -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+        fi
+        # gmt grdvector ${F_GPS}gps_strain_u.nc ${F_GPS}gps_strain_v.nc ${RJOK} ${VERBOSE} -Gwhite >> map.ps
+      fi
+
+      if [[ $GG_PLOT_RESIDUALS -eq 1 ]]; then
+        # Calculate and plot the residuals
+        gmt grdtrack ${F_GPS}gps_cull.txt -G${F_GPS}gps_strain_u.nc -G${F_GPS}gps_strain_v.nc -Z > ${F_GPS}gps_extract.txt
+        paste ${F_GPS}gps_cull.txt ${F_GPS}gps_extract.txt | gawk '{ print $1, $2, $3-$8, $4-$9, 0, 0, 0}' > ${F_GPS}gps_g_residual.txt
+
+        if [[ -s ${F_GPS}gps_g_residual.txt ]]; then
+          gmt psvelo ${F_GPS}gps_g_residual.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggreen -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+        fi
+      fi
+    fi
+
+    plots+=("gps_gg")
+      ;;
+
     graticule)
-      gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE --FORMAT_GEO_MAP=ddd.xx >> map.ps
+      OLD_FORMAT_FLOAT_OUT=$(gmt gmtget FORMAT_FLOAT_OUT -Vn)
+      gmt gmtset FORMAT_FLOAT_OUT ${MAP_FORMAT_FLOAT_OUT}
+
+      gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
+
+      gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
+
   #  gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
       ;;
 
@@ -15233,6 +15494,82 @@ for plot in ${plots[@]} ; do
     aprofcodes)
       grep "[$APROFCODES]" ${F_MAPELEMENTS}aprof_database.txt > ${F_MAPELEMENTS}aprof_codes.txt
       gmt pstext ${F_MAPELEMENTS}aprof_codes.txt -F+f14p,Helvetica,black $RJOK $VERBOSE >> map.ps
+      ;;
+
+    pagegrid)
+
+      # echo ${PROJDIM[0]} ${PROJDIM[1]}
+      # X SIZE IS ${PROJDIM[0]}
+      # Y SIZE IS ${PROJDIM[1]}
+      case ${PAGE_GRID_UNIT} in
+        i)
+          PAGE_GRID_XSIZE=$(echo ${PROJDIM[0]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1/2.54+1,1)
+            }')
+          PAGE_GRID_YSIZE=$(echo ${PROJDIM[1]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1/2.54+1,1)
+            }')
+          PAGE_GRID_XSIZE_P2=$(echo ${PROJDIM[0]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru(($1)/2.54+1,1)
+            }')
+          PAGE_GRID_YSIZE_P2=$(echo ${PROJDIM[1]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru(($1)/2.54+1,1)
+            }')
+        ;;
+        c)
+          PAGE_GRID_XSIZE=$(echo ${PROJDIM[0]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1+1,1)
+            }')
+          PAGE_GRID_YSIZE=$(echo ${PROJDIM[1]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1+1,1)
+            }')
+          PAGE_GRID_XSIZE_P2=$(echo ${PROJDIM[0]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1+1,1)
+            }')
+          PAGE_GRID_YSIZE_P2=$(echo ${PROJDIM[1]} | gawk '
+            @include "tectoplot_functions.awk"
+            {
+              print ru($1+1,1)
+            }')
+          ;;
+        esac
+
+        # echo "Xsize: ${PAGE_GRID_XSIZE}${PAGE_GRID_UNIT}, Ysize: ${PAGE_GRID_YSIZE}${PAGE_GRID_UNIT}"
+
+        # Plot -1 X and -i Y
+        gmt_init_tmpdir
+
+        gmt psbasemap -R0/1/0/1 -JX0${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,4_8 >> map.ps
+        gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/0${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8 >> map.ps
+
+        pagegrid_ind=0
+        while [[ $(echo "$pagegrid_ind <= $PAGE_GRID_XSIZE_P2" | bc) -eq 1 ]]; do
+          gmt psbasemap -R0/1/0/1 -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
+          ((pagegrid_ind++))
+        done
+
+        pagegrid_ind=0
+        while [[ $(echo "$pagegrid_ind < $PAGE_GRID_YSIZE_P2" | bc) -eq 1 ]]; do
+          gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/${pagegrid_ind}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
+          ((pagegrid_ind++))
+        done
+        gmt_remove_tmpdir
+        # gmt psbasemap -R0/1/0/1 -JX${i}${PAGE_GRID_UNIT}/${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT} -Ya-${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,- >> map.ps
+        # gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT}/${i}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
       ;;
 
     mprof)
@@ -16594,18 +16931,31 @@ if [[ $plotseistimeline -eq 1 ]]; then
         print
       }' ${F_SEIS}proj_eqs.txt $EQSTOPLOT > ${F_SEIS}proj_eqs_scaled_y.txt
 
-    if [[ $zctimeflag -eq 1 ]]; then
-      SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
-      SEIS_INPUTORDER2="-i0,1,6"
-      SEIS_CPT=${F_CPTS}"eqtime.cpt"
-    elif [[ $zcclusterflag -eq 1 ]]; then
-      SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
-      SEIS_INPUTORDER2="-i0,1,7"
-      SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    if [[ $SCALEEQS -eq 1 ]]; then
+      if [[ $zctimeflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,6"
+        SEIS_CPT=${F_CPTS}"eqtime.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,7"
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      else
+        SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,2"
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
     else
-      SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
-      SEIS_INPUTORDER2="-i0,1,2"
-      SEIS_CPT=$SEISDEPTH_CPT
+      if [[ $zctimeflag -eq 1 ]]; then
+        SEIS_INPUTORDER="-i0,1,6"
+        SEIS_CPT=${F_CPTS}"eqtime.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        SEIS_INPUTORDER="-i0,1,7"
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      else
+        SEIS_INPUTORDER="-i0,1,2"
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
     fi
 
     gmt_init_tmpdir
@@ -16623,13 +16973,20 @@ if [[ $plotseistimeline -eq 1 ]]; then
     OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
     gmt gmtset PROJ_LENGTH_UNIT p
 
-    gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    if [[ $SCALEEQS -eq 1 ]]; then
+      echo gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O
 
-    gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
-    # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"Before ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
-    #
-    # gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -Sc -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+      echo gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O
 
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+    else
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+
+      gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+
+    fi
     gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
     gmt_remove_tmpdir
 
@@ -16743,7 +17100,248 @@ if [[ $plotseistimeline -eq 1 ]]; then
 
     gmt psbasemap -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"After ${SEISTIMELINE_BREAK_TIME}" -BlSrN  ${VERBOSE} -K -O >> map.ps
   fi
+  gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
 fi
+
+
+  # if ! arg_is_flag $2; then
+  #   SEISTIMELINE_C_START_TIME=$2
+  #   shift
+  # else
+  #   echo "[-seistimeline_c]: Start date is required"
+  #   exit 1
+  # fi
+  #
+  # while ! arg_is_flag $2; do
+  #   ((seistime_c_num++))
+  #   SEISTIMELINE_C_BREAK_TIME[$seistime_c_num]=$2
+  #   shift
+  #   if arg_is_flag $2; then
+  #     echo "[-seistimeline_c]: Must specify break time and panel width."
+  #     exit 1
+  #   else
+  #     if arg_is_positive_float $2; then
+  #       SEISTIMELINE_C_WIDTH[$seistime_c_num]=$2
+  #       shift
+  #     else
+  #       echo "[-seistimeline_c]: Panel width must be a positive float"
+  #       exit 1
+  #     fi
+  #   fi
+  # done
+  #
+  # for i in $(seq 1 $seistime_c_num); do
+  #   echo "SC: ${SEISTIMELINE_C_BREAK_TIME[$i]} / ${SEISTIMELINE_C_WIDTH[$i]}"
+  # done
+
+# i=1 T1=START T2=
+
+if [[ $plotseistimeline_c -eq 1 ]]; then
+
+  echo in
+  if [[ -s ${F_SEIS}eqs_scaled.txt ]]; then
+    EQSTOPLOT=${F_SEIS}eqs_scaled.txt
+  elif [[ -s ${F_SEIS}eqs.txt ]]; then
+    EQSTOPLOT=${F_SEIS}eqs.txt
+  fi
+
+  PS_OFFSET_IN_NOLABELS=${MAP_PS_WIDTH_NOLABELS_IN}
+  SEISTIMELINEWIDTH=0
+  SEISTIMELINE_C_BREAK_TIME[0]=${SEISTIMELINE_C_START_TIME}
+
+  OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+  gmt gmtset PROJ_LENGTH_UNIT p
+
+
+  if [[ -s $EQSTOPLOT ]]; then
+    # Project the earthquake data
+    gmt mapproject ${RJSTRING[@]} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+
+    # Match the scaled earthquakes to the projected coordinates and print time, Yval as X,Y coordinates
+    gawk '
+      (NR==FNR) {
+        projx[NR]=$1
+        projy[NR]=$2
+      }
+      (NR>FNR) {
+        $1=$5
+        $2=projy[FNR]*2.54/72
+        print
+      }' ${F_SEIS}proj_eqs.txt $EQSTOPLOT > ${F_SEIS}proj_eqs_scaled_y.txt
+
+
+    # Set up the earthquake symbology
+
+    if [[ $SCALEEQS -eq 1 ]]; then
+      if [[ $zctimeflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,6,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,6"
+        SEIS_CPT=${F_CPTS}"eqtime.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        SEIS_INPUTORDER1="-i0,1,7,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,7"
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      else
+        SEIS_INPUTORDER1="-i0,1,2,3+s${SEISSCALE}"
+        SEIS_INPUTORDER2="-i0,1,2"
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
+    else
+      if [[ $zctimeflag -eq 1 ]]; then
+        SEIS_INPUTORDER="-i0,1,6"
+        SEIS_CPT=${F_CPTS}"eqtime.cpt"
+      elif [[ $zcclusterflag -eq 1 ]]; then
+        SEIS_INPUTORDER="-i0,1,7"
+        SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+      else
+        SEIS_INPUTORDER="-i0,1,2"
+        SEIS_CPT=$SEISDEPTH_CPT
+      fi
+    fi
+  fi
+
+  # Prepare the focal mechanism data
+  if [[ -s $CMTFILE ]]; then
+
+    if [[ $zctimeflag -eq 1 ]]; then
+      CMT_SEIS_CPT=${F_CPTS}"eqtime_cmt.cpt"
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      CMT_SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+    else
+      CMT_SEIS_CPT=$SEISDEPTH_CPT
+    fi
+
+    if [[ $cmtthrustflag -eq 1 ]]; then
+
+      gmt mapproject ${RJSTRING[@]} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.5  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_thrust.txt ${CMT_THRUSTPLOT} > ${F_CMT}proj_thrust_scaled_y.txt
+
+    fi
+
+    if [[ $cmtnormalflag -eq 1 ]]; then
+      gmt mapproject ${RJSTRING[@]} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_normal.txt ${CMT_NORMALPLOT} > ${F_CMT}proj_normal_scaled_y.txt
+    fi
+
+    if [[ $cmtssflag -eq 1 ]]; then
+      gmt mapproject ${RJSTRING[@]} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
+      # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
+      # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
+      # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
+
+      gawk '
+        (NR==FNR) {
+          # Store the projected values for each line
+          projx[NR]=$1
+          projy[NR]=$2
+        }
+        (NR>FNR) {
+          $1=$17
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
+          print
+        }' ${F_CMT}proj_cmt_strikeslip.txt ${CMT_STRIKESLIPPLOT} > ${F_CMT}proj_strikeslip_scaled_y.txt
+    fi
+  fi
+
+  gmt_init_tmpdir
+
+
+  for sc_count in $(seq 1 $seistime_c_num); do
+
+    backindex=$(echo "$sc_count - 1" | bc)
+
+    secondX=$(echo "$PS_OFFSET_IN_NOLABELS + $SEISTIMELINEWIDTH" | bc -l)
+
+
+    SC_START_TIME=${SEISTIMELINE_C_BREAK_TIME[$backindex]}
+    SC_END_TIME=${SEISTIMELINE_C_BREAK_TIME[$sc_count]}
+    PANEL_WIDTH=${SEISTIMELINE_C_WIDTH[$sc_count]}
+
+    # Keep track of the total width of the timeline
+    SEISTIMELINEWIDTH=$(echo "${SEISTIMELINEWIDTH} + ${PANEL_WIDTH}" | bc -l)
+
+
+    echo "Plotting panel ${SC_START_TIME} to ${SC_END_TIME} with width ${PANEL_WIDTH} and offset ${secondX}"
+
+    # If we are in the last panel, the label is AFTER START_TIME, otherwise
+    # it is BEFORE END_TIME
+    if [[ $sc_count -eq $seistime_c_num ]]; then
+      SC_LABEL="After ${SC_START_TIME}"
+    else
+      SC_LABEL="Before ${SC_END_TIME}"
+    fi
+
+    # Plot the panel
+    plotframe=0
+    if [[ -s $EQSTOPLOT ]]; then
+      plotframe=1
+
+
+      if [[ $SCALEEQS -eq 1 ]]; then
+        echo         gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+      else
+        gmt psxy ${F_SEIS}proj_eqs_scaled_y.txt ${SEIS_INPUTORDER1} -t${SEISTRANS} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -B+gwhite -C${SEIS_CPT} ${VERBOSE} -K -O >> map.ps
+      fi
+    fi
+
+    if [[ -s ${F_CMT}proj_normal_scaled_y.txt ]]; then
+      plotframe=1
+      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+    fi
+
+    if [[ -s ${F_CMT}proj_thrust_scaled_y.txt ]]; then
+      plotframe=1
+      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+    fi
+
+    if [[ -s ${F_CMT}proj_strikeslip_scaled_y.txt ]]; then
+      plotframe=1
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+    fi
+
+    if [[ $plotframe -eq 1 ]]; then
+      gmt psbasemap -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"${SC_LABEL}" -BlSrN  ${VERBOSE} -K -O >> map.ps
+    fi
+
+  done
+  gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+  gmt_remove_tmpdir
+
+fi
+
+
+
 
 ##### -seisproj
 
@@ -17497,6 +18095,8 @@ if [[ $makelegendflag -eq 1 ]]; then
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[3]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT $MW_E DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -Y-0.13i -X0.35i ${VERBOSE} >> seissymbol.ps
         echo "$CENTERLON $CENTERLAT ${SEIS_ARRAY[4]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.16i -O >> seissymbol.ps
+
+        cleanup seissymbol.eps
 
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
