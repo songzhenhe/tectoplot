@@ -15553,18 +15553,26 @@ for plot in ${plots[@]} ; do
         # Plot -1 X and -i Y
         gmt_init_tmpdir
 
-        gmt psbasemap -R0/1/0/1 -JX0${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,4_8 >> map.ps
-        gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/0${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8 >> map.ps
+        gmt psbasemap -R0/1/0/1 -JX0${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8 >> map.ps
+
+        gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/0${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8 >> map.ps
 
         pagegrid_ind=0
         while [[ $(echo "$pagegrid_ind <= $PAGE_GRID_XSIZE_P2" | bc) -eq 1 ]]; do
-          gmt psbasemap -R0/1/0/1 -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
+          textoff=$(echo "$pagegrid_ind - 1" | bc )
+          echo "0 0 ${textoff}${PAGE_GRID_UNIT}" | gmt pstext -R0/1/0/1 -C0.1+t -F+f10p,Helvetica,gray+jLB -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa${textoff}${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} $VERBOSE -O -K >> map.ps
+
+          gmt psbasemap -R0/1/0/1 -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8_5_8 >> map.ps
           ((pagegrid_ind++))
         done
 
         pagegrid_ind=0
         while [[ $(echo "$pagegrid_ind < $PAGE_GRID_YSIZE_P2" | bc) -eq 1 ]]; do
-          gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/${pagegrid_ind}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
+          textoff=$(echo "$pagegrid_ind - 1" | bc )
+
+          echo "0 0 ${textoff}${PAGE_GRID_UNIT}" | gmt pstext -R0/1/0/1 -C0.1+t -F+f10p,Helvetica,gray+jLB -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya${textoff}${PAGE_GRID_UNIT} $VERBOSE -O -K >> map.ps
+
+          gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/${pagegrid_ind}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8_5_8 >> map.ps
           ((pagegrid_ind++))
         done
         gmt_remove_tmpdir
@@ -16219,7 +16227,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         info_msg "Filling NaN values in plate velocity raster"
         gmt grdfill plate_velocities.nc -An -Gfilled_plate_velocities.nc ${VERBOSE}
         mv filled_plate_velocities.nc plate_velocities.nc
-        zrange=$(grid_zrange plate_velocities.nc -C -Vn)
+        zrange=$(grid_zrange plate_velocities.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn)
       cd ..
 
       info_msg "Velocities range: $zrange"
@@ -16587,7 +16595,7 @@ echo blah blah
             i)
               info_msg "Calculating terrain ruggedness index"
               gdaldem TRI -q -of GTiff ${TOPOGRAPHY_DATA} ${F_TOPO}tri.tif
-              zrange=($(grid_zrange ${F_TOPO}tri.tif -C -Vn))
+              zrange=($(grid_zrange ${F_TOPO}tri.tif -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.tif ${F_TOPO}tri2.tif -q
               weighted_average_combine ${F_TOPO}tri2.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16597,7 +16605,7 @@ echo blah blah
               gmt grdfilter ${TOPOGRAPHY_DATA} -Dp -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${TOPOGRAPHY_DATA} -G${F_TOPO}quantile.nc
               gmt grdmath ${TOPOGRAPHY_DATA} ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
 
-              zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -C -Vn))
+              zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 1 254 ${F_TOPO}quantile_diff.nc ${F_TOPO}quantile_gray.tif -q
               weighted_average_combine ${F_TOPO}quantile_gray.tif ${F_TOPO}intensity.tif ${QUANTILE_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16615,8 +16623,8 @@ echo blah blah
 
               # Calculate the texture shade
               # Project from WGS1984 to Mercator / HDF format
-              # The -dstnodata option is a kluge to get around unknown NaNs in dem.flt even if ${TOPOGRAPHY_DATA} has NaNs filled.
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
+              # The -dstnodata option is a kluge to get around unknown NaNs in dem_flt.flt even if ${TOPOGRAPHY_DATA} has NaNs filled.
+              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16630,7 +16638,7 @@ echo blah blah
                 MERCMINLAT=$DEM_MINLAT
               fi
 
-              ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+              ${TEXTURE} ${TS_FRAC} ${F_TOPO}dem_flt.flt ${F_TOPO}texture.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
               # make the image. Pipe output to /dev/null to silence the program
               ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
               # project back to WGS1984
@@ -16639,7 +16647,7 @@ echo blah blah
 
               # Change to 8 bit unsigned format
               gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
-              cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem.flt ${F_TOPO}dem.hdr ${F_TOPO}dem.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
+              cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem_flt.flt ${F_TOPO}dem.hdr ${F_TOPO}dem_flt.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
 
               # Combine it with the existing intensity
               weighted_average_combine ${F_TOPO}texture.tif ${F_TOPO}intensity.tif ${TS_FACT} ${F_TOPO}intensity.tif
@@ -16681,7 +16689,7 @@ echo blah blah
 
               info_msg "Creating sky view factor"
 
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
+              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16696,12 +16704,12 @@ echo blah blah
               fi
 
               # start_time=`date +%s`
-              ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+              ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
               # echo run time is $(expr `date +%s` - $start_time) s
               # project back to WGS1984
               gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
 
-              zrange=($(grid_zrange ${F_TOPO}svf_back.tif -Vn))
+              zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
               gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
 
               # Combine it with the existing intensity
@@ -16720,7 +16728,7 @@ echo blah blah
               demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
 
-              [[ ! -e ${F_TOPO}dem.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem.flt -q
+              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16734,7 +16742,7 @@ echo blah blah
                 MERCMINLAT=$MINLAT
               fi
 
-              ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+              ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
               # project back to WGS1984
 
               gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
@@ -18290,7 +18298,7 @@ if [[ $plottedtopoflag -eq 1 ]]; then
 
 
   # zrange is the elevation change across the DEM
-  zrange=($(grid_zrange $BATHY -C -Vn))
+  zrange=($(grid_zrange $BATHY -R${BATHY} -C -Vn))
 
   if [[ $obplotboxflag -eq 1 ]]; then
     OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
