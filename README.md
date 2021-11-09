@@ -136,11 +136,32 @@ And when prompted to confirm the location, change it to miniconda instead of min
 ```
 
 Installation
-------------
+============
 
-tectoplot should run on any system that has a linux-like terminal environment and has the following dependencies installed (version numbers are indicative): gmt (6.1.1), geod (7.2.1), gawk (5.1.0), gdal (3.2.0), python (3.9), gs (9.26-9.53),
-gcc / g++ / gfortran or other CC, CXX, F90 compilers.
+Manual installation
+-------------------
 
+tectoplot should run on any linux-like system that has the following dependencies installed (version numbers are indicative).
+
+  gmt (6.1.1)
+  geod (7.2.1)
+  gawk (5.1.0)
+  gdal (3.2.0)
+  python (3.9)
+  gs (9.26-9.53)
+  gcc / g++ / gfortran or similar.
+
+  If you have these already, you can just clone the tectoplot repository and example repository (install git first if needed):
+
+  ```proto
+  git clone https://github.com/kyleedwardbradley/tectoplot.git
+  git clone https://github.com/kyleedwardbradley/tectoplot-examples.git
+  ```
+
+Homebrew or miniconda installation
+----------------------
+
+Homebrew is a package manager that installs programs into a directory and links them into your active path so that you can simply call them from the command line. In contrast, miniconda allows you to have an isolated environment for tectoplot that will not interfere with your existing system, but does need to be activated before using tectoplot.
 
 Before installing tectoplot, you should determine the desired paths for the following directories. The default is in your home directory, but you may wish to change this to something else (for example ~/Dropbox/tectoplot/, etc.)
 
