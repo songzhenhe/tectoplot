@@ -197,6 +197,70 @@ Installing dependencies via **miniconda** will try to install the following pack
 (OSX): python=3.9 git gmt=6.1.1 gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_osx-64
 (Linux): python=3.9 git gmt=6.1.1 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64
 
+Configuring tectoplot and downloading data
+------------------------------------------
+
+The automated installation script will walk you through configuration of tectoplot. If you didn't use it, you will need to perform the following steps:
+
+
+*  Add the new directory to your path environment variable. You may need to **restart your terminal** or otherwise ensure that your path has been updated. If you are not using bash, you may need to manually add the tectoplot folder to your path environment variable.
+
+  ```proto
+  cd tectoplot
+  ./tectoplot -addpath
+  source ~/.profile
+  ```
+
+Once tectoplot is in your path and can be called from anywhere, do the following steps:
+
+* Check the status of your dependencies. Use `conda activate tectoplot` if necessary first.
+
+  ```proto
+  tectoplot -checkdep
+  ```
+
+*	Define the directory where downloaded data will reside. tectoplot will
+    download a lot of data if asked, and will also store cached DEM tiles in this
+    directory, so make sure you have ~20 GB of disk space and a lot of time.
+
+  ```proto
+  tectoplot -setdatadir "/full/path/to/data/directory/"
+  ```
+
+* Compile accompanying Fortran/C codes
+
+  ```proto
+  tectoplot -compile
+  ```
+
+*	Set the program that will be called to open all PDFs generated (unless the -noopen option is given)
+
+  ```proto
+  tectoplot -setopen evince
+  ```
+
+Downloading the builtin datasets
+--------------------------------
+
+* Download the online datasets into the data directory. If an error occurs,
+   run this command again until all downloads clear. If something seems really broken,
+   please let me know.
+
+  ```proto
+  tectoplot -getdata
+  ```
+
+*	Scrape and process the seismicity and focal mechanism catalogs. This will
+     take a **very** long time! The code is also a bit touchy and it's possible that things
+     can get messed up - if that happens, delete the folders containing the offending
+     data and scrape it again.
+
+  ```proto
+  tectoplot -scrapedata
+  ```
+
+
+
 
 License
 -------
