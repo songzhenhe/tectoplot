@@ -180,7 +180,7 @@ tectoplot should run on any linux-like system that has the following dependencie
   gs (9.26-9.53)
   gcc / g++ / gfortran or similar.
 
-  If you have these already, use the **interactive installation script above** and decline to install any dependencies. The script will then help you configure your tectoplot installation.
+  If you have these already, use the **interactive installation script above** and decline to install any dependencies. The script will then help you install and configure tectoplot.
 
 Installing dependencies using Homebrew or miniconda
 ---------------------------------------------------
@@ -259,11 +259,19 @@ tectoplot -getdata
 tectoplot -scrapedata
 ```
 
+Updating tectoplot
+------------------
 
+tectoplot is under active development in my spare time, and I push bug fixes or new options on a regular basis. To keep up to date, change into the tectoplot directory and run:
 
+```proto
+git pull
+```
 
 License
 -------
+
+tectoplot is distributed under the following license. Redistributed source code retains its original license; see the source code for details.
 
 tectoplot
 Copyright (c) 2021 Kyle Bradley, all rights reserved.
