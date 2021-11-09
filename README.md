@@ -18,7 +18,6 @@ tectoplot is software written by a field geologist, and is in very early stages 
 
  * If you find a bug or problem, let me know and I will try to fix it!
 
-
 What does tectoplot do?
 -----------------------
 
@@ -44,16 +43,23 @@ Credits
 -------
 
 tectoplot relies very heavily on the following open-source tools:
-[GMT 6][gmt6] - [gdal][gdal] 
+[GMT 6][gmt6] - [gdal][gdal]
 
-NDK import is heavily modified from ndk2meca.awk[ndk2meca] by Thorsten Becker
-Various CMT calculations are modified from GMT's classic psmeca.c/utilmeca.c[utilmeca] by G. Patau (IPGP)
+NDK import is heavily modified from [ndk2meca.awk][ndk2meca] by Thorsten Becker
+Various CMT calculations are modified from GMT's classic [psmeca.c/utilmeca.c][utilmeca] by G. Patau (IPGP)
 
 tectoplot includes modified source redistributions from:
 
 [Texture shading][text] by Leland Brown (C source with very minor modifications)
-Reasenberg seismicity declustering (Fortran source, minor modifications).
-Zaliapin et al. (2008) seismicity declustering (Python code by Mark Williams, UNR)
+
+Methods
+-------
+
+Code or general approaches have been adopted from the following research papers. There is no guarantee that the algorithms have been correctly implemented.
+
+[Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
+[Zaliapin et al., 2008][zaliapin]: Seismicity declustering (Python code by Mark Williams, UNR)
+
 
 Installation
 ------------
@@ -65,3 +71,6 @@ Installation
  [gmt6]: http://www.generic-mapping-tools.org
  [gmtcite]: https://www.generic-mapping-tools.org/cite/
  [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
+
+ [rb]: https://doi.org/10.1029/JB090iB07p05479
+ [zaliapin]: https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.101.018501
