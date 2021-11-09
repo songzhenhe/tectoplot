@@ -21,7 +21,7 @@ tectoplot is software written by a field geologist, and is in very early stages 
 What does tectoplot do?
 -----------------------
 
-Here's an example tectoplot command that plots seismicity and volcanoes in Guatemala.
+Here's a simple tectoplot command that plots seismicity and volcanoes in Guatemala.
 
 ```proto
 tectoplot -r GT -t -tmult -tsl -z -vc -legend onmap -o Guatemala
@@ -43,7 +43,7 @@ Let's break down the command to see what it does:
 
 The resulting PDF figure looks like:
 
-<a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=100></a>
+<a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=200></a>
 
 Credits and redistributed source code
 -------------------------------------
