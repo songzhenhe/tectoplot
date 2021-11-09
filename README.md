@@ -14,6 +14,8 @@ tectoplot is software written by a field geologist, and is in very early stages 
 
  * Be sure to validate all data, maps, and figures produced by tectoplot.
 
+ * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt]
+
  * If you find a bug or problem, let me know and I will try to fix it!
 
 
@@ -43,5 +45,5 @@ Installation
 ------------
 
 
-
+ [gmt]: https://www.generic-mapping-tools.org/cite/
  [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
