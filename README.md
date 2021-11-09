@@ -125,7 +125,7 @@ xcode-select --install
 
 **Older miniconda installations**:
 
-If you have miniconda2 already installed, you won't be able to use the automated script above to install the miniconda3 environment. These commands might fix the problem:
+If you have miniconda2 already installed, you won't be able to use the automated script to install the miniconda3 environment. These commands might fix the problem:
 
 ```proto
 rm -rf ~/miniconda2
@@ -134,6 +134,10 @@ bash Miniconda3-latest-MacOSX-x86_64.sh # after downloading the installable
 
 And when prompted to confirm the location, change it to miniconda instead of miniconda3.
 ```
+
+**Ghostscript messages**
+
+Note that gs 9.53 will pipe harmless warnings to stdout about transparency because we are still using GMT 6.1.1. It's fine to downgrade to an earlier version like gs 9.26 to avoid these messages.
 
 Installation
 ============
@@ -151,7 +155,7 @@ When running this script, you will need to know the following information in adv
 * Are you installing tectoplot from the Github repository?
 * Are you installing tectoplot-examples from the Github repository?
 
-Which directories will you install tectoplot and it's data folder into?
+Do you know which directories you want to install tectoplot and it's data folder into?
 
 |Directory | Default path |
 |---|---|
@@ -161,10 +165,10 @@ Which directories will you install tectoplot and it's data folder into?
 
 
 
-Manual installation
--------------------
+Installation without dependencies
+---------------------------------
 
-tectoplot should run on any linux-like system that has the following dependencies installed (version numbers are indicative).
+tectoplot should run on any linux-like system that has the following dependencies installed (version numbers are indicative). These can often be quickly installed using (for example) apt-get on Ubuntu, which can be much faster than using Homebrew or miniconda.
 
   gmt (6.1.1)
   geod (7.2.1)
@@ -174,15 +178,22 @@ tectoplot should run on any linux-like system that has the following dependencie
   gs (9.26-9.53)
   gcc / g++ / gfortran or similar.
 
-  If you have these already, use the automatic installation script above and decline to install any dependencies. The script will help you configure your tectoplot installation.
+  If you have these already, use the interactive installation script above and decline to install any dependencies. The script will then help you configure your tectoplot installation.
 
-Homebrew or miniconda installation
-----------------------
+Installing dependencies using Homebrew or miniconda
+---------------------------------------------------
 
-Homebrew is a package manager that installs programs into a directory and links them into your active path so that you can simply call them from the command line. In contrast, miniconda allows you to have an isolated environment for tectoplot that will not interfere with your existing system, but does need to be activated before using tectoplot.
+Homebrew is a package manager that installs programs into a directory and links them into your active path so that you can simply call them from the command line. miniconda allows you to have an isolated environment for tectoplot that will not interfere with your existing system, but does need to be activated before using tectoplot.
 
-Before installing tectoplot, you should determine the desired paths for the following directories. The default is in your home directory, but you may wish to change this to something else (for example ~/Dropbox/tectoplot/, etc.)
+Use the interactive installation script above and choose how you want to install dependencies (homebrew or miniconda). The script will then prompt you to install tectoplit and tectoplot-examples, and will help you configure your installation.
 
+Installing dependencies via **homebrew** will try to install the following packages and their own dependencies:
+(OSX + Linux): git gawk proj gcc gmt@6 ghostscript evince
+
+Installing dependencies via **miniconda** will try to install the following packages and their own dependencies from conda-forge, and will configure tectoplot to use the miniconda compilers when a conda environment is active:
+
+(OSX): python=3.9 git gmt=6.1.1 gawk ghostscript clang_osx-64 clangxx_osx-64 gfortran_osx-64
+(Linux): python=3.9 git gmt=6.1.1 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64
 
 
 License
