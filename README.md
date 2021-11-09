@@ -41,7 +41,7 @@ Let's break down the command to see what it does:
 
 The resulting PDF figure looks like:
 
-<img src=examples/Guatemala.pdf height=100>
+<a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=100></a>
 
 Credits and redistributed source code
 -------------------------------------
