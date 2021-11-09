@@ -115,7 +115,13 @@ Pre-Installation notes
 
 **OSX**:
 
-Before installing tectoplot, install XCode command line tools using xcode-select --install
+tectoplot will partially work with a pre-Catalina OS, but dependencies like GDAL 3.3.1 won't work so major functionality can disappear.
+
+Before installing tectoplot on OSX, install the XCode command line tools:
+
+```proto
+xcode-select --install
+```
 
 **Older miniconda installations**:
 
