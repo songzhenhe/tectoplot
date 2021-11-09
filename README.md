@@ -14,7 +14,7 @@ tectoplot is software written by a field geologist, and is in very early stages 
 
  * Be sure to validate all data, maps, and figures produced by tectoplot.
 
- * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt]
+ * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt6]
 
  * If you find a bug or problem, let me know and I will try to fix it!
 
@@ -39,23 +39,54 @@ Let's break down the command to see what it does:
  * -vc             Plot volcanoes (Smithsonian)
  * -legend onmap   Create a legend and place it onto the map pdf
 
-Credits
--------
+Credits and redistributed source code
+-------------------------------------
 
 tectoplot relies very heavily on the following open-source tools:
-[GMT 6][gmt6] - [gdal][gdal]
 
-NDK import is heavily modified from [ndk2meca.awk][ndk2meca] by Thorsten Becker
-Various CMT calculations are modified from GMT's classic [psmeca.c/utilmeca.c][utilmeca] by G. Patau (IPGP)
+[GMT 6][gmt6]
 
-tectoplot includes modified source redistributions from:
+[gdal][gdal]
+
+tectoplot includes modified source redistributions of:
 
 [Texture shading][text] by Leland Brown (C source with very minor modifications)
 
-Data and Methods
-----------------
+NDK import is heavily modified from [ndk2meca.awk][ndk2meca] by Thorsten Becker
 
-Code, data, and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these papers if they are particularly relevant to your own study.
+Various focal mechanism calculations are modified from GMT's classic [psmeca.c/utilmeca.c][utilmeca] by G. Patau (IPGP)
+
+Data
+----
+
+tectoplot will download and manage a wide variety of open geological and geophysical data, including data from:
+
+Topography/Bathymetry
+SRTM - GEBCO - GMRT
+
+Satellite imagery
+Sentinel cloud-free
+
+Earthquake hypocenters
+ANSS - ISC - ISC-EHB
+
+Focal mechanisms
+GCMT - ISC - GFZ
+
+Gravity
+WGM - Sandwell
+
+Lithospheric structure
+LITHO1
+
+Faults
+SLAB2.0 - GEM active faults
+
+
+Methods
+-------
+
+Code and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these papers if they are particularly relevant to your own study.
 
 [Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
 
@@ -64,6 +95,11 @@ Code, data, and general analytical approaches have been adopted from or inspired
 [Weatherill et al., 2016][weatherill]:  Seismic catalog homogenization
 
 [Kreemer et al., 2014][kreemer]: GPS velocity data and Global Strain Rate Map
+
+[Hackl et al., 2009][hackl]: Strain rate tensor calculations
+
+[Sandwell and Wessel, 2016][sandwess]: GPS interpolation using elastic Green functions
+
 
 Installation
 ------------
@@ -77,6 +113,8 @@ Installation
  [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
 
  [rb]: https://doi.org/10.1029/JB090iB07p05479
- [zaliapin]: https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.101.018501
+ [zaliapin]: https://doi.org/10.1103/PhysRevLett.101.018501
  [weatherill]: https://doi.org/10.1093/gji/ggw232
  [kreemer]: https://doi.org/10.1002/2014GC005407
+ [hackl]: https://doi.org/10.5194/nhess-9-1177-2009
+ [sandwess]: doi.org/10.1002/2016GL070340
