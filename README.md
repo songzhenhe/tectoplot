@@ -12,11 +12,11 @@ tectoplot is software written by a field geologist, and is in very early stages 
 
  * Only run tectoplot on a computer that is backed up, and run from an account that doesn't have root privileges or access to critical directories.
 
- * Be sure to validate all data, maps, and figures produced by tectoplot.
+ * Validate all data, maps, and figures produced by tectoplot.
 
  * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt6]
 
- * If you find a bug or problem, let me know and I will try to fix it!
+ * Let me know if you find a bug or problem, and I will try to fix it!
 
 What does tectoplot do?
 -----------------------
@@ -69,7 +69,7 @@ tectoplot will download and manage a wide variety of open geological and geophys
 
 * Focal mechanisms: GCMT - ISC - GFZ
 
-* Gravity: WGM - Sandwell
+* Gravity: WGM - Sandwell2019
 
 * Magnetics: EMAG_V2
 
@@ -81,7 +81,7 @@ tectoplot will download and manage a wide variety of open geological and geophys
 Methods
 -------
 
-Code and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these papers if they are particularly relevant to your own study.
+Code and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these or related papers if they are particularly relevant to your own study.
 
 [Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
 
