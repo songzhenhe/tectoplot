@@ -142,6 +142,8 @@ Note that gs 9.53 will pipe harmless warnings to stdout about transparency becau
 Installation
 ============
 
+tectoplot is confirmed to work on OSX (Catalina+), Ubuntu linux, and Windows 10 (WSL using Ubuntu). Other platforms are possible - let me know if you get something to work!
+
 To install tectoplot and/or its dependencies using an interactive script, run the following command from a terminal. You may wish to read through the following sections first to understand the choices you will be presented!
 
 ```proto
