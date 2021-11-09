@@ -15,7 +15,7 @@ tectoplot is software written by a field geologist, and is in very early stages 
  * Be sure to validate all data, maps, and figures produced by tectoplot.
 
  * If you find a bug or problem, let me know and I will try to fix it!
- 
+
 
 What does tectoplot do?
 -----------------------
@@ -44,4 +44,4 @@ Installation
 
 
 
- [wire]: https://kyleedwardbradley.github.io/tectoplot/
+ [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
