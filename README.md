@@ -66,7 +66,7 @@ Various focal mechanism calculations are modified from GMT's classic [psmeca.c/u
 Data
 ----
 
-tectoplot will download and manage a wide variety of open geological and geophysical data, including data from:
+tectoplot is distributed with, or will download and manage, a wide variety of open geological and geophysical data, including data from:
 
 * Topography/Bathymetry: SRTM - GEBCO - GMRT
 
@@ -84,6 +84,11 @@ tectoplot will download and manage a wide variety of open geological and geophys
 
 * Faults: SLAB2.0 - GEM active faults
 
+* Interseismic GPS velocities: GSRM
+
+* Plate motion models: MORVEL56 - PB2003 - GSRM - GBM
+
+* Earthquake slip models: SRCMOD
 
 Methods
 -------
