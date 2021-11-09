@@ -40,10 +40,28 @@ Let's break down the command to see what it does:
  * -vc             Plot volcanoes (Smithsonian)
  * -legend onmap   Create a legend and place it onto the map pdf
 
+Credits
+-------
+
+tectoplot relies very heavily on the following open-source tools:
+[GMT 6][gmt6] - [gdal][gdal] 
+
+NDK import is heavily modified from ndk2meca.awk[ndk2meca] by Thorsten Becker
+Various CMT calculations are modified from GMT's classic psmeca.c/utilmeca.c[utilmeca] by G. Patau (IPGP)
+
+tectoplot includes modified source redistributions from:
+
+[Texture shading][text] by Leland Brown (C source with very minor modifications)
+Reasenberg seismicity declustering (Fortran source, minor modifications).
+Zaliapin et al. (2008) seismicity declustering (Python code by Mark Williams, UNR)
 
 Installation
 ------------
 
-
- [gmt]: https://www.generic-mapping-tools.org/cite/
+ [text]: http://www.textureshading.com/Home.html
+ [utilmeca]: https://github.com/GenericMappingTools/gmt/blob/master/src/seis/utilmeca.c
+ [gdal]: gdal.org
+ [ndk2meca]: http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk
+ [gmt6]: http://www.generic-mapping-tools.org
+ [gmtcite]: https://www.generic-mapping-tools.org/cite/
  [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
