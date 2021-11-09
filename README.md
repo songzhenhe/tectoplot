@@ -8,13 +8,14 @@ tectoplot is a bash script and associated helper scripts/programs that makes it 
 Caveat Emptor
 -------------
 
-tectoplot is software written by a field geologist, and is in very early stages of development. Most of the code 'works', but the overall structure and design needs much improvement. None of the routines have been rigorously tested and there are certainly bugs in the code. I am making the code publicly available at this early stage because my students and colleagues are already using it. With that being said, if you use tectoplot, please be sure to:
+tectoplot is software written by a field geologist, and is in very early stages of development. Most of the code 'works', but the overall structure and design needs much improvement. None of the routines have been rigorously tested and there are certainly bugs in the code. tectoplot operates using bash, which means it can theoretically access or delete anything it has permission to access. I am making tectoplot publicly available at this early stage because my students and colleagues are already using it and their advice is helping me improve the code. With that being said, if you use tectoplot, please be sure to:
 
  * Only run tectoplot on a computer that is backed up, and run from an account that doesn't have root privileges or access to critical directories.
 
  * Be sure to validate all data, maps, and figures produced by tectoplot.
 
  * If you find a bug or problem, let me know and I will try to fix it!
+ 
 
 What does tectoplot do?
 -----------------------
