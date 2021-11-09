@@ -24,20 +24,24 @@ What does tectoplot do?
 Here's an example tectoplot command that plots seismicity and volcanoes in Guatemala.
 
 ```proto
-tectoplot -r GT -t -tmult -tsl -z -vc -legend onmap
+tectoplot -r GT -t -tmult -tsl -z -vc -legend onmap -o Guatemala
 ```
-
-The resulting PDF figure looks like:
 
 Let's break down the command to see what it does:
 
  * -r GT           Set the map region to encompass Guatemala
- * -t              Plot shaded topographic relif
+ * -RJ B           Select an Albers map projection
+ * -t              Plot shaded topographic relief
  * -tmult          Calculate a multidirectional hillshade
  * -tsl            Calculate surface slope and fuse with hillshade
  * -z              Plot earthquake epicenters (default data are from USGS/ANSS)
  * -vc             Plot volcanoes (Smithsonian)
  * -legend onmap   Create a legend and place it onto the map pdf
+ * -o Guatemala    Save the resulting PDF map to Guatemala.pdf
+
+The resulting PDF figure looks like:
+
+<img src=examples/Guatemala.pdf height=100>
 
 Credits and redistributed source code
 -------------------------------------
