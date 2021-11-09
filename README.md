@@ -41,9 +41,10 @@ Let's break down the command to see what it does:
 |-legend onmap|Create a legend and place it onto the map pdf|
 |-o Guatemala|Save the resulting PDF map to Guatemala.pdf|
 
-The resulting PDF figure looks like:
 
-<a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=200></a>
+The resulting figure (click to see the original PDF):
+
+<a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=400></a>
 
 Credits and redistributed source code
 -------------------------------------
