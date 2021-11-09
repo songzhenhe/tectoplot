@@ -52,15 +52,18 @@ tectoplot includes modified source redistributions from:
 
 [Texture shading][text] by Leland Brown (C source with very minor modifications)
 
-Methods
--------
+Data and Methods
+----------------
 
-Code or general approaches have been adopted from the following research papers. There is no guarantee that the algorithms have been correctly implemented.
+Code, data, and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these papers if they are particularly relevant to your own study.
 
 [Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
 
 [Zaliapin et al., 2008][zaliapin]: Seismicity declustering (Python code by Mark Williams, UNR)
 
+[Weatherill et al., 2016][weatherill]:  Seismic catalog homogenization
+
+[Kreemer et al., 2014][kreemer]: GPS velocity data and Global Strain Rate Map
 
 Installation
 ------------
@@ -75,3 +78,5 @@ Installation
 
  [rb]: https://doi.org/10.1029/JB090iB07p05479
  [zaliapin]: https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.101.018501
+ [weatherill]: https://doi.org/10.1093/gji/ggw232
+ [kreemer]: https://doi.org/10.1002/2014GC005407
