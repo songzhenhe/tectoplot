@@ -29,6 +29,8 @@ tectoplot -r GT -t -tmult -tsl -z -vc -legend onmap -o Guatemala
 
 Let's break down the command to see what it does:
 
+Command|Effect
+--
 -r GT|Set the map region to encompass Guatemala
 --|--
 -RJ B|Select an Albers map projection
