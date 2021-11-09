@@ -8,13 +8,13 @@ tectoplot is a bash script and associated helper scripts/programs that makes it 
 Caveat Emptor
 -------------
 
-tectoplot is software written by a field geologist, and is in very early stages of development. Most of the code 'works', but the overall structure and design needs much improvement. None of the routines have been rigorously tested and there are certainly bugs in the code. tectoplot operates using bash, which means it can theoretically access or delete anything it has permission to access. I am making tectoplot publicly available at this early stage because my students and colleagues are already using it and their advice is helping me improve the code. With that being said, if you use tectoplot, please be sure to:
+tectoplot is software written by a field geologist, and is in very early stages of development. Most of the code 'works', but the overall structure and design needs much improvement. None of the routines have been rigorously tested and there are certainly bugs in the code. tectoplot operates using bash, which means it can theoretically read or delete anything it has permission to access. I am making tectoplot publicly available at this early stage because my students and colleagues are already using it in a lot of ways, and their advice is helping me improve the code. With that being said, if you use tectoplot, please be sure to:
 
  * Only run tectoplot on a computer that is backed up, and run from an account that doesn't have root privileges or access to critical directories.
 
- * Validate all data, maps, and figures produced by tectoplot.
+ * Sanity check all data, maps, and figures produced by tectoplot.
 
- * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt6]
+ * Appropriately cite datasets that you use, and please also cite [GMT 6][gmt6] if presenting a figure made using GMT.
 
  * Let me know if you find a bug or problem, and I will try to fix it!
 
@@ -42,7 +42,7 @@ Let's break down the command to see what it does:
 |-o Guatemala|Save the resulting PDF map to Guatemala.pdf|
 
 
-The resulting figure (click to see the original PDF):
+The resulting figure is here (click to see the original PDF):
 
 <a href=examples/Guatemala.pdf><img src=examples/Guatemala.jpg height=400></a>
 
@@ -80,15 +80,18 @@ tectoplot is distributed with, or will download and manage, a wide variety of op
 
 * Magnetics: EMAG_V2
 
-* Lithospheric structure: LITHO1
+* Lithospheric structure, stress: LITHO1 - SubMachine - WSM
 
-* Faults: SLAB2.0 - GEM active faults
+* Faults and tectonic fabrics: SLAB2.0 - GEM active faults - EarthByte/GPlates
 
 * Interseismic GPS velocities: GSRM
 
 * Plate motion models: MORVEL56 - PB2003 - GSRM - GBM
 
 * Earthquake slip models: SRCMOD
+
+* Population centers - Geonames
+
 
 Methods
 -------
@@ -110,6 +113,19 @@ Code and general analytical approaches have been adopted from or inspired by the
 
 Installation
 ------------
+
+tectoplot should run on any system that has a linux-like terminal environment and has the following dependencies installed (version numbers are indicative): gmt (6.1.1), geod (7.2.1), gawk (5.1.0), gdal (3.2.0), python (3.9), gs (9.26-9.53),
+gcc / g++ / gfortran or other CC, CXX, F90 compilers.
+
+
+To install tectoplot and its dependencies using an automated script, run this command from a terminal:
+
+```proto
+/usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
+```
+
+
+
 
  [text]: http://www.textureshading.com/Home.html
  [utilmeca]: https://github.com/GenericMappingTools/gmt/blob/master/src/seis/utilmeca.c
