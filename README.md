@@ -113,9 +113,11 @@ Code and general analytical approaches have been adopted from or inspired by the
 Pre-Installation notes
 ----------------------
 
-**OSX**: Before installing tectoplot, install XCode command line tools using xcode-select --install
+**OSX**:
 
-** Older miniconda installations**:
+Before installing tectoplot, install XCode command line tools using xcode-select --install
+
+**Older miniconda installations**:
 
 If you have miniconda2 already installed, you won't be able to use the script above to install the miniconda3 environment. These commands might fix the problem:
 
