@@ -61,26 +61,21 @@ Data
 
 tectoplot will download and manage a wide variety of open geological and geophysical data, including data from:
 
-Topography/Bathymetry
-SRTM - GEBCO - GMRT
+* Topography/Bathymetry: SRTM - GEBCO - GMRT
 
-Satellite imagery
-Sentinel cloud-free
+* Satellite imagery: Sentinel cloud-free
 
-Earthquake hypocenters
-ANSS - ISC - ISC-EHB
+* Earthquake hypocenters: ANSS - ISC - ISC-EHB
 
-Focal mechanisms
-GCMT - ISC - GFZ
+* Focal mechanisms: GCMT - ISC - GFZ
 
-Gravity
-WGM - Sandwell
+* Gravity: WGM - Sandwell
 
-Lithospheric structure
-LITHO1
+* Magnetics: EMAG_V2
 
-Faults
-SLAB2.0 - GEM active faults
+* Lithospheric structure: LITHO1
+
+* Faults: SLAB2.0 - GEM active faults
 
 
 Methods
