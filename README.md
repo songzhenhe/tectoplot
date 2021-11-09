@@ -117,8 +117,15 @@ Installation
 tectoplot should run on any system that has a linux-like terminal environment and has the following dependencies installed (version numbers are indicative): gmt (6.1.1), geod (7.2.1), gawk (5.1.0), gdal (3.2.0), python (3.9), gs (9.26-9.53),
 gcc / g++ / gfortran or other CC, CXX, F90 compilers.
 
+To install tectoplot and its dependencies using an interactive script, run the following command from a terminal. You will need to know the paths to:
 
-To install tectoplot and its dependencies using an automated script, run this command from a terminal:
+|Directory | Default path |
+|---|---|
+|tectoplot installation directory|${HOME}/tectoplot/|
+|tectoplot data directory:${HOME}/TectoplotData/|
+|Miniconda directory (if installing):${HOME}/miniconda/|
+
+
 
 ```proto
 /usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
