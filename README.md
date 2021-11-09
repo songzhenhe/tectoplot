@@ -58,6 +58,7 @@ Methods
 Code or general approaches have been adopted from the following research papers. There is no guarantee that the algorithms have been correctly implemented.
 
 [Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
+
 [Zaliapin et al., 2008][zaliapin]: Seismicity declustering (Python code by Mark Williams, UNR)
 
 
