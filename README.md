@@ -138,6 +138,29 @@ And when prompted to confirm the location, change it to miniconda instead of min
 Installation
 ============
 
+To install tectoplot and/or its dependencies using an interactive script, run the following command from a terminal. You may wish to read through the following sections first to understand the choices you will be presented!
+
+```proto
+/usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
+```
+
+When running this script, you will need to know the following information in advance:
+
+* Are you installing dependencies using Homebrew (see below)?
+* Are you installing dependencies using miniconda (see below)?
+* Are you installing tectoplot from the Github repository?
+* Are you installing tectoplot-examples from the Github repository?
+
+Which directories will you install tectoplot and it's data folder into?
+
+|Directory | Default path |
+|---|---|
+|tectoplot installation directory|${HOME}/tectoplot/|
+|tectoplot data directory|${HOME}/TectoplotData/|
+|miniconda directory (only if installing miniconda environment)|${HOME}/miniconda/|
+
+
+
 Manual installation
 -------------------
 
@@ -151,12 +174,7 @@ tectoplot should run on any linux-like system that has the following dependencie
   gs (9.26-9.53)
   gcc / g++ / gfortran or similar.
 
-  If you have these already, you can just clone the tectoplot repository and example repository (install git first if needed):
-
-  ```proto
-  git clone https://github.com/kyleedwardbradley/tectoplot.git
-  git clone https://github.com/kyleedwardbradley/tectoplot-examples.git
-  ```
+  If you have these already, use the automatic installation script above and decline to install any dependencies. The script will help you configure your tectoplot installation.
 
 Homebrew or miniconda installation
 ----------------------
@@ -165,17 +183,7 @@ Homebrew is a package manager that installs programs into a directory and links 
 
 Before installing tectoplot, you should determine the desired paths for the following directories. The default is in your home directory, but you may wish to change this to something else (for example ~/Dropbox/tectoplot/, etc.)
 
-|Directory | Default path |
-|---|---|
-|tectoplot installation directory|${HOME}/tectoplot/|
-|tectoplot data directory|${HOME}/TectoplotData/|
-|miniconda directory (only if installing miniconda environment)|${HOME}/miniconda/|
 
-To install tectoplot and its dependencies using an interactive script, run the following command from a terminal:
-
-```proto
-/usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
-```
 
 License
 -------
