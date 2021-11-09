@@ -117,22 +117,34 @@ Installation
 tectoplot should run on any system that has a linux-like terminal environment and has the following dependencies installed (version numbers are indicative): gmt (6.1.1), geod (7.2.1), gawk (5.1.0), gdal (3.2.0), python (3.9), gs (9.26-9.53),
 gcc / g++ / gfortran or other CC, CXX, F90 compilers.
 
-To install tectoplot and its dependencies using an interactive script, run the following command from a terminal. You can specify alternative paths for the following:
+OSX: Before installing tectoplot, install XCode command line tools using xcode-select --install
+
+Before installing tectoplot, you should determine the desired paths for the following directories. The default is in your home directory, but you may wish to change this to something else (for example ~/Dropbox/tectoplot/, etc.)
 
 |Directory | Default path |
 |---|---|
 |tectoplot installation directory|${HOME}/tectoplot/|
 |tectoplot data directory|${HOME}/TectoplotData/|
-|Miniconda directory (if installing)|${HOME}/miniconda/|
+|miniconda directory (only if installing miniconda environment)|${HOME}/miniconda/|
 
-
+To install tectoplot and its dependencies using an interactive script, run the following command from a terminal:
 
 ```proto
 /usr/bin/env bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyleedwardbradley/tectoplot/main/install_tectoplot.sh)"
 ```
 
+Installation notes
+------------------
 
+If you have miniconda2 already installed, you won't be able to use the script above to install the miniconda3 environment. These commands might fix the problem:
 
+```proto
+rm -rf ~/miniconda2
+rm -rf ~/.condarc ~/.conda ~/.continuum
+bash Miniconda3-latest-MacOSX-x86_64.sh # after downloading the installable
+
+And when prompted to confirm the location, change it to miniconda instead of miniconda3.
+```
 
  [text]: http://www.textureshading.com/Home.html
  [utilmeca]: https://github.com/GenericMappingTools/gmt/blob/master/src/seis/utilmeca.c
