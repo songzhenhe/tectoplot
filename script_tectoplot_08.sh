@@ -3190,13 +3190,19 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gg:         interpolate GPS velocities using GMT gpsgridder
--gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[flag ...]]
+-gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[option ...]]
 
   resolution requires unit (e.g. 2m for 2 minute)
   poisson is Poisson's ratio for the elastic Greens functions (0-1)
+
   flags:
     residuals  =  plot GPS residuals
     noave      =  don't plot the average velocities
+    subsample [factor]  = subsample velocity arrows by factor
+    maxshear   =  plot grid of maximum shear strain rate
+    secinv     =  plot second invariant of strain rate tensor
+    strdil     =  plot dilatation of strain rate tensor
+    rot        =  plot rotation rate grid
 
   Requires -g option
   Duplicated GPS site locations will be culled, retaining first site.
@@ -3227,6 +3233,37 @@ fi
         GG_NO_AVE=1
         shift
         ;;
+      subsample)
+        GG_SUBSAMPLE=1
+        shift
+        if arg_is_positive_float $2; then
+          GG_SUBSAMPLE_NUM=$(echo $2 | gawk '{print int($1)}')
+          shift
+        else
+          GG_SUBSAMPLE_NUM=10
+        fi
+        ;;
+      maxshear)
+        GG_PLOT_MAX_SHEAR=1
+        shift
+        ;;
+      secinv)
+        GG_PLOT_2INV=1
+        shift
+        ;;
+      strdil)
+        GG_PLOT_STR_DIL=1
+        shift
+        ;;
+      rot)
+        GG_PLOT_ROT=1
+        shift
+        ;;
+      cross)
+        GG_PLOT_CROSS=1
+        shift
+        ;;
+
       *)
         echo "[-gg]: Flag $2 not recognized"
         exit 1
@@ -3268,13 +3305,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -g:            plot gps velocities from builtin catalog
--g [[refplate]] [[noplot]]
+-g [[refplate]] [[options ...]]
 
   GPS velocities exist for all plates in Kreemer et al., 2014 supplementary
   database. If -p is used, -g will assume the same plate ID as -p unless it is
   overridden using -g [refplate]. Note that plate IDs must match exactly.
 
-  noplot : prevent plotting of the GPS velocities.
+  noplot            : prevent plotting of the GPS velocities.
+  minsig [[value]]  : set minimum uncertainty of GPS velocity
 
   Velocity vector lengths can be scaled using -i.
 
@@ -3298,10 +3336,25 @@ fi
       echo $GPS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
 		fi
 
-    if [[ $2 == "noplot" ]]; then
-      GPS_NOPLOT=1
-      shift
-    fi
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        noplot)
+          GPS_NOPLOT=1
+          shift
+        ;;
+        minsig)
+          shift
+          if arg_is_positive_float $2; then
+            GPS_MINSIG=$2
+            shift
+          else
+            GPS_MINSIG=0.6
+          fi
+        ;;
+      esac
+    done
+
 
 		plots+=("gps")
 		;;
@@ -3310,12 +3363,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gadd:         plot custom gps velocity file in gmt psvelo format
--gadd [velocityFile] [[color colorID=$EXTRAGPS_FILLCOLOR]]
+-gadd [velocityFile] [[color colorID=$EXTRAGPS_FILLCOLOR]] [[merge]]
 
   GPS velocities are plotted with filled arrows. The reference frame
   is assumed to be correct for the given map.
 
   This command can be called multiple times
+
+  merge             :  add GPS velocities to gps.txt file
+  color [colorID]   :  set fill color of plotted GPS (won't work with noplot)
+  noplot            :  don't plot this GPS dataset on the map
 
   NOTE: psvelo format is:
   lon lat VE VN SVE SVN XYCOR SITEID INFO
@@ -3357,9 +3414,18 @@ fi
             info_msg "[-gadd]: color command should be followd by a color"
           fi
         ;;
-        log)
+        # not used
+        # log)
+        #   shift
+        #   USERGPSLOG_arr[$usergpsfilenumber]=1
+        # ;;
+        merge)
+          USERGPSMERGE_arr[$usergpsfilenumber]=1
           shift
-          USERGPSLOG_arr[$usergpsfilenumber]=1
+        ;;
+        noplot)
+          USERGPSNOPLOT_arr[$usergpsfilenumber]=1
+          shift
         ;;
       esac
     done
@@ -3748,6 +3814,8 @@ fi
     RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JQ${PSSIZE}i"
 
     GRIDCALL="bltr"
+    dontplotgridflag=1
+
     usecustomrjflag=1
     insideframeflag=1
     kmlflag=1
@@ -8239,7 +8307,6 @@ EOF
 shift && continue
 fi
 
-    echo "${@}"
     fasttopoflag=0
     if arg_is_flag $2; then
       info_msg "[-timg]: No image given. Ignoring."
@@ -10419,6 +10486,7 @@ fi
 GRIDSP=$(echo "($MAXLON - $MINLON)/${TICK_NUMBER}" | bc -l)
 
 info_msg "Initial grid spacing = $GRIDSP"
+MAP_FORMAT_FLOAT_OUT='%.0f'
 
 if [[ $(echo "$GRIDSP > 30" | bc) -eq 1 ]]; then
   GRIDSP=30
@@ -15070,7 +15138,23 @@ for plot in ${plots[@]} ; do
       #   #   '
       #   #   # | gmt psvelo  -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
       # else
-        gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+
+      if [[ ${USERGPSNOPLOT_arr[$current_usergpsfilenumber]} -ne 1 ]]; then
+        echo extra ${RJSTRING}
+        gawk < ${USERGPSDATAFILE[$current_usergpsfilenumber]} -v minsig=${GPS_MINSIG} '
+        {
+          $5 = ($5+0 < minsig) ? minsig : $5
+          $6 = ($6+0 < minsig) ? minsig : $6
+          $7 = ($7+0 > 0) ? $7+0 : 0
+          print $0
+        }' > ${F_GPS}custom_gps_$current_usergpsfilenumber.txt
+        gmt psvelo ${F_GPS}custom_gps_$current_usergpsfilenumber.txt -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
+      fi
+
+      if [[ ${USERGPSMERGE_arr[$current_usergpsfilenumber]} -eq 1 ]]; then
+        cat ${F_GPS}custom_gps_$current_usergpsfilenumber.txt >> ${F_GPS}gps.txt
+      fi
+
       # fi
       # Generate XY data for reference
       # gawk -v gpsscalefac=$VELSCALE '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4)*gpsscalefac; else print $1, $2, az+360, sqrt($3*$3+$4*$4)*gpsscalefac; }' ${USERGPSDATAFILE[$current_userlinefilenumber]} > ${F_GPS}extragps_${$current_usergpsfilenumber}.xy.txt
@@ -15187,19 +15271,27 @@ for plot in ${plots[@]} ; do
   			if [[ -e $GPS_FILE ]]; then
   				info_msg "GPS data is taken from $GPS_FILE and are plotted relative to plate $REFPLATE in that model"
 
-          gawk < $GPS_FILE -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '{
-            if ($1>180) { lon=$1-360 } else { lon=$1 }
-            if (((lon <= maxlon && lon >= minlon) || (lon+360 <= maxlon && lon+360 >= minlon)) && $2 >= minlat && $2 <= maxlat) {
-              print
-            }
-          }' > ${F_GPS}gps.txt
+          if [[ $(echo "$GPS_MINSIG > 0" | bc) -eq 1 ]]; then
+            gmt select $GPS_FILE -R -fg | gawk -v minsig=${GPS_MINSIG} '
+              {
+                $5 = ($5 < minsig ? minsig : $5)
+                $6 = ($6 < minsig ? minsig : $6)
+                print $0
+              }' > ${F_GPS}gps.txt
+          else
+            gmt select $GPS_FILE -R -fg > ${F_GPS}gps.txt
+          fi
+
+
           if [[ $GPS_NOPLOT -ne 1 ]]; then
   				  gmt psvelo ${F_GPS}gps.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
           fi
-          # generate XY data
+          # generate XY data for reference
+
           gawk '{ az=atan2($3, $4) * 180 / 3.14159265358979; if (az > 0) print $1, $2, az, sqrt($3*$3+$4*$4); else print $1, $2, az+360, sqrt($3*$3+$4*$4); }' < ${F_GPS}gps.txt > ${F_GPS}gps.xy
           GPSMAXVEL=$(gawk < ${F_GPS}gps.xy 'BEGIN{ maxv=0 } {if ($4>maxv) { maxv=$4 } } END {print maxv}')
-    		else
+
+        else
   				info_msg "No relevant GPS data available for given plate model ($GPS_FILE)"
   				GPS_FILE="None"
   			fi
@@ -15221,18 +15313,170 @@ for plot in ${plots[@]} ; do
             }
             print $1, $2, $3, $4, $5, $6, $7
           }
-        }' > ${F_GPS}gps_cull.txt
+        }' > ${F_GPS}gps_init.txt
 
       gmt_init_tmpdir
 
-      gmt gpsgridder ${F_GPS}gps_cull.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -S${GPS_GG_VAL} -I${GPS_GG_RES} -fg -W -r -G${F_GPS}gps_strain_%s.nc ${VERBOSE} > /dev/null 2>&1
 
-      # Get the number of GPS velocities within each cell
-      gmt blockmean ${F_GPS}gps_cull.txt -Sn -R${F_GPS}gps_strain_v.nc -C -E -fg > ${F_GPS}gps_ptnum.txt
+      # Use blockmean to avoid aliasing
+      gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init.txt -fg -i0,1,2,4 -W ${VERBOSE} > blk.llu
+      gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init.txt -fg -i0,1,3,5 -W ${VERBOSE} > blk.llv
+      gmt convert -A blk.llu blk.llv -o0-2,6,3,7 > ${F_GPS}gps_cull.txt
 
-      gmt xyz2grd ${F_GPS}gps_cull.txt -R${F_GPS}gps_strain_v.nc -An -G${F_GPS}gps_number.nc
+      # cp ${F_GPS}gps_init.txt ${F_GPS}gps_cull.txt
+
+      num_eigs=$(wc -l < ${F_GPS}gps_cull.txt | gawk '{print $1/2}')
+
+      echo gmt gpsgridder ${F_GPS}gps_cull.txt -Cn$num_eigs+eigen.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -S${GPS_GG_VAL} -I${GPS_GG_RES} -Fd4 -fg -W -r -G${F_GPS}gps_strain_%s.nc
+      gmt gpsgridder ${F_GPS}gps_cull.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Cn$num_eigs+eigen.txt -S${GPS_GG_VAL} -I${GPS_GG_RES} -Fd4 -fg -W -r -G${F_GPS}gps_strain_%s.nc -Vl
+
+      # The following code is from Hackl et al., 2009; it generates various strain rate grids
+
+      # cross='1~42p'																				# determines in how many cells strain crosses are going to be plotted; e.g. every 15th cell
+      crosssize=0.0001																				# scaling factor for direction of max shear strain
+      orderofmagnitude=1000000																# scaling factor for colorbar of strain rate magnitude
+
+      # ---------------------------------------------------
+      # calculate velo gradient
+      #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      gmt grdgradient ${F_GPS}gps_strain_u.nc -Gtmp.grd -A270 ${VERBOSE} -M
+      gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = e_e.grd
+      gmt grdgradient ${F_GPS}gps_strain_u.nc -Gtmp.grd -A180 ${VERBOSE} -M
+      gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = e_n.grd
+      gmt grdgradient ${F_GPS}gps_strain_v.nc -Gtmp.grd -A270 ${VERBOSE} -M
+      gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = n_e.grd
+      gmt grdgradient ${F_GPS}gps_strain_v.nc -Gtmp.grd -A180 ${VERBOSE} -M
+      gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = n_n.grd
+
+      # i,j component of strain tensor (mean of e_n and n_e component):
+      gmt grdmath ${VERBOSE} e_n.grd n_e.grd ADD 0.5 MUL = mean_e_n.grd
+
+      # second invariant of strain rate tensor is
+      # ell = (exx^2 + eyy^2 + 2*exy^2)^(1/2)
+      gmt grdmath ${VERBOSE} e_e.grd SQR n_n.grd SQR ADD mean_e_n.grd SQR 2 MUL ADD SQRT = second_inv.grd
+
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      # calc eigenvalues, max shear strain rate, and dilatational strain rate
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      gmt grdmath ${VERBOSE} e_e.grd n_n.grd ADD e_e.grd n_n.grd SUB 2 POW mean_e_n.grd 2 POW 4 MUL ADD SQRT ADD 2 DIV = lambda1.grd
+      gmt grdmath ${VERBOSE} e_e.grd n_n.grd ADD e_e.grd n_n.grd SUB 2 POW mean_e_n.grd 2 POW 4 MUL ADD SQRT SUB 2 DIV = lambda2.grd
+      gmt grdmath ${VERBOSE} lambda1.grd lambda2.grd SUB 2 DIV = max_shear.grd
+
+      gmt grdmath ${VERBOSE} lambda1.grd lambda2.grd ADD = str_dilatational.grd
+
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      # calc strain crosses
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+      gmt grdmath ${VERBOSE} 90 0.5 2 mean_e_n.grd MUL e_e.grd n_n.grd SUB DIV 1 ATAN2 MUL 180 MUL 3.14 DIV SUB 45 ADD = phi1.grd
+      gmt grdmath ${VERBOSE} 90 lambda2.grd e_e.grd SUB mean_e_n.grd DIV 1 ATAN2 180 MUL 3.14 DIV SUB = phi2.grd
+
+      if [[ $GG_SUBSAMPLE -eq 1 ]]; then
+
+        GG_SUBSAMPLE_VAL=$(echo "$GPS_GG_RES $GG_SUBSAMPLE_NUM ${GPS_GG_RES: -1}" | gawk '{print (($1+0)*$2) $3}')
+
+        echo subsampling crosses to ${GG_SUBSAMPLE_VAL}
+
+        gmt grdsample max_shear.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gmax_shear_resample.grd ${VERBOSE}
+        gmt grdsample lambda1.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Glambda1_resample.grd ${VERBOSE}
+        gmt grdsample lambda2.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Glambda2_resample.grd ${VERBOSE}
+        gmt grdsample phi1.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gphi1_resample.grd ${VERBOSE}
+        gmt grdsample phi2.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gphi2_resample.grd ${VERBOSE}
+
+        gmt grd2xyz max_shear_resample.grd > max_shear.xyz
+        gmt grd2xyz phi1_resample.grd > phi1.xyz
+        gmt grd2xyz phi2_resample.grd > phi2.xyz
+        gmt grd2xyz lambda1_resample.grd > lambda1.xyz
+        gmt grd2xyz lambda2_resample.grd > lambda2.xyz
+
+
+      else
+
+        gmt grd2xyz max_shear.grd > max_shear.xyz
+        gmt grd2xyz phi1.grd > phi1.xyz
+        gmt grd2xyz phi2.grd > phi2.xyz
+        gmt grd2xyz lambda1.grd > lambda1.xyz
+        gmt grd2xyz lambda2.grd > lambda2.xyz
+
+      fi
+
+
+      paste lambda1.xyz lambda2.xyz phi2.xyz | gawk '{print($1, $2, $3/100, $6/100, $9)}'  > phi_shear.xyl1l2p
+
+      # paste max_shear.xyz phi1.xyz | awk '{print($1, $2, $3, $6)}'  > phi_shear.xysp
+      # 	gawk '
+      # 		function acos(x) { return atan2((1.-x^2)^0.5,x) }
+      # 		function asin(x) { return atan2(x,(1.-x^2)^0.5) }
+      # 		{
+      # 		    pi = atan2(0,-1)
+      #         lat = $2
+      #         lon = $1
+      #         alpha = $4*pi/180
+      #         a = $3*'${crosssize}';
+      # 		    lat_right = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha)) *180/pi
+      # 		    lon_right = lon + asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+      # 		    lat_left = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha-pi)) *180/pi
+      # 		    lon_left = lon - asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+      #     }
+      # 		{
+      #       printf ("> -Z%.2f\n %9.5f %9.5f \n %9.5f %9.5f \n %9.5f %9.5f \n", a, lon_left, lat_left, lon, lat, lon_right, lat_right)
+      #     }' phi_shear.xysp > dir1
+      # 	gawk '
+      # 		function acos(x) { return atan2((1.-x^2)^0.5,x) }
+      # 		function asin(x) { return atan2(x,(1.-x^2)^0.5) }
+      # 		{
+      # 		    pi = atan2(0,-1)
+      #         lat = $2; lon = $1
+      #         alpha = $4*pi/180+pi/2
+      #         a = $3*'${crosssize}'
+      # 		    lat_right = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha)) *180/pi
+      # 		    lon_right = lon + asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+      # 		    lat_left = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha-pi)) *180/pi
+      # 		    lon_left = lon - asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi;
+      #     }
+      # 		{
+      #         printf ("> -Z%.2f\n %9.5f %9.5f \n %9.5f %9.5f \n %9.5f %9.5f \n", a, lon_left, lat_left, lon, lat, lon_right, lat_right)
+      #     }' phi_shear.xysp > dir2
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      # calc rotational strain rate
+      #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      gmt grdmath ${VERBOSE} n_e.grd e_n.grd SUB 0.5 MUL = omega.grd
+
 
       gmt_remove_tmpdir
+
+      # gmt psxy dir1 -W2p,black ${RJOK} ${VERBOSE} >> map.ps
+      # gmt psxy dir2 -W2p,red ${RJOK} ${VERBOSE} >> map.ps
+
+
+      if [[ $GG_PLOT_ROT -eq 1 ]]; then
+        gmt grdimage omega.grd -Ccyclic ${RJOK} ${VERBOSE} >> map.ps
+      fi
+      if [[ $GG_PLOT_STR_DIL -eq 1 ]]; then
+        gmt grdimage str_dilatational.grd -Cturbo ${RJOK} ${VERBOSE} >> map.ps
+      fi
+
+      if [[ $GG_PLOT_MAX_SHEAR -eq 1 ]]; then
+        gmt makecpt -T0/300/0.1 -Z -Cjet > shear.cpt
+        gmt grdimage max_shear.grd -t50 -Q -Cjet ${RJOK} ${VERBOSE} >> map.ps
+      fi
+
+
+      if [[ $GG_PLOT_2INV -eq 1 ]]; then
+        gmt makecpt -T1/2000/1+l -Q -Z -D -Cjet > ${F_CPTS}secinv.cpt
+        gmt grdimage second_inv.grd -t50 -Q -C${F_CPTS}secinv.cpt ${RJOK} ${VERBOSE} >> map.ps
+        legendbarwords+=("secinv")
+      fi
+
+
+      # Plot strain crosses
+
+      if [[ $GG_PLOT_CROSS -eq 1 ]]; then
+        gmt psvelo phi_shear.xyl1l2p -Sx0.15i -W0.2p,black -Gblack ${RJOK} ${VERBOSE} >> map.ps
+      fi
+
+
+      # Plot velocity arrows
 
       if [[ -s ${F_GPS}gps_strain_u.nc && -s ${F_GPS}gps_strain_v.nc ]]; then
         gmt grdmath ${F_GPS}gps_strain_u.nc SQR ${F_GPS}gps_strain_v.nc SQR ADD SQRT = ${F_GPS}gps_vel.nc
@@ -15242,7 +15486,31 @@ for plot in ${plots[@]} ; do
         gmt grd2xyz ${F_GPS}gps_strain_u.nc > ${F_GPS}gps_strain_u.txt
         gmt grd2xyz ${F_GPS}gps_strain_v.nc | gawk '{print $3, 0, 0, 0}' > ${F_GPS}gps_strain_v.txt
 
-        paste ${F_GPS}gps_strain_u.txt ${F_GPS}gps_strain_v.txt > ${F_GPS}gps_strain.txt
+        if [[ $GG_SUBSAMPLE -eq 1 ]]; then
+
+          GG_SUBSAMPLE_VAL=$(echo "$GPS_GG_RES $GG_SUBSAMPLE_NUM ${GPS_GG_RES: -1}" | gawk '{print (($1+0)*$2) $3}')
+
+          echo subsampling to ${GG_SUBSAMPLE_VAL}
+
+          gmt grdsample ${F_GPS}gps_strain_u.nc -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -G${F_GPS}gps_strain_u_resample.nc ${VERBOSE}
+          gmt grdsample ${F_GPS}gps_strain_v.nc -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -G${F_GPS}gps_strain_v_resample.nc ${VERBOSE}
+          gmt grd2xyz ${F_GPS}gps_strain_u_resample.nc > ${F_GPS}gps_strain_u_resample.txt
+          gmt grd2xyz ${F_GPS}gps_strain_v_resample.nc > ${F_GPS}gps_strain_v_resample.txt
+
+          paste ${F_GPS}gps_strain_u_resample.txt ${F_GPS}gps_strain_v_resample.txt | gawk '{print $1, $2, $3, $6, 0, 0, 0} '> ${F_GPS}gps_strain.txt
+
+          # gmt blockmean ${F_GPS}gps_cull.txt -Sn -R${F_GPS}gps_strain_v_resample.nc -C -E -fg | gawk '{print $1, $2, $3}' > ${F_GPS}gps_ptnum.txt
+          gmt xyz2grd ${F_GPS}gps_cull.txt -R${F_GPS}gps_strain_v_resample.nc -An -G${F_GPS}gps_number.nc
+
+        else
+          paste ${F_GPS}gps_strain_u.txt ${F_GPS}gps_strain_v.txt > ${F_GPS}gps_strain.txt
+
+          # Get the number of GPS velocities within each cell
+          # gmt blockmean ${F_GPS}gps_cull.txt -Sn -R${F_GPS}gps_strain_v.nc -C -E -fg | gawk '{print $1, $2, $3}' > ${F_GPS}gps_ptnum.txt
+          gmt xyz2grd ${F_GPS}gps_cull.txt -R${F_GPS}gps_strain_v.nc -An -G${F_GPS}gps_number.nc
+        fi
+
+
 
         gmt grdtrack ${F_GPS}gps_strain.txt -G${F_GPS}gps_number.nc -Z -N | gawk '
           {
@@ -15269,11 +15537,11 @@ for plot in ${plots[@]} ; do
         mv gps_g_* ${F_GPS}
 
         if [[ $GG_NO_AVE -ne 1 ]]; then
-          gmt psvelo ${F_GPS}gps_g_withdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gblack -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
-          gmt psvelo ${F_GPS}gps_g_withonedata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggray -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
-          gmt psvelo ${F_GPS}gps_g_withoutdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gwhite -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          [[ -s ${F_GPS}gps_g_withdata.txt ]] && gmt psvelo ${F_GPS}gps_g_withdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gblack -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          [[ -s ${F_GPS}gps_g_withonedata.txt ]] && gmt psvelo ${F_GPS}gps_g_withonedata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggray -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          [[ -s ${F_GPS}gps_g_withoutdata.txt ]] && gmt psvelo ${F_GPS}gps_g_withoutdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gwhite -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
         fi
-        # gmt grdvector ${F_GPS}gps_strain_u.nc ${F_GPS}gps_strain_v.nc ${RJOK} ${VERBOSE} -Gwhite >> map.ps
+        # gmt grdvector -Ix10/10 ${F_GPS}gps_strain_u.nc ${F_GPS}gps_strain_v.nc ${RJOK} ${VERBOSE} -Q0.03i+e -Gblue -W.4,blue -S120i --MAP_VECTOR_SHAPE=0.2  >> map.ps
       fi
 
       if [[ $GG_PLOT_RESIDUALS -eq 1 ]]; then
@@ -15287,7 +15555,8 @@ for plot in ${plots[@]} ; do
       fi
     fi
 
-    plots+=("gps_gg")
+
+
       ;;
 
     graticule)
@@ -16477,18 +16746,15 @@ echo blah blah
                 dem_dimy=${dem_dim[10]}
 
                 if [[ $SENTINEL_DOWNSAMPLE -eq 1 ]]; then
-                  echo "Resampling DEM to match downloaded Sentinel image size"
-                  echo gdalwarp -r bilinear -of GTiff -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.tif
+                  info_msg "Resampling DEM to match downloaded Sentinel image size"
                   gdalwarp -r bilinear -of GTiff -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${sent_dimx} ${sent_dimy} ${TOPOGRAPHY_DATA} ${F_TOPO}dem_warp.tif
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
                   # cp ${F_TOPO}dem.tif ${F_TOPO}demold.nc
                   rm -f ${F_TOPO}dem.tif
-                  echo in
                   gmt grdcut ${F_TOPO}dem_warp.tif -R${F_TOPO}dem_warp.tif -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
                   TOPOGRAPHY_DATA=${F_TOPO}dem.tif
-                  echo out
                 else
-                  echo "Resampling Sentinel image to match DEM resolution"
+                  info_msg "Resampling Sentinel image to match DEM resolution"
                   gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel.tif ./sentinel_warp.tif
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
                   cp ./sentinel_warp.tif ./sentinel.tif
@@ -16845,14 +17111,16 @@ echo blah blah
       if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
         [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
       else # If we are doing fast topo visualization
-        # echo gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE}
-        [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
 
-        # Do save the colored_relief.tif though
+
         gmt_init_tmpdir
-          gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -t$TOPOTRANS -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+          gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
         gmt_remove_tmpdir
         COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
+
+        if [[ $dontplottopoflag -eq 0 ]]; then
+          gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+        fi
       fi
 
       ;;
@@ -17039,7 +17307,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
         }
         (NR>FNR) {
           $1=$17
-          $2=projy[FNR]/72*2.5  # Have to convert to the correct units for some reason
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
           print
         }' ${F_CMT}proj_cmt_thrust.txt ${CMT_THRUSTPLOT} > ${F_CMT}proj_thrust_scaled_y.txt
 
@@ -17147,7 +17415,6 @@ fi
 
 if [[ $plotseistimeline_c -eq 1 ]]; then
 
-  echo in
   if [[ -s ${F_SEIS}eqs_scaled.txt ]]; then
     EQSTOPLOT=${F_SEIS}eqs_scaled.txt
   elif [[ -s ${F_SEIS}eqs.txt ]]; then
@@ -17235,7 +17502,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
         }
         (NR>FNR) {
           $1=$17
-          $2=projy[FNR]/72*2.5  # Have to convert to the correct units for some reason
+          $2=projy[FNR]/72*2.54  # Have to convert to the correct units for some reason
           print
         }' ${F_CMT}proj_cmt_thrust.txt ${CMT_THRUSTPLOT} > ${F_CMT}proj_thrust_scaled_y.txt
 
@@ -17614,6 +17881,12 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   for legend_plot in ${legendbarwords[@]} ; do
   	case $legend_plot in
+
+      secinv)
+        echo "G 0.2i" >> legendbars.txt
+        echo "B ${F_CPTS}secinv.cpt 0.2i 0.1i+malu -Bxaf+l\"Second invariant of strain rate\"" >> legendbars.txt
+        barplotcount=$barplotcount+1
+      ;;
 
       tomoslice)
         echo "G 0.2i" >> legendbars.txt

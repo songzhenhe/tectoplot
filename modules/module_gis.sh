@@ -163,6 +163,15 @@ fi
       fi
       shift
       ((tectoplot_module_shift++))
+
+      if [[ $1 == "log" ]]; then
+        GRIDLOGCPT[$current_usergridnumber]=1
+        shift
+        ((tectoplot_module_shift++))
+      else
+        GRIDLOGCPT[$current_usergridnumber]=0
+      fi
+
     fi
     if arg_is_flag $1; then
       info_msg "[-gr]: GRID transparency not specified. Using 0 percent"
@@ -575,7 +584,14 @@ function tectoplot_plot_gis() {
   gis_grid)
     # Each time gis_grid is called, plot the grid and increment to the next
     info_msg "Plotting user grid $current_usergridnumber: ${GRIDADDFILE[$current_usergridnumber]} with CPT ${GRIDADDCPT[$current_usergridnumber]}"
-    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q -I+d -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
+
+    if [[ ${GRIDLOGCPT[$current_usergridnumber]} -eq 1 ]]; then
+      LOGFLAG="-Q"
+    else
+      LOGFLAG=""
+    fi
+
+    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} ${LOGFLAG}  -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
     current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
 
     tectoplot_plot_caught=1
@@ -674,7 +690,7 @@ function tectoplot_legendbar_gis() {
   case $1 in
     gis_grid)
       echo "G 0.2i" >> legendbars.txt
-      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i 0.1i+malu -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> legendbars.txt
+      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i 0.1i+malu -Q -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> legendbars.txt
       barplotcount=$barplotcount+1
       current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
       tectoplot_caught_legendbar=1

@@ -30,6 +30,8 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+GPS_MINSIG=0
+
 TICK_NUMBER=6   # Number of ticks desired for map axes, approximate
 
 GPS_GG_RES=2m   # Resolution of GPS interpolation grid
