@@ -1,7 +1,7 @@
 tectoplot
 =========
 
-See the [project website][tectoplot] for documentation of tectoplot's features.
+See the (thus far imaginary, hopefully soon actual) [project website][tectoplot] for documentation of tectoplot's features.
 
 tectoplot is a bash script and associated helper scripts/programs that makes it easier to create seismotectonic maps, cross sections, and oblique block diagrams. It tries to simplify the process of making programmatic maps and figures from the command line in a Unix environment. tectoplot started as a basic script to automate making shaded relief maps with GMT, and has snowballed over time to incorporate many other functions.
 
