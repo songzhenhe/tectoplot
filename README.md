@@ -54,7 +54,7 @@ Credits and redistributed source code
 
 tectoplot relies very heavily on the following open-source tools:
 
-[GMT 6][gmt6]
+[GMT 6][gmtcite]
 
 [gdal][gdal]
 
@@ -100,6 +100,8 @@ Methods
 -------
 
 Code and general analytical approaches have been adopted from or inspired by the following research papers. There is no guarantee that the algorithms have been correctly implemented. Please cite these or related papers if they are particularly relevant to your own study.
+
+[Kostrov, 1974][kostrov]: Moment tensor summation
 
 [Reasenberg, 1985][rb]: Seismicity declustering (Fortran source, minor modifications).
 
@@ -320,3 +322,4 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  [kreemer]: https://doi.org/10.1002/2014GC005407
  [hackl]: https://doi.org/10.5194/nhess-9-1177-2009
  [sandwess]: doi.org/10.1002/2016GL070340
+ [kostrov]: http://www-solid.eps.s.u-tokyo.ac.jp/~hassei/cgi-bin/hassei2007/wiki/attach/papers.Kostrov1974%252Epdf

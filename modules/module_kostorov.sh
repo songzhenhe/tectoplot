@@ -1,14 +1,14 @@
 
-TECTOPLOT_MODULES+=("kostorov")
+TECTOPLOT_MODULES+=("kostrov")
 
 # Geological data (ocean age, transform fault, etc.)
 
 
-function tectoplot_defaults_kostorov() {
+function tectoplot_defaults_kostrov() {
   KOSTOROV_WIDTH=1   # Width/height of cells
 }
 
-function tectoplot_args_kostorov()  {
+function tectoplot_args_kostrov()  {
   # The following line is required for all modules
   tectoplot_module_caught=0
   tectoplot_module_shift=0
@@ -16,11 +16,11 @@ function tectoplot_args_kostorov()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -kostorov)
+  -kostrov)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--kostorov:         Do Kostorov summation of focal mechanisms
--kostorov [[cell_width=${KOSTOROV_WIDTH}]]
+-kostrov:         Do Kostorov summation of focal mechanisms
+-kostrov [[cell_width=${KOSTOROV_WIDTH}]]
 
   Replaces focal mechanisms with Kostorov sum located at bin center
 
@@ -41,7 +41,7 @@ fi
 
 }
 
-function tectoplot_calculate_kostorov()  {
+function tectoplot_calculate_kostrov()  {
 
   # Uses MINLON, MAXLON, MINLAT, MAXLAT to generate bins
 
@@ -95,17 +95,17 @@ function tectoplot_calculate_kostorov()  {
           }
         }
       }
-    ' > ${F_CMT}kostorov_moment.txt
+    ' > ${F_CMT}kostrov_moment.txt
 
-    if [[ -s ${F_CMT}kostorov_moment.txt ]]; then
+    if [[ -s ${F_CMT}kostrov_moment.txt ]]; then
       if [[ $CMTTYPE=="CENTROID" ]]; then
         CMTSWITCH="switch"
       else
         CMTSWITCH=""
       fi
-      ${CMTSLURP} ${F_CMT}kostorov_moment.txt m K ${CMTSWITCH} > ${F_CMT}kostorov_final.txt
+      ${CMTSLURP} ${F_CMT}kostrov_moment.txt m K ${CMTSWITCH} > ${F_CMT}kostrov_final.txt
       if [[ -s ${F_CMT}custom_cmt_${this_customcmtnum}.txt ]]; then
-        CMTFILE=$(abs_path ${F_CMT}kostorov_final.txt)
+        CMTFILE=$(abs_path ${F_CMT}kostrov_final.txt)
       fi
     fi
   fi
@@ -114,20 +114,20 @@ function tectoplot_calculate_kostorov()  {
 
 
 
-# function tectoplot_cpt_kostorov() {
+# function tectoplot_cpt_kostrov() {
 #   case $1 in
 #   ;;
 #   esac
 # }
 
-# function tectoplot_plot_kostorov() {
+# function tectoplot_plot_kostrov() {
 #   case $1 in
 #   tectoplot_plot_caught=1
 #   ;;
 #   esac
 # }
 
-# function tectoplot_legendbar_kostorov() {
+# function tectoplot_legendbar_kostrov() {
 #   case $1 in
 #         tectoplot_caught_legendbar=1
 #       fi
@@ -135,9 +135,9 @@ function tectoplot_calculate_kostorov()  {
 #   esac
 # }
 
-# function tectoplot_legend_kostorov() {
+# function tectoplot_legend_kostrov() {
 # }
 
-# function tectoplot_post_kostorov() {
+# function tectoplot_post_kostrov() {
 #   echo "none"
 # }
