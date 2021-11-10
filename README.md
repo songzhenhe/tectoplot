@@ -18,20 +18,20 @@ tectoplot is software written by a field geologist, and is in very early stages 
 
  * Let me know if you find a bug or problem, and I will try to fix it!
 
-What does tectoplot do?
+An example tectoplot command
 -----------------------
 
-Here's a simple tectoplot command that plots seismicity and volcanoes in Guatemala.
+Here's an example tectoplot command that plots a seismotectonic map of Guatemala, showing topography, the Slab2.0 plate interface and seismicity colored by depth, volcanoes, and a 40 km wide swath cross section at 1:1 scale (no vertical exaggeration)
 
 ```proto
-tectoplot -r GT -t -tmult -tsl -z -vc -legend onmap -o Guatemala
+tectoplot -r GT+R2 -RJ B -t -tmult -tsl -b -z -vc -legend onmap -sprof -93 12.5 -90.5 16 30k 0.5k -oto -showprof 1 -o Guatemala
 ```
 
 Let's break down the command to see what it does:
 
 |Command|Effect|
 |--|--|
-|-r GT|Set the map region to encompass Guatemala|
+|-r GT+R2|Set the map region to encompass Guatemala plus a 2 degree buffer|
 |-RJ B|Select an Albers map projection|
 |-t|Plot shaded topographic relief|
 |-tmult|Calculate a multidirectional hillshade|
@@ -39,6 +39,9 @@ Let's break down the command to see what it does:
 |-z|Plot earthquake epicenters (default data are from USGS/ANSS)|
 |-vc|Plot volcanoes (Smithsonian)|
 |-legend onmap|Create a legend and place it onto the map pdf|
+|-sprof -93 12.5 -90.5 16 30k 0.5k|Create a swath profile|
+|-oto|Make the profile have 1:1 scaling|
+|-showprof 1|Place the first (and only) profile onto the map PDF|
 |-o Guatemala|Save the resulting PDF map to Guatemala.pdf|
 
 
