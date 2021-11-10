@@ -88,8 +88,8 @@ property uchar blue
 end_header
 EOF
 
-      if [[ -s ${F_TOPO}dem.nc ]]; then
-        gmt grdtrack ${F_3D}ply_gridfile.txt -G${F_TOPO}dem.nc | gawk '
+      if [[ -s ${TOPOGRAPHY_DATA} ]]; then
+        gmt grdtrack ${F_3D}ply_gridfile.txt -G${TOPOGRAPHY_DATA} | gawk '
           @include "tectoplot_functions.awk"
           BEGIN {
             r=6371/100
@@ -602,8 +602,8 @@ EOF
   # calculate the texture coordinates in a way that works...
 
   # # Experiment to use gmt triangulate instead of using our own algorithm
-  # if [[ $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; then
-  #   dem_orig_info=($(gmt grdinfo ${F_TOPO}dem.nc -C -Vn))
+  # if [[ $makeplydemmeshflag -eq 1 && -s ${TOPOGRAPHY_DATA} ]]; then
+  #   dem_orig_info=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -Vn))
   #   dem_orig_numx=${dem_orig_info[9]}
   #   dem_orig_numy=${dem_orig_info[10]}
   #
@@ -622,19 +622,19 @@ EOF
   #     if [[ $(echo "${dem_orig_numx} > ${PLY_MAXSIZE}" | bc) -eq 1 ]]; then
   #       PERCENTRED=$(echo "${PLY_MAXSIZE} / $dem_orig_numx * 100" | bc -l)
   #       info_msg "[-makeply]: Reducing DEM by ${PERCENTRED}"
-  #       gdal_translate -q -of "netCDF" -r bilinear -outsize ${PERCENTRED}"%" 0 ${F_TOPO}dem.nc ${F_TOPO}dem_plyrescale.nc
+  #       gdal_translate -q -of "netCDF" -r bilinear -outsize ${PERCENTRED}"%" 0 ${TOPOGRAPHY_DATA} ${F_TOPO}dem_plyrescale.nc
   #       dem_info=($(gmt grdinfo ${F_TOPO}dem_plyrescale.nc -C -Vn))
   #       dem_numx=${dem_info[9]}
   #       dem_numy=${dem_info[10]}
   #       # info_msg "[-makeply]: New size is", $dem_numx, $dem_numy
   #       PLY_DEM=${F_TOPO}dem_plyrescale.nc
   #     else
-  #       PLY_DEM=${F_TOPO}dem.nc
+  #       PLY_DEM=${TOPOGRAPHY_DATA}
   #       dem_numx=${dem_orig_numx}
   #       dem_numy=${dem_orig_numy}
   #     fi
   #   else
-  #     PLY_DEM=${F_TOPO}dem.nc
+  #     PLY_DEM=${TOPOGRAPHY_DATA}
   #     dem_numx=${dem_orig_numx}
   #     dem_numy=${dem_orig_numy}
   #   fi
@@ -644,12 +644,12 @@ EOF
   # fi
   #
 
-  if [[ $makeplydemmeshflag -eq 1 && -s ${F_TOPO}dem.nc ]]; then
+  if [[ $makeplydemmeshflag -eq 1 && -s ${TOPOGRAPHY_DATA} ]]; then
     info_msg "[-makeply]: Using DEM to create a mesh"
           # Now convert the DEM to an OBJ format surface at the same scaling factor
           # Default format is scanline orientation of ASCII numbers: −ZTLa. Note that −Z only applies to 1-column output.
 
-          dem_orig_info=($(gmt grdinfo ${F_TOPO}dem.nc -C -Vn))
+          dem_orig_info=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -Vn))
           dem_orig_numx=${dem_orig_info[9]}
           dem_orig_numy=${dem_orig_info[10]}
 
@@ -668,18 +668,18 @@ EOF
             if [[ $(echo "${dem_orig_numx} > ${PLY_MAXSIZE}" | bc) -eq 1 ]]; then
               PERCENTRED=$(echo "${PLY_MAXSIZE} / $dem_orig_numx * 100" | bc -l)
               info_msg "[-makeply]: Reducing DEM by ${PERCENTRED}"
-              gdal_translate -q -of "netCDF" -r bilinear -outsize ${PERCENTRED}"%" 0 ${F_TOPO}dem.nc ${F_TOPO}dem_plyrescale.nc
+              gdal_translate -q -of "netCDF" -r bilinear -outsize ${PERCENTRED}"%" 0 ${TOPOGRAPHY_DATA} ${F_TOPO}dem_plyrescale.nc
               dem_info=($(gmt grdinfo ${F_TOPO}dem_plyrescale.nc -C -Vn))
               dem_numx=${dem_info[9]}
               dem_numy=${dem_info[10]}
               PLY_DEM=${F_TOPO}dem_plyrescale.nc
             else
-              PLY_DEM=${F_TOPO}dem.nc
+              PLY_DEM=${TOPOGRAPHY_DATA}
               dem_numx=${dem_orig_numx}
               dem_numy=${dem_orig_numy}
             fi
           else
-            PLY_DEM=${F_TOPO}dem.nc
+            PLY_DEM=${TOPOGRAPHY_DATA}
             dem_numx=${dem_orig_numx}
             dem_numy=${dem_orig_numy}
           fi
@@ -1866,7 +1866,7 @@ EOF
             fi
 
             gmt grd2xyz ${gridfile} ${VERBOSE} > ${F_SLAB}slab_values_${i}.txt
-            # gmt grdcut ${gridfile} -R${F_TOPO}dem.nc -G${F_SLAB}slabcut_${i}.grd
+            # gmt grdcut ${gridfile} -R${TOPOGRAPHY_DATA} -G${F_SLAB}slabcut_${i}.grd
           else
             echo "Slab file $gridfile does not exist"
             continue
@@ -2159,7 +2159,7 @@ EOF
             # fi
 
             gmt grd2xyz ${gridfile} ${VERBOSE} > ${F_SLAB}fault_values_${i}.txt
-            # gmt grdcut ${gridfile} -R${F_TOPO}dem.nc -G${F_SLAB}slabcut_${i}.grd
+            # gmt grdcut ${gridfile} -R${TOPOGRAPHY_DATA} -G${F_SLAB}slabcut_${i}.grd
           else
             echo "Fault file $gridfile does not exist"
             continue
@@ -2534,7 +2534,7 @@ EOF
 
   ### TEST ARROWS FOR GPS; requires DEM to exist to get site elevations
 
-  if [[ -s ${F_TOPO}dem.nc && -s ${F_GPS}gps.txt && $plydemonlyflag -eq 0 ]]; then
+  if [[ -s ${TOPOGRAPHY_DATA} && -s ${F_GPS}gps.txt && $plydemonlyflag -eq 0 ]]; then
     # gps.xy contains lon lat ve vn
 
 cat <<-EOF >> ${F_3D}materials.mtl
@@ -2547,7 +2547,7 @@ illum 1
 Ns 0.000000
 EOF
 
-    gawk < ${F_GPS}gps.txt '{print $1, $2, $3, $4}' | gmt grdtrack -G${F_TOPO}dem.nc > ${F_GPS}gps.xyz
+    gawk < ${F_GPS}gps.txt '{print $1, $2, $3, $4}' | gmt grdtrack -G${TOPOGRAPHY_DATA} > ${F_GPS}gps.xyz
 
     # gps.xyz:
     # Lon lat ve vn Elev(m)
