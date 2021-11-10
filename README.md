@@ -314,7 +314,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  [ndk2meca]: http://www-udc.ig.utexas.edu/external/becker/software/ndk2meca.awk
  [gmt6]: http://www.generic-mapping-tools.org
  [gmtcite]: https://www.generic-mapping-tools.org/cite/
- [tectoplot]: https://kyleedwardbradley.github.io/tectoplot/
+ [tectoplot]: https://kyleedwardbradley.github.io/tectoplot-docs/
 
  [rb]: https://doi.org/10.1029/JB090iB07p05479
  [zaliapin]: https://doi.org/10.1103/PhysRevLett.101.018501
