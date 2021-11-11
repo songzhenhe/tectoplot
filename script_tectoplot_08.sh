@@ -10505,10 +10505,10 @@ elif [[ $(echo "$GRIDSP > 1" | bc) -eq 1 ]]; then
   MAP_FORMAT_FLOAT_OUT='%.0f'
 elif [[ $(echo "$GRIDSP > 0.5" | bc) -eq 1 ]]; then
 	GRIDSP=0.5
-  FORMAT_FLOAT_OUT='%.1f'
+  MAP_FORMAT_FLOAT_OUT='%.1f'
 elif [[ $(echo "$GRIDSP > 0.2" | bc) -eq 1 ]]; then
 	GRIDSP=0.2
-  FORMAT_FLOAT_OUT='%.1f'
+  MAP_FORMAT_FLOAT_OUT='%.1f'
 elif [[ $(echo "$GRIDSP > 0.1" | bc) -eq 1 ]]; then
 	GRIDSP=0.1
   MAP_FORMAT_FLOAT_OUT='%.1f'
@@ -10517,7 +10517,7 @@ elif [[ $(echo "$GRIDSP > 0.05" | bc) -eq 1 ]]; then
   MAP_FORMAT_FLOAT_OUT='%.2f'
 elif [[ $(echo "$GRIDSP > 0.02" | bc) -eq 1 ]]; then
   GRIDSP=0.02
-  FORMAT_FLOAT_OUT='%.2f'
+  MAP_FORMAT_FLOAT_OUT='%.2f'
 elif [[ $(echo "$GRIDSP > 0.01" | bc) -eq 1 ]]; then
   GRIDSP=0.01
   MAP_FORMAT_FLOAT_OUT='%.2f'
@@ -10903,10 +10903,18 @@ if [[ $plottopo -eq 1 ]]; then
       case $BATHYMETRY in
         01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
           gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          cp ${name} ${F_TOPO}dem.tif
+          clipdemflag=0
+          name=${F_TOPO}dem.tif
+          TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         ;;
         SRTM30|GEBCO20|GEBCO1)
         # GMT grdcut works on these
           gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          cp ${name} ${F_TOPO}dem.tif
+          clipdemflag=0
+          name=${F_TOPO}dem.tif
+          TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         ;;
         custom*)
         # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
@@ -10918,6 +10926,8 @@ if [[ $plottopo -eq 1 ]]; then
         # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
 
         name=${F_TOPO}dem.tif
+        clipdemflag=0
+        TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         # demiscutflag=1
         ;;
       esac
@@ -10970,8 +10980,7 @@ if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
       cleanup ${F_TOPO}dem_preflat.tif
     else
       if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.tif ]]; then
-        info_msg gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
-        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -N -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
       fi
     fi
   fi
@@ -16737,9 +16746,10 @@ echo blah blah
             # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
             if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
                 # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG?
-                sentinel_dim=($(gmt grdinfo ./sentinel.tif -C -L -Vn))
-                sent_dimx=${sentinel_dim[9]}
-                sent_dimy=${sentinel_dim[10]}
+                sentinel_dim=($(gdalinfo sentinel.tif | grep "Size is" | sed 's/,//' | gawk '{print $3, $4}'))
+
+                sent_dimx=${sentinel_dim[0]}
+                sent_dimy=${sentinel_dim[1]}
 
                 dem_dim=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -L -Vn))
                 dem_dimx=${dem_dim[9]}
