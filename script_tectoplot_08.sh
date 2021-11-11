@@ -6944,7 +6944,7 @@ fi
     fi
     ;;
 
-  -t|--topo) # args: ID | filename { args }
+  -t) # args: ID | filename { args }
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography (~wgs1984 only)

@@ -95,15 +95,15 @@ N 3
 L 10p Helvetica LB T-axis
 L 10p Helvetica LB P-axis
 L 10p Helvetica LB N-axis
-S 0.01i c ${symbolsize} red 0.25p 0.3i Thrust
-S 0.01i c ${symbolsize} blue 0.25p 0.3i Thrust
-S 0.01i c ${symbolsize} green 0.25p 0.3i Thrust
-S 0.01i s ${symbolsize} red 0.25p 0.3i Normal
-S 0.01i s ${symbolsize} blue 0.25p 0.3i Normal
-S 0.01i s ${symbolsize} green 0.25p 0.3i Normal
-S 0.01i t ${symbolsize} red 0.25p 0.3i Strike-slip
-S 0.01i t ${symbolsize} blue 0.25p 0.3i Strike-slip
-S 0.01i t ${symbolsize} green 0.25p 0.3i Strike-slip
+S 0.01i c ${symbolsize} ${T_AXIS_COLOR} 0.25p 0.3i Thrust
+S 0.01i c ${symbolsize} ${P_AXIS_COLOR} 0.25p 0.3i Thrust
+S 0.01i c ${symbolsize} ${N_AXIS_COLOR} 0.25p 0.3i Thrust
+S 0.01i s ${symbolsize} ${T_AXIS_COLOR} 0.25p 0.3i Normal
+S 0.01i s ${symbolsize} ${P_AXIS_COLOR} 0.25p 0.3i Normal
+S 0.01i s ${symbolsize} ${N_AXIS_COLOR} 0.25p 0.3i Normal
+S 0.01i t ${symbolsize} ${T_AXIS_COLOR} 0.25p 0.3i Strike-slip
+S 0.01i t ${symbolsize} ${P_AXIS_COLOR} 0.25p 0.3i Strike-slip
+S 0.01i t ${symbolsize} ${N_AXIS_COLOR} 0.25p 0.3i Strike-slip
 D 0i 1p
 P
 EOF
