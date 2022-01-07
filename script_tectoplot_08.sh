@@ -841,7 +841,7 @@ do
     set -x
     ;;
 
-  -n|--narrate)
+  -n)
     narrateflag=1
     info_msg "${COMMAND}"
     ;;
@@ -887,6 +887,8 @@ do
   ;;
 
   -addpath)   # Add tectoplot source directory to ~/.profile and exit
+
+
   if [[ ! $USAGEFLAG -eq 1 ]]; then
       if [[ ! -e ~/.profile ]]; then
         info_msg "[-addpath]: ~/.profile does not exist. Creating."
@@ -947,11 +949,16 @@ do
 
   -countryid)
     if [[ ! $USAGEFLAG -eq 1 ]]; then
+
       if arg_is_flag $2; then
         gawk -F, < $COUNTRY_CODES '{ print $1, $4 }'
       else
-        gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
+        while ! arg_is_flag $2; do
+          gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
+          shift
+        done
       fi
+
       exit
     fi
     ;;
@@ -1197,15 +1204,17 @@ do
 
 # Options from high priority suite above need to be skipped intelligently
 # The options from the above parsing just need to be skipped...?
-  -n|--narrate)
+  -n)
   ;;
+
   -addpath)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--addpath:      add tectoplot script directory to path environment (~/.profile)
--addpath
-Example:
-  tectoplot -addpath
+-addpath:      add tectoplot script directory to path environment
+Usage: -addpath
+
+  Assumes you are using bash (~/.profile)
+
 --------------------------------------------------------------------------------
 EOF
   shift && continue
@@ -1213,6 +1222,16 @@ fi
   ;;
 
   -whichutm)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-whichutm:      report UTM zone for specified longitude
+Usage: -whichutm [longitude]
+
+--------------------------------------------------------------------------------
+EOF
+  shift && continue
+fi
+
   if arg_is_float $2; then
     AVELONp180o6=$(echo "(($2) + 180)/6" | bc -l)
     UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
@@ -1225,11 +1244,9 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -checkdep:     check program dependencies
--checkdep
+Usage: -checkdep
 
   Runs tests to check primary dependencies, then exits
-
-Example: None
 --------------------------------------------------------------------------------
 EOF
   shift && continue
@@ -1240,13 +1257,8 @@ fi
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -colorblind:   use colorblind-friendlier CPTs from Colorcet or other sources
--colorblind
+Usage: -colorblind
 
-  Seismicity:
-  Topography:
-
-Example:
-  tectoplot -colorblind
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1261,7 +1273,7 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -compile:      compile accompanying codes
--compile
+Usage: -compile
 
   Compiles:
     access_litho (C)
@@ -1271,34 +1283,35 @@ cat <<-EOF
       shadow
     reasenberg (Fortran)
 
-Example:
-  tectoplot -compile
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
   ;;
+
   -countryid)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -countryid:    print list of recognized country codes and exit
--countryid
+Usage: -countryid [[string ...]]
 
-Example:
-  tectoplot -countryid | grep "Ireland"
+  If no argument is given, print all country ID codes. If arguments are given,
+  then print country codes containing each string.
+
+  Exits.
+
 --------------------------------------------------------------------------------
 EOF
     shift && continue
   fi
   ;;
+
   -data)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -data:         list data source info
--data
+Usage: -data
 
-Example:
-    tectoplot -data
 --------------------------------------------------------------------------------
 EOF
     shift && continue
@@ -1309,10 +1322,8 @@ EOF
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -defaults:     print tectoplot defaults
--defaults
+Usage: -defaults
 
-Example:
-  tectoplot -defaults
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1322,9 +1333,8 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -formats:      print information about file formats (input and output) and exit
--formats
+Usage: -formats
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
   shift && continue
@@ -1334,7 +1344,7 @@ EOF
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -getdata:      download datasets and compile c / Fortran programs
--getdata
+Usage: -getdata
 
     This option will attempt to download and minimally process data files.
     It will download files or compressed archives and verify the expected byte
@@ -1342,17 +1352,17 @@ cat <<-EOF
     The function will extract archives and will try to redownload data if it
     is not marked as complete. Several basic C programs are compiled using gcc.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
   fi
   ;;
+
   -ips)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ips:          plot over an existing, non-closed ps file
--ips [filename]
+Usage: -ips [filename]
 
  Complex or multi-component maps can be created by calling tectoplot with the
  -keepopenps option, which prevents closing of the Postscript file. The -ips
@@ -1366,8 +1376,9 @@ cat <<-EOF
  temporary directories.
 
 Example: Plot a two-panel map.
- tectoplot -r PA -a -inset 1i 30 4i 0.15i -keepopenps
- tectoplot -r PA -t -ips tempfiles_to_delete/map.ps -pos 0i 3.7i
+tectoplot -r PA -a -inset 1i 30 4i 0.15i -keepopenps
+tectoplot -r PA -t -ips tempfiles_to_delete/map.ps -pos 0i 3.7i -o example_ips
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
   shift && continue
@@ -1417,11 +1428,10 @@ shift && continue
   -usage)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
---------------------------------------------------------------------------------
 -usage:        basic description of tools
--usage   [command containing any number of -flags and arguments]
--usage   [all|what|args]
--usage   [topo]
+Usage: -usage   [command containing any number of -flags and arguments]
+Usage: -usage   [all|what|args]
+Usage: -usage   [topo]
 
 Print explanations of options, arguments, and outputs for commands.
 
@@ -1436,9 +1446,6 @@ Collections of related commands:
 Outputs:
  None
 
-Example:
- tectoplot usage args
---------------------------------------------------------------------------------
 EOF
 fi
 USAGEFLAG=1
@@ -1446,8 +1453,23 @@ USAGEFLAG=1
  if [[ $2 =~ "all" ]]; then
    shift
    SCRIPTFILE="${BASH_SOURCE[0]}"
-   COMMANDLIST=$(grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print $1 }' | uniq | sort -f)
-   echo tectoplot commands: ${COMMANDLIST[@]} | fold -s
+   # COMMANDLIST=$(grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print $1 }' | uniq | sort -f)
+
+   # grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print $1 }' > commandlist.txt
+
+     grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '{ if (substr($1,length($1),1) == ":") {print substr($1,1,length($1)-1) }}' > commandlist.txt
+
+   # COMEBACK turned off for webpage development to skip modules for now
+   # Uncomment!
+   # for f in ${TECTOPLOTDIR}modules/module_*.sh; do
+   #   grep "^-" ${f} | grep -v -- "---" | gawk '{ if (substr($1,length($1),1) == ":") {print substr($1,1,length($1)-1) }}' >> commandlist.txt
+   # done
+
+   COMMANDLIST=$(cat commandlist.txt | uniq | sort -f)
+
+   echo "tectoplot commands:"
+   echo ${COMMANDLIST[@]} | fold -s
+   echo "end tectoplot commands"
    echo "--------------------------------------------------------------------------------"
    set -- "blank" ${COMMANDLIST[@]}
    DONTRESETCOMSFLAG=1
@@ -1461,7 +1483,6 @@ USAGEFLAG=1
      echo "$(basename ${f}):"
      grep "^-" ${f} | grep -v -- "---" | gawk '(substr($1,length($1),1) == ":") { print " ", $0 }' | uniq | sort -f
    done
-
    exit
  elif [[ $2 =~ "args" ]]; then
    shift
@@ -1484,19 +1505,19 @@ USAGEFLAG=1
      DONTRESETCOMSFLAG=1
  else
    # Assume we will read flags one by one
+
    usageskipflag=1
    echo "--------------------------------------------------------------------------------"
  fi
 
   ;;
 
-  -tm|--tempdir) # Relative temporary directory placed into pwd
+  -tm) # Relative temporary directory placed into pwd
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tm:           define a custom temporary results directory
--tm [directory_path]
+Usage: -tm [directory_path]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1528,12 +1549,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -recenteq:     plot earthquakes that occurred recently
--recenteq      [[number_of_days=${LASTDAYNUM}]] [[print]]
+Usage: -recenteq      [[number_of_days=${LASTDAYNUM}]] [[print]]
+
   Sets options -a a -z -c -time date1 date2 where date1 is number_of_days ago
   and date2 is current date and time (both in UTC).
   Specification of -r is required, or the default region will be used.
+
 Example: Plot last 1 month of earthquakes in USA
-  tectoplot -r US -t 01d -recenteq 31
+tectoplot -r US -t 01d -recenteq 31 -o example_recenteq
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1586,12 +1610,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seismo:       plot a basic seismotectonic map
--seismo
+Usage: -seismo
+
   Plot a basic seismotectonic map for a region using default options
   Sets options -t -b c -z -c
   Specification of -r is required, or the default region will be used.
+
 Example: Plot a seismotectonic map of Iran
-  tectoplot -r IR -seismo
+tectoplot -r IR -seismo -o example_seismo
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1600,38 +1627,43 @@ fi
     set -- "blank" "-t" "-b" "c" "-z" "-c" "$@"
     ;;
 
-  -topog)
+  -topo)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--topog:        plot a basic topographic map
--topog
+-topo:        plot a basic topographic map
+Usage: -topo
   Plot a basic topographic map for a region and make an oblique view
   Sets options -t -ob 45 20 3
   Specification of -r is required, or the default region will be used.
   The oblique view PDF is stored in \${TMP}/oblique.pdf and script to adjust
   is in \${TMP}/make_oblique.sh [vexag] [az] [inc]
-Example: Plot a topographic map of Venezuela
-  tectoplot  -r VE -topog
+
+Example: Plot a topographic map
+tectoplot -topo -o example_topo
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
     shift
-    set -- "blank" "-t" "-t1" "-ob" "45" "20" "3" "$@"
+    set -- "blank" "-t" "-t0" "-ob" "45" "20" "3" "$@"
     ;;
 
   -sunlit)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -sunlit:       plot topo with unidirectional hillshade and cast shadows
--sunlit
+Usage: -sunlit
+
   Plot a basic topographic map for a region with cast shadows, and oblique view
   Sets options -t -tuni -tshad -ob 45 20 3
   Specification of -r is required, or the default region will be used.
   The oblique view PDF is stored in \${TMP}/oblique.pdf and script to adjust
   is in \${TMP}/make_oblique.sh [vexag] [az] [inc]
-Example: Plot a topographic map of Switzherland with cast shadows
-  tectoplot -r CH -sunlit
+
+Example: Plot a topographic map of Switzerland with cast shadows
+tectoplot -r CH -sunlit -o example_sunlit
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1644,15 +1676,18 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eventmap:     plot an earthquake summary map
--eventmap [earthquakeID] [[degree_width]]
+Usage: -eventmap [earthquakeID] [[degree_width]]
+
   Plot a basic seismotectonic map and cross section centered on an earthquake
   Includes topography, Slab2.0, seismicity, focal mechanisms (ORIGIN location).
   Labels the selected earthquake on map and cross-section.
   Plots a 1:1 (V=H) E-W profile, or orients the profile along the dip-direction
   if a Slab2.0 grid exists beneath the event.
   Plots a legend and sets the title to the earthquake ID.
+
 Example: Plot a seismotectonic map of the M7.8 2015 Gorkha, Nepal earthquake
-  tectoplot -eventmap us20002926
+tectoplot -eventmap us20002926 -o example_eventmap
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1682,9 +1717,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -af:           plot global earthquake model (gem) active faults
--af [[line width=${AFLINEWIDTH}]] [[line color=${AFLINECOLOR}]]
+Usage: -af [[line width=${AFLINEWIDTH}]] [[line color=${AFLINECOLOR}]]
+
 Example: Plot a map of GEM active faults around India
-  tectoplot -r IN -a -af 0.5p red
+tectoplot -r IN -a -af 0.5p red -o example_af
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1708,13 +1745,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -alignz:      Allow profiles to be aligned in Z value at XY line intersection
--alignz [filename]
+Usage: -alignz [filename]
 
   Use -alignxy to set the intersection line.
 
 Example: Stack topographic profiles across SE Indian continental margin
-  echo "80 16" > line.xy && echo "88 22" >> line.xy
-  tectoplot -r IN -t -alignxy line.xy -aprof QM LH 20k 0.1k -alignz
+echo "80 16" > line.xy && echo "88 22" >> line.xy
+tectoplot -r IN -t 01m -alignxy line.xy -aprof QM LH 20k 1k -alignz -showprof all -o example_alignz
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1726,10 +1764,12 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -alignxy:      align profiles to intersection with xy (lon lat) path
--alignxy [filename]
+Usage: -alignxy [filename]
+
 Example: Stack topographic profiles across SE Indian continental margin
-  echo "80 16" > line.xy && echo "88 22" >> line.xy
-  tectoplot -r IN -t -alignxy line.xy -aprof QM LH 20k 0.1k
+echo "80 16" > line.xy && echo "88 22" >> line.xy
+tectoplot -r IN -t 01m -alignxy line.xy -aprof QM LH 20k 1k -showprof all -o example_alignxy
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1757,7 +1797,7 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -bigbar:       plot a single large colorbar beneath the map
--bigbar [cpt_name] [["Explanation string"]]
+Usage: -bigbar [cpt_name] [["Explanation string"]]
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1787,7 +1827,8 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cprof:        specify automatic profiles using center point, azimuth, length
--cprof [centerlon or "eq"] [centerlat or "eq"] [azimuth or "slab2"] [length] [width] [resolution]
+Usage: -cprof [centerlon or "eq"] [centerlat or "eq"] [azimuth or "slab2"] [length] [width] [resolution]
+
   [centerlon]/[centerlat] are coordinates at profile center (degrees)
     eq = use earthquake ID location
   [azimuth] is profile azimuth (CW from north, degrees)
@@ -1795,9 +1836,11 @@ cat <<-EOF
   [length] is profile length in km (no units specified on command line)
   [width] is profile swath width with k units specified (e.g. 25k)
   [resolution] is sampling resolution with k units specified (e.g 1k)
+
 Example: Create a topographic swath profile across the Straits of Gibraltar
-  tectoplot -r -6.5 -4.5 35 37 -t -a -cprof -5.5 36 350 100 10k 0.05k
-            -setvars { SPROF_MAXELEV 2 SPROF_MINELEV -4 }
+tectoplot -r -6.5 -4.5 35 37 -t -a -cprof -5.5 36 350 100 10k 0.05k \
+    -setvars { SPROF_MAXELEV 2 SPROF_MINELEV -4 } -showprof 1 -o example_cprof
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1887,14 +1930,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -aprof:        specify automatic profiles using a coordinate grid on the map
--aprof [code1] [[code2...]] [width] [resolution]
+Usage: -aprof [code1] [[code2...]] [width] [resolution]
+
   [codeN] are [A-Y][A-Y] (e.g. CW, AE) letter pairs denoting profile start/end
     -> (you can plot letters on the map using -aprofcodes)
   [width] is profile swath width with k units specified (e.g. 25k)
   [resolution] is sampling resolution with k units specified (e.g 1k)
   Profile vertical range is fixed to ${SPROF_MINELEV}/${SPROF_MAXELEV}
+
 Example: Create a topographic swath profile across Guatemala
-  tectoplot -r GT -t -aprof AS 100k 1k
+tectoplot -r GT -t -aprof AS 100k 1k -showprof 1 -o example_aprof
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1931,9 +1977,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -aprofcodes:   plot letter coordinate grid for -aprof
--aprofcodes
+Usage: -aprofcodes
+
 Example: Plot letter coordinates for a map of Guatemala
-  tectoplot -r GT -t -aprofcodes
+tectoplot -r GT -t -aprofcodes -o example_aprofcodes
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1952,10 +2000,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -arrow:        change the width of arrow vectors
--arrow [narrower | narrow | normal | wide | wider]
+Usage: -arrow [narrower | narrow | normal | wide | wider]
 
 Example: Plot GPS velocities with wide arrows
-  tectoplot -a -g pa -arrow wide
+tectoplot -a -g pa -arrow wide -o example_arrow
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1991,8 +2040,8 @@ fi
   -datareport)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--datareport:   plot footprints of downloaded data (DEM/Sentinel)
--datareport
+-datareport:   plot footprints of downloaded data
+Usage: -datareport
 
   GMRT: red
   EARTHRELIEF (GMT server): blue
@@ -2011,7 +2060,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -regionreport: plot and label footprints of custom regions / saved shaded relief
--regionreport
+Usage: -regionreport
 
   Saved shaded relif: shaded gray
   Custom map region: red line
@@ -2026,26 +2075,26 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -author:       update or plot stored author information
+
   This option stores and prints author information to facilitate map
   attribution. There are several formats:
 
--author
-  Plot author and datestring at lower left corner of map
--author reset
-  Delete stored author information and then exit
--author print
+Usage: -author "Author ID"
+  Store author information
+Usage: -author
+  Plot stored author and datestring at lower left corner of map
+Usage: -author nodate
+  Plot stored author but not timestamp on map.
+Usage: -author print
   Print stored author information and then exit
--author nodate
-  Plot author but not timestamp on map.
--author "Author ID"
-  Store author information in ${OPTDIR}tectoplot.author
+Usage: -author reset
+  Delete stored author information and then exit
 
 Example: Reset a stored author ID and then update it to "Author 1"
-  tectoplot -author print
-  tectoplot -author reset
-  tectoplot -author "Author 1"
-  tectoplot -author print
-
+tectoplot -author print -noplot
+tectoplot -author reset -noplot
+tectoplot -author "Author 1" -o example_author
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2090,9 +2139,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -authoryx:     shift -author text by specified inches on plot
--authoryx [YSHIFT] [XSHITY]
+Usage: -authoryx [YSHIFT] [XSHITY]
+
 Example: Shift -author text to the right and up
-  tectoplot -r GT -a -author -authoryx 3 3
+tectoplot -r GT -a -author -authoryx 3 3 -o example_authoryx
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2118,11 +2169,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -B:            use GMT -b command to directly set map frame parameters
--B { opt1 opt2 ... }
+Usage: -B { opt1 opt2 ... }
+
   This option is not well tested!
 
 Example: Plot Slab2.0 around Japan with custom longitude markings.
-  tectoplot -r JP -a -B { -Bxa1f1 }
+tectoplot -r JP -a -B { -Bxa1f1 } -o example_B
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2143,18 +2196,20 @@ fi
     info_msg "[-B]: Custom map frame string: ${BSTRING[@]}"
     ;;
 
-	-c|--cmt) # args: none || number
+	-c) # args: none || number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--c:            plot focal mechanism beach balls (cmt)
--c [[TYPE=${CMTTYPE}]] [[scale=${CMTSCALE}]]
+-c:            plot focal mechanisms
+Usage: -c [[TYPE=${CMTTYPE}]] [[scale=${CMTSCALE}]]
+
   Plots focal mechanisms from combined catalog (or custom file using -ccat)
   Scraped catalog includes harmonized GCMT, ISC, and GFZ solutions
   TYPE: CENTROID or ORIGIN  (reflecting XYZ location)
   scale: multiplication factor on the default seismicity scale ${SEISSCALE}
 
-Example: Plot focal mechanisms around New Zealand
-  tectoplot -r NZ -c -a
+Example: Plot focal mechanisms
+tectoplot -c -a -o example_c
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2195,8 +2250,8 @@ fi
   -ca) #  [nts] [tpn] plot selected P/T/N axes for selected EQ types
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ca:           plot CMT kinematic axes (tpn) for different types (nts)
--ca [[axesstring=${CMTAXESSTRING}]] [[cmttypestring=${CMTAXESTYPESTRING}]] [[color Tcolor Pcolor Ncolor]]
+-ca:           plot CMT kinematic axes of focal mechanisms
+Usage: -ca [[axesstring=${CMTAXESSTRING}]] [[cmttypestring=${CMTAXESTYPESTRING}]] [[color Tcolor Pcolor Ncolor]]
 
   Plots principal axes
   axesstring characters: t = T axis (tensional)     color = ${T_AXIS_COLOR}
@@ -2207,8 +2262,9 @@ cat <<-EOF
   If axesstring and cmttypestring are BOTH not specified, then colors
   can still be specified.
 
-Example: Plot P axes for thrust-type focal mechanisms around New Zealand
-  tectoplot -r NZ -ca t t -a
+Example: Plot P axes for thrust-type focal mechanisms
+tectoplot -a -ca t t -o example_ca
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2255,19 +2311,19 @@ fi
     [[ "${CMTAXESSTRING}" =~ .*t.* ]] && axestflag=1
     [[ "${CMTAXESSTRING}" =~ .*n.* ]] && axesnflag=1
     plots+=("caxes")
-
-
     ;;
 
   -cc) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cc:           connect focal mechanisms to alternate location (centroid/origin)
--cc
+-cc:           connect focal mechanisms to alternate location
+USage: -cc
   Plots a line connecting focal mechanism to a dot at the alternate location,
   on both map and cross section plots.
+
 Example: Show shift of CENTROID and ORIGIN locations near New Zealand
-  tectoplot -r NZ -c -cc -a
+tectoplot -r NZ -c -cc -a -o example_cc
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2326,12 +2382,11 @@ fi
 
 # Filter focal mechanisms by various criteria
 # maxdip: at least one nodal plane dip is lower than this value
-
   -cfilter)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cfilter:      filter CMT by nodal plane dip or rake range
--cfilter [command1] [arg1] [[command2]] [[arg2]] ...
+Usage: -cfilter [command1] [arg1] [[command2]] [[arg2]] ...
 
 The criteria are evaluated separately, and an event is rejected only
 if neither nodal plane meets each criterion. rakerange takes two
@@ -2345,8 +2400,9 @@ commands (all arguments are in degrees)
   minstrike [strike)]
   rakerange [minrake] [maxrake]
 
-Example: Plot CMT data with a nodal plane with a rake between 160 and 130, New Zealand
-  tectoplot -r NZ -a -c -cfilter rakerange 130 160
+Example: Plot CMT data having a nodal plane with rake between 160 and 130
+tectoplot -a -c -cfilter rakerange 130 160 -o example_cfilter
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2426,13 +2482,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -clipdem:      save clipped dem file as dem.nc
--clipdem
+Usage: -clipdem
 
   This process is done for virtually all plots anyway.
 
-Example: Clip a DEM to the AOI of Albania
-  tectoplot -r AL -clipdem
-  gmt grdinfo tempfiles_to_delete/topo/dem.nc
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2459,10 +2512,8 @@ fi
   -clipon|-clipout)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--clipon:       activate clipping polygon (inside)
--clipout:      activate clipping polygon (outside)
--clipon [ polygonFile or regionID ]
--clipout [ polygonFile or regionID ]
+-clipon:       activate clipping polygon, inside
+Usage: -clipon [ polygonFile or regionID ]
 
   Turn on PS clipping to mask areas that are subsequently plotted into.
 
@@ -2472,7 +2523,18 @@ cat <<-EOF
   -clipoff is necessary to release clipping before closing the PS file.
 
 Example: Use -clipon, -clipout, -clipoff to make a composite map of New Zealand
-  tectoplot -r NZ -clipon NZ -t -clipoff -clipout NZ -v BG 0 rescale -clipoff -clipline
+tectoplot -r NZ -clipon NZ -t -clipoff -clipout NZ -v BG 0 rescale -clipoff -clipline -o example_clipon
+ExampleEnd
+--------------------------------------------------------------------------------
+-clipout:      activate clipping polygon, outside
+Usage: -clipout [ polygonFile or regionID ]
+
+  Turn on PS clipping to mask areas that are subsequently plotted into.
+
+  polygonFile is a potentially multisegment (> dividing lines) LON LAT file.
+  regionID is any GMT region recognized by pscoast (e.g. =NA ; FR,ES ; etc.)
+
+Related: -clipon -clipline -clipoff
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2520,11 +2582,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -clipoff:      deactivate clipping polygon
+Usage: -clipoff
 
   Turn off all PS clipping.
 
-Example: Use -clipon, -clipout, -clipoff to make a composite map of New Zealand
-  tectoplot -r NZ -clipon NZ -t -clipoff -clipout NZ -v BG 0 rescale -clipoff -clipline
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2536,12 +2597,10 @@ fi
   -clipline)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--clipoff:      deactivate clipping polygon
+-clipline:      plot line along clipping polygon boundary
 
   Plot previously defined clipping polygon as a line.
 
-Example: Use -clipon, -clipout, -clipoff to make a composite map of New Zealand
-  tectoplot -r NZ -clipon NZ -t -clipoff -clipout NZ -v BG 0 rescale -clipoff -clipline
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2554,12 +2613,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cmag:         set magnitude range for focal mechanisms
--cmag [minmag] [[maxmag]]
+Usage: -cmag [minmag] [[maxmag]]
 
-  Set magnitude range of focal mechanisms.
+  Select focal mechanisms between specified magnitudes.
 
 Example: Plot a map of focal mechanisms in Albania between M5 and M6
-  tectoplot -r AL -t -c -cmag 5 6
+tectoplot -r AL -t -c -cmag 5 6 -o example_cmag
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2579,58 +2639,17 @@ fi
     cmagflag=1
     ;;
 
-#   -cn|--contour)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -cn:           plot contours of a grid
-# -cn [gridfile] [[ { GMT GRID COMMANDS } ]]
-#
-#   Contour a grid using GMT format options
-#
-# Example:
-#    None yet
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     if arg_is_flag $2; then
-#       info_msg "[-cn]: Grid file not specified"
-#     else
-#       CONTOURGRID=$(abs_path $2)
-#       shift
-#       if arg_is_flag $2; then
-#         info_msg "[-cn]: Contour interval not specified. Calculating automatically from Z range using $CONTOURNUMDEF contours"
-#         gridcontourcalcflag=1
-#       else
-#         CONTOURINTGRID="${2}"
-#         shift
-#       fi
-#     fi
-#     if [[ ${2:0:1} == [{] ]]; then
-#       info_msg "[-cn]: GMT argument string detected"
-#       shift
-#       while : ; do
-#           [[ ${2:0:1} != [}] ]] || break
-#           gridvars+=("${2}")
-#           shift
-#       done
-#       shift
-#       CONTOURGRIDVARS="${gridvars[@]}"
-#     fi
-#     info_msg "[-cn]: Custom GMT grid contour commands: ${CONTOURGRIDVARS[@]}"
-#     plots+=("gridcontour")
-#     ;;
-
   -command)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -command:      print the complete tectoplot command on the map
--command
+Usage: -command
 
   If -author is specified, justify lower right. If not, lower left.
 
 Example:
-   tectoplot -r AL -a -command
+tectoplot -a -command -o example_command
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2638,42 +2657,12 @@ fi
     printcommandflag=1
     ;;
 
-#   -countries)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -countries:    print randomly colored country polygons
-# -countries [trans] [[cpt]]
-#   trans is percent in 0-100
-#   cpt is any GMT recognized CPT file
-#
-#   Currently, the colors change each time the plot is produced!
-#
-# Example:
-#    tectoplot -r =AF -countries 0 wysiwyg -a
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#
-#     if arg_is_positive_float $2; then
-#       COUNTRIES_TRANS="${2}"
-#       shift
-#     fi
-#     if ! arg_is_flag $2; then
-#       COUNTRIESCPT="${2}"
-#       shift
-#     fi
-#     plots+=("countries")
-#     ;;
-
   -cpts)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cpts:         remake tectoplot cpts
--cpts
+-cpts:         rebuilt internal tectoplot cpts
+Usage: -cpts
 
-Example:
-   tectoplot -cpts
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2681,15 +2670,18 @@ fi
     remakecptsflag=1
     ;;
 
-  -cr|-cmtrotate) # args: number number
+  -cr) # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cmtrotate:    rotate focal mechanisms based on back-azimuth to pole
--cmtrotate [pole lon] [pole lat] [reference azimuth]
-   This is a very specific routine that is likely to be removed.
+-cr:    rotate focal mechanisms based on back-azimuth to pole
+Usage: -cr [pole lon] [pole lat] [reference azimuth]
+
+   Rotate focal mechanisms by the back-azimuth to a lon/lay point, relative
+   to a reference azimuth.
 
 Example:
-   tectoplot -c -cmtrotate 120 20 90
+tectoplot -c -cr 120 20 90 -o example_cr
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2704,27 +2696,11 @@ fi
     shift
     ;;
 
-#   -cs) # args: none
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -cs:           plot cmt axes on stereonet
-# -cs
-#    Not currently working. Output file is stereo.pdf in temporary directory.
-#
-# Example:
-#    tectoplot -r PY -c -cs
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     caxesstereonetflag=1
-#     ;;
-
 -cslab2)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cslab2:       select thrust CMTs consistent with rupture of slab2.0 surface
--cslab2 [[distance]] [[strike_diff]] [[dip_diff]]
+Usage: -cslab2 [[distance]] [[strike_diff]] [[dip_diff]]
 
   From CMT catalog, for already selected thrust mechanisms, retain only those
   within a specified vertical distance from slab2, and with at least one nodal
@@ -2733,8 +2709,9 @@ cat <<-EOF
   distance is in km
   strike_diff and dip_diff are in degrees
 
-
-Example: None
+Example:
+tectoplot -b -z -c -cslab2 -o example_cslab2
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2760,12 +2737,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cunfold:      back-rotate focal mechanisms based on slab2 strike and dip
+Usage: -cunfold
 
   Rotate focal mechanisms around a horizontal axis parallel to local slab strike
   by an angle equal to slab dip. This is an approximate correction to restore
   subducted faults to their pre-subduction orientation.
 
-Example: None
+Example:
+tectoplot -b -c -cdeep -cunfold -o example_cunfold
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2777,14 +2757,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cdeep:        select focal mechanisms in lower plate below slab2 model
--cdeep [[buffer_distance=${CMTSLAB2VERT}]]
+Usage: -cdeep [[buffer_distance=${CMTSLAB2VERT}]]
 
   Buffer distance shifts the Slab2 model down (negative) or up (positive) [km]
   For this option only, buffer_distance also applies to Earth's surface so
   buffer_distance=-30 will select only regional events (not below Slab2 model)
   below depths of 30 km.
 
-Example: None
+Example:
+tectoplot -b -c -cdeep -o example_cdeep
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2800,11 +2782,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cshallow:     select focal mechanisms in upper plate above slab2 model
--cshallow [[buffer_distance=${CMTSLAB2VERT}]]
+Usage: -cshallow [[buffer_distance=${CMTSLAB2VERT}]]
 
   Buffer distance shifts the Slab2 model down (negative) or up (positive) [km]
 
-Example: None
+Example:
+tectoplot -b -c -cshallow -o example_cshallow
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2816,17 +2800,18 @@ fi
   fi
   ;;
 
-  -ct|--cmttype) # args: string
+  -ct) # args: string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ct:           choose focal mechanism classes (thrust, normal, strike-slip)
--ct [optstring]
+-ct:           choose focal mechanism classes
+Usage: -ct [optstring]
    n: Select normal mechanisms
    t: Select thrust mechanisms
    s: Select strike-slip mechanisms
 
-Example: Plot strike-slip focal mechanisms in Tajikistan
-   tectoplot -r TJ -c -ct s
+Example: Plot strike-slip focal mechanisms
+tectoplot -c -ct s -o example_ct
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2849,10 +2834,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cw:           plot white compressive quadrants for focal mechanisms
--cw
+Usage: -cw
 
-Example: Plot focal mechanisms in Idaho, USA
-    tectoplot -t -r US.ID -c -cw
+Example: Plot focal mechanisms with white compressive quadrants
+tectoplot -c -cw -o example_cw
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2863,21 +2849,17 @@ fi
     CMT_SSCOLOR="gray100"
     ;;
 
-  -e|--execute) # args: file
+  -e) # args: file
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -e:            execute custom script
--e [script.sh]
+Usage: -e [script.sh]
 
   Execute a script via bash sourcing (. script.sh). The script will run in the
   current tectoplot environment and will have access to its variables.
   Please be careful about running scripts in this fashion as there are no checks
   on whether the script is safe.
 
-Example:
-    echo "echo \"AOI: \${MINLON}/\${MAXLON}/\${MINLAT}/\${MAXLAT}\"" > script.sh
-    tectoplot -r BR -t 10m -e ./script.sh -a
-    rm -f ./script.sh
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2891,12 +2873,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eps:          overlay eps file when producing final pdf
--eps [filename.eps]
+Usage: -eps [filename.eps]
 
   Overlay an existing EPS file. This option currently doesn't work reliably.
 
-Example:
-    None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2910,7 +2890,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eqlabel:      label earthquake events using various criteria
--eqlabel [selectoptions] [formatoptions]
+Usage: -eqlabel [selectoptions] [formatoptions]
 
   [selectoptions] are: { list min_magnitude r }
     list:           label events with IDS from -eqlist
@@ -2930,8 +2910,9 @@ cat <<-EOF
   The direction of box offset is governed by the coordinate quadrant to ensure
   that labels don't extent off of the map area (as much as possible).
 
-Example: Label focal mechanisms of earthquakes in Peru larger than Mw=7
-    tectoplot -r PE -c -a -eqlabel 7 mag
+Example: Label focal mechanisms of earthquakes larger than Mw=7
+tectoplot -a -c -eqlabel 7 mag -o example_eqlabel
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2971,12 +2952,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eqlist:       select earthquake events by id code
--eqlist  [filename] { eqID1 eqID2 ... }
+Usage: -eqlist  [filename] { eqID1 eqID2 ... }
 
   Populate a list from a file of earthquake IDs and/or a bracketed list.
   Use with -eqlabel and -eqselect.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3019,12 +2999,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eqselect:     only plot earthquake events from -eqlist {...} list
--eqselect
+Usage: -eqselect
 
   Use this option to select earthquakes using a list.
 
 Example:
-  tectoplot -r TW -t -c -eqlist { C092099D C061000J } -eqselect -eqlabel 1
+tectoplot -a -c -eqlist { C201701220430A M081695P } -eqselect -eqlabel list -o example_eqselect
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3032,17 +3013,18 @@ fi
     eqlistselectflag=1;
     ;;
 
-	-f|--refpt)   # args: number number
+	-f)   # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -f:            specify reference point for plate motion models
--f [lon] [lat]
+Usage: -f [lon] [lat]
 
   The stationary plate will be set to the one containing the reference point.
   A circled triangle will be plotted at the reference point.
 
 Example: Plate motions around Puerto Rico and Cuba, Puerto Rico fixed
-  tectoplot -r PR,CU -t -p MORVEL -pe -pf 100 -f -74 19
+tectoplot -r PR,CU -t -p MORVEL -pe -pf 100 -pa -f -74 19 -o example_f
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3060,13 +3042,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -fe:           plot Flinn-Engdahl geographic or seismic regions
--fe [[seismic]]
+Usage: -fe [[seismic]]
 
   By default, plots and labels Flinn-Engdahl regions
 
   seismic: plot seismic regions instead of geographic regions
 
-Example: None
+Example:
+tectoplot -a -r =AF -fe seismic -o example_fe
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3083,117 +3067,16 @@ fi
   plots+=("flinn-engdahl")
     ;;
 
-#   # Plot tectonic fabrics
-#   -tf)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -tf:           plot tectonic fabrics
-# -tf [code1] [[code2]] ...
-#
-#   codes
-#   all: Plot all codes except cp
-#
-#   cp: continental polygons (Matthews et al., 2016; via Gplates2.2.0)
-#   dz: discordant zones (EarthByte)
-#   fz: fracture zones (EarthByte)
-#   pf: pseudo faults (EarthByte)
-#   pr: propagating ridges (EarthByte)
-#   sr: spreading ridges (active and extinct) (Muller et al., 2016; via Gplates2.2.0)
-#   va: v-anomalies, classified and unclassified (EarthByte)
-#   vp: volcanic provinces (Johansson et al., 2018; via Gplates2.2.0)
-#
-# Example: None
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#
-#   unset tectonic_fabrics
-#   if [[ "${2}" == "all" ]]; then
-#     tectonic_fabrics+=("vp")
-#     tectonic_fabrics+=("dz")
-#     tectonic_fabrics+=("fz")
-#     tectonic_fabrics+=("pf")
-#     tectonic_fabrics+=("pr")
-#     tectonic_fabrics+=("sr")
-#     tectonic_fabrics+=("va")
-#     cpts+=("geoage")
-#     plots+=("geoage")  # Fake
-#
-#     echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#     echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#     echo $TECTFABRICS_SR_SOURCESTRING >> ${LONGSOURCES}
-#     echo $TECTFABRICS_SR_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#     echo $TECTFABRICS_VP_SOURCESTRING >> ${LONGSOURCES}
-#     echo $TECTFABRICS_VP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#     shift
-#   else
-#     while ! arg_is_flag "${2}"; do
-#         case "${2}" in
-#           cp)
-#             tectonic_fabrics+=("cp")
-#             echo $TECTFABRICS_CP_SOURCESTRING >> ${LONGSOURCES}
-#             echo $TECTFABRICS_CP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#             cpts+=("plateid")
-#           ;;
-#           dz)
-#             tectonic_fabrics+=("dz")
-#             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#           ;;
-#           fz)
-#             tectonic_fabrics+=("fz")
-#             # plots+=("fracturezones")
-#             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#           ;;
-#           pf)
-#             tectonic_fabrics+=("pf")
-#             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#           ;;
-#           pr)
-#             tectonic_fabrics+=("pr")
-#             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#           ;;
-#           sr)
-#             tectonic_fabrics+=("sr")
-#             echo $TECTFABRICS_SR_SOURCESTRING >> ${LONGSOURCES}
-#             echo $TECTFABRICS_SR_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#             # plots+=("spreadingridges")
-#           ;;
-#           va)
-#             tectonic_fabrics+=("va")
-#             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
-#             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#           ;;
-#           vp)
-#             tectonic_fabrics+=("vp")
-#             # plots+=("volcanicprovinces")
-#             echo $TECTFABRICS_VP_SOURCESTRING >> ${LONGSOURCES}
-#             echo $TECTFABRICS_VP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#             makegeoageflag=1
-#           ;;
-#         esac
-#     shift
-#     done
-#   fi
-#   if [[ $makegeoageflag -eq 1 ]]; then
-#     cpts+=("geoage")
-#     plots+=("geoage")  # Fake
-#   fi
-#   plots+=("tectonic_fabrics")
-#   ;;
-
   -gg)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gg:         interpolate GPS velocities using GMT gpsgridder
--gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[option ...]]
+Usage: -gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[option ...]]
 
   resolution requires unit (e.g. 2m for 2 minute)
   poisson is Poisson's ratio for the elastic Greens functions (0-1)
+
+  arrows are black if >1 GPS in cell, gray if 1 in cell, white if none
 
   flags:
     residuals  =  plot GPS residuals
@@ -3207,7 +3090,9 @@ cat <<-EOF
   Requires -g option
   Duplicated GPS site locations will be culled, retaining first site.
 
-Example: None
+Example:
+tectoplot -r 30 40 30 42 -a -g EU -gg 0.1d 0.5 subsample 10 -i 4 -o example_gg
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3263,7 +3148,6 @@ fi
         GG_PLOT_CROSS=1
         shift
         ;;
-
       *)
         echo "[-gg]: Flag $2 not recognized"
         exit 1
@@ -3278,7 +3162,7 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pagegrid:     plot gps velocities from builtin catalog
--pagegrid [[unit=${PAGE_GRID_UNIT}]]
+Usage: -pagegrid [[unit=${PAGE_GRID_UNIT}]]
 
   Plot an inch- or cm-spaced grid around the map document
 
@@ -3287,7 +3171,8 @@ cat <<-EOF
     c    centimeters
 
 Example: Plot a page grid
-  tectoplot -t -pagegrid c
+tectoplot -a -pagegrid c -o example_pagegrid
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3301,11 +3186,11 @@ fi
     plots+=("pagegrid")
   ;;
 
-	-g|--gps) # args: none || string
+	-g) # args: none || string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -g:            plot gps velocities from builtin catalog
--g [[refplate]] [[options ...]]
+Usage: -g [[refplate]] [[options ...]]
 
   GPS velocities exist for all plates in Kreemer et al., 2014 supplementary
   database. If -p is used, -g will assume the same plate ID as -p unless it is
@@ -3313,11 +3198,13 @@ cat <<-EOF
 
   noplot            : prevent plotting of the GPS velocities.
   minsig [[value]]  : set minimum uncertainty of GPS velocity
+  color             : set the fill color
 
   Velocity vector lengths can be scaled using -i.
 
 Example: Plate motions and GPS velocities around Puerto Rico and Cuba (plate na)
-  tectoplot -r PR,CU -t -p MORVEL -pe -pl -pf 100 -g
+tectoplot -r PR,CU -t -p MORVEL -pe -pl -pf 100 -g -o example_g
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3352,9 +3239,13 @@ fi
             GPS_MINSIG=0.6
           fi
         ;;
+        color)
+          shift
+          GPS_FILLCOLOR=${2}
+          shift
+        ;;
       esac
     done
-
 
 		plots+=("gps")
 		;;
@@ -3363,7 +3254,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gadd:         plot custom gps velocity file in gmt psvelo format
--gadd [velocityFile] [[color colorID=$EXTRAGPS_FILLCOLOR]] [[merge]]
+Usage: -gadd [velocityFile] [[color colorID=$EXTRAGPS_FILLCOLOR]] [[merge]]
 
   GPS velocities are plotted with filled arrows. The reference frame
   is assumed to be correct for the given map.
@@ -3378,15 +3269,14 @@ cat <<-EOF
   lon lat VE VN SVE SVN XYCOR SITEID INFO
 
 Example: Plot a hypothetical plate velocity in Turkey
-  echo "39 39 -45 45 1 1 0.1 KEB Fake-GPS" > gps.dat
-  tectoplot -r TR -t -p MORVEL -pe -pl -pf 100 -g eu -gadd gps.dat
-  rm -f gps.dat
+echo "39 39 -45 45 1 1 0.1 KEB Fake-GPS" > tectoplot_gps.dat
+tectoplot -r TR -t -p MORVEL -pe -pl -pf 100 -g eu -gadd tectoplot_gps.dat -o example_gadd
+rm -f tectoplot_gps.dat
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-
-
 
     # Required arguments
     usergpsfilenumber=$(echo "$usergpsfilenumber + 1" | bc -l)
@@ -3431,26 +3321,34 @@ fi
     done
 
     plots+=("extragps")
-
     ;;
 
 -fixcpt)
-replace_gmt_colornames_rgb $2
-exit
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-fixcpt:     fix a CPT file and print to stdout, then exit
+-fixcpt [cptfile]
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  replace_gmt_colornames_rgb $2
+  exit
 ;;
 
   -gebcotid)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--gebcotid:     plot gebco20 tid raster (data source id)
--gebcotid
+-gebcotid:     plot GEBCO tid raster
+Usage: -gebcotid
 
-  GEBCO20 includes both observed and interpolated data. The TID map indicates
+  GEBCO includes both observed and interpolated data. The TID map indicates
   which type of data populates each raster cell.
 
   Progress needs to be made to create an effective legend for this option.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3463,7 +3361,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -geotiff:      create a georeferenced rgb geotiff from the map document
--geotiff [[resolution]]
+Usage: -geotiff [[resolution]]
 
     This option will reset the map projection and region to the Cartesian
     projection required for export to GeoTIFF using gmt psconvert.
@@ -3471,7 +3369,7 @@ cat <<-EOF
     The output file is saved with the same name as the output PDF, but as .tif
 
     resolution: the resolution (in dpi) of the output GeoTIFF file.
-Example: None
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3490,17 +3388,14 @@ fi
       GEOTIFFRES="${2}"
       shift
     fi
-
     ;;
 
   -gls)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--gls:          list all gps reference frames (plates)
--gls
+-gls:          list all gps reference frames
+Usage: -gls
 
-Example:
-  tectoplot -gls
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3514,12 +3409,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gmtvars:      set internal gmt variables
--gmtvars { PARAMETER1 value1 PARAMETER2 val2 ... }
+Usage: -gmtvars { PARAMETER1 value1 PARAMETER2 val2 ... }
 
   Changes the state of a GMT variable (e.g. MAP_FRAME_PEN) using gmtset
 
 Example:
-  tectoplot -gmtvars { MAP_ANNOT_OFFSET_PRIMARY 4p MAP_FRAME_TYPE fancy } -r BR -a
+tectoplot -gmtvars { MAP_ANNOT_OFFSET_PRIMARY 4p MAP_FRAME_TYPE fancy } -a -o example_gmtvars
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3539,21 +3435,11 @@ fi
     info_msg "[-gmtvars]: Custom GMT variables: ${GMVARS[@]}"
     ;;
 
-  # -ebiso) # Seafloor isochrons
-  #   plots+=("ebiso")
-  #   cpts+=("geoage")
-  #   ;;
-  #
-  # -ebhot) # Seafloor isochrons
-  #   plots+=("ebhot")
-  #   cpts+=("geoage")
-  #   ;;
-
   -gridlabels) # args: string (quoted)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gridlabels:   specify how map axes are presented and labeled
--gridlabels [optstring]
+Usage: -gridlabels [optstring]
 
   This option is used to set map axis labeling. Lower case
   letters indicate no labelling, upper case letters indicate labeling.
@@ -3564,7 +3450,8 @@ cat <<-EOF
 
 
 Example:
-  tectoplot -r CR -gridlabels EWns -a
+tectoplot -r CR -gridlabels EWns -a -o example_gridlabels
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3577,14 +3464,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gres:         specify dpi of most grid plotting options
--gres [dpi]
+Usage: -gres [dpi]
 
   GMT plots grids at their native resolution, creating very large files in some
   cases. Use this option to set the dpi of plotted grids. Resampling is done at
   the plotting step.
 
-Example:
-  tectoplot -r CR -t -gres 30
+  Note: Doesn't affect many grids currently!
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3600,16 +3487,17 @@ fi
     shift
     ;;
 
-  -i|--vecscale) # args: number
+  -i) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -i:            rescale velocity vectors
--i [factor]
+Usage: -i [factor]
 
   Rescale GPS, plate motion, and other velocity vectors by the given factor.
 
 Example:
-  tectoplot -r CR -g -i 3 -a
+tectoplot -a -g PA -i 3 -a -arrow wider -o example_i
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3619,49 +3507,18 @@ fi
     shift
     ;;
 
-#   -im|--image) # args: file { arguments }
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -im:           plot a referenced RGB grid file (e.g. GeoTiff)
-# -im [filename] { GMT OPTIONS }
-#
-#   gmt options (to psimage) might include { -t50 }
-#
-# Example: None
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     IMAGENAME=$(abs_path $2)
-#     shift
-#     # Args come in the form $ { -t50 -cX.cpt }
-#     if [[ ${2:0:1} == [{] ]]; then
-#       info_msg "[-im]: image argument string detected"
-#       shift
-#       while : ; do
-#           [[ ${2:0:1} != [}] ]] || break
-#           imageargs+=("${2}")
-#           shift
-#       done
-#       shift
-#       info_msg "[-im]: Found image args ${imageargs[@]}"
-#       IMAGEARGS="${imageargs[@]}"
-#     fi
-#     plotimageflag=1
-#     plots+=("image")
-#     ;;
-
   -inset)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -inset:        place an inset globe showing map aoi
--inset [[size=${INSET_SIZE}]] [[degree_width=${INSET_DEGREE}]] [[x_shift=${INSET_XOFF}]] [[y_shift=${INSET_YOFF}]]
+Usage: -inset [[size=${INSET_SIZE}]] [[degree_width=${INSET_DEGREE}]] [[x_shift=${INSET_XOFF}]] [[y_shift=${INSET_YOFF}]]
 
   Plot an inset globe. Default location is lower left of map; can be modified
   with x_shift and y_shift values.
 
-Example: Plot a map of Panama with a strategically placed location inset
-  tectoplot -r PA -a -inset 1i 30 4i 0.15i
+Example:
+tectoplot -a -inset 2i 30 5.5i 5.5i -o example_inset
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3697,13 +3554,11 @@ fi
   -keepopenps) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--keepopens:    keep ps file open for subsequent plotting
--keepopenps
+-keepopenps:    keep ps file open for subsequent plotting
+Usage: -keepopenps
 
   Allow subsequent plotting and don't attempt to convert unclosed PS to PDF.
 
-Example: Keep a PS file open
-  tectoplot -r PA -a -keepopenps
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3716,15 +3571,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kg:           plot strike and dip symbols for focal mechanism nodal planes
--kg
+Usage: -kg
 
   Currently only works for thrust type focal mechanisms. [TO UPDATE]
 
   The N1 nodal plan has the lower dip value; N2 has a higher dip. The N1/N2
   planes can be selected using the option -kl.
 
-Example: Plot strike and dip of both nodal planes for thrust CMTs in California
-  tectoplot -r US.CA -kg -a
+Example:
+tectoplot -a -kg -kl 1 -o example_kg
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3740,15 +3596,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kl:           select nodal planes 1 or 2
--kl [number]
+Usage: -kl [number]
 
   The N1 nodal plan has the lower dip value; N2 has a higher dip.
   1: Use only the N1 nodal planes
   2: Use only the N2 nodal planes
   3: Use both N1 and N2 nodal planes (Default)
 
-Example: Plot strike/dip of shallowest dipping nodal planes for CMTs in Tonga
-  tectoplot -r TO -kg -kl 1 -a
+Example:
+tectoplot -kg -kl 2 -a -o example_kl
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3769,9 +3626,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -km:           set magnitude range of cmt kinematics events
--km [minmag] [maxmag]
+Usage: -km [minmag] [maxmag]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3786,12 +3642,13 @@ fi
   -kml)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--kml:          output kml file of borderless map for google earth
--kml [[kmlres=${KMLRES}]]
-  File is output to map.kml in the temporary directory.
+-kml:          output kml file of map for google earth
+Usage: -kml [[kmlres=${KMLRES}]]
 
-Example: KML of Great Britain topography
-  tectoplot -r GB -t -kml
+  Use -noframe to exclude frame and ensure correct geolocation
+
+  File is output to map/doc.kml in the temporary directory.
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3824,13 +3681,14 @@ fi
 	-ks|--kinscale)  # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ks:           set the scale of kinematic objects (strike/dip, slip vectors)
--ks [scale=${KINSCALE}]
+-ks:           set the scale of kinematic objects
+Usage: -ks [scale=${KINSCALE}]
 
   Scale units are currently in default map units (cm???)
 
-Example: Make a strike/dip plot of nodal planes with large symbols
-  tectoplot -r CR -t -kg -ks 0.25
+Example:
+tectoplot -a -kg -ks 0.25 -kl 1 -o example_ks
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3845,7 +3703,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kt:           select focal mechanism kinematic data based on earthquake type
--kt [typestring]
+Usage: -kt [typestring]
 
   Mechanisms are classified by N-T-P axes plunges.
 
@@ -3854,8 +3712,9 @@ cat <<-EOF
   t: Select thrust type mechanisms
   s: Select strike-slip type mechanisms
 
-Example: Plot slip vectors of slip on nodal plane 2, for normal events in Greece
-  tectoplot -r GR -t -kv -kt n -kl 2
+Example:
+tectoplot -a -kv -kt n -kl 2 -o example_kt
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3878,15 +3737,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kv:           plot focal mechanism slip vectors
--kv [typestring]
+Usage: -kv [typestring]
 
   The slip vector of a nodal plane is oriented 90° from the strike of the other
   nodal plane, and represents the horizontal component of motion. It is directly
   related to rake, but is a directional azimuth. Each focal mechanism has two
   slip vectors, only one of which represents the actual earthquake slip.
 
-Example: Plot slip vectors of slip on nodal plane 2, for thrust events in Greece
-  tectoplot -r GR -t -kv -kt t -kl 1
+Example:
+tectoplot -t -kv -kt t -kl 1 -o example_kv
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3901,7 +3761,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -legend:       plot a map legend above the main map area
--legend [width_in=${LEGEND_WIDTH}] [[onmap]] [[notext]]
+Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap]] [[notext]]
 
   Plots colorbars and various map elements depending on what has been plotted on
   the map. Also printes the short data source tags of included data.
@@ -3909,8 +3769,10 @@ cat <<-EOF
   onmap: Place the legend above the map
 
 
-Example: Plot a map of Kosovo with large cities and CMT, with a basic legend
-   tectoplot -r XK -t -pp -ppl 100000 -c -legend -g
+Example:
+tectoplot -t -g -pp -ppl 100000 -vc -c -legend
+cp tempfiles_to_delete/maplegend.pdf ./example_legend.pdf
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3941,12 +3803,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -litho1:       plot litho1 3d data on cross section
--litho1 [type]
+Usage: -litho1 [type]
 
   [type]: "density" | "Vp" | "Vs"
 
-Example: Plot litho1 cross section across the Red Sea
-   tectoplot -r 31.8 42.8 20 24 -t -aprof CW 10k 1k -litho1 density
+Example: Plot litho1 cross section
+tectoplot -t -aprof CW 10k 1k -litho1 density -profdepth -100 0 -o example_litho1
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3972,11 +3835,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -litho1_depth: plot a depth slice of litho1
--litho1_depth [type=${LITHO1_TYPE}] [depth=${LITHO1_DEPTH}]
+Usage: -litho1_depth [type=${LITHO1_TYPE}] [depth=${LITHO1_DEPTH}]
 
   Plots a colored depth slice across LITHO1. Not really tested at all.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4007,9 +3869,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -megadebug:    turn on set -x option in bash to see EVERYTHING
--megadebug
+Usage: -megadebug
 
-Example: None
+  Prints all processes and script commands with line and time stamps.
+
+  To save an exhaustive log to the file out.txt:
+    tectoplot [options] -megadebug > out.txt 2>&1
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4021,7 +3887,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -mob:          create oblique perspective diagrams of all profiles
--mob [[az=${PERSPECTIVE_AZ}]] [[inc=${PERSPECTIVE_INC}]] [[exag=${PERSPECTIVE_EXAG}]] [[res=${PERSPECTIVE_RES}]]
+Usage: -mob [[az=${PERSPECTIVE_AZ}]] [[inc=${PERSPECTIVE_INC}]] [[exag=${PERSPECTIVE_EXAG}]] [[res=${PERSPECTIVE_RES}]]
 
   Outputs: Profile PDFS are stored in ${TMP}/profiles/*.pdf
 
@@ -4029,7 +3895,8 @@ cat <<-EOF
   of the flat profiles.
 
 Example: Make oblique perspective cross section the Eastern Mediterranean
-  tectoplot -r 21 37 23 39 -t -aprof LT 10k 1k -litho1 Vp -mob -profdepth -30 5
+tectoplot -r 21 37 23 39 -t -aprof LT 10k 1k -litho1 Vp -mob -profdepth -30 5 -o example_mob
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4079,11 +3946,11 @@ fi
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profsize:     Change default size of profiles
--profsize [x_size] [[y_size]]
+Usage: -profsize [x_size] [[y_size]]
 
   x_size and y_size must have unit letter (e.g. 2i)
 
-Example: none
+--------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
@@ -4100,20 +3967,19 @@ fi
     PROFILE_HEIGHT_IN=$2
     shift
   fi
-
   ;;
 
   -kprof)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kprof:        Plot profiles using multiple XY lines extracted from a KML file
--kprof [kmlfile] [width] [resolution]
+Usage: -kprof [kmlfile] [width] [resolution]
 
   Formats accepted:
   Google Earth KML
   ESRI Shapefile (polyline)
 
-
+--------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
@@ -4143,14 +4009,13 @@ fi
   fi
 
   kprofflag=1
-
   ;;
 
   -profras)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profras:     Choose an alternative raster to sample using profile tools
--profras [file] [[z_mult]]
+Usage: -profras [file] [[z_mult]]
 
   This will replace the top tile raster and swath sampling raster for
   -sprof, -kprof, -cprof, etc tools with the specified raster. This
@@ -4158,8 +4023,7 @@ cat <<-EOF
   high-resolution topography over a large area while plotting lower
   resolution topography on the basemap.
 
-
-
+--------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
@@ -4197,7 +4061,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -mprof:        create profiles using a speficied profile control file
--mprof [filename] [[width=${PROFILE_WIDTH_IN}]] [[height=${PROFILE_HEIGHT_IN}]] [[X=${PROFILE_X}]] [[Y=${PROFILE_Y}]]
+Usage: -mprof [filename] [[width=${PROFILE_WIDTH_IN}]] [[height=${PROFILE_HEIGHT_IN}]] [[X=${PROFILE_X}]] [[Y=${PROFILE_Y}]]
 
   Outputs: Profiles are plotted on map and stored in temp/profiles/ directory
 
@@ -4234,13 +4098,13 @@ B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
 # XOFFSET/ZOFFSET can be a value, 0 (allow shifting), or null (0 and don't shift)
 P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
 
-
 Example: Make oblique perspective cross section the Eastern Mediterranean
-  printf "@ auto auto -30 5 null\n" > ./profile.control
-  printf "S topo/dem.nc 0.001 1k 10k 1k\n" >> ./profile.control
-  printf "G topo/dem.nc 0.001 1k 10k 1k cpts/topo.cpt\n" >> ./profile.control
-  printf "P P_LT black 0 N 29 27.8 32.2 37.4\n" >> ./profile.control
-  tectoplot -r 21 37 23 39 -t -mprof profile.control -litho1 Vp -mob -profdepth -30 5
+printf "@ auto auto -30 5 null\n" > ./profile.control
+printf "S topo/dem.nc 0.001 1k 10k 1k\n" >> ./profile.control
+printf "G topo/dem.nc 0.001 1k 10k 1k cpts/topo.cpt\n" >> ./profile.control
+printf "P P_LT black 0 N 29 27.8 32.2 37.4\n" >> ./profile.control
+tectoplot -r 21 37 23 39 -t -mprof profile.control -litho1 Vp -mob -profdepth -30 5 -o example_mprof
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4278,11 +4142,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profauto:     allow auto adjust of profile depth but without violating min/max
--profauto [mindepth] [maxdepth]
+Usage: -profauto [mindepth] [maxdepth]
 
   Depths are negative into the Earth, in km, no unit [-30] [5]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4297,12 +4160,11 @@ fi
 -profdepth)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--profdepth:    set default depth range for profiles (can be overridden by auto)
--profdepth [maxdepth] [mindepth]
+-profdepth:    set default depth range for profiles
+Usage: -profdepth [maxdepth] [mindepth]
 
   Depths are negative into the Earth and require a unit [-30] [5]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4318,14 +4180,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -msd:          use signed distance for dem generation for multipoint profiles
--msd
+Usage: -msd
 
   Kinked profiles will have large zones of no data or data overlap. This option
   uses a 'signed distance' type formulation that measures the distance to the
   closest point on the profile, and the distance along the profile of that
   closest point, to generate X-Y coordinates of swath grid data.
 
-Example: None yet
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4338,13 +4199,12 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -msl:          use only left half of swath domain for perspective diagrams
--msl
+Usage: -msl
 
   Swath profiles project data from both sides of a volume. This option will
   display only one half of the volume in a perspective diagram so that the
   projected data fall directly beneath the profile line.
 
-Example: None yet
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4357,11 +4217,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -nocleanup:    keep all intermediate files
--nocleanup
+Usage: -nocleanup
 
   tectoplot usually deletes various intermediate files; this option keep them.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4373,9 +4232,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -noplot:       do not plot anything - exit after initial data management
--noplot
+Usage: -noplot
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4383,15 +4241,14 @@ fi
     noplotflag=1
     ;;
 
-	-o|--out)
+	-o)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -o:            specify name of output pdf
--o [filename]
+Usage: -o [filename]
 
   Final PDF is saved as filename.pdf
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4411,15 +4268,13 @@ fi
         exit 1
       fi
     fi
-
-
 	  ;;
 
   -ob)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ob:           plot oblique perspective of topography
--ob [[azimuth=${OBLIQUEAZ}]] [[inclination=${OBLIQUEINC}]] [[vexag=${OBLIQUE_VEXAG}]] [[floorlevel=${OBBOXLEVEL}]] [[gridlabelstring=${OBBCOMMAND}]]
+Usage: -ob [[azimuth=${OBLIQUEAZ}]] [[inclination=${OBLIQUEINC}]] [[vexag=${OBLIQUE_VEXAG}]] [[floorlevel=${OBBOXLEVEL}]] [[gridlabelstring=${OBBCOMMAND}]]
 
   tectoplot always generates a script that can be used to plot an oblique view
   of the shaded relief (tempdir/make_oblique.sh)
@@ -4431,7 +4286,8 @@ cat <<-EOF
   gridlabelstring = plain | fancy
 
 Example:
-  tectoplot -r IT -t -ob 120 20 4 -20000 fancy
+tectoplot -r IT -t -ob 120 20 4 -20000 fancy -o example_ob
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4481,7 +4337,6 @@ fi
       fi
       shift
     fi
-
     ;;
 
 
@@ -4489,18 +4344,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -colorinfo:       print info about GMT and colorcet CPTs, GMT color names
--colorinfo
+Usage: -colorinfo
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
-    echo "-------------------------------"
+    echo ".------------------------------"
     echo "GMT builtin CPTs:"
     cat ${GMTCPTS} | column
-    echo "-------------------------------"
+    echo ".------------------------------"
     echo "Colorcet CPTs:"
     for cfile in ${CPTDIR}colorcet/*.cpt; do
 
@@ -4523,30 +4377,12 @@ fi
     exit 1
     ;;
 
-#   -open)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -open:         open main PDF at end (NO LONGER USED - LEGACY OPTION)
-# -open
-#
-#   Uses program specified in ${OPTDIR}/tectoplot.pdfviewer
-#
-# Example:
-#   tectoplot -r IN -oca -a
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     ;;
-
   -noopen)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -noopen:       don't open PDF at end of processing
--noopen
+Usage: -noopen
 
-Example:
-  tectoplot -r g -a -noopen
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4558,7 +4394,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -oto:          specify the horizontal=vertical scaling of all profiles
--oto [[method=${OTO_METHOD}]] [[vert_exag=${PROFILE_VERT_EX}]]
+Usage: -oto [[method=${OTO_METHOD}]] [[vert_exag=${PROFILE_VERT_EX}]]
 
   Options are
     change_h: Change the height of the profile on the page to make H=V*W
@@ -4566,7 +4402,6 @@ cat <<-EOF
     off:      Turn off any H=V*W scaling
     vert_exag (V) is the vertical exaggeration factor
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4586,11 +4421,11 @@ fi
     fi
     ;;
 
-	-p|--plate) # args: string
+	-p) # args: string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -p:            use plate motion model for plotting or calculations
--p [[model=${PLATEMODEL}]] [[reference plate ID=${DEFREF}]]
+Usage: -p [[model=${PLATEMODEL}]] [[reference plate ID=${DEFREF}]]
 
   Use a published plate motion model.
   Models that currently come with tectoplot are:
@@ -4599,7 +4434,8 @@ cat <<-EOF
     GBM
 
 Example:
-  tectoplot -r g -p MORVEL -pe -pf 1500
+tectoplot -r g -p MORVEL -pe -pf 1500 -pa -o example_p
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4698,9 +4534,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ppole:              plot Euler pole locations
--ppole [[Pole1]] [[Pole2]]
+Usage: -ppole [[Pole1]] [[Pole2]] [[...]]
 
-Example: None
+  Plotted poles are relative to reference plate set by -p
+  If no poles are specified, plot all poles.
+
+  Poles are colored and labeled by rotation rate.
+
+Example:
+tectoplot -r g -p MORVEL -pe -ppole -o example_ppole
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4718,9 +4561,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ppole:           print Euler pole of specified plate relative to reference plate
--ppole [PlateID1] [[PlateID2]] ...
+Usage: -ppole [PlateID1] [[PlateID2]] ...
 
-Examples:
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4738,16 +4580,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pc:           color plates
--pc [[random]] [[transparency]]
--pc [[ID1]] [[ColorID1]] [[TransID1]] [[ID2]] ...
+Usage: -pc [[random]] [[transparency]]
+Usage: -pc [[ID1]] [[ColorID1]] [[TransID1]] [[ID2]] ...
 
   Color plate polygons using two different schemes:
   random: color all plates randomly using specified transparency
   ID1... : color specified plates using specified colors and transparencies
 
-Examples:
-  tectoplot -r g -p MORVEL -pe -pf 1500 -pc random
-  tectoplot -r g -p MORVEL -pe -pf 1500 -pc sa blue 50 na red 50
+Example:
+tectoplot -r g -p MORVEL -pe -pf 1500 -pc random -o example_pc
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4784,17 +4626,26 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pa:           plot plate motion vectors at grid points
--pa
+Usage: -pa [[notext]]
 
   Requires -p to load a plate model
   Requires -px, -pf (evenually add -g -wg???) to create grid point locations.
 
+  notext  : do not plot plate velocity text
+
 Example:
-  tectoplot -r g -p MORVEL -pe -pf 1500 -pa
+tectoplot -r g -p MORVEL -pe -pf 1500 -pa -o example_pa
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
+
+  if [[ $2 == "notext" ]]; then
+    PLATEVEC_TEXT_PLOT=0
+    shift
+  fi
+
     plots+=("grid")
     ;;
 
@@ -4802,11 +4653,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ptj:         plot plate triple junction points as stars
--ptj
+Usage: -ptj
 
   Finds triple junctions in the plate edge database and plots them as stars
 
 Example:
+tectoplot -r g -a -p MORVEL -ptj -o example_ptj
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4814,16 +4667,17 @@ fi
   plots+=("triplejunctions")
   ;;
 
-  -pe|--plateedge)  # args: none
+  -pe)  # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pe:           plot plate boundary lines
--pe [[width=${PLATELINE_WIDTH}]] [[color=${PLATELINE_COLOR}]]
+Usage: -pe [[width=${PLATELINE_WIDTH}]] [[color=${PLATELINE_COLOR}]]
 
   Draw lines along plate boundaries.
 
 Example:
-  tectoplot -r g -p MORVEL -pe
+tectoplot -r g -p MORVEL -pe -o example_pe
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4844,13 +4698,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pf:           create grid of almost equally spaced points with fibonacci spiral
--pf [[distance=${FIB_KM}]] [[nolabels]]
+Usage: -pf [[distance=${FIB_KM}]] [[nolabels]]
 
   Grid points are located at approximately equal spacing using a Fibonacci
   spiral.
 
 Example:
-  tectoplot -r g -p MORVEL -pe -pf 1500 -pa
+tectoplot -r g -p MORVEL -pe -pf 1500 -pa -o example_pf
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4874,9 +4729,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pi:           create grid from a file of specified points
--pi [file]]
+Usage: -pi [file]]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4905,6 +4759,16 @@ fi
     ;;
 
   -ppf)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-ppf:          plot grid points
+Usage: -ppf
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
     plots+=("gridpoints")
     ;;
 
@@ -4912,7 +4776,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pg:           use polygon file to select data
--pg [ filename | GMTcode | fe ] [[show]]
+Usage: -pg [ filename | GMTcode | fe ] [[show]]
 
   Select seismicity data within polygon.
   Polygon file is either XY format or is the first feature in a KML file
@@ -4921,9 +4785,10 @@ cat <<-EOF
   show: plot the polygon boundary
 
 Example:
-  printf "23 37\n23 40\n27 40\n27 38\n" > ./poly.xy
-  tectoplot -r GR -a -pg ./poly.xy show -z
-  rm -f ./poly.xy
+printf "23 37\n23 40\n27 40\n27 38\n" > ./poly.xy
+tectoplot -r GR -a -pg ./poly.xy show -z -o example_pg
+rm -f ./poly.xy
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -4973,13 +4838,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -noframe:      do not plot coordinate grid or map frame
--noframe [[top]] [[left]] [[bottom]] [[right]]
+Usage: -noframe [[top]] [[left]] [[bottom]] [[right]]
 
   If no options are given, do not label the border at all.
   If options are given, label all borders EXCEPT those listed.
 
 Example:
-  tectoplot -r GR -a -noframe
+tectoplot -r GR -a -noframe -o example_noframe
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5015,12 +4881,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pgo:          plot gridlines
--pgo
+Usage: -pgo
 
   Plot parallel and meridian gridlines (overridden by -noframe).
 
 Example:
-  tectoplot -r GR -a -pgo
+tectoplot -a -pgo -o example_pgo
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5032,12 +4899,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pgs:          override automatic axis interals and gridline spacing
--pgs [degree]
+Usage: -pgs [degree]
 
   Use -pgo to plot gridlines.
 
 Example:
-  tectoplot -r GR -a -pgo -pgs 0.3
+tectoplot -a -pgo -pgs 0.3 -o example_pgs
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5051,12 +4919,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pl:           label plates with their id code
--pl
+Usage: -pl
 
   Use -p to set plate model.
 
 Example:
-  tectoplot -r =EU -p -pe -pl
+tectoplot -r =EU -p -pe -pl -o example_pl
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5064,73 +4933,16 @@ fi
     plots+=("platelabel")
     ;;
 
-#   -pp|--cities)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -pp:           plot populated places above a specified population
-# -pp [[population=${CITIES_MINPOP}]]
-#
-#   Source data is from Geonames.
-#   Label populated places using -ppl
-#
-# Example:
-#   tectoplot -r =EU -a -pp 500000
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     if arg_is_flag $2; then
-#       info_msg "[-pp]: No minimum population specified. Using ${CITIES_MINPOP}"
-#     else
-#       CITIES_MINPOP="${2}"
-#       shift
-#     fi
-#     if ! arg_is_flag $2; then
-#       CITIES_CPT="${2}"
-#       shift
-#     fi
-#
-#     plots+=("cities")
-#     cpts+=("population")
-#     echo $CITIES_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#     echo $CITIES_SOURCESTRING >> ${LONGSOURCES}
-#     ;;
-#
-#   -ppl)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -ppl:          label populated places above a specified population
-# -ppl [[population=${CITIES_LABEL_MINPOP}]]
-#
-#   Use -pp to plot cities.
-#   Source data is from Geonames
-#
-# Example:
-#   tectoplot -r =EU -pp 500000 -ppl 500000
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     if arg_is_flag $2; then
-#       info_msg "[-pp]: No minimum population for labeling specified. Using ${CITIES_LABEL_MINPOP}"
-#     else
-#       CITIES_LABEL_MINPOP="${2}"
-#       shift
-#     fi
-#     citieslabelflag=1
-#     ;;
-
   -pos)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pos:          shift origin of plot before plotting
--pos [xshift=${PLOTSHIFTX}] [yshift=${PLOTSHIFTY}]
+Usage: -pos [xshift=${PLOTSHIFTX}] [yshift=${PLOTSHIFTY}]
 
   shift amount includes unit (e.g. 3i for 3 inches)
   This command is mostly used with -ips when plotting onto an open EPS file.
   Normally, the map is plotted on a very large canvas and then cropped
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5147,10 +4959,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -plist:        print rotation poles relative to reference frame
--plist
+Usage: -plist
 
-Example:
-  tectoplot -p MORVEL WL -plist
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5162,7 +4972,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pr:           plot plate rotation small circles with arrows
--pr [[latstep=${LATSTEPS}]]
+Usage: -pr [[latstep=${LATSTEPS}]]
 
   Note: This routine is kind of broken for some reason? Some plates do not
   produce small circles from gmt project....
@@ -5171,7 +4981,8 @@ cat <<-EOF
   The spacing between small circles is given as a colatitude step in degrees.
 
 Example:
-  tectoplot -r PA -p MORVEL -t -pr
+tectoplot -r PA -p MORVEL -t -pr -o example_pr
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5191,7 +5002,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -prv:          plot plate relative velocities
--prv
+Usage: -prv
 
   Plots points at plate boundary segment midpoints colored by local plate-plate
   velocity. This is the predicted plate boundary fault full slip rate.
@@ -5199,7 +5010,8 @@ cat <<-EOF
   Maybe should be modified to plot the plate boundary lines themselves?
 
 Example:
-  tectoplot -r ID -p -prv -a
+tectoplot -r ID -p -prv -a -o example_prv
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5212,12 +5024,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ps:           print list of plates in selected plate model, then exit
--ps
+Usage: -ps
 
   Prints plates from the selected model and plates within the AOI, then exits.
 
-Example:
-  tectoplot -r ID -p MORVEL -ps
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5228,12 +5038,11 @@ fi
   -psel)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--psel:         specify profiles to plot (must be in profile command file)
--psel PROF_1 PROF_3 ...
+-psel:         specify profiles to plot
+Usage: -psel PROF_1 PROF_3 ...
 
   Prints plates from the selected model and plates within the AOI, then exits.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5260,14 +5069,16 @@ fi
   -pss) # args: string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pss:          specify width of map (inches)
--pss 4
+-pss:          specify width of map
+Usage: -pss {size; inches}
 
+  size does not have units and is in inches
   Adjusts map frame width. This affects -gres and also the relative size of
   symbols vs plotted grid data.
 
 Example:
-  tectoplot -r TW -a -pss 3 -pgs 1
+tectoplot -r TW -a -pss 3 -pgs 1 -o example_pss
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5275,92 +5086,15 @@ fi
     shift
     ;;
 
-#   -pt|--point)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -pt:           plot point dataset with specified size, fill, cpt
-# -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[@ color]]
-# -pt [filename] [[symbol=${POINT_SYMBOL}]] [[size=${POINTSIZE}]] [[cpt_filename]]
-#
-#   symbol is a GMT psxy -S code:
-#     +(plus), st(a)r, (b|B)ar, (c)ircle, (d)iamond, (e)llipse,
-#  	  (f)ront, octa(g)on, (h)exagon, (i)nvtriangle, (j)rotated rectangle,
-#  	  pe(n)tagon, (p)oint, (r)ectangle, (R)ounded rectangle, (s)quare,
-#     (t)riangle, (x)cross, (y)dash,
-#
-#   Multiple calls to -pt can be made; they will plot in map layer order.
-#
-# Example: None
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     # COUNTER userpointfilenumber
-#     # Required arguments
-#     userpointfilenumber=$(echo "$userpointfilenumber + 1" | bc -l)
-#     POINTDATAFILE[$userpointfilenumber]=$(abs_path $2)
-#     shift
-#     if [[ ! -e ${POINTDATAFILE[$userpointfilenumber]} ]]; then
-#       info_msg "[-pt]: Point data file ${POINTDATAFILE[$userpointfilenumber]} does not exist."
-#       exit 1
-#     fi
-#     # Optional arguments
-#     # Look for symbol code
-#     if arg_is_flag $2; then
-#       info_msg "[-pt]: No symbol specified. Using $POINTSYMBOL."
-#       POINTSYMBOL_arr[$userpointfilenumber]=$POINTSYMBOL
-#     else
-#       POINTSYMBOL_arr[$userpointfilenumber]="${2:0:1}"
-#       shift
-#       info_msg "[-pt]: Point symbol specified. Using ${POINTSYMBOL_arr[$userpointfilenumber]}."
-#     fi
-#
-#     # Then look for size
-#     if arg_is_flag $2; then
-#       info_msg "[-pt]: No size specified. Using $POINTSIZE."
-#       POINTSIZE_arr[$userpointfilenumber]=$POINTSIZE
-#     else
-#       POINTSIZE_arr[$userpointfilenumber]="${2}"
-#       shift
-#       info_msg "[-pt]: Point size specified. Using ${POINTSIZE_arr[$userpointfilenumber]}."
-#     fi
-#
-#     # Finally, look for CPT file
-#     if arg_is_flag $2; then
-#       info_msg "[-pt]: No cpt specified. Using ${POINTCOLOR} fill for -G"
-#       pointdatafillflag[$userpointfilenumber]=1
-#       pointdatacptflag[$userpointfilenumber]=0
-#     elif [[ ${2:0:1} == "@" ]]; then
-#       shift
-#       POINTCOLOR=${2}
-#       info_msg "[-pt]: No cpt specified using @. Using POINTCOLOR for -G"
-#       shift
-#       pointdatafillflag[$userpointfilenumber]=1
-#       pointdatacptflag[$userpointfilenumber]=0
-#     else
-#       POINTDATACPT[$userpointfilenumber]=$(abs_path $2)
-#       shift
-#       if [[ ! -e ${POINTDATACPT[$userpointfilenumber]} ]]; then
-#         info_msg "[-pt]: CPT file $POINTDATACPT does not exist. Using default $POINTCPT"
-#         POINTDATACPT[$userpointfilenumber]=$(abs_path $POINTCPT)
-#       else
-#         info_msg "[-pt]: Using CPT file $POINTDATACPT"
-#       fi
-#       pointdatacptflag[$userpointfilenumber]=1
-#       pointdatafillflag[$userpointfilenumber]=0
-#     fi
-#
-#     info_msg "[-pt]: PT${userpointfilenumber}: ${POINTDATAFILE[$userpointfilenumber]}"
-#     plots+=("points")
-#     ;;
-
   -pvl)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pvl:           plot plate edges colored by (convergent, divergent, transform)
--pvl
+-pvl:           plot plate edges colored by relative motion style
+Usage: -pvl
 
-Example: None
+Example:
+tectoplot -r g -p MORVEL -pvl -o example_pvl
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5374,7 +5108,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pv:           plot plate differential velocity vectors
--pv [[cutoff=${PDIFFCUTOFF}]]
+Usage: -pv [[cutoff=${PDIFFCUTOFF}]]
 
   Plot arrows across plate boundaries indicating direction and sense of relative
   motion. Divergent arrows at divergent boundaries, convergent arrows etc., and
@@ -5385,7 +5119,8 @@ cat <<-EOF
   too many arrows.
 
 Example:
-  tectoplot -r SB -a -p -pe -pv 1
+tectoplot -r SB -a -p -pe -pv 1 -o example_pv
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5407,13 +5142,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pvg:          plot plate velocity as a colored grid
--pvg [[resolution=${PLATEVELRES}]] [[rescale]]
+Usage: -pvg [[resolution=${PLATEVELRES}]] [[rescale]]
 
   Plot colored plate velocity grid calculated at the specified resolution.
   rescale: rescale the CPT so that plate velocities in the AOI span the range.
 
-Example: Plot colored plate velocity in MORVEL NNR around South America
-  tectoplot -r =SA -a -p -pvg -pe
+Example:
+tectoplot -r =SA -a -p -pvg -pe -o example_pvg
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5439,16 +5175,17 @@ fi
     fi
     ;;
 
-  -px|--gridsp) # args: number
+  -px) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -px:           generate lat/lon grid
--px [interval=${GRIDSTEP}]
+Usage: -px [interval=${GRIDSTEP}]
 
   Grid points are at regularly spaced geographic coordinates.
 
 Example: Plot plate velocity vectors in MORVEL NNR around South America
-  tectoplot -r =SA -a -p -pa -px 1 -pe
+tectoplot -r =SA -a -p -pa -px 5 -pe -i 2 -o example_px
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5465,7 +5202,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pz:           plot the angle between plate velocity and plate edge direction
--pz [scale=${AZDIFFSCALE}]
+Usage: -pz [[scale=${AZDIFFSCALE}]]
 
   Plot the obliquity of plate motion relative to the plate boundary.
   scale=  size of dots
@@ -5476,7 +5213,8 @@ cat <<-EOF
   blue=   convergent
 
 Example: Plot plate velocity vectors and -pz in MORVEL NNR around South America
-  tectoplot -r =SA -a -p -px 1 -pe -pz
+tectoplot -r =SA -a -p -px 1 -pe -pz -o example_pz
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5496,6 +5234,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -r:            specify the area of interest of the map
+Usage: -r [options]
 
 Option 1: Use GMT region ID codes to specify the region
 -r [GMT RegionID]    e.g.   -r ID  OR  -r =NA,SA  OR  -r IT+R5  etc.
@@ -5523,8 +5262,6 @@ Option 8: Flinn-Engdahl geographic or seismic region code
 -r feg IDnum(1-757)
 -r fes IDnum(1-50)
 
-Example: Plot coastlines of Great Britain
-  tectoplot -r GB -a
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5833,15 +5570,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -radd:         add a custom region definition using final aoi/projection of map
--radd [CustomRegionID]
+Usage: -radd [CustomRegionID]
 
   Custom regions save the final inferred AOI (GMT -R) and projection (GMT -J)
   including map size (e.g. 7i), associated with a single word ID key.
   The custom regions file has the format:
   RegionID MinLon MaxLon MinLat MaxLat -R... -J...
 
-Example: Plot coastlines of South America and add as custom region
-  tectoplot -r =SA -radd SouthAmerica -a
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5862,10 +5597,8 @@ cat <<-EOF
 -rdel:         delete a custom region definition
 -rdel [CustomRegionID]
 
-  Delete a custom region ID and then exit.
+Delete a custom region ID and then exit.
 
-Example: Delete SouthAmerica region ID created by -radd SouthAmerica
-  tectoplot -rdel SouthAmerica
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5896,10 +5629,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -rlist:        list custom region definitions and exit
--rlist
+Usage: -rlist
 
-Example: List custom regions.
-  tectoplot -rlist
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5912,7 +5643,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -rect:         make rectangular map for non-rectangular projections
--rect
+Usage: -rect
 
   Confirmed to work with the following map projections:
     UTM
@@ -5921,7 +5652,8 @@ cat <<-EOF
     Equid|D
 
 Example: Make a rectangular map of a high latitude region with a UTM projection
-   tectoplot -r -160 -150 54 60 -a -RJ UTM -rect
+tectoplot -r -160 -150 54 60 -a -RJ UTM -rect -o example_rect
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5933,10 +5665,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -reportdates:  print range of scraped seismic/focal mechanism data, then exit
--reportdates
+Usage: -reportdates
 
-Example:
-   tectoplot -reportdates
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -5968,15 +5698,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -RJ:           set map projection
--RJ
 
-Set UTM projection for AOI given by -r:
--RJ UTM [[utmzone]]
+Set UTM projection for AOI given by -r
+Usage: -RJ UTM [[utmzone]]
     If utmzone is not specified, it will be determined automatically from the
     central longitude inferred from -r
 
 Set global extent [-180:180;-90:90] with central longitude [central_meridian]
--RJ [projection] [[central_meridian]]
+Usage: -RJ [projection] [[central_meridian]]
     Hammer|H
     Winkel|R
     Robinson|N
@@ -5987,22 +5716,22 @@ Set global extent [-180:180;-90:90] with central longitude [central_meridian]
     Eckert6|Ks
 
 Hemisphere:
--RJ Hemisphere or A [[central_meridian]] [[central_latitude]]
+Usage: -RJ Hemisphere or A [[central_meridian]] [[central_latitude]]
 
 Circular plots with a specified horizon distance from center point:
--RJ [projection] [[central_meridian]] [[central_latitude]] [[degree_horizon]]
+Usage: -RJ [projection] [[central_meridian]] [[central_latitude]] [[degree_horizon]]
     Gnomonic|F
     Orthographic|G
     Stereo|S
 
 Oblique Mercator: specified by center point, azimuth, width and height
--RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
+Usage: -RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
 
 Oblique Mercator: specified by a center point, pole location, width, height
--RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
+Usage: -RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
 
 Projections with standard parallels:
--RJ [projection] [[central_lon] [central_lat] [parallel_1] [parallel_2]]
+Usage: -RJ [projection] [[central_lon] [central_lat] [parallel_1] [parallel_2]]
     Albers|B
     Lambert|L
     Equid|D
@@ -6010,8 +5739,10 @@ Projections with standard parallels:
     If no parameters are given for these -RJ B|L|D, the standard parallels
     are taken to be the maximum and minimum latitudes from -r.
 
-Examples:
-   tectoplot -r BR -RJ UTM -a
+Example:
+tectoplot -r IS -RJ UTM -a -title "UTM projection" -keepopenps
+tectoplot -r IS -a -pos 0i -3.5i -title "WGS1984" -gridlabels EWSn -ips tempfiles_to_delete/map.ps -o example_RJ
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6296,12 +6027,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setdatadir:   set location of downloaded data directory
--setdatadir [directory_path]
+Usage: -setdatadir [directory_path]
 
   The path to the data directory is stored in the tectoplot.dataroot file
 
-Example:
-  tectoplot -setdatadir /Users/kylebradley/Dropbox/TectoplotData/
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6330,12 +6059,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setopen:      set the program that is used to open pdf files
--setopen [application]
+Usage: -setopen [application]
 
   The path to the open program is stored in the ${OPTDIR}tectoplot.pdfviewer file
 
-Example:
-  tectoplot -setopen Preview
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6358,21 +6085,20 @@ fi
     exit
     ;;
 
-
-
   -scale)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -scale:        plot a scale bar
--scale [length] [[lon]] [[lat]] [[white]]
--scale [length] [[aprofcode]] [[white]]
+Usage: -scale [length] [[lon]] [[lat]] [[white]]
+Usage: -scale [length] [[aprofcode]] [[white]]
 
   length has unit (e.g. 100k)
   scale bar is centered on the reference point
   aprofcode is an uppercase letter map location ID (plot using -aprofcodes)
 
 Example:
-  tectoplot -r US.CO -t -scale 200k C
+tectoplot -r US.CO -t -scale 200k C -o example_scale
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6464,14 +6190,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -north:        plot a north arrow
--north [size] [[lon]] [[lat]]
--north [size] [[aprofcode]]
+Usage: -north [size] [[lon]] [[lat]]
+Usage: -north [size] [[aprofcode]]
 
-  arrow is centered on the reference point
+  Arrow is centered on the reference point
   aprofcode is an uppercase letter map location ID (plot using -aprofcodes)
 
 Example:
-  tectoplot -r US.CO -t -north 1i C
+tectoplot -r US.CO -t -north 1i C -o example_north
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6568,7 +6295,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -scrapedata:   download and manage online seismic data
--scrapedata [[controlstring]]
+Usage: -scrapedata [[controlstring]]
 
   letters in controlstring determine what gets scraped/updated:
   g = GCMT focal mechanisms
@@ -6581,8 +6308,6 @@ cat <<-EOF
 
   Focal mechanism catalog merging is done by priority of source institution
 
-Example:
-  tectoplot -r US.CO -t -scale 200k C
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6638,7 +6363,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seissum:      compute a moment magnitude seismic release map
--seissum [[resolution=${SSRESC}]] [[transparency]] [[uniform]]
+Usage: -seissum [[resolution=${SSRESC}]] [[transparency]] [[uniform]]
 
   Sums the moment magnitude of catalog seismicity per grid cell.
   Usually used with -znoplot to suppress plotting of the seismicity data
@@ -6647,9 +6372,9 @@ cat <<-EOF
 
   uniform:  sum earthquake counts and not magnitudes
 
-
 Example:
-  tectoplot -r US.CO -t -scale 200k C
+tectoplot -z noplot -seissum 0.05d -o example_seissum
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6680,13 +6405,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setvars:      set a tectoplot variable
--setvars { Var1 Val1 Var2 Val2 ... }
+Usage: -setvars { Var1 Val1 [[Var2 Val2 ...]] }
 
-  Sums the moment magnitude of catalog seismicity per grid cell.
-  Usually used with -znoplot to suppress plotting of the seismicity data
+  Sets the value of an internal tectoplot variable.
 
-Example:
-  tectoplot -r US.CO -t -scale 200k C
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6712,11 +6434,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -showprof:     plot a selected profile or stacked profile on map PS file
--showprof [all | ID]
+Usage: -showprof [all | ID]
 
   Places a profile EPS file below the map.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6741,9 +6462,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profileaxes:  set label strings for profile X, Y, Z axes
--profileaxes [x=\"${PROFILE_X_LABEL}\"] [[y=\"${PROFILE_Y_LABEL}\"]] [[z=\"${PROFILE_Z_LABEL}\"]]
+Usage: -profileaxes [x=\"${PROFILE_X_LABEL}\"] [[y=\"${PROFILE_Y_LABEL}\"]] [[z=\"${PROFILE_Z_LABEL}\"]]
 
-Example: None
+  Sets the label strings for all profile X, Y, Z axes
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6767,8 +6489,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tomoslice:    Plot depth slice of Submachine tomography data
--tomoslice [file]
-
+Usage: -tomoslice [file]
 
 --------------------------------------------------------------------------------
 EOF
@@ -6794,12 +6515,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tomo:         Load Submachine tomography profile data
--tomo [file1] [[file2]] ...
+Usage: -tomo [file1] [[file2]] ...
 
   Notes: Data file needs to already have been downloaded from Submachine
          Data file has format X Y Z V
          Data will be added to -sprof, -aprof, etc profiles where close to lines
-
 
 --------------------------------------------------------------------------------
 EOF
@@ -6838,17 +6558,13 @@ fi
     tomographyflag=1
     cpts+=("tomography")
   fi
-
-
-
-
   ;;
 
   -sprof) # args lon1 lat1 lon2 lat2 width res
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -sprof:        create an automatic profile between two geographic points
--sprof [lon1] [lat1] [lon2] [lat2] [width] [resolution]
+Usage: -sprof [lon1] [lat1] [lon2] [lat2] [width] [resolution]
 
   width is the full profile width
   resolution is the along-profile sample spacing
@@ -6857,7 +6573,9 @@ cat <<-EOF
   This option can be called multiple times to add several profiles.
   The width and resolution must be specified for each profile
 
-Example: None
+Example:
+tectoplot -t -sprof 156.2 -7.5 158.5 -9 10k 1k -showprof 1 -o example_sprof
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6885,12 +6603,11 @@ fi
   -sun)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--sun:          set the solar position (declination, inclination above horizon)
--sun [[sun_az=${SUN_AZ}]] [[sun_el=${SUN_EL}]]
+-sun:          set the solar position for hillshading
+Usage: -sun [[sun_az=${SUN_AZ}]] [[sun_el=${SUN_EL}]]
 
   Used with -tshad and -tuni
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6910,14 +6627,14 @@ fi
   -sv|--slipvector) # args: filename
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--sv:           plot slip vector azimuths specified in a file (lon lat azimuth [length])
--sv [filename] [[scale fieldnum]]
+-sv:           plot slip vector azimuths specified in a file
+Usage: -sv [filename] [[scale fieldnum]]
 
+  file format is (lon lat azimuth [length])
   If option "scale" is given, it is followed by a field number
     (first field is 1, default field is 4 (4th column))
   containing length of the bar to plot
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -6947,8 +6664,8 @@ fi
   -t) # args: ID | filename { args }
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--t:            download and visualize topography (~wgs1984 only)
--t [[datasource=SRTM30]] [[ { gmt topo args } ]]
+-t:            download and visualize topography
+Usage: -t [[datasource=SRTM30]] [[ { gmt topo args } ]]
 
   DATA SOURCE:
 
@@ -6956,7 +6673,7 @@ cat <<-EOF
   -t [demfile] [[reproject]]
 
   Local large datasets downloaded using -getdata:
-  -t SRTM30 | GEBCO20 | GEBCO1
+  -t SRTM30 | GEBCO20 | GEBCO21 | GEBCO1
 
   Dynamically downloaded data (tiles managed by tectoplot + GMT)
   -t GMRT | BEST
@@ -6972,7 +6689,8 @@ cat <<-EOF
   Note: Use -tcpt to adjust the color stretch
 
 Example:
-  tectoplot -r AU -t 10m
+tectoplot -r AU -t 10m -o example_t
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7027,6 +6745,14 @@ fi
         plottopo=1
         # GRIDDIR=$GEBCO20DIR
         GRIDFILE=$GEBCO20FILE
+        plots+=("topo")
+        echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+        echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
+        ;;
+      GEBCO21)
+        plottopo=1
+        # GRIDDIR=$GEBCO20DIR
+        GRIDFILE=$GEBCO21FILE
         plots+=("topo")
         echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
@@ -7087,13 +6813,14 @@ fi
     -tfillnan)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tfillnan:     Plot simple text strings at points
+-tfillnan:     Fill NaN values in topography dataset
 -tfillnan [[value]]
 -tfillnan spline [[tension=${FILLGRIDNANS_SPLINE_TENSION}]]
 
-  Fill NaN grid in the DEM with nearest value (default) or specified value.
+  If no option is specified, fill NaN with value of closest cell
+  If [[value]] is specified, fill NaN with that value
+  If spline is specified, use a spline in tension to fill NaN (can hang CPU)
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7138,17 +6865,23 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -text:         Plot simple text strings at points
--text [file] [[xoffset]] [[yoffset]]
+Usage: -text [file] [[box_color]] [[xoffset]] [[yoffset]]
 
   Plots text strings in white boxes at specified locations.
-  file has columns in the format:
-    lon lat font 0 justification text strings go here
+
+  data file has columns in the format:
+    lon lat font angle justification text strings go here
   e.g.
     34.0 -21.1 12p,Helvetica,black 0 ML This is a string
+
   xoffset: shift all text sidways by this amount (requires unit, e.g. 0.5i)
   yoffset: shift all text up/down by this amount (requires unit, e.g. 0.5i)
 
-Example: None
+Example:
+echo "155 -9.5 20p,Helvetica,white 10 ML Woodlark Basin" > tectoplot_text.txt
+echo "160 -6 15p,Arial,black 0 ML Pacific Ocean" >> tectoplot_text.txt
+tectoplot -t -text tectoplot_text.txt -o example_text
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7161,6 +6894,11 @@ fi
     else
       info_msg "[-text]: text file needed as argument"
       exit
+    fi
+
+    if ! arg_is_flag "${2}"; then
+      TEXTBOX="-G${2} -W0.25p,black"
+      shift
     fi
 
     TEXTXOFF=0
@@ -7183,12 +6921,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tflat:        flatten bathymetry with elevation less than zero to zero
--tflat
+Usage: -tflat
 
   This function alters the DEM to have a flat sea surface. Use with -tunsetflat
   to make maps of land areas with shadows that extend onto the sea surface.
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7200,10 +6937,9 @@ fi
   -ti)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ti:           adjust illumination for gmt style topography (-t)
--ti [[azimuth]]
+-ti:           adjust illumination for gmt style topography
+Usage: -ti [[azimuth]]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7226,9 +6962,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -timeme:       print script total run time on completion
--timeme
+Usage: -timeme
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7241,13 +6976,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -time:         select seismic data from a continuous epoch
--time [[start_time]] [[end_time]]
+Usage: -time [[start_time]] [[end_time]]
 
   Times are in IS8601 YYYY-MM-DDTHH:MM:SS format.
   YYYY, YYYY-MM, etc. will work.
 
 Example: Solomon Islands seismicity between Jan 1 2001 and Jan 1 2005
-  tectoplot -r SB -t -z -c -time 2001 2005
+tectoplot -r SB -t -z -c -time 2001-01-01 2005-01-01 -o example_time
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7302,6 +7038,24 @@ fi
     # Set GMT variables to fit a certain theme
     # The default GMT themes will only work with more recent GMT6 versions; classic will work for anything?
   -theme)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-theme:        select a predefined map theme
+Usage: -theme [theme_id]
+
+  Theme IDs:
+  avant
+  avantsmall
+  classic
+
+Example:
+tectoplot -theme avant -a -o example_theme
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
     if ! arg_is_flag "${2}"; then
       THEME_ID="${2}"
       shift
@@ -7313,10 +7067,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -title:        set and display plot title
--title "Title of Map"
+Usage: -title "Title of Map"
 
 Example: Solomon Islands
-  tectoplot -r SB -a -title "Solomon Islands"
+tectoplot -r SB -a -title "Solomon Islands" -o example_title
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7336,19 +7091,18 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tn:           plot topographic contours
--tn [contour_interval] [[ { GMT ARGS } ]]
+Usage: -tn [contour_interval] [[ { GMT ARGS } ]]
 
   Plot contours of -t topography.
+  GMT ARGS are any GMT format specifications of -A, -C, -S flags
 
-Example: None
+Example:
+tectoplot -t -tn 1000 -o example_tn
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-    # CONTOUR_INTERVAL="${2}"
-    # shift
-    # info_msg "[-tn]: Plotting topo contours at interval $CONTOUR_INTERVAL"
-    # plots+=("contours")
     if arg_is_flag $2; then
       info_msg "[-tn]: Contour interval not specified. Calculating automatically from Z range using $TOPOCONTOURNUMDEF contours"
       topocontourcalcflag=1
@@ -7375,13 +7129,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tr:           rescale cpt to data range
--tr   [min] [[max]] [[spacing]]
+Usage: -tr  [min] [[max]] [[spacing]]
 
   Stretch the CPT color scheme across the topographic range in the DEM (default),
   or between given values. Spacing dictates width of CPT z-slices.
 
+  Default behavior is to respect a hinge at elevation 0 to avoid mixing sea and
+  land colors.
+
 Example:
-  tectoplot -r 45 46 33 34 -t -tr
+tectoplot -t -tr -o example_tr
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7412,14 +7170,20 @@ fi
     -trp)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tr:           rescale cpt by two factors, above and below 0
--tr   [below] [above]
+-trp:           rescale cpt by two factors, above and below 0
+Usage: -trp [below] [above]
 
   Stretch the CPT color scheme by multiplying values > 0 by [above] and
-  values < 0 by [below]
+  values < 0 by [below].
+
+  above, below are scale factors greater than 0
+
+  above|below < 1: CPT colors are compressed toward 0
+  above|below > 1: CPT colors are stretched away from 0
 
 Example:
-  tectoplot -r 45 46 33 34 -t -tr
+tectoplot -t -trp 1.5 0.1 -o example_trp
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7445,9 +7209,8 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ts:           do topo calculations but don't plot the final topography image
--ts
+Usage: -ts
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7458,10 +7221,12 @@ fi
   -tt)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tt:           set the transparency of the topo image
--tt
+-tt:           set the transparency of shaded relief
+Usage: -tt [transparency]
 
-Example: None
+Example:
+tectoplot -a -t -tt 50 -o example_tt
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7474,11 +7239,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tx:           don"t color the topography - plot intensity only
--tx
+Usage: -tx
 
   Only works with non-GMT visualization schemes (-tmult etc)
 
-Example: None
+Example:
+tectoplot -t -tsl -tx -o example_tx
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7492,12 +7259,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t0:           slopeshade terrain visualization
--t0
+Usage: -t0
 
-  Use gdal tools to create a slope-hillshade composite shaded relief map.
+  Plot shaded relief map using fused multiple hillshade and slope.
 
-Example: Slopeshade map of Sierra Leone
-  tectoplot -r SL -t -t0
+Example: Slopeshade map
+tectoplot -t -t0 -o example_t0
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7517,15 +7285,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tshad:        add cast shadows to terrain intensity
--tshad [[sun_azimuth]] [[sun_elevation]] [[alpha]]
+Usage: -tshad [[sun_azimuth]] [[sun_elevation]] [[alpha]]
 
-  Use gdal tools to create a slope-hillshade composite shaded relief map.
+  Include cast shadows in shaded relief.
+
   sun_azimuth: angle CW from north, degrees
   sun_elevation: angle up from horizon, degrees
   alpha: transparency of cast shadows
 
-Example: Slopeshade map of Sierra Leone
-  tectoplot -r SL -t -t0
+Example: Cast shadows
+tectoplot -t -t0 -tshad 45 2 -o example_tshad
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7552,7 +7322,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ttext:        add texture map to terrain intensity
--ttext [[frac=${TS_FRAC}]] [[stretch=${TS_STRETCH}]] [[fact=${TS_FACT}]]
+Usage: -ttext [[frac=${TS_FRAC}]] [[stretch=${TS_STRETCH}]] [[fact=${TS_FACT}]]
 
   The texture map visualization by Leland Brown uses a DCT calculation to
   visualize relief.
@@ -7560,8 +7330,9 @@ cat <<-EOF
   stretch: contrast stretch parameter
   fact: blend factor with white before blending to terrain intensity [0-1]
 
-Example: Slopeshade map of Sierra Leone
-  tectoplot -r SL -t -t0
+Example: Texture map
+tectoplot -t -ttext 1.5 5 0.7 -tpct 1 99 -tgam 0.6 -o example_ttext
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7588,13 +7359,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tmult:        add multiple direction hillshade (grayscale) to terrain intensity
--tmult [[sun_alt=${HS_ALT}]] [[fact=${MULTIHS_FACT}]]
+Usage: -tmult [[sun_alt=${HS_ALT}]] [[fact=${MULTIHS_FACT}]]
 
   Multiple hillshade is a combination of illumination from different directions
   under a constant solar altitude.
 
-Example: Multiple hillshade map of Laos
-  tectoplot -r LA -t -tmult -tx
+Example: Multiple hillshade map
+tectoplot -t -tmult -o example_tmult
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7622,8 +7394,9 @@ cat <<-EOF
   Unidirectional hillshade is illumination from one direction and solar
   altitude.
 
-Example: Multiple hillshade map of Laos
-  tectoplot -r LA -t -tuni -tx
+Example: Unidirectional hillshade
+tectoplot -r -113 -112.3 36 36.5 -t 01s -tuni -o example_tuni
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7647,10 +7420,19 @@ fi
     ;;
 
   -cptrescale)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-cptrescale:    rescale cpt
+Usage: -cptrescale [cptfile] [low] [high]
 
-    echo "Rescaling"
+  Rescale an input CPT file and replace color names with RGB values.
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
     rescale_cpt $2 $3 $4
-    echo "Replacing colornames"
     replace_gmt_colornames_rgb $2
     shift
     shift
@@ -7662,11 +7444,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tcpt:         specify the color scheme for topography
--tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
+Usage: -tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
 
   cpt = CPT file or builtin CPT name
 
-Example: None
+  Use -tr to rescale a default CPT to the topographic elevation range
+
+Example:
+tectoplot -t -tcpt turbo -tr -o example_tcpt
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7682,67 +7468,29 @@ fi
 
   if ! arg_is_flag "${2}"; then
     if get_cpt_path ${2}; then
-      echo "[-tcpt]: Setting CPT to ${CPT_PATH}"
+      info_msg "[-tcpt]: Setting CPT to ${CPT_PATH}"
       TOPO_CPT_DEF=${CPT_PATH}
     else
       info_msg "[-tcpt]: $2 is not a valid CPT specification"
       exit 1
     fi
-
-    # if [[ -s "${2}" ]]; then
-    #   TOPO_CPT_DEF=$(abs_path ${2})
-    #   info_msg "[-tcpt]: Setting CPT to ${TOPO_CPT_DEF}"
-    # elif gmt makecpt -C${2} > /dev/null 2>&1; then
-    #   info_msg "[-tcpt]: CPT ${2} is a builtin GMT CPT."
-    #   TOPO_CPT_DEF="${2}"
-    # elif [[ -s ${CPTDIR}${2} ]]; then
-    #   info_msg "[-tcpt]: CPT ${2} is a builtin tectoplot CPT in ${CPTDIR}."
-    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}${2})
-    # elif [[ -s ${CPTDIR}${2}.cpt ]]; then
-    #   info_msg "[-tcpt]: CPT ${2}.cpt is a builtin tectoplot CPT in ${CPTDIR}."
-    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}${2}.cpt)
-    # elif [[ -s ${CPTDIR}colorcet/CET-${2}.cpt ]]; then
-    #   info_msg "[-tcpt]: CET-${2}.cpt is colorcet CPT in ${CPTDIR}/colorcet/"
-    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}colorcet/CET-${2}.cpt)
-    # elif [[ -s ${CPTDIR}colorcet/${2} ]]; then
-    #   info_msg "[-tcpt]: CPT ${2} is colorcet CPT in ${CPTDIR}/colorcet/"
-    #   TOPO_CPT_DEF=$(abs_path ${CPTDIR}"colorcet/"${2})
-    # else
-    #   echo "[-tcpt]: ${2} is not a valid CPT"
-    #   echo -n "GMT builtin CPTS (see gmt -makecpt): "
-    #   gmt makecpt 2>&1 | gawk '($2==":"){printf("%s "), $1} END { printf("\n")}'
-    #   exit 1
-    # fi
     shift
   fi
-
-
-  # if ! arg_is_flag "${2}"; then
-  #   case "${2}" in
-  #     c)
-  #       TOPO_CPT_TYPE="-Z"
-  #       ;;
-  #     d)
-  #       TOPO_CPT_TYPE=""
-  #       ;;
-  #   esac
-  #   shift
-  # fi
-
   ;;
 
   -tpct) # percent cut
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tpct:         contrast enhancement by percent cut (lo/hi) of terrain intensity
--tpct [[lowcut=${TPCT_MIN}]] [[highcut=${TPCT_MAX}]]
+Usage: -tpct [[lowcut=${TPCT_MIN}]] [[highcut=${TPCT_MAX}]]
 
   Operates on the existing terrain intensity at the moment of application.
   Cells with intensity below (lowcut) and above (highcut) the given percentages
   are assigned to 1 or 254. All values between are stretched to fit.
 
 Example: Percent cut on a multiple hillshade
-  tectoplot -r LA -t -tmult -tpct 1 99 -tx
+tectoplot -r -113 -112.3 36 36.5 -t 01s -tmult -tpct 25 75 -o example_tpct
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7765,14 +7513,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsea:         recolor sentinel satellite imagery in ocean areas
--tsea [[color=${SENTINEL_RECOLOR}]]
+Usage: -tsea [[color=${SENTINEL_RECOLOR}]]
+
+  Requires -tsent or -tblue option prior to -tsea
 
   Sentinel imagery above the oceans has baked in subaqueous relief or clouds.
   Set the ocean areas (z=0) to a fixed color.
-  Needs -tsent or -tblue option prior to -tsea
 
 Example: Recolor the ocean around Yemen
-  tectoplot -r YE -t -tsent -tsea
+tectoplot -t -t0 -tsent -tsea -o example_tsea
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7789,14 +7539,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tblue:        nasa blue marble imagery
--tblue [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
+Usage: -tblue [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
 
   Use dynamically downloaded NASA Blue Marble imagery as the color that is
   multiplied with terrain intensity.
   The image is automatically saved in an archive based on extent and resolution
 
-Example: Blue Marble map of Yemen
-  tectoplot -r YE -t -tblue -tsea
+Example: Blue Marble
+tectoplot -t -r YE -t0 -tblue -o example_tblue
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7825,12 +7576,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsave:        archive terrain data for a named region
--tsave
+Usage: -tsave
 
   If using -r RegionID, save the rendered terrain image for later rapid use.
   Requires -radd RegionID prior to calling tectoplot with -tsave or -tload
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7842,7 +7592,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tload:        load archived terrain data for a named region
--tload
+Usage: -tload
 
   If using -r RegionID, load a saved rendered terrain image.
   Requires -radd RegionID prior to calling tectoplot with -tsave or -tload
@@ -7850,7 +7600,6 @@ cat <<-EOF
   [[Currently requires -t0, -tsl, or another -txxx call in order to not have the
   fast topo visualization run...]]
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7863,12 +7612,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tdelete:      delete archived terrain data for a named region
--tdelete
+Usage: -tdelete
 
   If using -r RegionID, delete a saved rendered terrain image.
   Requires -radd RegionID prior to calling
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7881,20 +7629,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsent:        color terrain using downloaded sentinel cloud-free image
--tsent [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
+Usage: -tsent [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
 
-  Options
-  notopo        : Plot only the imagery, don't plot topo. Still needs -t option
-
-
-  If using -r RegionID, load a saved rendered terrain image.
-  Requires -radd RegionID prior to calling tectoplot with -tsave or -tload
-
-  [[Currently requires -t0, -tsl, or another -txxx call in order to not have the
-  fast topo visualization run...]]
+  Note: There is still an issue with blending against pure black/white.
 
 Example: Sentinel cloud free image draped onto multi-hillshade, Arizona USA
-  tectoplot -r US.AZ -t -tmult -tsent
+tectoplot -r -113 -112.3 36 36.5 -t 01s -tmult -tsent 0.2 -o example_tsent
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7928,16 +7669,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsky:         add sky view factor to terrain intensity
--tsky [[num_angles=${NUM_ANGLES}]] [[fact=${SKYVIEW_FACT}]]
+Usage: -tsky [[num_angles=${NUM_ANGLES}]] [[fact=${SKYVIEW_FACT}]]
 
-  If using -r RegionID, load a saved rendered terrain image.
-  Requires -radd RegionID prior to calling tectoplot with -tsave or -tload
-
-  [[Currently requires -t0, -tsl, or another -txxx call in order to not have the
-  fast topo visualization run...]]
+  Include sky view factor in shaded relief.
 
 Example: Sky view factor of Pennsylvania, UTM
-  tectoplot -r US.PA -t -tsky -tx -RJ UTM
+tectoplot -r -113 -112.3 36 36.5 -t 01s -tsky -o example_tsky
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7961,7 +7699,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -makeply:      make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
--makeply [[option1 value1]] [[option2 value2]] ...
+Usage: -makeply [[option1 value1]] [[option2 value2]] ...
 
     Topo, seismicity, focal mechanisms, GPS velocities, volcanoes, and Slab2 geometries will be generated
     automatically if the equivalent -t, -z, -c, -g, -vf, or -b commands are given.
@@ -7986,7 +7724,7 @@ cat <<-EOF
     [[floattext lon lat depth scale string of words]]
 
     See also: -addobj    Include OBJ files from specified directory
-Example: None
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8065,8 +7803,6 @@ fi
           shift
         done
         echo gawk \< ${F_3D}sentence.obj -v text_lat=${PLY_FLOAT_TEXT_LAT} -v text_lon=${PLY_FLOAT_TEXT_LON} -v text_depth=${PLY_FLOAT_TEXT_DEPTH} -v text_scale=${PLY_FLOAT_TEXT_SCALE}
-
-
         ;;
 
 
@@ -8217,14 +7953,13 @@ fi
       ;;
     esac
   done
-
   ;;
 
   -addobj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -addobj:       add existing OBJ file and material file to 3D model
--addobj [file.obj] [file.mtl] [file.jpg/png/etc]
+Usage: -addobj [file.obj] [file.mtl] [file.jpg/png/etc]
 
   file.obj is added to 3d/
     - Materials library command should be "mtllib materials.mtl"
@@ -8232,7 +7967,6 @@ cat <<-EOF
   file.mtl is concatenated to 3d/materials.mtl; values are ajusted to avoid
        having identical materials that cause meshes to be merged in Sketchfab
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8258,10 +7992,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsl:          add slope to terrain intensity
--tsl [[fact=${SLOPE_FACT}]]
+Usage: -tsl [[fact=${SLOPE_FACT}]]
 
 Example: Slope map of Madagascar, UTM
-  tectoplot -r MG -t -tsl -tx -RJ UTM
+tectoplot -r -113 -112.3 36 36.5 -t 01s -tsl -o example_tsl
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8281,10 +8016,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ttri:         add terrain ruggedness index to terrain intensity
--ttri
+Usage: -ttri
 
 Example: TRI of Nevada, USA, UTM
-  tectoplot -r US.NV -t -ttri -tx -RJ UTM
+tectoplot -t -ttri -o example_ttri
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8297,11 +8033,9 @@ fi
   -timg)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--timg:         color terrain intensity using a georeferenced image (e.g. tiff)
+-timg:         color terrain intensity using a georeferenced image
 -timg [filename] [fact=${IMAGE_FACT}]
 
-Example: TRI of Nevada, USA, UTM
-  tectoplot -r US.NV -t -ttri -tx -RJ UTM
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8335,13 +8069,14 @@ fi
   -tclip) # Shouldn't I just clip the DEM here? Why have it as part of processing when that can mess things up?
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tclip:        clip dem to specified lon/lat aoi before terrain visualization
--tclip [MinLon] [MaxLon] [MinLat] [MaxLat]
+-tclip:        restrict topo DEM to specified lon/lat aoi
+Usage: -tclip [MinLon] [MaxLon] [MinLat] [MaxLat]
 
-  [ Doesn't seem to work currently ]
+  Only the clipped DEM region will be extracted by -t, etc.
 
-Example: Terrain map of selected part of Nevada, USA, UTM
-  tectoplot -r US.NV -t -tclip -118 -115 37 39 -t0 -tx -RJ UTM
+Example:
+tectoplot -t -tclip 156 158 -9 -7 -t0 -o example_tclip
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8389,10 +8124,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tunsetflat:   set regions with elevation = 0 to white in terrain intensity
--tunsetflat
+Usage: -tunsetflat
 
-Example: Kerguelen with shadows on the flat sea
-  tectoplot -r 68 71 -50.5 -48 -t 03s -tflat -tmult -tunsetflat -tshad 65 1 -tx -RJ UTM
+Example: Topo shadows on a flat sea surface
+tectoplot -t -tflat -tmult -tsl -tunsetflat -tshad 65 1 -o example_tunsetflat
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8405,9 +8141,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tquant:       terrain intensity from height above local quantile elevation
--tquant [[quantile=${DEM_QUANTILE}]] [[radius=${DEM_QUANTILE_RADIUS}]] [[fact=${QUANTILE_FACT}]]
+Usage: -tquant [[quantile=${DEM_QUANTILE}]] [[radius=${DEM_QUANTILE_RADIUS}]] [[fact=${QUANTILE_FACT}]]
 
-Example: None
+  This option will help shade areas lower than surrounding relief while
+  lightening areas higher than surrounding relief. It is particularly useful
+  for blending with other terrain visualizations as a subtle effect.
+
+Example:
+tectoplot -t -tquant 0.1 55 -tsl 0.5 -tpct 1 99 -o example_tquant
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8428,18 +8170,19 @@ fi
       QUANTILE_FACT="${2}"
       shift
     fi
-
     ;;
 
     -tsmooth)
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tsmooth:       smooth input DEM before plotting (Gaussian)
--tquant [[radius=${DEM_SMOOTH_RAD}]]
+-tsmooth:       smooth input DEM before plotting
+Usage: -tquant [[radius=${DEM_SMOOTH_RAD}]]
 
-  radius is in pixels
+  Gaussian smoothing, radius is in pixels
 
-Example: None
+Example:
+tectoplot -t -tsmooth 11 -o example_tsmooth
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8456,14 +8199,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tca:          set alpha value for DEM color stretch
--tca [[alpha=${DEM_ALPHA}]]
+Usage: -tca [[alpha=${DEM_ALPHA}]]
 
   alpha is accomplished by blending with white before multiply overlay
 
   alpha=1 -> fully transparent
   alpha=0 -> fully opaque
 
-Example: None
+Example:
+tectoplot -t -tca 0.2 -o example_tca
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8478,13 +8223,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tgam:         apply gamma correction to terrain intensity image
--tgam [[gamma=${HS_GAMMA}]]
+Usage: -tgam [[gamma=${HS_GAMMA}]]
 
   Gamma correction adjusts the contrast of an image.
   Gamma > 1 : darken
   Gamma < 1 : lighten
 
-Example: None
+Example:
+tectoplot -t -ttext -tgam 0.5 -o example_tgam
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8504,7 +8251,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -v:            plot global gravity data and related data
--v [[model=${GRAVMODEL}]] [[trans=${GRAVTRANS}]] [[rescale]]
+Usage: -v [[model=${GRAVMODEL}]] [[trans=${GRAVTRANS}]] [[rescale]]
 
   model:
     BG = WGM2012 Bouguer
@@ -8512,9 +8259,11 @@ cat <<-EOF
     IS = WGM2012 Isostatic
     SW = Sandwell 2019 Free Air
 
-  rescale adjusts the range of the CPT to match range of data in the AOI
-Example: TRI of Nevada, USA, UTM
-  tectoplot -r US.NV -t -ttri -tx -RJ UTM
+  rescale  :  adjusts the range of the CPT to match range of data in the AOI
+
+Example:
+tectoplot -v BG 0 rescale -a -o example_v
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8582,10 +8331,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -vcurv:        plot curvature of sandwell 2019 global gravity data
--vcurv
+Usage: -vcurv
 
 Example: Gravity curvature of spreading ridge SE of Madagascar
-  tectoplot -r 46 66 -40 -24 -vcurv
+tectoplot -vcurv -o example_vcurv
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8603,9 +8353,6 @@ cat <<-EOF
 -vars:         define variables from a bash format file by sourcing it
 -vars [filename]
 
-  This function is identical to -e and should be removed?
-
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8617,74 +8364,32 @@ fi
     cp ${VARFILE} ${TMP}input_vars.txt
     ;;
 
-#   -vc|--volc) # args: none
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -vc:           plot volcanoes
-# -vc [[fill color=${V_FILL}]] [[line width=${V_LINEW}]] [[size=${V_SIZE}]]
-#
-#   Data from a variety of sources; Smithsonian, Whelley 2015, Japan
-#   Currently uses the GMT custom volcano symbol.
-#
-# Example: Volcanoes of Japan
-#   tectoplot -r JP -a -vc
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     if arg_is_flag $2; then
-#       info_msg "[-vc]: No volcano line width or fill color specified."
-#     else
-#       V_FILL="${2}"
-#       shift
-#     fi
-#     if arg_is_flag $2; then
-#       info_msg "[-vc]: No volcano line width specified."
-#     else
-#       V_LINEW="${2}"
-#       shift
-#     fi
-#     if arg_is_flag $2; then
-#       info_msg "[-vc]: No volcano size specified."
-#     else
-#       V_SIZE="${2}"
-#       shift
-#     fi
-#
-#     plots+=("volcanoes")
-#     volcanoesflag=1
-#     echo $VOLC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-#     echo $VOLC_SOURCESTRING >> ${LONGSOURCES}
-#     ;;
-
   # A high priority option processed in the prior loop
   -verbose) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -verbose:      turn on gmt verbose option to get lots of feedback
--verbose
+Usage: -verbose
 
-Example: Volcanoes of Japan with verbosity
-  tectoplot -r JP -a -vc -verbose
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-    # VERBOSE="-V"
     ;;
 
   -w|--euler) # args: number number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -w:            plot velocity field from a specified euler pole on grid points
--w [pole_lat] [pole_lon] [omega] [[pole_lat_2]] [[pole_lon_2]] [[pole_omega_2]]
+Usage: -w [pole_lat] [pole_lon] [omega] [[pole_lat_2]] [[pole_lon_2]] [[pole_omega_2]]
 
   Requires -px, -pf, or -pi option to generate grid points
 
   If two Euler poles are specified, add them and use the resulting Euler pole
 
 Example: Global Euler pole velocity field on a Fibonacci grid
-  tectoplot -RJ W -a -pf 1000 -w 10 20 0.2
+tectoplot -RJ Kf -a -pf 1000 -w 10 20 0.2 -i 2 -o example_w
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8702,7 +8407,6 @@ fi
 
     elif [[ $(number_nonflag_args "${@}") -eq 6 ]]; then
 
-
       EULER_SUM=($(echo $2 $3 $4 $5 $6 $7 | gawk -f $EULERADD_AWK))
 
       eulerlat="${EULER_SUM[0]}"
@@ -8716,18 +8420,7 @@ fi
       shift
       shift
       eulervecflag=1
-
-
-
-
     fi
-
-
-
-    # if ! arg_is_flag $2; then
-    #   EULER_VEC_FILLCOLOR="${2}"
-    #   shift
-    # fi
 
     plots+=("euler")
     ;;
@@ -8736,13 +8429,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -wg:           plot euler pole velocity field at gps sites instead of grid
--wg [[residual scaling=${WRESSCALE}]]
+Usage: -wg [[residual scaling=${WRESSCALE}]]
 
   Requires -g option to set GPS site locations
   If residual scaling is indicated, plot difference between GPS+Euler velocity
 
 Example: Turkey, random Euler pole velocity field vs GPS relative to Europe
-  tectoplot -r TR -a -g eu -w 36 32 1 black -wg -i 2
+tectoplot -r TR+R2 -RJ B -rect -a -g eu color black -w 36 32 1 -wg -i 2 -o example_wg
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8758,39 +8452,43 @@ fi
 		fi
     ;;
 
-  -wp) # args: string string
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--wp:           plot euler pole velocity of one plate relative to another at grid/gps sites
--wp [PlateID1] [PlateID2]
+# -wp is currently broken:
+# cp: gridswap.txt: No such file or directory
+#
 
-  Requires -p option to load plate data and -x/-g options to set site locations
+#   -wp) # args: string string
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -wp:           plot euler pole velocity of one plate relative to another at grid/gps sites
+# Usage: -wp [PlateID1] [PlateID2]
+#
+#   Requires -p option to load plate data and -x/-g options to set site locations
+#
+# Example: GPS velocity of Arabia relative to Europe, with MORVEL Euler poles
+# tectoplot -r SA -a -g eu -w 36 32 1 -wp ar eu -i 2 -o example_wp
+# ExampleEnd
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     twoeulerflag=1
+#     plotplates=1
+#     eulerplate1="${2}"
+#     eulerplate2="${3}"
+#     plots+=("euler")
+#     shift
+#     shift
+#     ;;
 
-Example: GPS velocity of Arabia relative to Europe, with MORVEL Euler poles
-  tectoplot -r SA -a -g eu -w 36 32 1 black -wp ar eu -i 2
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    twoeulerflag=1
-    plotplates=1
-    eulerplate1="${2}"
-    eulerplate2="${3}"
-    plots+=("euler")
-    shift
-    shift
-    ;;
-
-
-
-	-z|--seis) # args: number
+	-z) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -z:            plot seismicity catalog data
--z [[scale=${SEISSCALE}]] [[trans=${SEISTRANS}]]
+Usage: -z [[scale=${SEISSCALE}]] [[trans=${SEISTRANS}]]
 
-Example: Seismicity of region surrounding Panama
-  tectoplot -r PA+R3 -a -z
+Example:
+tectoplot -z -o example_z
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8816,68 +8514,15 @@ fi
 
     ;;
 
-#   -zadd) # args: file   - supplemental seismicity catalog in lon lat depth mag [datestr] [id] format
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -zadd:         include local seismicity catalog in seismicity
-# -zadd [filename] [[replace]] [[cull]]
-#
-#   If "replace" option is given, do not plot global catalog data.
-#   If "cull" option is given, attempt to remove duplicate events between the added
-#     and original catalog, preferring the added catalog over the original.
-#
-#   Input format is tectoplot seismicity format:
-#   longitude[degrees] latitude[degrees] depth[km] magnitude[mw] timecode[YYYY-MM-DDTHH:MM:SS] id[string] epoch[seconds]
-#
-# Example: None
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     eqcatalogreplaceflag=0
-#
-#     seisfilenumber=$(echo "$seisfilenumber+1" | bc)
-#     if arg_is_flag $2; then
-#       info_msg "[-zadd]: Seismicity file must be specified"
-#     else
-#       SEISADDFILE[$seisfilenumber]=$(abs_path $2)
-#       if [[ ! -e "${SEISADDFILE[$seisfilenumber]}" ]]; then
-#         info_msg "Seismicity file ${SEISADDFILE[$seisfilenumber]} does not exist"
-#       else
-#         suppseisflag=1
-#       fi
-#       shift
-#     fi
-#
-#     if [[ "${2}" == "nocull" ]]; then
-#       info_msg "[-zadd]: Culling catalog to remove equivalent events."
-#       CULL_EQ_CATALOGS=0
-#       shift
-#     else
-#       CULL_EQ_CATALOGS=1
-#     fi
-#
-#     if [[ "${2}" == "replace" ]]; then
-#       info_msg "[-zadd]: Seis replace flag specified. Replacing catalog hypocenters."
-#       eqcatalogreplaceflag=1
-#       ADD_EQ_SOURCESTRING=2
-#       shift
-#     else
-#       eqcatalogreplaceflag=0
-#     fi
-#
-#     echo "CustomEQs" >> ${SHORTSOURCES}
-#     echo "Seismicity from custom file ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
-#
-#     ;;
-
   -zcnoscale)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcnoscale:    do not adjust scaling of earthquake/focal mechanism symbols
--zcnoscale
+Usage: -zcnoscale [[size=${NOSCALE_SEISSIZE}]]
 
-Example: None
+Example:
+tectoplot -z -zcnoscale -o example_zcnoscale
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8896,11 +8541,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcfixsize:    earthquake/focal mechanisms have only one specified size
--zcfixsize [[size=${SEISSCALE}]]
+Usage: -zcfixsize [[size=${SEISSCALE}]]
 
   Size has unit, e.g. 0.01i
 
-Example: None
+Example:
+tectoplot -z -zcfixsize 0.01i -o example_zcfixsize
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8916,19 +8563,20 @@ fi
       zcnoscaleflag=1
       ;;
 
-
   -zcrescale)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcrescale:    adjust size of seismicity/focal mechanisms by a multiplied factor
--zcrescale [scale=${SEISSCALE}] [[seisstretch=${SEISSTRETCH}]] [[refmag=${SEISSTRETCH_REFMAG}]]
+Usage: -zcrescale [scale=${SEISSCALE}] [[seisstretch=${SEISSTRETCH}]] [[refmag=${SEISSTRETCH_REFMAG}]]
 
   Modify magnitude of earthquake/focal mechanisms to allow non-linear rescaling
   of plotted earthquake data.
 
   Mw_new = (Mw^seisstretch)/(refmag^(seisstretch-1))
 
-Example: None
+Example:
+tectoplot -z -zcrescale 2 5 8 -o example_zcrescale
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -8960,7 +8608,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seistimeline_c:  create a seismicity vs time plot to the right of the map
--seistimeline_c [startdate] [[breakdate1 panelwidth1]] ...
+Usage: -seistimeline_c [startdate] [[breakdate1 panelwidth1]] ...
 
   This option creates a -seistimeline plot with any number of panels, each of
   which has a specified width and break date. The start date must be specified.
@@ -8968,14 +8616,16 @@ cat <<-EOF
   Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
   width is given in inches, without unit (e.g. 5)
 
-Example: None
+Example:
+tectoplot -a -z -c -zline 0 -seistimeline_c 1970-01-01 2010-01-01 4 \
+          2022-01-01 2 -o example_seistimeline_c
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
 seistime_c_num=0
-
 
 if ! arg_is_flag $2; then
   SEISTIMELINE_C_START_TIME=$2
@@ -9010,18 +8660,17 @@ done
 plotseistimeline_c=1
   ;;
 
-
   -seistimeline)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seistimeline:  create a seismicity vs time plot to the right of the map
--seistimeline [[startdate]] [[breakdate]] [[enddate]] [[panelwidth]]
+Usage: -seistimeline [[startdate]] [[breakdate]] [[enddate]] [[panelwidth]]
 
   Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
   width is given in inches, without unit (e.g. 5)
   Note: Use the -noframe right option to avoid overlapping with map labels
 
-Example: None
+; use seistimeline_c
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9030,7 +8679,6 @@ fi
   SEISTIMELINE_BREAK_TIME="2010-01-01T00:00:00"
   SEISTIMELINE_END_TIME=$(date_shift_utc)
   SEISTIMELINEWIDTH=5 # inches
-
 
   if ! arg_is_flag $2; then
     SEISTIMELINE_START_TIME=$2
@@ -9049,14 +8697,13 @@ fi
     shift
   fi
   plotseistimeline=1
-
   ;;
 
   -seisproj)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seisproj:     create a seismicity (X) vs depth (Y) projected panel below or to right of map
--seisproj [dim1=${SEISPROJ_DIM1} size1=${SEISPROJHEIGHT_DIM1}] [[dim2 size2]]
+Usage: -seisproj [dim1=${SEISPROJ_DIM1} size1=${SEISPROJHEIGHT_DIM1}] [[dim2 size2]]
 
   Use -noframe bottom, -noframe right, or -noframe bottom right to avoid overlapping labels
 
@@ -9066,7 +8713,9 @@ cat <<-EOF
   SEISPROJHEIGHT_X=3          # Height in inches of -seisproj panel (X dimension)
   SEISPROJWIDTH_Y=3           # Width in inches of -seisproj panel (Y dimension)
 
-Example: None
+Example:
+tectoplot -t -t0 -z -zline 0 -seisproj X 3 Y 3 -noframe bottom right -o example_seisproj
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9098,7 +8747,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zccluster:    decluster seismicity and color by cluster ID rather than depth
--zccluster [[remove]] [[method=${DECLUSTER_METHOD}]] [[minsize=${DECLUSTER_MINSIZE}]]
+Usage: -zccluster [[remove]] [[method=${DECLUSTER_METHOD}]] [[minsize=${DECLUSTER_MINSIZE}]]
 
   Seismic catalog declustering separates independent events from those that can
   be labelled as aftershocks or foreshocks (dependent events). This option
@@ -9115,7 +8764,9 @@ cat <<-EOF
   minsize = clusters with fewer than this number of events have all events
             assigned to independent class - highlight EQs with large # of events
 
-Example: None
+Example:
+tectoplot -z -zccluster rb -seistime onmap -o example_zccluster
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9134,8 +8785,6 @@ fi
     shift
   fi
 
-
-
   zcclusterflag=1
   seisdeclusterflag=1
 
@@ -9151,16 +8800,16 @@ fi
 
   [[ $replaceseiscptflag -eq 0 ]] && cpts+=("eqcluster")
   plots+=("eqcluster")
-
   ;;
 
   -zconland)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zconland:     select FMS/seismicity with origin epicenter beneath land
--zconland
+Usage: -zconland
 
-Example: None
+  Currently broken.
+
 --------------------------------------------------------------------------------
 EOF
   shift && continue
@@ -9168,7 +8817,6 @@ EOF
 
   zconlandflag=1
   zc_land_or_sea=1
-
   ;;
 
   -zconsea)
@@ -9177,7 +8825,8 @@ cat <<-EOF
 -zconsea:      select FMS/seismicity with origin epicenter beneath the sea
 -zconsea
 
-Example: None
+  Currently broken
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9192,10 +8841,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zctime:       color seismicity by time rather than depth
--zctime [start_time] [[end_time=$(date_shift_utc)]]
+Usage: -zctime [start_time] [[end_time=$(date_shift_utc)]]
 
-Example: Color seismicity in Greece by years from 1990 to 2010
-  tectoplot -r GR -a -z -zctime 1990 2010
+  The default end time is the current UTC time when tectoplot runs.
+
+Example:
+tectoplot -a -z -zmag 6 -zctime 1990 2010 -o example_zctime
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9247,12 +8899,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zdep:         set depth range of selected seismicity
--zdep [min_depth] [max_depth]
+Usage: -zdep [min_depth] [max_depth]
 
   Both depths are in km without k unit.
 
-Example: Plot seismicity in Italy between 50 and 100 km
-  tectoplot -r IT -a -z -zdep 50 100
+Example:
+tectoplot -a -z -zdep 50 100 -o example_zdep
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9273,12 +8926,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zfill:        color seismicity with a constant fill color
--zfill [color]
+Usage: -zfill [color]
 
   Color is a GMT color word or R/G/B triplet in the form 255/255/255
 
-Example: Plot seismicity in Timor-Leste
-  tectoplot -r TL -a -z -zfill 100/100/100
+Example:
+tectoplot -a -z -zmag 7 -zfill red -o example_zfill
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9293,17 +8947,11 @@ fi
     fi
     ;;
 
-
-    # GFZ)
-    #   EQ_CATALOG_TYPE+=("GFZ")
-    #   EQ_SOURCESTRING=$GFZ_SOURCESTRING
-    #   EQ_SHORT_SOURCESTRING=$GFZ_SHORT_SOURCESTRING
-    # ;;
   -ccat) #
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ccat:         select focal mechanism catalog(s) and add custom focal mechanism files
--ccat [catalogID1] [[catalogfile1 code1 ]] ...  [[nocull]]
+Usage: -ccat [catalogID1] [[catalogfile1 code1 ]] ...  [[nocull]]
 
   catalogID: GCMT | ISC | GFZ
   catalogfile: Any file in a format importable by cmt_tools.sh
@@ -9345,7 +8993,9 @@ cat <<-EOF
 
   Culled events are stored in ${F_FOC}culled_focal_mechanisms.txt
 
-Example: None
+Example:
+tectoplot -a -c -ccat GFZ -o example_ccat
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9419,7 +9069,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcat:         select seismicity catalog(s) and add custom seismicity files
--zcat [catalogID1] [[catalogid2...]] [[catalogfile1...]] [[catalogfile2...]]
+Usage: -zcat [catalogID1] [[catalogid2...]] [[catalogfile1...]] [[catalogfile2...]]
       [[nocull]]
 
   catalogID: ANSS | ISC
@@ -9431,8 +9081,9 @@ cat <<-EOF
   retained. [[nocull]] turns off this behavior. Culled events are stored in
   ${F_SEIS}culled_seismicity.txt
 
-Example: Plot ISC seismicity in Idaho
-  tectoplot -r US.ID -t -z -zcat ISC
+Example:
+tectoplot -z -zcat ISC -o example_zcat
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9488,10 +9139,15 @@ fi
   -zccpt)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zcccpt:       select CPT for seismicity
--zccpt [cpt_name]
+-zcccpt:       select CPT for seismicity and focal mechanisms
+Usage: -zccpt [cpt_name] [[inv]]
 
-Example: None
+  cpt_name is a builtin CPT (GMT, tectoplot) or a CPT file.
+  inv  :  invert the CPT direction
+
+Example:
+tectoplot -z -zccpt turbo inv -o example_zccpt
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9518,13 +9174,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcolor:       select depth range for color cpt for seismicity
--zcolor [[mindepth=${EQMINDEPTH_COLORSCALE}]] [[maxdepth=${EQMAXDEPTH_COLORSCALE}]]
+Usage: -zcolor [[mindepth=${EQMINDEPTH_COLORSCALE}]] [[maxdepth=${EQMAXDEPTH_COLORSCALE}]]
 
   mindepth, maxdepth are in positive down km without unit character
   Affects any data that use the seismicity depth CPT (focals, Slab2 contours,...)
 
-Example: Plot seismicity in Costa Rica with deep yellow-blue transition
-  tectoplot -r CR+R1 -a -z -zcolor 0 150
+Example: Plot seismicity with deep yellow-blue transition
+tectoplot -a -z -zcolor 0 150 -o example_zcolor
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9547,10 +9204,11 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zmag:         select magnitude range for seismicity
--zmag [[minmag=${EQ_MINMAG}]] [[maxmag=${EQ_MAXMAG}]]
+Usage: -zmag [[minmag=${EQ_MINMAG}]] [[maxmag=${EQ_MAXMAG}]]
 
-Example: Plot large magnitude seismicity in Indonesia
-  tectoplot -r ID -a -z -zmag 7.5 10
+Example: Plot large magnitude seismicity
+tectoplot -a -z -zmag 7.5 10 -o example_zmag
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9570,36 +9228,68 @@ fi
     eqmagflag=1
     ;;
 
-  -zline)
-
+  -cline)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zline:        set width of seismicity symbol outline line
--zline [width=${EQLINEWIDTH}]
+-cline:        set width of focal mechanism symbol outline and nodal plane lines
+Usage: -cline [width=${CMT_LINEWIDTH}] [color=${CMT_LINECOLOR}]
 
   width is specified with units of p [e.g. 1p]
   if width==0 | 0p, then no line will be drawn
 
-Example: None
+Example:
+tectoplot -c -cline 0 -o example_cline
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-  if arg_is_flag "${2}"; then
-    info_msg "[-zline]: No line width given. Using default=${EQLINEWIDTH}"
-  else
-    EQLINEWIDTH="${2}"
-    shift
-  fi
+    if arg_is_flag "${2}"; then
+      info_msg "[-cline]: No line width given. Using default=${CMT_LINEWIDTH}"
+    else
+      CMT_LINEWIDTH="${2}"
+      shift
+    fi
+    if ! arg_is_flag "${2}"; then
+      CMT_LINECOLOR="${2}"
+      shift
+    fi
+    ;;
+
+  -zline)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zline:        set width of seismicity symbol outline line
+Usage: -zline [width=${EQLINEWIDTH}]
+
+  width is specified with units of p [e.g. 1p]
+  if width==0 | 0p, then no line will be drawn
+
+Example:
+tectoplot -z -zline 0 -o example_zline
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    if arg_is_flag "${2}"; then
+      info_msg "[-zline]: No line width given. Using default=${EQLINEWIDTH}"
+    else
+      EQLINEWIDTH="${2}"
+      shift
+    fi
+    if ! arg_is_flag "${2}"; then
+      EQLINECOLOR="${2}"
+      shift
+    fi
     ;;
 
   -znoplot)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -znoplot:      download and process seismicity but don't plot to map
--znoplot
+Usage: -znoplot
 
-Example: None
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -9611,12 +9301,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcsort:       sort seismicity and focal mechanisms by a specified dimension
--zcsort [[dimension]] [[direction]]
+Usage: -zcsort [[dimension]] [[direction]]
 
   dimension: depth | time | mag    (magnitude)
   direction: up | down
 
-Example: None
+  mag down = put larger earthquakes on top of smaller
+  map up   = put smaller earthquakes on top of larger
+
+Example:
+tectoplot -z -zcsort mag down -o example_zcsort
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -10916,6 +10611,14 @@ if [[ $plottopo -eq 1 ]]; then
           name=${F_TOPO}dem.tif
           TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         ;;
+        GEBCO21)
+          gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${name}
+          # gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          cp ${name} ${F_TOPO}dem.tif
+          clipdemflag=0
+          name=${F_TOPO}dem.tif
+          TOPOGRAPHY_DATA=${F_TOPO}dem.tif
+        ;;
         custom*)
         # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
 
@@ -10963,6 +10666,7 @@ if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.tif"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
+      echo flattening
       flatten_sea ${BATHY} ${F_TOPO}dem.tif -1
     else
       # This assumes that BATHY is a tif file.
@@ -11556,6 +11260,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
           gawk < ${F_SEIS}seis_slab2_sample_${slab2inregion[$i]}.txt -v vertdiff=${ZSLAB2VERT} '
             function abs(v) { return (v>0)?v:-v}
             ($(NF)!="NaN"){
+
               depth=$3
               slab2depth=(0-$(NF))     # now it is positive down, matching earthquake depth
 
@@ -12146,7 +11851,7 @@ cleanup ${F_CMT}equiv_presort.txt
           touch ${F_CMT}cmt_nodalplane.txt
           gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
             function abs(v) { return (v>0)?v:-v}
-            {
+            ($40 != "NaN") {
               slab2depth=(0-$40)     # now it is positive down, matching CMT depth
               slab2strike=$41
               slab2dip=$42
@@ -12159,7 +11864,7 @@ cleanup ${F_CMT}equiv_presort.txt
               }
 
               # If it is in the slab region and the depth is within the offset
-              if (slab2depth != "NaN" && abs(depth-slab2depth)<vertdiff)
+              if (abs(depth-slab2depth)<vertdiff)
               {
                 # If the strike and dip of one nodal plane matches the slab
                 printme=0
@@ -12187,7 +11892,7 @@ cleanup ${F_CMT}equiv_presort.txt
         if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
           gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
             function abs(v) { return (v>0)?v:-v}
-            {
+            ($40 != "NaN") {
               slab2depth=(0-$40)     # now it is positive down, matching CMT depth
               slab2strike=$41
               slab2dip=$42
@@ -12200,7 +11905,7 @@ cleanup ${F_CMT}equiv_presort.txt
               }
 
               # If it is in the slab region and the depth is within the offset
-              if (slab2depth != "NaN" && depth<slab2depth-vertdiff)
+              if (depth<slab2depth-vertdiff)
               {
                 $42=""
                 $41=""
@@ -12214,7 +11919,7 @@ cleanup ${F_CMT}equiv_presort.txt
         if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
           gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
             function abs(v) { return (v>0)?v:-v}
-            {
+            ($40 != "NaN") {
               slab2depth=(0-$40)     # now it is positive down, matching CMT depth
               slab2strike=$41
               slab2dip=$42
@@ -12227,7 +11932,7 @@ cleanup ${F_CMT}equiv_presort.txt
               }
 
               # If it is in the slab region and the depth is within the offset
-              if (slab2depth != "NaN" && depth>slab2depth+vertdiff)
+              if (depth-slab2depth>vertdiff)
               {
                 $42=""
                 $41=""
@@ -13161,7 +12866,7 @@ if [[ $plotplates -eq 1 ]]; then
 	# Set the GPS to the reference plate if not overriding it from the command line
 
 	if [[ $gpsoverride -eq 0 ]]; then
-    echo "REFPLATE is ${REFPLATE}"
+    info_msg "[-p]: REFPLATE is ${REFPLATE}"
     if [[ $defaultrefflag -eq 1 ]]; then
       # ITRF08 is likely similar to other reference frames.
       GPS_FILE=$(echo ${GPSDIR}"/GPS_ITRF08.gmt")
@@ -14797,13 +14502,13 @@ for plot in ${plots[@]} ; do
 
 #-Ft -Fa0.05i
       if [[ $cmtthrustflag -eq 1 ]]; then
-        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
-        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
       fi
       if [[ $cmtssflag -eq 1 ]]; then
-        gmt_psmeca_wrapper $SEIS_CPT -E"${CMT_SSCOLOR}" ${CMTEXTRA} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${FMLPEN} $RJOK $VERBOSE >> map.ps
+        gmt_psmeca_wrapper $SEIS_CPT -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
       fi
       ;;
 
@@ -15336,8 +15041,7 @@ for plot in ${plots[@]} ; do
 
       num_eigs=$(wc -l < ${F_GPS}gps_cull.txt | gawk '{print $1/2}')
 
-      echo gmt gpsgridder ${F_GPS}gps_cull.txt -Cn$num_eigs+eigen.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -S${GPS_GG_VAL} -I${GPS_GG_RES} -Fd4 -fg -W -r -G${F_GPS}gps_strain_%s.nc
-      gmt gpsgridder ${F_GPS}gps_cull.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Cn$num_eigs+eigen.txt -S${GPS_GG_VAL} -I${GPS_GG_RES} -Fd4 -fg -W -r -G${F_GPS}gps_strain_%s.nc -Vl
+      gmt gpsgridder ${F_GPS}gps_cull.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Cn$num_eigs+eigen.txt -S${GPS_GG_VAL} -I${GPS_GG_RES} -Fd4 -fg -W -r -G${F_GPS}gps_strain_%s.nc ${VERBOSE}
 
       # The following code is from Hackl et al., 2009; it generates various strain rate grids
 
@@ -15747,26 +15451,11 @@ for plot in ${plots[@]} ; do
       # The values of SCALECMD will be set by the scale) section
       ARROWCMD="-Tdg${ARROWREFLON}/${ARROWREFLAT}+w${ARROWSIZE}"
       # SMALLJ_RJOK=$(echo ${RJSTRING[@]} | tr 'J' 'j')
-      echo gmt psbasemap ${ARROWCMD} $SRJOK $VERBOSE
       gmt psbasemap ${ARROWCMD} $RJOK $VERBOSE >> map.ps
       ;;
 
     maptitle)
-
-      gmt psbasemap "-B+t\"${PLOTTITLE}\"" $RJOK $VERBOSE >> map.ps
- #
- # [[ $PLOTTITLE == "" ]]; then
- #        TITLE=""
- #      else
- #        TITLE="+t\"${PLOTTITLE}\""
- #      fi
- #      if [[ $usecustombflag -eq 0 ]]; then
- #        bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
- #        bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
- #        bcmds+=("-B${GRIDCALL}${TITLE}")
- #        BSTRING=("${bcmds[@]}")
- #      fi
-
+      gmt psbasemap "-B+t${PLOTTITLE}" $RJOK $VERBOSE >> map.ps
       ;;
 
     aprofcodes)
@@ -15775,10 +15464,6 @@ for plot in ${plots[@]} ; do
       ;;
 
     pagegrid)
-
-      # echo ${PROJDIM[0]} ${PROJDIM[1]}
-      # X SIZE IS ${PROJDIM[0]}
-      # Y SIZE IS ${PROJDIM[1]}
       case ${PAGE_GRID_UNIT} in
         i)
           PAGE_GRID_XSIZE=$(echo ${PROJDIM[0]} | gawk '
@@ -15953,7 +15638,7 @@ for plot in ${plots[@]} ; do
         fi
         if [[ -e ${F_CMT}cmt.dat ]]; then
           info_msg "Adding cmt to sprof"
-          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1 -L0.25p,black" >> sprof.control
+          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1 -L${CMT_LINEWIDTH},${CMT_LINECOLOR}" >> sprof.control
         fi
         if [[ -e ${F_VOLC}volcanoes.dat ]]; then
           # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
@@ -16607,9 +16292,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         else
 # Does this work?
-echo blah blah
           [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs.txt -Gwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL}${SEISSIZE} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
-          echo gmt psxy ${F_SEIS}eqs.txt -C$SEIS_CPT ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -t${SEISTRANS} $RJOK $VERBOSE
           gmt psxy ${F_SEIS}eqs.txt -C$SEIS_CPT ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
         fi
         gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
@@ -16680,7 +16363,7 @@ echo blah blah
     slipvecs)
       info_msg "Slip vectors"
       # Plot a file containing slip vector azimuths
-      gawk < ${SVDATAFILE} '($1 != "end") {print $1, $2, $3, 0.2}' | gmt psxy -SV0.05i+jc -W1.5p,red $RJOK $VERBOSE >> map.ps
+      gawk < ${SVDATAFILE} '($1 != "end") {print $1, $2, $3, 0.2}' | gmt psxy -SV0.05i+jc -W1.5p,blue $RJOK $VERBOSE >> map.ps
       ;;
 
     slipvecs_scale)
@@ -16690,7 +16373,7 @@ echo blah blah
       ;;
 
     text)
-      gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} -Gwhite -F+f+a+j -W0.25p,black $RJOK $VERBOSE >> map.ps
+      gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
       # -Dj-0.05i/0.025i+v0.7p,black
     ;;
 
@@ -16720,7 +16403,7 @@ echo blah blah
        fi
 
        if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
-         echo "Smoothing DEM"
+         info_msg "[-tsmooth]: Smoothing DEM"
          # MODIFIED DEM DATA FILE
          gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
          TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.tif
@@ -16848,6 +16531,7 @@ echo blah blah
           # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
           # p = use TIFF image instead of color stretch
           # w = clip to alternative AOI
+          # u = tunsetflat
 
           while read -n1 character; do
             case $character in
@@ -16900,7 +16584,8 @@ echo blah blah
               # Calculate the texture shade
               # Project from WGS1984 to Mercator / HDF format
               # The -dstnodata option is a kluge to get around unknown NaNs in dem_flt.flt even if ${TOPOGRAPHY_DATA} has NaNs filled.
-              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+
+              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16919,10 +16604,12 @@ echo blah blah
               ${TEXTURE_IMAGE} +${TS_STRETCH} ${F_TOPO}texture.flt ${F_TOPO}texture_merc.tif > /dev/null
               # project back to WGS1984
 
-              gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.tif ${F_TOPO}texture_2byte.tif -q
+              # Need to convert to NC for some reason
+              gdal_translate -of NetCDF ${F_TOPO}texture_merc.tif ${F_TOPO}texture_merc.nc > /dev/null 2>&1
+              gdalwarp -if NetCDF -of GTiff -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.nc ${F_TOPO}texture_2byte.tif -q > /dev/null 2>&1
 
               # Change to 8 bit unsigned format
-              gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q
+              gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q > /dev/null 2>&1
               cleanup ${F_TOPO}texture_2byte.tif ${F_TOPO}texture_merc.tif ${F_TOPO}dem_flt.flt ${F_TOPO}dem.hdr ${F_TOPO}dem_flt.flt.aux.xml ${F_TOPO}dem.prj ${F_TOPO}texture.flt ${F_TOPO}texture.hdr ${F_TOPO}texture.prj ${F_TOPO}texture_merc.prj ${F_TOPO}texture_merc.tfw
 
               # Combine it with the existing intensity
@@ -16938,7 +16625,6 @@ echo blah blah
             # Compute and render a one-sun hillshade
             h)
               info_msg "Creating unidirectional hillshade"
-              echo gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
               gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
               weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16965,7 +16651,7 @@ echo blah blah
 
               info_msg "Creating sky view factor"
 
-              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if netCDF -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+              [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -17053,6 +16739,7 @@ echo blah blah
             ;;
 
             # Set intensity of DEM values with elevation=0 to 254
+            # This is tunsetflat
             u)
               info_msg "Resetting 0 elevation cells to white"
               image_setval ${F_TOPO}intensity.tif ${TOPOGRAPHY_DATA} 0 254 ${F_TOPO}unset.tif
@@ -17322,9 +17009,9 @@ if [[ $plotseistimeline -eq 1 ]]; then
         }' ${F_CMT}proj_cmt_thrust.txt ${CMT_THRUSTPLOT} > ${F_CMT}proj_thrust_scaled_y.txt
 
       gmt_init_tmpdir
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
 
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
       gmt_remove_tmpdir
     fi
 
@@ -17347,9 +17034,9 @@ if [[ $plotseistimeline -eq 1 ]]; then
         }' ${F_CMT}proj_cmt_normal.txt ${CMT_NORMALPLOT} > ${F_CMT}proj_normal_scaled_y.txt
 
       gmt_init_tmpdir
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
 
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
       gmt_remove_tmpdir
 
     fi
@@ -17373,9 +17060,9 @@ if [[ $plotseistimeline -eq 1 ]]; then
         }' ${F_CMT}proj_cmt_strikeslip.txt ${CMT_STRIKESLIPPLOT} > ${F_CMT}proj_strikeslip_scaled_y.txt
 
       gmt_init_tmpdir
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${PS_OFFSET_IN_NOLABELS}i -R${SEISTIMELINE_START_TIME}/${SEISTIMELINE_BREAK_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
 
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SEISTIMELINE_BREAK_TIME}/${SEISTIMELINE_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${SEISTIMELINEWIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
       gmt_remove_tmpdir
     fi
 
@@ -17601,17 +17288,17 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
 
     if [[ -s ${F_CMT}proj_normal_scaled_y.txt ]]; then
       plotframe=1
-      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_NORMALCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_normal_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
     fi
 
     if [[ -s ${F_CMT}proj_thrust_scaled_y.txt ]]; then
       plotframe=1
-      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_THRUSTCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${CMT_SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_thrust_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
     fi
 
     if [[ -s ${F_CMT}proj_strikeslip_scaled_y.txt ]]; then
       plotframe=1
-      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${FMLPEN} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
+      gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}proj_strikeslip_scaled_y.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -K -O $VERBOSE >> map.ps
     fi
 
     if [[ $plotframe -eq 1 ]]; then
@@ -18134,21 +17821,21 @@ if [[ $makelegendflag -eq 1 ]]; then
         MEXP_T=($(stretched_m0_from_mw $MEXP_V_T))
 
         # if [[ $CMTLETTER == "c" ]]; then
-        #   echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 15 322 39 -73 121 53 -104 $MEXP_N 126.020000 13.120000 C021576A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtnormalflag -eq 1 ]]; then
         #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 220 0.99" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 342 0.23" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 129 0.96" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #   fi
         #   echo "$CENTERLON $CENTERLAT N/${MEXP_V_N}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.14i -O -K >> mecaleg.ps
-        #   echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 14 92 82 2 1 88 172 $MEXP_S 125.780000 8.270000 B082783A" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.35i -Y-0.15i ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtssflag -eq 1 ]]; then
         #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 316 0.999" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 47 0.96" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #     [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 167 0.14" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #   fi
         #   echo "$CENTERLON $CENTERLAT SS/${MEXP_V_S}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.15i -O -K >> mecaleg.ps
-        #   echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+        #   echo "$CENTERLON $CENTERLAT 33 321 35 92 138 55 89 $MEXP_T 123.750000 7.070000 M081676B" | gmt psmeca $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.35i -Y-0.15i -R -J -O -K ${VERBOSE} >> mecaleg.ps
         #   if [[ $axescmtthrustflag -eq 1 ]]; then
         #     [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 42 0.17" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >>  mecaleg.ps
         #     [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 229 0.999" | gawk -v scalev=${CMTAXESSCALE} '{print $1, $2, $3, $4*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue -Gblack $RJOK $VERBOSE >>  mecaleg.ps
@@ -18173,7 +17860,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 
 
         if [[ $CMTLETTER == "m" ]]; then
-          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L0.25p,black  ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.15i ${VERBOSE} >> mecaleg.ps
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -44.5503 -22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 44.5503 22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
@@ -18190,7 +17877,7 @@ if [[ $makelegendflag -eq 1 ]]; then
           # echo "$CENTERLON $CENTERLAT normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
 
 
-          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.4i -Y-0.20i ${VERBOSE} >> mecaleg.ps
 
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 36.6146 -31.8286 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
@@ -18207,7 +17894,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 
           # Plot thrust event in legend
 
-          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L0.25p,black ${CMTEXTRA} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.4i -Y-0.20i -R -J -O -K ${VERBOSE} >> mecaleg.ps
 
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 7.57264 19.7274 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps

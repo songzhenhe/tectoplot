@@ -30,6 +30,9 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+CMT_LINEWIDTH=0.25p
+CMT_LINECOLOR="black"
+
 GPS_MINSIG=0
 
 TICK_NUMBER=6   # Number of ticks desired for map axes, approximate
