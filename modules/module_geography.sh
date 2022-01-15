@@ -55,8 +55,8 @@ function tectoplot_args_geography()  {
   -a) # args: none || string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--a:            plot ocean/land coastlines
--a [[quality=${COAST_QUALITY}]] [[sizelimit=${COAST_SIZELIMIT}]]
+-a:   plot ocean and land coastlines
+Usage: -a [[quality=${COAST_QUALITY}]] [[sizelimit=${COAST_SIZELIMIT}]]
   Plot ocean coastlines with a given quality (option descriptions from GMT:)
   a - auto: select best resolution given map scale.
   f - full resolution (may be very slow for large regions).
@@ -64,8 +64,10 @@ cat <<-EOF
   i - intermediate resolution.
   l - low resolution [Default].
   c - crude resolution, for busy plots that need crude continent outlines only.
+
 Example:
-  tectoplot -r g -a l
+  tectoplot -r g -a l -o example_a
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 fi
@@ -97,11 +99,13 @@ fi
   -ac) # args: landcolor seacolor
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ac:           plot land/water color (requires -a)
--ac [[land color]] [[sea color]]
+-ac:           plot land/water color
+Usage: -ac [[land color]] [[sea color]]
   Set options to fill land and water areas with a solid color when using -a
+
 Example: Plot global land/sea areas
   tectoplot -r g -a l -ac lightbrown lightblue
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 fi
@@ -135,15 +139,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -acb:          plot country borders
--acb [[line color=${BORDER_LINECOLOR}]] [[line width${BORDER_LINEWIDTH}]] [[border quality=${BORDER_QUALITY}]]
+Usage: -acb [[line color=${BORDER_LINECOLOR}]] [[line width${BORDER_LINEWIDTH}]] [[border quality=${BORDER_QUALITY}]]
   a - auto: select best resolution given map scale.
   f - full resolution (may be very slow for large regions).
   h - high resolution (may be slow for large regions).
   i - intermediate resolution.
   l - low resolution [Default].
   c - crude resolution, for busy plots that need crude continent outlines only.
+
 Example: Plot global country borders and coastline
-  tectoplot -r g -a l -acb red 0.2p a
+tectoplot -r g -a l -acb red 0.2p a
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 fi
@@ -208,16 +214,19 @@ EOF
     -acs)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--acb:          plot state borders
--acb [[line color=${BORDER_STATE_LINECOLOR}]] [[line width${BORDER_STATE_LINEWIDTH}]] [[border quality=${BORDER_STATE_QUALITY}]]
+-acs:          plot state borders
+Usage: -acs [[line color=${BORDER_STATE_LINECOLOR}]] [[line width${BORDER_STATE_LINEWIDTH}]] [[border quality=${BORDER_STATE_QUALITY}]]
+
   a - auto: select best resolution given map scale.
   f - full resolution (may be very slow for large regions).
   h - high resolution (may be slow for large regions).
   i - intermediate resolution.
   l - low resolution [Default].
   c - crude resolution, for busy plots that need crude continent outlines only.
+
 Example: Plot state borders and coastline
-  tectoplot -r g -a l -acs red 0.2p a
+tectoplot -r g -a l -acs red 0.2p a
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
   fi

@@ -35,9 +35,10 @@ function tectoplot_args_gcdm()  {
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 modules/module_gcdm.sh
--gcdm:         plot Global Curie Depth Map (Li et al., 2017)
+-gcdm:         plot Global Curie Depth Map
 -gcdm
 
+  Data are from Li et al., 2017
   The Curie depth is the depth at which magnetic minerals lose their permanent
   remanence and is sensitive to both mineral composition and temperature.
 

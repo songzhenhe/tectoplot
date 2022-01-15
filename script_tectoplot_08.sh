@@ -2196,6 +2196,30 @@ fi
     info_msg "[-B]: Custom map frame string: ${BSTRING[@]}"
     ;;
 
+  -usgsfoc)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-usgsfoc:    download QuakeML for events and make focal mechanism file
+Usage: -usgsfoc [event_id1] [[event_id2]] ...
+
+  event_id are USGS ID codes, e.g. us7000fxq2
+
+Example: Plot a USGS event focal mechanism
+tectoplot -usgsfoc us7000fxq2 -c -a -o example_usgsfoc
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  while ! arg_is_flag $2; do
+    info_msg "Attempting to retrieve focal mechanism for event ${2}"
+    python ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
+    shift
+  done
+
+  ;;
+
 	-c) # args: none || number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6976,10 +7000,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -time:         select seismic data from a continuous epoch
-Usage: -time [[start_time]] [[end_time]]
+Usage: -time [start_time] [[end_time]]
+Usage: -time [[day number]] [[week number]] [[month number]] [[year number]]
 
   Times are in IS8601 YYYY-MM-DDTHH:MM:SS format.
   YYYY, YYYY-MM, etc. will work.
+
+  To plot the last two weeks plus one day: -time day 1 week 2
 
 Example: Solomon Islands seismicity between Jan 1 2001 and Jan 1 2005
 tectoplot -r SB -t -z -c -time 2001-01-01 2005-01-01 -o example_time
@@ -6992,36 +7019,93 @@ fi
     ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
 
     timeselectflag=1
-    if [[ "${2}" == "day" ]]; then
-      daynum=1
-      shift
-      if arg_is_positive_float $2; then
-        daynum=${2}
-        shift
-      fi
-      daynum=$(echo "-1 * $daynum" | bc -l)
-      STARTTIME=$(date_shift_utc $daynum 0 0 0)
-      ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
-    elif [[ "${2}" == "week" ]]; then
-      weeknum=1
-      shift
-      if arg_is_positive_float $2; then
-        weeknum=${2}
-        shift
-      fi
-      daynum=$(echo "-1 * $weeknum * 7" | bc -l)
-      STARTTIME=$(date_shift_utc $daynum 0 0 0)
-      ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
-    elif [[ "${2}" == "year" ]]; then
-      yearnum=1
-      shift
-      if arg_is_positive_float $2; then
-        yearnum=${2}
-        shift
-      fi
-      daynum=$(echo "-1 * $yearnum * 365.25" | bc -l)
-      STARTTIME=$(date_shift_utc $daynum 0 0 0)
-      ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
+    if [[ "${2}" == "day" || $2 == "year" || $2 == "week" || $2 == "month" ]]; then
+      daynum=0
+      hournum=0
+      minutenum=0
+      secondnum=0
+      while ! arg_is_flag $2; do
+        case "${2}" in
+          "day")
+            shift
+            if arg_is_positive_float $2; then
+              thisdaynum=${2}
+              shift
+            else
+              info_msg "[-time]: day requires a positive float argument"
+              exit 1
+            fi
+            daynum=$(echo "$daynum + -1 * $thisdaynum" | bc -l)
+            ;;
+          "week")
+            shift
+            if arg_is_positive_float $2; then
+              weeknum=${2}
+              shift
+            else
+              info_msg "[-time]: week requires a positive float argument"
+              exit 1
+            fi
+            daynum=$(echo "$daynum + -1 * $weeknum * 7" | bc -l)
+            ;;
+          "month")
+            shift
+            if arg_is_positive_float $2; then
+              yearnum=${2}
+              shift
+            else
+              info_msg "[-time]: month requires a positive float argument"
+              exit 1
+            fi
+            daynum=$(echo "$daynum + -1 * $yearnum * 30" | bc -l)
+            ;;
+          "year")
+            shift
+            if arg_is_positive_float $2; then
+              yearnum=${2}
+              shift
+            else
+              info_msg "[-time]: year requires a positive float argument"
+              exit 1
+            fi
+            daynum=$(echo "$daynum + -1 * $yearnum * 365.25" | bc -l)
+            ;;
+          "second")
+            shift
+            if arg_is_positive_float $2; then
+              secondnum=${2}
+              shift
+            else
+              info_msg "[-time]: second requires a positive float argument"
+              exit 1
+            fi
+            ;;
+          "hour")
+            shift
+            if arg_is_positive_float $2; then
+              hournum=${2}
+              shift
+            else
+              info_msg "[-time]: hour requires a positive float argument"
+              exit 1
+            fi
+            ;;
+          "minute")
+            shift
+            if arg_is_positive_float $2; then
+              minutenum=${2}
+              shift
+            else
+              info_msg "[-time]: minute requires a positive float argument"
+              exit 1
+            fi
+            ;;
+        esac
+      done
+    # Calculate
+    info_msg "[-time]: Selecting from last $daynum days $hournum hours $minutenum minutes and $secondnum seconds before present date"
+    STARTTIME=$(date_shift_utc $daynum $hournum $minutenum $secondnum)
+    ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
     else
       if ! arg_is_flag "${2}"; then
         STARTTIME="${2}"
@@ -8953,8 +9037,10 @@ cat <<-EOF
 -ccat:         select focal mechanism catalog(s) and add custom focal mechanism files
 Usage: -ccat [catalogID1] [[catalogfile1 code1 ]] ...  [[nocull]]
 
-  catalogID: GCMT | ISC | GFZ
+  catalogID: GCMT | ISC | GFZ | usgs
   catalogfile: Any file in a format importable by cmt_tools.sh
+
+  usgs catalog requires use of -usgsfoc command
 
   format codes:
 
@@ -9005,7 +9091,7 @@ fi
     else
       unset CCAT_STRING
       # Everything except G, I, Z
-      CUSTOMCATSTR="ABCDEFHJKLMNOPQRSTUVWXYZ"
+      CUSTOMCATSTR="ABCDEFHJKLMNOPQRSTVWXYZ"
       unset CMT_CATALOG_TYPE
       while ! arg_is_flag ${2}; do
         CCATARG="${2}"
@@ -9041,19 +9127,24 @@ fi
             ADD_CMT_SOURCESTRING=2
           ;;
           *)
-            if [[ -s "${CCATARG}" ]]; then
+            if [[ -s "${CCATARG}" || "${CCATARG}" == "usgs" ]]; then
 
               cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
               CCAT_LETTER[$cmtfilenumber]=${CUSTOMCATSTR:${cmtfilenumber}:1}
               CCAT_STRING=${CCAT_STRING}${CCAT_LETTER[$cmtfilenumber]}
               # Add a custom catalog file
+
+              if [[ "${CCATARG}" == "usgs" ]]; then
+                CCATARG=${TMP}${F_CMT}usgs_foc.cat
+                # Mark as a custom CMT with type T (tectoplot format)
+                CMTADDFILE_TYPE[$cmtfilenumber]="T"
+              else
+                # Custom catalogs require a format code
+                CMTADDFILE_TYPE[$cmtfilenumber]="${2}"
+                shift
+              fi
               CMTADDFILE[$cmtfilenumber]=$(abs_path $CCATARG)
-
-              # Custom catalogs require a format code
-              CMTADDFILE_TYPE[$cmtfilenumber]="${2}"
-              shift
               CMT_CATALOG_TYPE+=("custom")
-
             else
               info_msg "Seismicity file ${CMTADDFILE[$cmtfilenumber]} does not exist"
             fi
@@ -11359,7 +11450,6 @@ if [[ $calccmtflag -eq 1 ]]; then
   [[ $CMTFORMAT =~ "TNP" ]] && CMTLETTER="y"
 
   # New code to process CMT
-
   cmt_priority=1
   for this_ccat in ${CMT_CATALOG_TYPE[@]}; do
     info_msg "[-c]: Extracting CMT events from ${this_ccat}"
@@ -11375,12 +11465,10 @@ if [[ $calccmtflag -eq 1 ]]; then
         THIS_CMTFILE=${GFZCATALOG}
       ;;
       custom)  # Slurp the custom CMT file using the specified format and the alphabetical ID
-
         # THIS_CMTFILE=${CMTADDFILE[$this_customcmtnum]}
         # THIS_CMTFORMAT=${CMTADDFILE_TYPE[$this_customcmtnum]}
         # THIS_CMTLETTER=${CCAT_LETTER[$cmtfilenumber]}
         # echo ${CMTSLURP} ${CMTADDFILE[$this_customcmtnum]} ${CMTADDFILE_TYPE[$this_customcmtnum]} ${CCAT_LETTER[$this_customcmtnum]}
-
         if [[ ${CMTADDFILE_TYPE[$this_customcmtnum]} == "T" ]]; then
           cp ${CMTADDFILE[$this_customcmtnum]} ${F_CMT}custom_cmt_${this_customcmtnum}.txt
         else
@@ -11395,7 +11483,9 @@ if [[ $calccmtflag -eq 1 ]]; then
     # Do the initial AOI scrape and filter events by CENTROID/ORIGIN location.
     # We should have a cmt_tools.sh option to set events as centroid/origin when importing!
 
-    if [[ -s $THIS_CMTFILE ]]; then
+    if [[ $THIS_CMTFILE == "${F_CMT}usgs_foc.cat" ]]; then
+      cat $THIS_CMTFILE >> ${F_CMT}cmt_global_aoi.dat
+    elif [[ -s $THIS_CMTFILE ]]; then
       gawk < $THIS_CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${CMT_MINMAG} -v maxmag=${CMT_MAXMAG} '
       @include "tectoplot_functions.awk"
       {

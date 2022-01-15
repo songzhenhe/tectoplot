@@ -1854,6 +1854,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
 
         cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+
+        echo "gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc"
         # S${CMTLETTER}0.05i causes pscoupe to die with gmt 6.2
 
         # pscoupe outputs data into files called Aa... rather than to a specified output file
@@ -1974,51 +1976,51 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
 
-        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
-        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtssflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${PSFILE}" >> plot.sh
-        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
 
         # PLOT ONTO THE FLAT PROFILE PS
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -Sc0.03i -Gblack $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
         [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -W0.1p,black $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca ${CMTEXTRA} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L0.25p,black -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -Z$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
 

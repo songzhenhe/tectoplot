@@ -194,7 +194,7 @@ fi
   -im) # args: file { arguments }
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--im:           plot a referenced RGB grid file (e.g. GeoTiff)
+-im:           plot a referenced RGB grid file 
 -im [filename] { GMT OPTIONS }
 
   gmt options (to psimage) might include { -t50 }

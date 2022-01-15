@@ -243,7 +243,7 @@ function flatten_sea() {
   fi
   info_msg "Setting DEM elevations less than or equal to 0 to ${setval}"
 
-  gdal_calc.py --overwrite --type=Float32 --format=NetCDF --quiet -A "${1}" --calc="((A>0)*A + (A<=0)*${setval})" --outfile="${2}"
+  gdal_calc.py --overwrite --type=Float32 --quiet -A "${1}" --calc="((A>0)*A + (A<=0)*${setval})" --outfile="${2}"
 }
 
 # Takes a RGB tiff ${1} and a DEM ${2} and sets R=${3} G=${4} B=${5} for cells where DEM<=0, output to ${6}

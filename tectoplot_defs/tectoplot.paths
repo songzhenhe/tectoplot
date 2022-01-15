@@ -30,7 +30,11 @@
 # This file will be sourced by tectoplot. All assignments should be bash format.
 # (REQUIRES: $TECTOPLOTDIR, $DEFDIR).
 
-
+# Python code for scraping USGS focal mechanisms from event summary Quakeml
+##### PYTHON SCRIPTS
+# Source the following scripts at startup
+PYTHONSCRIPTDIR=${TECTOPLOTDIR}"pythonscripts/"
+USGSQUAKEML=${PYTHONSCRIPTDIR}"usgsquakeml.py"
 
 # Default compilers are overridden by entries in tectoplot_defs/tectoplot.compilers
 
@@ -274,6 +278,9 @@ GEBCO20_SOURCEURL="https://www.bodc.ac.uk/data/open_download/gebco/gebco_2020/zi
 GEBCO20_TID=$GEBCO20DIR"GEBCO_2020_TID.nc"
 GEBCO20_BYTES="7466008877"
 GEBCO20_ZIP_BYTES="4008688379"
+
+GEBCO21DIR=$DATAROOT"GEBCO21/"
+GEBCO21FILE=$GEBCO21DIR"GEBCO_2021.tif"
 
 GEBCO1DIR=$DATAROOT"GEBCO_ONE/"
 GEBCO1FILE=$GEBCO1DIR"GRIDONE_2D.nc"
