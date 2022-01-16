@@ -1675,8 +1675,11 @@ fi
   -eventmap)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--eventmap:     plot an earthquake summary map
-Usage: -eventmap [earthquakeID] [[degree_width]]
+-eventmap:     plot an earthquake summary map using a USGS event code
+Usage: -eventmap [earthquakeID] [[options]]
+
+  options:
+  [deg]
 
   Plot a basic seismotectonic map and cross section centered on an earthquake
   Includes topography, Slab2.0, seismicity, focal mechanisms (ORIGIN location).
@@ -1699,16 +1702,39 @@ fi
       EVENTMAP_ID=$(eq_event_parse "${2}")
       shift
     fi
-    if arg_is_flag $2; then
-      info_msg "[-eventmap]: No degree buffer specified. Using 2 degrees"
-      EVENTMAP_DEGBUF=2
-    else
-      EVENTMAP_DEGBUF="${2}"
-      shift
-    fi
-    shift # Gets rid of EVENTMAP_ID somehow...
-    #
-    set -- "blank" "-r" "eq" ${EVENTMAP_ID} ${EVENTMAP_DEGBUF} "-t" "-b" "c" "-z" "-c" "ORIGIN" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "-legend" "onmap" "-title" "Earthquake $EVENTMAP_ID" "$@" # "-cprof" "eq" "eq" "slab2" "map" "100k" "-oto" "-mob"
+    EVENTMAP_DEGBUF=2
+    EVENTMAP_TOPO="SRTM30"
+    shift
+    while ! arg_is_flag $1; do
+      case $1 in
+        deg)
+          shift
+          if arg_is_positive_float $1; then
+            EVENTMAP_DEGBUF="${1}"
+            shift
+          else
+            echo "[-eventmap]: deg option requires positive float argument"
+            exit 1
+          fi
+          ;;
+        topo)
+          shift
+          if ! arg_is_flag $1; then
+            EVENTMAP_TOPO="${1}"
+            shift
+          else
+            echo "[-eventmap]: topo option requires topo datset argument"
+          fi
+          ;;
+        *)
+          echo "[-eventmap]: unrecognized option ${2}"
+          exit 1
+        ;;
+      esac
+    done
+
+    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-usgsfoc" "${EVENTMAP_ID}" "-ccat" "usgs" "GCMT" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
+    # echo $@
     ;;
 
   # Normal commands
@@ -5253,7 +5279,7 @@ fi
     plots+=("plateazdiff")
     ;;
 
-	-r|--range) # args: number number number number
+	-r) # args: number number number number
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -5349,10 +5375,8 @@ fi
       elif [[ "${2}" == "eq" ]]; then
         setregionbyearthquakeflag=1
         REGION_EQ=${3}
-
         shift
         shift
-
         if arg_is_positive_float ${2}; then
           info_msg "[-r]: EQ region width is ${2}"
           EQ_REGION_WIDTH="${2}"
@@ -9484,50 +9508,55 @@ fi
 echo $COMMAND > tectoplot.last
 
 if [[ $setregionbyearthquakeflag -eq 1 ]]; then
-  # This needs to be changed
-  LOOK1=$(grep $REGION_EQ $FOCALCATALOG | head -n 1)
-  if [[ $LOOK1 != "" ]]; then
-    # echo "Found EQ region focal mechanism $REGION_EQ"
-    case $CMTTYPE in
-      ORIGIN)
-        REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $8}')
-        REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $9}')
-        ;;
-      CENTROID)
-        REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $5}')
-        REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $6}')
-        ;;
-    esac
-  else
-    if [[ $EQ_CATALOG_TYPE[1] =~ "ANSS" ]]; then
-      echo "Looking for event ${REGION_EQ}"
-      LOOK2=$(zipgrep $REGION_EQ ${ANSS_TILENEWZIP})
 
-      if [[ $LOOK2 != "" ]]; then
-        echo "Found event in new data: ${LOOK2}"
-        # echo "Found EQ region hypocenter $REGION_EQ"
-        REGION_EQ_LON=$(echo $LOOK2 | gawk -F, '{print $3}')
-        REGION_EQ_LAT=$(echo $LOOK2 | gawk -F, '{print $2}')
-        # Remove quotation marks before getting title
-        PLOTTITLE="Event $REGION_EQ, $(echo $LOOK2 | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $LOOK2 | gawk -F, '{print $4}') km"
-      else
-        LOOK2=$(zipgrep $REGION_EQ ${ANSS_TILEOLDZIP})
+  if [[ "${REGION_EQ}" == "usgs" ]]; then
+    REGION_EQ_LON=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $5}')
+    REGION_EQ_LAT=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $6}')
+  else
+    LOOK1=$(grep $REGION_EQ $FOCALCATALOG | head -n 1)
+    if [[ $LOOK1 != "" ]]; then
+      # echo "Found EQ region focal mechanism $REGION_EQ"
+      case $CMTTYPE in
+        ORIGIN)
+          REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $8}')
+          REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $9}')
+          ;;
+        CENTROID)
+          REGION_EQ_LON=$(echo $LOOK1 | gawk  '{print $5}')
+          REGION_EQ_LAT=$(echo $LOOK1 | gawk  '{print $6}')
+          ;;
+      esac
+    else
+      if [[ $EQ_CATALOG_TYPE[1] =~ "ANSS" ]]; then
+        echo "Looking for event ${REGION_EQ}"
+        LOOK2=$(zipgrep $REGION_EQ ${ANSS_TILENEWZIP})
+
         if [[ $LOOK2 != "" ]]; then
-          echo "Found event in old data: ${LOOK2}"
+          echo "Found event in new data: ${LOOK2}"
           # echo "Found EQ region hypocenter $REGION_EQ"
           REGION_EQ_LON=$(echo $LOOK2 | gawk -F, '{print $3}')
           REGION_EQ_LAT=$(echo $LOOK2 | gawk -F, '{print $2}')
           # Remove quotation marks before getting title
           PLOTTITLE="Event $REGION_EQ, $(echo $LOOK2 | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $LOOK2 | gawk -F, '{print $4}') km"
         else
-          echo "Earthquake ${REGION_EQ} not found in ANSS catalog."
-          exit 1
+          LOOK2=$(zipgrep $REGION_EQ ${ANSS_TILEOLDZIP})
+          if [[ $LOOK2 != "" ]]; then
+            echo "Found event in old data: ${LOOK2}"
+            # echo "Found EQ region hypocenter $REGION_EQ"
+            REGION_EQ_LON=$(echo $LOOK2 | gawk -F, '{print $3}')
+            REGION_EQ_LAT=$(echo $LOOK2 | gawk -F, '{print $2}')
+            # Remove quotation marks before getting title
+            PLOTTITLE="Event $REGION_EQ, $(echo $LOOK2 | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $LOOK2 | gawk -F, '{print $4}') km"
+          else
+            echo "Earthquake ${REGION_EQ} not found in ANSS catalog."
+            exit 1
+          fi
         fi
+      elif [[ $EQ_CATALOG_TYPE[1] =~ "ISC" ]]; then
+        echo "ISC grep for event"
+      elif [[ $EQ_CATALOG_TYPE[1] =~ "NONE" ]]; then
+        echo "No EQ catalog"
       fi
-    elif [[ $EQ_CATALOG_TYPE[1] =~ "ISC" ]]; then
-      echo "ISC grep for event"
-    elif [[ $EQ_CATALOG_TYPE[1] =~ "NONE" ]]; then
-      echo "No EQ catalog"
     fi
   fi
   MINLON=$(echo "$REGION_EQ_LON - $EQ_REGION_WIDTH" | bc -l)

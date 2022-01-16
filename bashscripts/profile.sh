@@ -1855,7 +1855,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
         cat ${F_PROFILES}cmt_thrust_sel.txt | gawk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 }' | gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
 
-        echo "gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc"
+        # echo "gmt pscoupe -R0/$add_x/-100/6500 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z/90/$CMTWIDTH/0/6500 -S${CMTLETTER}0.05i -Xc -Yc"
         # S${CMTLETTER}0.05i causes pscoupe to die with gmt 6.2
 
         # pscoupe outputs data into files called Aa... rather than to a specified output file

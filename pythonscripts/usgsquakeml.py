@@ -1,11 +1,14 @@
 # usgs_focal.py
 # Kyle Edward Bradley, NTU, 2022
+# Python 3.9.6
 # modified from original code by Charles Ammon
 # https://sites.psu.edu/charlesammon/2017/01/31/parsing-usgs-quakeml-files-with-python/
 
 from xml.etree import cElementTree as ElementTree
-import urllib2
 import time, sys, os
+import urllib
+from urllib.request import urlopen
+
 # from __future__ import print_function
 
 # Some generic utilities I use to parse the xml
@@ -84,14 +87,13 @@ def parse_origins(xevent):
 #
 #---------------------------------------------------------------------------------
 def list_origins(orgs):
-    print 'time\tlon\tlat\tdepth'
+    print('time\tlon\tlat\tdepth')
     for org in orgs:
-        print "%s\t%s\t%s\t%s" % (org['otime'], org['longitude'],org['latitude'],org['depth'])
+        print("{}\t{}\t{}\t{}", org['otime'], org['longitude'],org['latitude'],org['depth'])
 #
 #---------------------------------------------------------------------------------
 def parse_magnitudes(xevent):
     xmags = xevent.findall('d:magnitude',ns)
-    # print(xmags)
     mags = []
     for xmag in xmags:
         mdict = xmag.attrib.copy()
@@ -110,7 +112,6 @@ def parse_magnitudes(xevent):
             mdict.update({"agencyID" : value})
         #
         mdict.update({"publicID" : mdict['publicID']})
-        # print "%s" % (value)
         mags.append(mdict)
     return mags
 
@@ -219,17 +220,6 @@ def parse_moment_tensors(xevent):
 #
 #---------------------------------------------------------------------------------
 
-def list_moment_tensors(moms):
-    for mom in moms:
-        # print mom
-        print "%s %s %s %s %s %s %s %s : %s %s %s %s %s %s : %s %s %s %s %s %s %s %s %s" % (mom['scalarMoment'], mom['Mexp'], mom['Mrr'], mom['Mtt'], mom['Mpp'], mom['Mrt'], mom['Mrp'], mom['Mtp'], mom['strike1'], mom['dip1'], mom['rake1'], mom['strike2'], mom['dip2'], mom['rake2'], mom['Taz'], mom['Tinc'], mom['Tval'], mom['Naz'], mom['Ninc'], mom['Nval'], mom['Paz'], mom['Pinc'], mom['Pval'])
-
-#---------------------------------------------------------------------------------
-def list_magnitudes(mags):
-    print 'mag\tmagType\tagencyID\tmagnitude\tevaluationMode'
-    for mag in mags:
-        print "%s\t%s\t%s\t%s\t%s" % (mag['mag'], mag['magType'], mag['agencyID'], mag['originID'], mag['publicID'])
-
 # Output a tectoplot focal mechanism format line
 # Column  Data              Units
 # ------  ----              -----
@@ -279,8 +269,7 @@ def print_focal_tectoplot(e):
     p = '%Y-%m-%dT%H:%M:%S'
     epoch=int(time.mktime(time.strptime(e['origin']['otime'], p)))
     if len(e['focal'])!=0:
-        print "%s%s %s%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % (
-            "U", mechanism_type_from_TNP(float(e['focal']['Tinc']), float(e['focal']['Ninc']), float(e['focal']['Pinc'])),
+        print("{}{} {}{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format("U", mechanism_type_from_TNP(float(e['focal']['Tinc']), float(e['focal']['Ninc']), float(e['focal']['Pinc'])),
             e['focal']['agency'], e['eventInfo']['eventid'],
             e['origin']['otime'],
             epoch,
@@ -319,7 +308,7 @@ def print_focal_tectoplot(e):
             e['focal']['Mrp'],
             e['focal']['Mtp'],
             e['focal']['centroid_dt']
-            )
+            ))
 #---------------------------------------------------------------------------------
 # get the preferred origin from the eventInfo dict and the origins list
 #
@@ -355,9 +344,9 @@ def parse_usgs_xml(event_id_code):
         xroot = xtree.getroot()
     else:
         url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/{}.quakeml'.format(event_id_code)
-        # print "Getting QuakeML from {}".format(url)
-        response = urllib2.urlopen(url)
-        xmlstring = response.read()
+        xmlstring = urlopen(url).read()
+
+        # xmlstring = response.read()
 
         if len(xmlstring)==0:
             quit()
