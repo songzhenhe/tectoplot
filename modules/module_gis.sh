@@ -10,7 +10,7 @@ function tectoplot_defaults_gis() {
   #############################################################################
   ### GIS point options
   POINTSYMBOL="c"
-  POINTCOLOR="black"
+  # POINTCOLOR="black"
   POINTSIZE="0.02i"
   POINTLINECOLOR="black"
   POINTLINEWIDTH="0.5p"
@@ -194,7 +194,7 @@ fi
   -im) # args: file { arguments }
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--im:           plot a referenced RGB grid file 
+-im:           plot a referenced RGB grid file
 -im [filename] { GMT OPTIONS }
 
   gmt options (to psimage) might include { -t50 }
@@ -367,6 +367,7 @@ EOF
         ((tectoplot_module_shift++))
         info_msg "[-pt]: Point size specified. Using ${POINTSIZE_arr[$userpointfilenumber]}."
       fi
+      POINTCOLOR[$userpointfilenumber]="black"
 
       # Finally, look for CPT file
       if arg_is_flag $1; then
@@ -376,7 +377,7 @@ EOF
       elif [[ ${1:0:1} == "@" ]]; then
         shift
         ((tectoplot_module_shift++))
-        POINTCOLOR=${1}
+        POINTCOLOR[$userpointfilenumber]=${1}
         info_msg "[-pt]: No cpt specified using @. Using POINTCOLOR for -G"
         shift
         ((tectoplot_module_shift++))
@@ -414,7 +415,7 @@ modules/module_gis.sh
   color     Color of small circle line
   pole      Activate plotting of pole location as point
   stroke    Pen width (e.g. 1p)
-  dash      Activate dashed line styl
+  dash      Activate dashed line style
 
   Multiple calls to -smallc can be made; they will plot in map layer order.
 
@@ -426,6 +427,7 @@ EOF
 
 
       smallcnumber=$(echo "$smallcnumber + 1" | bc -l)
+      smallcirclekmflag=0
 
       if arg_is_float $1; then
         SMALLCLON[$smallcnumber]=$1
@@ -444,21 +446,16 @@ EOF
         shift
         ((tectoplot_module_shift++))
       elif ! arg_is_flag $1; then
-        # If argument is not a pure number, assume it is a kilometer value
-        SMALLCDEG[$smallcnumber]=$(echo "$1 ${SMALLCLAT[$smallcnumber]}" | gawk '{print cos($2*3.14159/180)*($1+0) / 111.325}')
+
+        # If argument is not a pure number, assume it is a kilometer value and convert to appropriate degree value
+        # We use GMT project to find the interior angle corresponding to projecting east at the equator
+        # This will technically be incorrect
+        smallcirclekmflag=1
+        SMALLCKM[$smallcnumber]=$1
+        SMALLCDEG[$smallcnumber]=$(gmt project -C0/0 -A90 -Q -G${1}k -L0/${1} | gawk '(NR==2){print $1}')
         shift
         ((tectoplot_module_shift++))
       fi
-
-      # if ! arg_is_flag $1; then
-      #   SMALLCWIDTH[$smallcnumber]="${1}"
-      #   shift
-      #   ((tectoplot_module_shift++))
-      # else
-      #   SMALLCWIDTH[$smallcnumber]=${SMALLCWIDTH_DEF}
-      # fi
-      #
-      #
 
       SMALLCPOLE[$smallcnumber]=0
       SMALLCDASH[$smallcnumber]=""
@@ -487,6 +484,14 @@ EOF
               SMALLCWIDTH[$smallcnumber]="${1}"
             else
               SMALLCWIDTH[$smallcnumber]=${SMALLCWIDTH_DEF}
+            fi
+            ;;
+          label)
+            SMALLC_PLOTLABEL[$smallcnumber]=1
+            if [[ $smallcirclekmflag -eq 1 ]]; then
+              SMALLCLABEL[$smallcnumber]="${SMALLCKM[$smallcnumber]} km"
+            else
+              SMALLCLABEL[$smallcnumber]="${SMALLCDEG[$smallcnumber]} deg"
             fi
             ;;
         esac
@@ -625,7 +630,7 @@ function tectoplot_plot_gis() {
     if [[ ${pointdatacptflag[$current_userpointfilenumber]} -eq 1 ]]; then
       gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -W$POINTLINEWIDTH,$POINTLINECOLOR -C${POINTDATACPT[$current_userpointfilenumber]} -G+z -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
     else
-      gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -G$POINTCOLOR -W$POINTLINEWIDTH,$POINTLINECOLOR -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
+      gmt psxy ${POINTDATAFILE[$current_userpointfilenumber]} -G${POINTCOLOR[$current_userpointfilenumber]} -W$POINTLINEWIDTH,$POINTLINECOLOR -S${POINTSYMBOL_arr[$current_userpointfilenumber]}${POINTSIZE_arr[$current_userpointfilenumber]} $RJOK $VERBOSE >> map.ps
     fi
     current_userpointfilenumber=$(echo "$current_userpointfilenumber + 1" | bc -l)
     tectoplot_plot_caught=1
@@ -664,13 +669,21 @@ function tectoplot_plot_gis() {
     poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
 
     gmt_init_tmpdir
-
-    echo gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDEG[$current_smallcirclenumber]} -L-360/0 $VERBOSE \| gawk '{print $1, $2}' \> ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt
-
-gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDEG[$current_smallcirclenumber]} -L-360/0 $VERBOSE | gawk '{print $1, $2}' > ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt
+      gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDEG[$current_smallcirclenumber]} -L-360/0 $VERBOSE | gawk '{print $1, $2}' > ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt
     gmt_remove_tmpdir
 
-    gmt psxy ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt -W${SMALLCWIDTH[$current_smallcirclenumber]},${SMALLCCOLOR[$current_smallcirclenumber]}${SMALLCDASH[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps
+
+    # SMALLC_PLOTLABEL[$smallcnumber]=1
+    # if [[ $smallcirclekmflag -eq 1 ]]; then
+    #   SMALLCLABEL[$smallcnumber]="${SMALLCDEG[$smallcnumber]} km"
+    # else
+    #   SMALLCLABEL[$smallcnumber]="${SMALLCDEG[$smallcnumber]} deg"
+
+    if [[ ${SMALLC_PLOTLABEL[$current_smallcirclenumber]} -eq 1 ]]; then
+      gmt psxy ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt -Sqn1:+f8p,Helvetica,${SMALLCCOLOR[$current_smallcirclenumber]}+l"${SMALLCLABEL[$current_smallcirclenumber]}"+v -W${SMALLCWIDTH[$current_smallcirclenumber]},${SMALLCCOLOR[$current_smallcirclenumber]}${SMALLCDASH[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps
+    else
+      gmt psxy ${F_MAPELEMENTS}smallcircle_${current_smallcirclenumber}.txt -W${SMALLCWIDTH[$current_smallcirclenumber]},${SMALLCCOLOR[$current_smallcirclenumber]}${SMALLCDASH[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps
+    fi
 
     if [[ ${SMALLCPOLE[$current_smallcirclenumber]} -eq 1 ]]; then
       echo "$polelon $polelat" | gmt psxy -Sc0.1i -G${SMALLCCOLOR[$current_smallcirclenumber]} $RJOK $VERBOSE >> map.ps

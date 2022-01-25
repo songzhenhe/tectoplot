@@ -33,15 +33,21 @@
 
 # Grid z range query function. Try to avoid querying the full grid when determining the range of Z values
 
+# A new function
 function grid_zrange() {
-   output=$(gmt grdinfo -C $@)
-   zmin=$(echo "${output}" | gawk  '{printf "%f", $6+0}')
-   zmax=$(echo "${output}" | gawk  '{printf "%f", $7+0}')
-   if [[ $(echo "$zmin == 0 && $zmax == 0" | bc) -eq 1 ]]; then
-      output=$(gmt grdinfo -C -L $@)
-   fi
-   echo "${output}" | gawk  '{printf "%f %f", $6+0, $7+0}'
+  gdalinfo $1 -stats | grep "Minimum=" | tr '=' ' ' | tr ',' ' ' | gawk '{print $2, $4}'
 }
+
+# Old function that failed for some grids 
+# function grid_zrange() {
+#    output=$(gmt grdinfo -C -Vn $@)
+#    zmin=$(echo "${output}" | gawk  '{printf "%f", $6+0}')
+#    zmax=$(echo "${output}" | gawk  '{printf "%f", $7+0}')
+#    if [[ $(echo "$zmin == 0 && $zmax == 0" | bc) -eq 1 ]]; then
+#       output=$(gmt grdinfo -C -L0 $@)
+#    fi
+#    echo "${output}" | gawk  '{printf "%f %f", $6+0, $7+0}'
+# }
 
 ################################################################################
 # XY (point and line) file functions

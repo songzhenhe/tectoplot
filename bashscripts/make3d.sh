@@ -685,7 +685,18 @@ EOF
           fi
 
           gmt grd2xyz ${PLY_DEM} -C ${VERBOSE} > ${F_TOPO}dem_indices.txt
-          gmt grd2xyz ${PLY_DEM} ${VERBOSE} > ${F_TOPO}dem_values.txt
+
+          # Sometimes the grid has NaN values, so fill those.
+          hasNaN=$(gawk < ${F_TOPO}dem_indices.txt 'BEGIN{retval=0} ($3 ~ "NaN"){retval=1; exit} END{print retval}')
+
+
+          if [[ $hasNaN -eq 1 ]]; then
+            echo "Filling NaNs"
+            gmt grdfill ${PLY_DEM} -G${F_TOPO}plydem_filled.tif -An
+            gmt grd2xyz ${F_TOPO}plydem_filled.tif ${VERBOSE} > ${F_TOPO}dem_values.txt
+          else
+            gmt grd2xyz ${PLY_DEM} ${VERBOSE} > ${F_TOPO}dem_values.txt
+          fi
 
           replace_gmt_colornames_rgb ${F_CPTS}topo.cpt > ${F_CPTS}topo_fixed.cpt
 
@@ -1165,7 +1176,6 @@ EOF
 
   ### Output north edge of the box
 
-
                print "mtllib materials.mtl" > "./sideboxnorth.obj"
                print "o SideBoxNorth" >> "./sideboxnorth.obj"
                print "usemtl SideBoxNorth" >> "./sideboxnorth.obj"
@@ -1178,6 +1188,7 @@ EOF
               }
               edge_max=rarr[edge_max_ind]
               elev_max=elev[edge_max_ind]
+              print "north value is: ", elev_max > "/dev/stderr"
 
                for(i=ind_ul;i<=ind_ur;i++) {
                   northedgeind[cur_vertex]=cur_vertex

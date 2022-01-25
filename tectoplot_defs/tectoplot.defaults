@@ -301,7 +301,7 @@ BUFFER_WIDTH_FACTOR=0.01     # Percent extra
 SWATHTRANS=50                # Percent transparency for swath profile envelopes
 SWATHLINE_WIDTH=0.25p        # Width of q50 (median) swath line
 PROFILE_FONT_LABEL_SIZE=12p  # Font size of profile labels
-PROFILE_TRACK_WIDTH=1.5p     # Width of profile line drawn onto the map
+PROFILE_TRACK_WIDTH=0.5p     # Width of profile line drawn onto the map
 SWATH_USE_SIGNED_D_FOR_MULTIPOINT_PROFILES=0    # Set to 1 if we use signed distance for profiles
 
 SPROF_MAXELEV=5              # Maximum elevation of SPROF profile data. Set to a number in km (5) or to auto

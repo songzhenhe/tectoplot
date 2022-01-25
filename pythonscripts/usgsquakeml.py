@@ -1,15 +1,19 @@
 # usgs_focal.py
 # Kyle Edward Bradley, NTU, 2022
-# Python 3.9.6
+# Verified to work with Python 2.7 and 3.9.6
 # modified from original code by Charles Ammon
 # https://sites.psu.edu/charlesammon/2017/01/31/parsing-usgs-quakeml-files-with-python/
 
 from xml.etree import cElementTree as ElementTree
 import time, sys, os
-import urllib
-from urllib.request import urlopen
 
-# from __future__ import print_function
+# compatibility with Python 2 and 3
+from future.standard_library import install_aliases
+install_aliases()
+
+from urllib.parse import urlparse, urlencode
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError
 
 # Some generic utilities I use to parse the xml
 #
@@ -264,7 +268,6 @@ def parse_moment_tensors(xevent):
 # 38.     Mtp	              number
 # 39.     centroid_dt       (seconds)   Time between origin and centroid
 
-
 def print_focal_tectoplot(e):
     p = '%Y-%m-%dT%H:%M:%S'
     epoch=int(time.mktime(time.strptime(e['origin']['otime'], p)))
@@ -309,6 +312,49 @@ def print_focal_tectoplot(e):
             e['focal']['Mtp'],
             e['focal']['centroid_dt']
             ))
+    elif len(e['magnitude'])!=0:
+        print("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format(
+            "UX",
+            e['eventInfo']['eventid'],
+            e['origin']['otime'],
+            epoch,
+            e['origin']['longitude'],
+            e['origin']['latitude'],
+            e['origin']['depth'],
+            e['origin']['longitude'],
+            e['origin']['latitude'],
+            e['origin']['depth'],
+            e['magnitude']['agencyID'],
+            e['magnitude']['agencyID'],
+            e['magnitude']['mag'],
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            "None",
+            ))
+
 #---------------------------------------------------------------------------------
 # get the preferred origin from the eventInfo dict and the origins list
 #
@@ -349,6 +395,7 @@ def parse_usgs_xml(event_id_code):
         # xmlstring = response.read()
 
         if len(xmlstring)==0:
+            # Quit without message if the URL is bogus
             quit()
 
         xroot = ElementTree.fromstring(xmlstring)

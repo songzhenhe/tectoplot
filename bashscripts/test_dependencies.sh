@@ -34,6 +34,10 @@
 
 # Call by sourcing this file: source ${BASHSCRIPTSDIR}test_dependencies.sh
 
+# python might be in .bash_profile...
+shopt -s expand_aliases
+source ~/.bash_profile
+
 CCOMPILER="gcc"
 CXXCOMPILER="g++"
 F90COMPILER="gfortran"
@@ -125,6 +129,19 @@ if [ `which geod` ]; then
 else
   echo "Error: geod not found"
   needed+=("geod")
+fi
+
+if [ `which python` ]; then
+  PYTHON_VERSION=$(python --version | gawk '(NR==1) { print substr($2,1,3) }')
+  if [[  $(echo ${PYTHON_VERSION} $PYTHONREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
+    echo "python version $PYTHONREQ or greater is required (detected ${PYTHON_VERSION})"
+    needed+=("python")
+  else
+    echo -n "Found python: " && which python | awk '{ printf("%s ", $0)}' && python --version 2>&1 | head -n 1
+  fi
+else
+  echo "Error: python not found"
+  needed+=("python")
 fi
 
 need_gdal=0

@@ -62,7 +62,7 @@ static void make_lowercase( char *str )
     for (cptr=str; *cptr!='\0'; ++cptr) {
         *cptr = tolower( *cptr );
     }
-}   
+}
 
 static void prefix_error()
 {
@@ -203,14 +203,14 @@ static void read_hdr_file(
     char line   [MAXLINE+3];    // add 3 for possible "\r\n\0" terminators
     char keyword[MAXLINE+3];
     char strval [MAXLINE+1];
-    
+
     int   pos;
     char *ptr;
-    
+
     int    intval;
     float  fltval;
     double dblval;
-    
+
     double xdim = 0.0;
     double ydim = 0.0;
     double xcoord;
@@ -233,7 +233,7 @@ static void read_hdr_file(
 
     while (fgets( line, MAXLINE+3, in_hdr_file )) {
         // error here if line longer than MAXLINE characters?
-        
+
         if (sscanf( line, "%s %n", keyword, &pos ) > 0) {
             make_lowercase( keyword );
             if (strcmp( keyword, "ncols" ) == 0) {
@@ -392,53 +392,53 @@ static void read_hdr_file(
                 fprintf( stderr, "%s\n", line );
             }
         }
-        
+
         // make sure entire input line has been read
         // (and ignore remainder of line - can be used for comments)
         while (!strchr( line, '\n' ) && fgets( line, MAXLINE+3, in_hdr_file )) { }
     }
-    
+
     if (!feof( in_hdr_file )) {
         error_exit( "Read error occurred on input .hdr file." );
     }
-    
+
     // Validate values read from .hdr file:
-    
+
     if (*ncols == 0) {
         error_exit( "Input .hdr file does not specify NCOLS." );
     } else if (*nrows == 0) {
         error_exit( "Input .hdr file does not specify NROWS." );
     }
-    
+
     if (bandrow && bandrow != 4 * (*ncols)) {
         prefix_error();
         fprintf( stderr, "Input .hdr file contains unsupported value for BANDROWBYTES\n" );
         fprintf( stderr, "(expected 4 x NCOLS).\n" );
         exit( EXIT_FAILURE );
     }
-    
+
     bandrow = 4 * (*ncols);
-    
+
     if (totalrow) {
         *rowpad = totalrow - bandrow;
     } else {
         *rowpad = 0;
     }
-    
+
     if (*rowpad < 0) {
         prefix_error();
         fprintf( stderr, "Input .hdr file contains bad value for TOTALROWBYTES\n" );
         fprintf( stderr, "(expected at least 4 x NCOLS).\n" );
         exit( EXIT_FAILURE );
     }
-    
+
     if (xdim == 0.0) {
         error_exit( "Input .hdr file does not specify CELLSIZE or XDIM." );
     }
     if (ydim == 0.0) {
         error_exit( "Input .hdr file does not specify CELLSIZE or YDIM." );
     }
-    
+
     switch (xcoord_type) {
         case 1: // XLLCORNER
             *xmin = xcoord;
@@ -468,7 +468,7 @@ static void read_hdr_file(
         default:
             error_exit( "Input .hdr file does not specify YLLCORNER or YLLCENTER or ULYMAP." );
     }
-    
+
     if (xdim < 0.0 ) {
         dblval = *xmin;
         *xmin  = *xmax;
@@ -487,17 +487,17 @@ void copy_prj_file( FILE *in_prj_file, FILE *out_prj_file )
     char line   [MAXLINE+3];    // add 3 for possible "\r\n\0" terminators
     char keyword[MAXLINE+3];
     char strval [MAXLINE+1];
-    
+
     int pos, pos2;
-    
+
     int error = 0;
-    
+
     // Read and write .prj files:
 
     while (fgets( line, MAXLINE+3, in_prj_file )) {
-        
+
         pos = 0;
-        
+
         if (sscanf( line, "%s %n", keyword, &pos ) > 0) {
             // write keyword and optional whitespace
             error = error || 0 > fprintf( out_prj_file, "%.*s", pos, line );
@@ -513,18 +513,18 @@ void copy_prj_file( FILE *in_prj_file, FILE *out_prj_file )
                 }
             }
         }
-        
+
         // write remainder of line read
         error = error || 0 > fprintf( out_prj_file, "%s", line+pos );
-        
+
         // make sure entire input line has been read and copy remainder of line
         while (!strchr( line, '\n' ) && fgets( line, MAXLINE+3, in_prj_file )) {
             error = error || 0 > fprintf( out_prj_file, "%s", line );
         }
     }
-    
+
     error = error || fflush( out_prj_file );
-    
+
     if (!feof( in_prj_file )) {
         error_exit( "Read error occurred on input .prj file." );
     }
@@ -552,7 +552,7 @@ static float *read_flt_file(
     char c;
     int reverse_bytes = ( am_big_endian() != big_endian );
     char temp;
-    
+
     *has_nulls = 0;
     *all_ints  = 1;
 
@@ -578,7 +578,7 @@ static float *read_flt_file(
                 error_exit( "Read error occurred on input .flt file." );
             }
         }
-        
+
         if (reverse_bytes) {
             for (j=0; j<ncols; ++j) {
                 pun.f = ptr[j];
@@ -600,7 +600,11 @@ static float *read_flt_file(
                 exit( EXIT_FAILURE );
             }
             if (ptr[j] == nodata || ptr[j] < -1.0e+38) {
-                ptr[j] = 0.0;
+
+              // This commented line of code was original but has been changed to
+              // allow shadow.c to work underwater at the map edge. Not sure if it
+              // needs to be adjusted to allow some original functionality! KEB 2022
+                // ptr[j] = 0.0;
                 *has_nulls = 1;
             } else if (*all_ints && ptr[j] != floor( ptr[j] )) {
                 *all_ints = 0;
@@ -612,12 +616,12 @@ static float *read_flt_file(
             error_exit( "Read error occurred on input .flt file." );
         }
     }
-    
+
     fread( &c, 1, 1, in_flt_file );
     if (!feof( in_flt_file )) {
         fprintf( stderr, "*** WARNING: " );
         fprintf( stderr, "Input .flt file size too large - does not match .hdr info.\n" );
     }
-    
+
     return data;
 }

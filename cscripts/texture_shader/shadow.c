@@ -647,8 +647,12 @@ int main( int argc, const char *argv[] )
 
     // fprintf(stderr, "zmax=%f, xdim=%f, ydim=%f, sun_x=%f, sun_y=%f, sun_z=%f\n", z_max, xdim, ydim, sun_x, sun_y, sun_z);
 
+    float nodata;
+    nodata = -3.40282347e+38;
     double val;
     double this_z;
+    double this_topoz;
+    double last_topoz;
     float *ptr2;
     float *ptr3;
     int j;
@@ -659,29 +663,70 @@ int main( int argc, const char *argv[] )
 
     // Shadow algorithm
 
+    // For each pixel in the image, project a beam of light back toward the sun and add up
+    // the total number of cells falling above that beam of light. Stop when the beam rises
+    // above the level of the highest elevation or moves off of the grid.
+
+    // Watch out for the edge case where elevations of 0 at the edge make shadows at sea
+
     for(int i=0;i<nrows;i++) {
+      // ptr points to the topography data array
       ptr = data + (LONG)i * (LONG)ncols;
+
+
+      // ptr2 points to the shadowarray which will be output at the end
       ptr2 = shadowarray2 + (LONG)i * (LONG)ncols;
       for(int j=0;j<ncols;j++) {
+
+        // The x and y coordinates start at the i,j grid position
         x=j;
         y=i;
-        zval=ptr[j];   // dataarray[row][column]
+
+        // If the data point itself is nodata, set a lit value of 1 and break
+        if (ptr[j] == nodata || ptr[j] < -1.0e+38) {
+          ptr2[j]=1;
+          break;
+        }
+
+        zval=ptr[j];   // access the topo value at dataarray[row][column]
         lit=0;
+
+        // The integer coordinates of the projected path (can be used as index)
         x_int=x;
         y_int=y;
 
+        // So long as we are still within the grid
         while(x_int > 0 && x_int < ncols && y_int > 0 && y_int < nrows && zval <= z_max) {
           ptr3 = data + (LONG)y_int * (LONG)ncols;
-          if (zval < ptr3[x_int]) {
-            lit=lit+(ptr3[x_int]-zval);  // Sum the height above the sun line
+          // zval is the elevation of the sun beam cast by the prior horizon
+
+          // If the topography at this point is undefined,
+          if (ptr[j] == nodata || ptr[j] < -1.0e+38) {
+            // use the last known topography value
+            this_topoz=last_topoz;
+          } else {
+            // save this topo height, use it as well
+            this_topoz=ptr3[x_int];
+            last_topoz=ptr3[x_int];
           }
+
+          if (zval < this_topoz) {
+            // lit=lit+(ptr3[x_int]-zval);  // Sum the total land height falling above the sun line
+            lit=lit+(this_topoz-zval);  // Sum the total land height falling above the sun line
+
+            // lit=lit+1;  // sum the number of cell positions that are above the sun line
+
+          }
+          // Move the grid coordinate in the direction of the sun beam
           x=x+sun_x;
           y=y+sun_y;
           zval=zval+sun_z;
+          // Find the integer grid coordinates of the sun beam
           x_int=(int) x;
           y_int=(int) y;
         }
         if (lit==0) {
+          // shadowarray2 value is 0 if the cell is not lit (is shaded)
           ptr2[j]=0;
         } else {
           ptr2[j]=log(lit);  // Use the natural logarithm of the total shading volume

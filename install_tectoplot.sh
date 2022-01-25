@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# UPDATE 9
+# Installation script for GMT 6.3 and miniconda3
+
 # Script modified from https://raw.githubusercontent.com/mtbradley/brewski/master/mac-brewski.sh by Mark Bradley
 
 set -o errexit
@@ -11,7 +12,7 @@ if [ ! -w $(pwd) ]; then
   exit
 fi
 
-GMTREQ="6.1"
+GMTREQ="6.3"
 GAWKREQ="5"
 
 CCOMPILER="gcc"
@@ -27,7 +28,6 @@ if [[ ! -z $CONDA_DEFAULT_ENV ]]; then
   [[ ! -z ${CXX} ]] && CXXCOMPILER=$(which ${CXX})
   [[ ! -z ${F90} ]] && F90COMPILER=$(which ${F90})
 fi
-
 
 tectoplot_folder_dir="${HOME}"
 miniconda_folder_dir="${HOME}"
@@ -49,7 +49,6 @@ Miniconda directory (if installing)                :   ${HOME}/miniconda/
 tectoplot data directory                           :   ${HOME}/TectoplotData/
 
 Installation of dependencies using Homebrew may require root access via sudo
-
 
 EOF
 }
@@ -369,33 +368,33 @@ function brew_packages() {
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
 
-  # Install gmt 6.1.1 instead of GMT 6.2 until tectoplot is stable with 6.2
-  if command -v gmt --version; then
-	GMTVERSION=$(gmt --version)
-	if brew list --versions gmt; then
-		homebrew_gmt=$(brew list --versions gmt)
-		if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
-			read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes. [y|n] " douninstall
-			case $douninstall in
-			  Y|y|Yy|yY|yes|"")
-				brew uninstall gmt
-				;;
-			  N|n|Nn|no)
-			  echo exiting
-				break
-				;;
-			  *)
-				echo "Response $douninstall not recognized. Exiting"
-				exit 1
-				;;
-			esac
-		fi
-	fi
-  fi
+  # # Install gmt 6.1.1 instead of GMT 6.2 until tectoplot is stable with 6.2
+  # if command -v gmt --version; then
+	# GMTVERSION=$(gmt --version)
+	# if brew list --versions gmt; then
+	# 	homebrew_gmt=$(brew list --versions gmt)
+	# 	if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
+	# 		read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes. [y|n] " douninstall
+	# 		case $douninstall in
+	# 		  Y|y|Yy|yY|yes|"")
+	# 			brew uninstall gmt
+	# 			;;
+	# 		  N|n|Nn|no)
+	# 		  echo exiting
+	# 			break
+	# 			;;
+	# 		  *)
+	# 			echo "Response $douninstall not recognized. Exiting"
+	# 			exit 1
+	# 			;;
+	# 		esac
+	# 	fi
+	# fi
+  # fi
 
-  echo "Installing GMT 6.1.1_6 using homebrew"
-  # This is the formula for GMT 6.1.1_6
-  curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && HOMEBREW_NO_AUTO_UPDATE=1 brew install gmt.rb && rm -f gmt.rb
+  # echo "Installing GMT 6.1.1_6 using homebrew"
+  # # This is the formula for GMT 6.1.1_6
+  # curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && HOMEBREW_NO_AUTO_UPDATE=1 brew install gmt.rb && rm -f gmt.rb
 
   echo "Installing other packages"
   for tap in ${tap_list}; do
@@ -444,8 +443,6 @@ function brew_packages() {
   done
 
   # Special section to link GMT 6.1.1?
-
-
 }
 
 function install_evince() {
@@ -470,18 +467,18 @@ function install_miniconda() {
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        curl https://repo.anaconda.com/miniconda/Miniconda2-latest-Linux-x86_64.sh > miniconda.sh
+        curl https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh > miniconda.sh
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        curl https://repo.anaconda.com/miniconda/Miniconda2-latest-MacOSX-x86_64.sh >  miniconda.sh
+        curl https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh >  miniconda.sh
       ;;
     esac
     if [[ -s ./miniconda.sh ]]; then
-      echo "Executing miniconda installation script..."
+      echo "Executing miniconda3 installation script..."
       bash ./miniconda.sh -b -p $HOME/miniconda
     else
-      echo "Could not execute miniconda.sh... exiting"
+      echo "Could not execute miniconda3 installation script... exiting"
       exit 1
     fi
   fi
@@ -509,21 +506,21 @@ function miniconda_deps() {
     echo "Activating tectoplot environment..."
     conda activate tectoplot || exit_msg
 
-    echo "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
+    # echo "Installing GMT 6.1.1 and dependencies into new tectoplot environment..."
     # conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
 
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
       *)
         echo "Unrecognized system type ${OSTYPE}. Only installing non-system-specific packages."
-        conda install -y python=3.9 git gmt=6.1.1 gawk ghostscript mupdf -c conda-forge
+        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf -c conda-forge
       ;;
     esac
 
@@ -537,8 +534,6 @@ function miniconda_deps() {
     exit 1
   fi
 }
-
-
 
 function install_evince_anyway() {
   while true; do
@@ -568,7 +563,6 @@ function check_dependencies() {
       check_xcode
     ;;
   esac
-
 
   # Check bash major version
   if [[ $(echo ${BASH_VERSION} $BASHREQ | awk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
@@ -719,8 +713,6 @@ function configure_tectoplot() {
       ;;
     esac
   done
-
-
 
   if [[ $CONFIGURE_TECTOPLOT -eq 1 && -d ${tectoplot_folder_dir}/tectoplot/ ]]; then
 

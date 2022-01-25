@@ -1,0 +1,94 @@
+
+#TEXT_KMLFILE=/Users/kylebradley/Dropbox/scripts/tectoplot/labels/TextLabels.kml
+TEXT_KMLFILE=/Users/kylebradley/tectonicplates.kml
+TEXT_FONT="AvantGarde-Demi,black"
+
+value=0
+tryfont="20p,Helvetica,black"
+
+function get_text_points {
+  fonttest=$1
+  shift
+  echo "${@}" | gmt pstext -F+f${fonttest}+jLM+cLM -P -W0.1p,black -R -J > textwidth.ps
+  echo "${@}" | gmt pstext -F+f${fonttest}+jLM+cLM -P -W0.1p,black $RJOK >> map.ps
+  value=$(gmt psconvert -A+m0i textwidth.ps -Te -V 2>&1 | gawk '($4=="dimensions:"){print $6}')
+  rm -f textwidth.ps textwidth.eps
+}
+
+# Convert KML paths to GMT OGR format
+ogr2ogr -f "OGR_GMT" TextLabels.gmt $TEXT_KMLFILE
+
+# Parse the KML file to extract the paths and labels
+gawk < TextLabels.gmt '
+  ($1==">") {
+    # skip lines starting with a >
+  }
+  # Extract the @D values which are the quoted labels followed by a |
+  (substr($0,0,4) == "# @D") {
+      out=substr($0,5,length($0)-5)
+      print "> -L" out
+  }
+  # Print the longitude and latitude values with an increment used for splining
+  ($1+0==$1) {
+    print $1, $2, incr++
+  }' > data_pre.txt
+
+# Resample the paths using the 'time' increment to smooth them out
+gmt sample1d data_pre.txt -Fc -T2 -I0.1 > data_resampled.txt
+
+# Calculate the lengths of the paths in map coordinates (centimeters)
+gmt mapproject data_pre.txt -i0,1 -G+uC+a -R -J  > data_proj_dist.txt
+
+#gmt mapproject data_pre.txt -i0,1 -G+ud+a > data_dist.txt
+
+gawk '
+  function max(a,b) { return (a>b)?a:b }
+  function min(a,b) { return (a<b)?a:b }
+  BEGIN {
+    maxfontsize=10
+    minfontsize=2
+    divfactor=6
+    cumdist=0
+  }
+  (NR==FNR) {
+   if ($1+0==$1) {
+      current_dist=$3
+   }
+   if (substr($0,0,1)==">") {
+      dist[curnum++]=current_dist-cumdist
+      cumdist=current_dist
+   }
+  }
+  (NR != FNR) {
+    if (doneend==0) {
+      dist[curnum]=current_dist-cumdist
+      doneend=1
+      curout=1
+    }
+    if (substr($0,0,1) == ">") {
+      thisdistance=dist[curout++]
+      # print "Path", substr($0,5,length($0)-1), "is", thisdistance, "cm long" > "/dev/stderr"
+      # thisdistance is the centimeter length of this path.
+      # textlength is the number of characters in the label
+      textlength=length($0)-6
+      # fontsize is the font that will fit:
+      # dist[curout]=0.65*fontsize_p*1cm/28.3465p*numchar
+      fontsize_p = thisdistance*28.3465/0.65/textlength
+      filename=sprintf("text_%0.1f_file.gmt", int(fontsize_p*10)/10)
+      print "> -L" substr($0,5,length($0)-1) >> filename
+    } else {
+      if ($1 > 180) { $1=$1-360 }
+      print $1, $2 >> filename
+    }
+  }
+  ' data_proj_dist.txt data_resampled.txt > data.txt
+
+# Plot the text along the smoothed curves
+#gmt psxy data.txt -Sqn1:+v+Lh+i $RJOK >> map.ps
+
+for textfile in text*.gmt; do
+  fontsize=$(basename $textfile | gawk -F_ '{print $2}')
+  gmt psxy $textfile -Sqn1:+Lh+f${fontsize}p,$TEXT_FONT+i+v -Bxaf -Byaf $RJOK >> map.ps
+done
+
+#+i invisible

@@ -207,7 +207,6 @@ function image_setval() {
 
 # Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
 function histogram_rescale_stretch() {
-  # echo gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"
   gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"
 }
 

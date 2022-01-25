@@ -32,6 +32,14 @@ VERSION="0.4.2"
 TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
 
 
+# To do 2022: Update to GMT 6.3, require Python 3.9, accommodate installing Miniconda3
+# on OSX as installing miniconda the old way breaks when Python2.7 is used...
+
+# Specific issues:
+# use gmt mapproject -W to get rectangular region of oblique projections
+# use gmtbinstats (6.2)?
+# 6.2 changed many -C arguments (grdimage, psmeca, etc)
+
 # July   0,    2021: Added PLY_MAXSIZE=800 to defaults
 
 # CHANGELOG - stopped updating in May
@@ -269,7 +277,6 @@ if ! command -v gmt >/dev/null && command -v conda > /dev/null; then
 fi
 
 
-
 # Load GMT shell functions
 source gmt_shell_functions.sh
 
@@ -278,7 +285,7 @@ source gmt_shell_functions.sh
 
 THISDIR=$(pwd)
 
-GMTREQ="6.1"
+GMTREQ="6.2"
 GAWKREQ="5"
 
 RJOK="-R -J -O -K"
@@ -1733,7 +1740,7 @@ fi
       esac
     done
 
-    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-usgsfoc" "${EVENTMAP_ID}" "-ccat" "usgs" "GCMT" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
+    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
     # echo $@
     ;;
 
@@ -2222,16 +2229,19 @@ fi
     info_msg "[-B]: Custom map frame string: ${BSTRING[@]}"
     ;;
 
-  -usgsfoc)
+  -usgs)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--usgsfoc:    download QuakeML for events and make focal mechanism file
-Usage: -usgsfoc [event_id1] [[event_id2]] ...
+-usgs:    download QuakeML for events and make focal mechanism file
+Usage: -usgs [event_id1] [[event_id2]] ...
 
   event_id are USGS ID codes, e.g. us7000fxq2
 
+  Output is a tectoplot format focal mechanism file: ${TMP}${F_CMT}usgs_foc.dat
+  If no focal mechanism exists but origin does, output is: ${TMP}${F_SEIS}usgs.cat
+
 Example: Plot a USGS event focal mechanism
-tectoplot -usgsfoc us7000fxq2 -c -a -o example_usgsfoc
+tectoplot -usgs us7000fxq2 -c -a -o example_usgsfoc
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
@@ -2239,8 +2249,24 @@ shift && continue
 fi
 
   while ! arg_is_flag $2; do
-    info_msg "Attempting to retrieve focal mechanism for event ${2}"
+    info_msg "Attempting to retrieve USGS event ${2}"
     python ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
+    if [[ -s ${TMP}${F_CMT}usgs_foc.cat ]]; then
+      test=$(gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $15}')
+      if [[ $test == "None" ]]; then
+        info_msg "[-usgs]: Got only origin for event ${2}"
+        USGSEVENTTYPE="origin"
+        # output eq format lon lat depth magnitude origintime id epoch
+        gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $12 $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
+        rm -f ${TMP}${F_CMT}usgs_foc.cat
+      else
+        info_msg "[-usgs]: Got focal mechanism for event ${2}"
+        USGSEVENTTYPE="focal"
+      fi
+    else
+      echo "[-usgs]: No such event $2"
+      exit 1
+    fi
     shift
   done
 
@@ -3429,10 +3455,15 @@ fi
       info_msg "[-geotiff]: WARNING: Region should be set with -r before -geotiff flag is set. Using default region."
     fi
     gmt gmtset MAP_FRAME_TYPE inside
-    RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
-    usecustomrjflag=1
-    insideframeflag=1
+
+    # insideframeflag=1
     tifflag=1
+
+    if [[ $2 == "square" ]]; then
+      shift
+      RJSTRING="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}id"
+      usecustomrjflag=1
+    fi
 
     if arg_is_positive_float $2; then
       GEOTIFFRES="${2}"
@@ -5449,7 +5480,7 @@ fi
                 ;;
             (*)
                 info_msg "[-r]: Input file is binary: assuming it is a grid file"
-                rasrange=$(gmt grdinfo $(abs_path $2) -C -Vn)
+                rasrange=$(grid_zrange $(abs_path $2))
                 MINLON=$(echo $rasrange | gawk  '{print $2}')
                 MAXLON=$(echo $rasrange | gawk  '{print $3}')
                 MINLAT=$(echo $rasrange | gawk  '{print $4}')
@@ -5496,13 +5527,13 @@ fi
           shift
 
 
-          RCOUNTRYTL=($(gmt mapproject -R${COUNTRYID} -WjTL -WjTL ${VERBOSE}))
+          RCOUNTRYTL=($(gmt mapproject -R${COUNTRYID} -WjTL ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
             echo "${COUNTRYID} is not a valid region" > /dev/stderr
             exit 1
           fi
 
-          RCOUNTRYBR=($(gmt mapproject -R${COUNTRYID} -WjTL -WjBR ${VERBOSE}))
+          RCOUNTRYBR=($(gmt mapproject -R${COUNTRYID} -WjBR ${VERBOSE}))
           if [[ $? -ne 0 ]]; then
             echo "${COUNTRYID} is not a valid region" > /dev/stderr
             exit 1
@@ -6913,9 +6944,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -text:         Plot simple text strings at points
-Usage: -text [file] [[box_color]] [[xoffset]] [[yoffset]]
+Usage: -text [file] [[options...]]
 
   Plots text strings in white boxes at specified locations.
+
+  options are:
+  box [[color]]:    plot boxes behind text with fill color
+  line:             plot a line to origin location if offsetting text
+  offset [[Xoff]] [[Yoff]]   shift text by Xoff/Yoff [e.g. 0.1i 0.1i]
 
   data file has columns in the format:
     lon lat font angle justification text strings go here
@@ -6943,25 +6979,39 @@ fi
       info_msg "[-text]: text file needed as argument"
       exit
     fi
-
-    if ! arg_is_flag "${2}"; then
-      TEXTBOX="-G${2} -W0.25p,black"
-      shift
-    fi
-
+    TEXTLINE=""
     TEXTXOFF=0
     TEXTYOFF=0
 
-    if ! arg_is_flag "${2}"; then
-      TEXTXOFF="${2}"
-      shift
-    fi
-
-    if ! arg_is_flag "${2}"; then
-      TEXTYOFF="${2}"
-      shift
-    fi
-
+    while ! arg_is_flag $2; do
+      case $2 in
+        box)
+          shift
+          if ! arg_is_flag $2; then
+            TEXTBOX="-G${2} -W0.25p,black"
+            shift
+          else
+            echo "[-text]: box option requires color argument"
+            exit 1
+          fi
+        ;;
+        line)
+          shift
+          TEXTLINE="+v1p,black"
+        ;;
+        offset)
+          shift
+          if ! arg_is_flag "${2}"; then
+            TEXTXOFF="${2}"
+            shift
+          fi
+          if ! arg_is_flag "${2}"; then
+            TEXTYOFF="${2}"
+            shift
+          fi
+        ;;
+      esac
+    done
     plots+=("text")
     ;;
 
@@ -9064,7 +9114,7 @@ Usage: -ccat [catalogID1] [[catalogfile1 code1 ]] ...  [[nocull]]
   catalogID: GCMT | ISC | GFZ | usgs
   catalogfile: Any file in a format importable by cmt_tools.sh
 
-  usgs catalog requires use of -usgsfoc command
+  usgs catalog requires use of -usgs command
 
   format codes:
 
@@ -9151,7 +9201,8 @@ fi
             ADD_CMT_SOURCESTRING=2
           ;;
           *)
-            if [[ -s "${CCATARG}" || "${CCATARG}" == "usgs" ]]; then
+            # If we are plotting a USGS focal mechanism, check whether it exists before adding as catalog file
+            if [[ -s "${CCATARG}" || ( "${CCATARG}" == "usgs" && -s ${TMP}${F_CMT}usgs_foc.cat ) ]]; then
 
               cmtfilenumber=$(echo "$cmtfilenumber+1" | bc)
               CCAT_LETTER[$cmtfilenumber]=${CUSTOMCATSTR:${cmtfilenumber}:1}
@@ -9210,6 +9261,9 @@ fi
       while ! arg_is_flag ${2}; do
         ZCATARG="${2}"
         shift
+        if [[ $ZCATARG == "usgs" ]]; then
+          ZCATARG=${TMP}${F_SEIS}usgs.cat
+        fi
         case $ZCATARG in
           ISC)
             EQ_CATALOG_TYPE+=("ISC")
@@ -9510,8 +9564,16 @@ echo $COMMAND > tectoplot.last
 if [[ $setregionbyearthquakeflag -eq 1 ]]; then
 
   if [[ "${REGION_EQ}" == "usgs" ]]; then
-    REGION_EQ_LON=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $5}')
-    REGION_EQ_LAT=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $6}')
+    if [[ -s ${TMP}${F_CMT}usgs_foc.cat ]]; then
+      REGION_EQ_LON=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $5}')
+      REGION_EQ_LAT=$(tail -n 1 ${TMP}${F_CMT}usgs_foc.cat | gawk '{print $6}')
+    elif [[ -s ${TMP}${F_SEIS}usgs.cat ]]; then
+      REGION_EQ_LON=$(tail -n 1 ${TMP}${F_SEIS}usgs.cat | gawk '{print $1}')
+      REGION_EQ_LAT=$(tail -n 1 ${TMP}${F_SEIS}usgs.cat | gawk '{print $2}')
+    else
+      echo "Region cannot be set by USGS earthquake event... not found"
+      exit 1
+    fi
   else
     LOOK1=$(grep $REGION_EQ $FOCALCATALOG | head -n 1)
     if [[ $LOOK1 != "" ]]; then
@@ -10584,6 +10646,10 @@ if [[ $plottopo -eq 1 ]]; then
 
   # Check if we are plotting best quality topography and look for a merged tile with the DEM AOI
   if [[ $besttopoflag -eq 1 ]]; then
+    if [[ ! -d ${BESTDIR} ]]; then
+      info_msg "Creating BEST topo directory ${BESTDIR}"
+      mkdir -p ${BESTDIR}
+    fi
     bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
     if [[ -e $bestname ]]; then
       info_msg "Best merged topography tile already exists."
@@ -10596,74 +10662,93 @@ if [[ $plottopo -eq 1 ]]; then
   # We manage GMRT tiling ourselves
   # If we are plotting GMRT data, either alone or as BEST, then...
 
-  # I'm amazed that this logic expression works...
+  # Don't we want to just download the whole area given the size of GMRT data anywaY?
+
   if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
+    name=$GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
-    minlon360=$(echo $DEM_MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
-    maxlon360=$(echo $DEM_MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
-
-    minlonfloor=$(echo $minlon360 | cut -f1 -d".")
-    maxlonfloor=$(echo $maxlon360 | cut -f1 -d".")
-
-    if [[ $(echo "$DEM_MINLAT < 0" | bc -l) -eq 1 ]]; then
-      minlatfloor1=$(echo $DEM_MINLAT | cut -f1 -d".")
-      minlatfloor=$(echo "$minlatfloor1 - 1" | bc)
+    if [[ ! -s ${name} ]]; then
+      info_msg "Downloading GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+      curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${DEM_MINLON}&maxlongitude=${DEM_MAXLON}&minlatitude=${DEM_MINLAT}&maxlatitude=${DEM_MAXLAT}&format=geotiff&resolution=max&layer=topo" > $GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
     else
-      minlatfloor=$(echo $DEM_MINLAT | cut -f1 -d".")
+      info_msg "GMRT data file ${name} already exists."
     fi
+  fi
 
-    maxlatfloor=$(echo $DEM_MAXLAT | cut -f1 -d".")
-    maxlatceil=$(echo "$maxlatfloor + 1" | bc)
-    maxlonceil=$(echo "$maxlonfloor + 1" | bc)
-
-    if [[ $(echo "$minlonfloor > 180" | bc) -eq 1 ]]; then
-      minlonfloor=$(echo "$minlonfloor-360" | bc -l)
-    fi
-    if [[ $(echo "$maxlonfloor > 180" | bc) -eq 1 ]]; then
-      maxlonfloor=$(echo "$maxlonfloor-360" | bc -l)
-      maxlonceil=$(echo "$maxlonfloor + 1" | bc)
-    fi
-
-    # How many tiles is this?
-    GMRTTILENUM=$(echo "($maxlonfloor - $minlonfloor + 1) * ($maxlatfloor - $minlatfloor + 1)" | bc)
-    tilecount=1
-    for i in $(seq $minlonfloor $maxlonfloor); do
-      for j in $(seq $minlatfloor $maxlatfloor); do
-        iplus=$(echo "$i + 1" | bc)
-        jplus=$(echo "$j + 1" | bc)
-        if [[ ! -e $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc" ]]; then
-
-          info_msg "Downloading GMRT_${i}_${iplus}_${j}_${jplus}.nc ($tilecount out of $GMRTTILENUM)"
-          curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${i}&maxlongitude=${iplus}&minlatitude=${j}&maxlatitude=${jplus}&format=netcdf&resolution=max&layer=topo" > $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc"
-
-          # Test whether the file was correctly downloaded
-          fsize=$(wc -c < $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc")
-          if [[ $(echo "$fsize < 12000000" | bc) -eq 1 ]]; then
-            info_msg "File GMRT_${i}_${iplus}_${j}_${jplus}.nc was not properly downloaded: too small ($fsize bytes). Removing."
-            rm -f $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc"
-          fi
-
-        else
-          info_msg "File GMRT_${i}_${iplus}_${j}_${jplus}.nc exists ($tilecount out of $GMRTTILENUM)"
-        fi
-        filelist+=($GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.nc")
-        tilecount=$(echo "$tilecount + 1" | bc)
-      done
-    done
-
-    # We apparently need to fill NaNs when making the GMRT mosaic grid with gdal_merge.py...
-    if [[ ! -e $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ]]; then
-      info_msg "Merging tiles to form GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc: " ${filelist[@]}
-      echo gdal_merge.py -o tmp.nc -of "NetCDF" ${filelist[@]} -q > ./merge.sh
-      echo gdal_fillnodata.py  -of NetCDF tmp.nc $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" >> ./merge.sh
-      echo rm -f ./tmp.nc >> ./merge.sh
-      . ./merge.sh
-      # gdal_merge.py -o $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ${filelist[@]}
-
-    else
-      info_msg "GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc exists"
-    fi
-    name=$GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc"
+  #
+  # # I'm amazed that this logic expression works...
+  # if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
+  #
+  #   minlon360=$(echo $DEM_MINLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
+  #   maxlon360=$(echo $DEM_MAXLON | gawk  '{ if ($1<0) {print $1+360} else {print $1} }')
+  #
+  #   minlonfloor=$(echo $minlon360 | cut -f1 -d".")
+  #   maxlonfloor=$(echo $maxlon360 | cut -f1 -d".")
+  #
+  #   if [[ $(echo "$DEM_MINLAT < 0" | bc -l) -eq 1 ]]; then
+  #     minlatfloor1=$(echo $DEM_MINLAT | cut -f1 -d".")
+  #     minlatfloor=$(echo "$minlatfloor1 - 1" | bc)
+  #   else
+  #     minlatfloor=$(echo $DEM_MINLAT | cut -f1 -d".")
+  #   fi
+  #
+  #   maxlatfloor=$(echo $DEM_MAXLAT | cut -f1 -d".")
+  #   maxlatceil=$(echo "$maxlatfloor + 1" | bc)
+  #   maxlonceil=$(echo "$maxlonfloor + 1" | bc)
+  #
+  #   if [[ $(echo "$minlonfloor > 180" | bc) -eq 1 ]]; then
+  #     minlonfloor=$(echo "$minlonfloor-360" | bc -l)
+  #   fi
+  #   if [[ $(echo "$maxlonfloor > 180" | bc) -eq 1 ]]; then
+  #     maxlonfloor=$(echo "$maxlonfloor-360" | bc -l)
+  #     maxlonceil=$(echo "$maxlonfloor + 1" | bc)
+  #   fi
+  #
+  #   if [[ ! -d $GMRTDIR ]]; then
+  #     info_msg "Making GMRT directory ${GMRTDIR}"
+  #     mkdir -p $GMRTDIR
+  #   fi
+  #
+  #   # How many tiles is this?
+  #   GMRTTILENUM=$(echo "($maxlonfloor - $minlonfloor + 1) * ($maxlatfloor - $minlatfloor + 1)" | bc)
+  #   tilecount=1
+  #   for i in $(seq $minlonfloor $maxlonfloor); do
+  #     for j in $(seq $minlatfloor $maxlatfloor); do
+  #       iplus=$(echo "$i + 1" | bc)
+  #       jplus=$(echo "$j + 1" | bc)
+  #       if [[ ! -e $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif" ]]; then
+  #
+  #         info_msg "Downloading GMRT_${i}_${iplus}_${j}_${jplus}.tif ($tilecount out of $GMRTTILENUM)"
+  #         curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${i}&maxlongitude=${iplus}&minlatitude=${j}&maxlatitude=${jplus}&format=geotiff&resolution=max&layer=topo" > $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif"
+  #
+  #         # Test whether the file was correctly downloaded
+  #         fsize=$(wc -c < $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif")
+  #         if [[ $(echo "$fsize < 12000000" | bc) -eq 1 ]]; then
+  #           info_msg "File GMRT_${i}_${iplus}_${j}_${jplus}.tif was not properly downloaded: too small ($fsize bytes). Removing."
+  #           rm -f $GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif"
+  #         fi
+  #
+  #       else
+  #         info_msg "File GMRT_${i}_${iplus}_${j}_${jplus}.tif exists ($tilecount out of $GMRTTILENUM)"
+  #       fi
+  #       filelist+=($GMRTDIR"GMRT_${i}_${iplus}_${j}_${jplus}.tif")
+  #       tilecount=$(echo "$tilecount + 1" | bc)
+  #     done
+  #   done
+  #
+  #   # We apparently need to fill NaNs when making the GMRT mosaic grid with gdal_merge.py...
+  #   if [[ ! -e $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif" ]]; then
+  #     info_msg "Merging tiles to form GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif: " ${filelist[@]}
+  #     echo gdal_merge.py -o tmp.tif -of "GTiff" ${filelist[@]} -q > ./merge.sh
+  #     echo gdal_fillnodata.py  -of GTiff tmp.tif $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif" >> ./merge.sh
+  #     # echo rm -f ./tmp.tif >> ./merge.sh
+  #     . ./merge.sh
+  #     # gdal_merge.py -o $GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.nc" ${filelist[@]}
+  #
+  #   else
+  #     info_msg "GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif exists"
+  #   fi
+    # name=$GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif"
 
     if [[ $BATHYMETRY =~ "GMRT" ]]; then
       BATHY=$name
@@ -10673,7 +10758,7 @@ if [[ $plottopo -eq 1 ]]; then
 
       NEGBATHYGRID=$name
     fi
-  fi
+  # fi
 
 
   # If we are NOT using GMRT data, either alone or in BEST mode
@@ -10740,18 +10825,18 @@ if [[ $plottopo -eq 1 ]]; then
           TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         ;;
         custom*)
-        # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
+          # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
 
-        # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} cutfirst.tif
+          # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} cutfirst.tif
 
-        # Assume grdcut will work with the file
-        gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-        # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
+          # Assume grdcut will work with the file
+          gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
 
-        name=${F_TOPO}dem.tif
-        clipdemflag=0
-        TOPOGRAPHY_DATA=${F_TOPO}dem.tif
-        # demiscutflag=1
+          name=${F_TOPO}dem.tif
+          clipdemflag=0
+          TOPOGRAPHY_DATA=${F_TOPO}dem.tif
+          # demiscutflag=1
         ;;
       esac
   	fi
@@ -10763,16 +10848,47 @@ fi
 
 if [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
   info_msg "Combining GMRT ($NEGBATHYGRID) and 01s ($BATHY) grids to form best topo grid"
-  # grdsample might return NaN?
-  # gmt grdsample -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -I2s $NEGBATHYGRID -Gneg.nc -fg ${VERBOSE}
-  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neggdal.tif
-  gdalwarp -q -dstnodata NaN -te $MINLON $MINLAT $MAXLON $MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY posgdal.tif
-  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A posgdal.tif -B neggdal.tif --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.tif
-  # gmt grdsample -Rneg.nc $BATHY -Gpos.nc -fg ${VERBOSE}
-  # gmt grdclip -Sb0/0 pos.nc -Gposclip.nc ${VERBOSE}
-  # gmt grdclip -Si0/10000000/0 neg.nc -Gnegclip.nc ${VERBOSE}
-  # gmt grdmath posclip.nc negclip.nc ADD = merged.nc ${VERBOSE}
-  mv merged.tif $bestname
+
+# # Sample grid file A (the low resolution one, if they aren't equal) to the same resolution as B (the high res version). Use grdsample for this.
+#   grdsample A.grd -R -Iresolution -Ghires_A.grd
+#
+#   # Use grdcut to make sure both have the same dimensions. Ensure that they both use the same projection.
+#   # grdcut A.grd -Rregion -Ghires_A_trimmed.grd
+#   # Use grdmask to define a polygon. This polygon will be used to replace a section of grid file A with grid file B. The NaN part is important because it defines all the values inside the polygon as being NaN, which will be replaced later with new values from grid file B. The polygon used here is a closed triangle.
+#   grdmask -Rregion -Iresolution -N1/1/NaN << END -Gclip.grd
+#   x1 y1
+#   x2 y1
+#   x2 y2
+#   x1 y1
+#   END
+#   Apply this polygon "mask" to A using grdmath. This will set all values inside the polygon to NaN, but wont touch values outside the polygon.
+#   grdmath B.grd clip.grd MUL = B_clipped.grd
+#   Finally use grdmath to combine the two files using XOR (A will replace B only where B has NaN values). This will create a merged grid file, called merged.grd. Its a somewhat complicated procedure, but very powerful.
+#   grdmath B_clipped.grd hires_A_trimmed.grd XOR = merged.grd
+
+
+  # We run into a major problem if NEGBATHYGRID has longitudes like -175:-170 and BATHY has longitudes like 185:190
+  # As far as I can tell, GMRT will have negative longitudes while the 01s grid will have positive ones, so fix negbathygrid
+  gmt grdedit -L+p $NEGBATHYGRID
+
+  # echo "neg"
+  # gmt grdinfo $NEGBATHYGRID
+  # echo "pos"
+  # gmt grdinfo $BATHY
+  #
+  # gmt grdsample ${BATHY} -R -I0.00055555555 -Gpos.tif
+  # gmt grdsample ${NEGBATHYGRID} -R -I0.00055555555 -Gneg.tif
+
+  gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neg.tif
+  gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY pos.tif
+  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A pos.tif -B neg.tif --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.tif
+
+  # # gmt grdsample -R${NEGBATHYGRID} $BATHY -Gpos.tif -T ${VERBOSE}
+  # gmt grdclip -Sb0/0 pos.tif -Gposclip.tif=gd:GTiff ${VERBOSE}
+  # gmt grdclip -Si0/10000000/0 neg.tif -Gnegclip.tif=gd:GTiff ${VERBOSE}
+  # # gmt grdmath posclip.tif negclip.tif ADD = merged.tif ${VERBOSE}
+  cp merged.tif $bestname
+  # cp neggdal.tif $bestname
   BATHY=$bestname
 fi
 
@@ -10799,12 +10915,18 @@ if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
     fi
   else
     if [[ $tflatflag -eq 1 ]]; then
-      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       flatten_sea ${F_TOPO}dem_preflat.tif ${F_TOPO}dem.tif -1
       cleanup ${F_TOPO}dem_preflat.tif
     else
       if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.tif ]]; then
-        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -N -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} $VERBOSE
+        gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${BATHY} ${F_TOPO}dem.tif
+
+        # In this case we may need to fill NaNs...
+
+        # Somehow the gmt grdcut command was messing up GMRT tiles by being off by 1 pixel in X dimension...???
+        # gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        # gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -N -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       fi
     fi
   fi
@@ -10875,7 +10997,7 @@ fi
 
 # Contour interval for grid if not specified using -cn
 if [[ $gridcontourcalcflag -eq 1 ]]; then
-  zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+  zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT)
   MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
   MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
   CONTOURINTGRID=$(echo "($MAXCONTOUR - $MINCONTOUR) / $CONTOURNUMDEF" | bc -l)
@@ -10886,7 +11008,7 @@ fi
 
 # Contour interval for grid if not specified using -cn
 if [[ $topocontourcalcflag -eq 1 ]]; then
-  zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT -C -Vn)
+  zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
   MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
   MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
   TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
@@ -11071,13 +11193,9 @@ if [[ $plotseis -eq 1 ]]; then
                 }
 
                 $8=""
-
-
                 print
               }
             }
-
-
           }
         ' >> ${F_SEIS}eqs.txt
         ((NUMEQCATS+=1))
@@ -11108,10 +11226,13 @@ if [[ $plotseis -eq 1 ]]; then
               } else {
                 checkdate=1
               }
-              if ($6=="") {
-                $6=0
+
+              # If there is no ID
+              if (NF<6) {
+                $6="None"
               }
-              if ($7=="") {
+              # If there is no epoch
+              if (NF<7) {
                 $7="none"
               }
               if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag && $2 >= minlat && $2 <= maxlat) {
@@ -11167,7 +11288,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
     # Find the number of events in the precull catalog
     num_eqs_precull=$(wc -l < ${F_SEIS}eqs_precull.txt | tr -d ' ')
 
-    # Do the culling. n=
+    # Do the culling.
     gawk < ${F_SEIS}eqs_precull.txt -v n=${num_eqs_precull} '
     @include "tectoplot_functions.awk"
     BEGIN {
@@ -11232,6 +11353,7 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
       }
     }' > ${F_SEIS}eqs_culled.txt
     [[ -s culled_seismicity.txt ]] && mv culled_seismicity.txt ${F_SEIS}
+    #
     [[ -s ${F_SEIS}eqs_culled.txt ]] && cp ${F_SEIS}eqs_culled.txt ${F_SEIS}eqs.txt
 
     num_after_cull=$(wc -l < ${F_SEIS}eqs.txt | tr -d ' ')
@@ -11243,21 +11365,24 @@ if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
   # extents. Make sure we normalize longitudes to -180:180
 
   if [[ -s ${F_SEIS}eqs.txt ]]; then
-    mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_aoipreselect.txt
-    gmt select ${F_SEIS}eqs_aoipreselect.txt -R -J -Vn | tr '\t' ' ' | gawk '
+    gawk < ${F_SEIS}eqs.txt '{print $1, $2, NR}' > ${F_SEIS}eqs_selectid.txt
+    gmt select ${F_SEIS}eqs_selectid.txt -R -J -Vn | tr '\t' ' ' | gawk '
       {
-        if ($1>180) {
-          $1=$1-360
-        } else if ($1 < -180) {
-          $1=$1+360
+        print $3
+      }' > ${F_SEIS}eqs_afterselect_ids.txt
+      gawk '
+        (NR==FNR) {
+          data[NR]=$0
         }
-        print $0
-      }' > ${F_SEIS}eqs.txt
+        (NR != FNR) {
+          print data[$1]
+        }' ${F_SEIS}eqs.txt ${F_SEIS}eqs_afterselect_ids.txt > ${F_SEIS}eqs_afterselect.txt
+      cp ${F_SEIS}eqs_afterselect.txt ${F_SEIS}eqs.txt
   fi
 
   # Alternative method using the bounding box which really doesn't work with global extents
   # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-  cleanup ${F_SEIS}eqs_aoipreselect.txt
+  # cleanup ${F_SEIS}eqs_aoipreselect.txt
   info_msg "AOI selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
   ##############################################################################
@@ -13640,7 +13765,7 @@ for cptfile in ${cpts[@]} ; do
       GRAV_CPT=$(abs_path $GRAV_CPT)
       if [[ $rescalegravflag -eq 1 ]]; then
         # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
-        zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+        zrange=$(grid_zrange $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT)
         info_msg "Grav raster range is: $zrange"
         MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
         MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
@@ -13657,7 +13782,7 @@ for cptfile in ${cpts[@]} ; do
       GRAV_CURV_CPT=$(abs_path $GRAV_CURV_CPT)
       if [[ $rescalegravflag -eq 1 ]]; then
         # gmt grdcut $GRAVDATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -Ggravtmp.nc
-        zrange=$(grid_zrange $GRAV_CURV_DATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -Vn)
+        zrange=$(grid_zrange $GRAV_CURV_DATA -R$MINLON/$MAXLON/$MINLAT/$MAXLAT)
         info_msg "Grav curvature raster range is: $zrange"
         MINZ=$(echo $zrange | gawk  '{print int($1/100)*100}')
         MAXZ=$(echo $zrange | gawk  '{print int($2/100)*100}')
@@ -13734,14 +13859,9 @@ for cptfile in ${cpts[@]} ; do
 
       # 1. Determine the range of the DEM
 
-      zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT -C -Vn)
+      zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
       MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
       MAXZ=$(echo $zrange | gawk  '{printf "%d\n", $2}')
-
-      # if [[ $(echo "$MINZ < 0 && $MAXZ > 0" | bc) -eq 1 ]]; then
-      #   # echo "Grid range crosses 0"
-      #   zrangecrosses0flag=1
-      # fi
 
       # 2. Determine the (rounded) z-range of the CPT file
 
@@ -13859,8 +13979,6 @@ for cptfile in ${cpts[@]} ; do
           }'))
 
           CPT_HAS_ZERO=${CPT_ZRANGE[2]}
-          # echo range is ${CPT_ZRANGE[@]} "/" ${CPT_HAS_ZERO}
-          # echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0"
 
         if [[ $(echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0" | bc) -eq 1 ]]; then
           if [[ $CPT_HAS_ZERO -eq 0 ]]; then
@@ -14758,7 +14876,7 @@ for plot in ${plots[@]} ; do
 
       rm -f range.dat
       # Plot AOI boxes of GMRT tiles
-      for gmrtfile in ${GMRTDIR}*.nc; do
+      for gmrtfile in ${GMRTDIR}*.tif; do
         gmt grdinfo -C ${gmrtfile} | gawk '
           ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5){
             # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
@@ -14861,7 +14979,6 @@ for plot in ${plots[@]} ; do
           }
           print lon, lat, depth, mag, timecode, id, epoch, font, vpos hpos
         }' > ${F_CMT}cmtlabel_pos.sel
-
 
         cat ${F_CMT}cmtlabel_pos.sel >> ${F_PROFILES}profile_labels.dat
 
@@ -15757,7 +15874,7 @@ for plot in ${plots[@]} ; do
         fi
         if [[ -e ${F_CMT}cmt.dat ]]; then
           info_msg "Adding cmt to sprof"
-          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1 -L${CMT_LINEWIDTH},${CMT_LINECOLOR}" >> sprof.control
+          echo "C ${F_CMT}cmt.dat ${SPROFWIDTH} -1" >> sprof.control
         fi
         if [[ -e ${F_VOLC}volcanoes.dat ]]; then
           # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
@@ -15823,8 +15940,8 @@ for plot in ${plots[@]} ; do
 
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
           # info_msg "is it this"
-          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} -Si0.1i $RJOK  >> map.ps
-          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} -Si0.1i $RJOK  >> map.ps
+          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
+          head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
           # info_msg "here"
         fi
       done
@@ -16274,28 +16391,24 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         cat "$LEAD.pldat" | sed '1d' > pvdir/plate.xy
 
         cd pvdir
-        # # Determine the extent of the polygon within the map extent
+        # # Determine the latitude/longitude extent of the polygon within the map extent
         pl_max_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | tail -n 1 | gawk -v mx=$MAXLON '{print ($1>mx)?mx:$1}')
         pl_min_x=$(grep "^[-*0-9]" plate.xy | sort -n -k 1 | head -n 1 | gawk -v mx=$MINLON '{print ($1<mx)?mx:$1}')
         pl_max_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | tail -n 1 | gawk -v mx=$MAXLAT '{print ($2>mx)?mx:$2}')
         pl_min_y=$(grep "^[-*0-9]" plate.xy | sort -n -k 2 | head -n 1 | gawk -v mx=$MINLAT '{print ($2<mx)?mx:$2}')
         info_msg "Polygon region $pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y"
+
         # this approach requires a final GMT grdblend command
-        # echo platevelres=$PLATEVELRES
-        gmt grdmath ${VERBOSE} -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y -fg -I$PLATEVELRES pole.xy PDIST 6378.13696669 DIV SIN $POLERATE MUL 6378.13696669 MUL .01745329251944444444 MUL = "$LEAD"_velraster.nc
+
+        # Calculate the velocity of a rectangular grid encompassing the plate, assuming a spherical earth
+        # Note: The -I has option +e to suppress warnings
+
+        gmt grdmath ${VERBOSE} -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y -fg -I$PLATEVELRES+e pole.xy PDIST 6378.13696669 DIV SIN $POLERATE MUL 6378.13696669 MUL .01745329251944444444 MUL = "$LEAD"_velraster.nc
+
+        # Mask out the velocities that are not on the plate
         gmt grdmask plate.xy ${VERBOSE} -R"$LEAD"_velraster.nc -fg -NNaN/1/1 -Gmask.nc
         info_msg "Calculating $LEAD masked raster"
         gmt grdmath -fg ${VERBOSE} "$LEAD"_velraster.nc mask.nc MUL = "$LEAD"_masked.nc
-        # zrange=$(grid_zrange ${LEAD}_velraster.nc -C -Vn)
-        # MINZ=$(echo $zrange | gawk  '{print $1}')
-        # MAXZ=$(echo $zrange | gawk  '{print $2}')
-        # MAXV_I=$(echo $MAXZ | gawk -v max=$MAXV_I '{ if ($1 > max) { print $1 } else { print max } }')
-        # MINV_I=$(echo $MINZ | gawk -v min=$MINV_I '{ if ($1 < min) { print $1 } else { print min } }')
-        # unverified code above...
-        # MAXV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk -v max=$MAXV_I '{ if ($5 > max) { print $5 } else { print max } }')
-        # MINV_I=$(gmt grdinfo ${LEAD}_velraster.nc 2>/dev/null | grep "z_max" | gawk -v min=$MINV_I '{ if ($3 < min) { print $3 } else { print min } }')
-        # # gmt grdedit -fg -A -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y "$LEAD"_masked.nc -G"$LEAD"_masked_edit.nc
-        # echo "${LEAD}_masked_edit.nc -R$pl_min_x/$pl_max_x/$pl_min_y/$pl_max_y 1" >> grdblend.cmd
         cd ../
       done
 
@@ -16309,7 +16422,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         info_msg "Filling NaN values in plate velocity raster"
         gmt grdfill plate_velocities.nc -An -Gfilled_plate_velocities.nc ${VERBOSE}
         mv filled_plate_velocities.nc plate_velocities.nc
-        zrange=$(grid_zrange plate_velocities.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn)
+        zrange=$(grid_zrange plate_velocities.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT})
       cd ..
 
       info_msg "Velocities range: $zrange"
@@ -16492,7 +16605,8 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       ;;
 
     text)
-      gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
+      gmt pstext ${TEXTFILE} -D${TEXTXOFF}/${TEXTYOFF}${TEXTLINE} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
+      # gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
       # -Dj-0.05i/0.025i+v0.7p,black
     ;;
 
@@ -16674,7 +16788,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             i)
               info_msg "Calculating terrain ruggedness index"
               gdaldem TRI -q -of GTiff ${TOPOGRAPHY_DATA} ${F_TOPO}tri.tif
-              zrange=($(grid_zrange ${F_TOPO}tri.tif -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn))
+              zrange=($(grid_zrange ${F_TOPO}tri.tif -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 254 1 ${F_TOPO}tri.tif ${F_TOPO}tri2.tif -q
               weighted_average_combine ${F_TOPO}tri2.tif ${F_TOPO}intensity.tif ${TRI_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16684,7 +16798,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               gmt grdfilter ${TOPOGRAPHY_DATA} -Dp -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${TOPOGRAPHY_DATA} -G${F_TOPO}quantile.nc
               gmt grdmath ${TOPOGRAPHY_DATA} ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
 
-              zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -C -Vn))
+              zrange=($(grid_zrange ${F_TOPO}quantile_diff.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}))
               gdal_translate -of GTiff -ot Byte -a_nodata 0 -scale ${zrange[0]} ${zrange[1]} 1 254 ${F_TOPO}quantile_diff.nc ${F_TOPO}quantile_gray.tif -q
               weighted_average_combine ${F_TOPO}quantile_gray.tif ${F_TOPO}intensity.tif ${QUANTILE_FACT} ${F_TOPO}intensity.tif
             ;;
@@ -16808,8 +16922,15 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
               demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
+              # echo filling flt file
+              # gdal_fillnodata.py ${TOPOGRAPHY_DATA} -of GTiff ${F_TOPO}dem_prefill.tif
 
               [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+
+              #
+              # gdal_fillnodata [-q] [-md max_distance] [-si smooth_iterations]
+              #   [-o name=value] [-b band]
+              #   srcfile [-nomask] [-mask filename] [-of format] [-co name=value]* [dstfile]
 
               # texture the DEM. Pipe output to /dev/null to silence the program
               if [[ $(echo "$MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -16841,11 +16962,10 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
             # Rescale and gamma correct the intensity layer
             g)
               info_msg "Rescale stretching and gamma correcting intensity layer"
-              zrange=($(grid_zrange ${F_TOPO}intensity.tif -C -Vn))
+              cp ${F_TOPO}intensity.tif ${F_TOPO}intensity_pre.tif
+              zrange=($(grid_zrange ${F_TOPO}intensity.tif))
 
               histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
-
-              # echo histogram_rescale_stretch ${F_TOPO}intensity.tif ${zrange[0]} ${zrange[1]} 1 254 $HS_GAMMA ${F_TOPO}intensity_cor.tif
 
               mv ${F_TOPO}intensity_cor.tif ${F_TOPO}intensity.tif
             ;;
@@ -18387,7 +18507,7 @@ if [[ $plottedtopoflag -eq 1 ]]; then
 
 
   # zrange is the elevation change across the DEM
-  zrange=($(grid_zrange $BATHY -R${BATHY} -C -Vn))
+  zrange=($(grid_zrange $BATHY -R${BATHY}))
 
   if [[ $obplotboxflag -eq 1 ]]; then
     OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
