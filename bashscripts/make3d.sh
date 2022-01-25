@@ -1188,7 +1188,6 @@ EOF
               }
               edge_max=rarr[edge_max_ind]
               elev_max=elev[edge_max_ind]
-              print "north value is: ", elev_max > "/dev/stderr"
 
                for(i=ind_ul;i<=ind_ur;i++) {
                   northedgeind[cur_vertex]=cur_vertex
