@@ -363,7 +363,7 @@ function brew_packages() {
   # addition taps to enable packages not included in core tap
   tap_list=""
   # term_list includes packages which run from terminal without GUI
-  term_list="git gawk proj gcc ghostscript evince"
+  term_list="gmt git gawk proj gcc ghostscript evince"
   # "gmt@6"
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
