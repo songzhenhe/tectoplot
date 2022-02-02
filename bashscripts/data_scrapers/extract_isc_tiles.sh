@@ -49,34 +49,28 @@
 
 # Reads stdin, converts each item in a column and outputs same column format
 
-ISC_TILEOLDZIP="${1}"
-ISC_TILENEWZIP="${2}"
-ARG_OLDDATE="${3}"
-MINLON="${4}"
-MAXLON="${5}"
-MINLAT="${6}"
-MAXLAT="${7}"
-STARTTIME="${8}"
-ENDTIME="${9}"
-EQ_MINMAG="${10}"
-EQ_MAXMAG="${11}"
-EQCUTMINDEPTH="${12}"
-EQCUTMAXDEPTH="${13}"
-OUTPUTFILE="${14}"
-
-
-if ! [[ -s $ISC_TILEOLDZIP ]]; then
-  echo "Seismicity tile ZIP file $ISC_TILEOLDZIP does not exist." > /dev/stderr
-  if ! [[ -s $ISC_TILEOLDZIP ]]; then
-    echo "Seismicity tile new ZIP file $ISC_TILENEWZIP does not exist either!" > /dev/stderr
-    exit 1
-  fi
-fi
+# ISC_TILEOLDZIP="${1}"
+# ISC_TILENEWZIP="${2}"
+ISCTILEDIR="${1}" # Path to the directory containing tiled ISC events
+MINLON="${2}"
+MAXLON="${3}"
+MINLAT="${4}"
+MAXLAT="${5}"
+STARTTIME="${6}"
+ENDTIME="${7}"
+EQ_MINMAG="${8}"
+EQ_MAXMAG="${9}"
+EQCUTMINDEPTH="${10}"
+EQCUTMAXDEPTH="${11}"
+OUTPUTFILE="${12}"
 
 # # Initial selection of files based on the input latitude and longitude range
+# Include the temporary catalog in the tiles directory for all searches
+
 selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
   @include "tectoplot_functions.awk"
   BEGIN   {
+    print "isc_temporary.cat"
     newminlon=minlon
     newmaxlon=maxlon
     if (maxlon > 180) {
@@ -133,52 +127,34 @@ selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLA
     }
   }'))
 
-# ISC CSV files don't have location strings or quotation marks, unlike Comcat CSV
-# CSV format is:
-# 1       2         3           4          5        6         7     8      9         10     11   12+
-# EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
-#  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
+# echo ${selected_files[@]}
 
-# for this_file in ${selected_files[@]}; do
-#   # echo "Using file ${this_file}"
-#   gawk < $this_file -F, -v minlon=${2} -v maxlon=${3} -v minlat=${4} -v maxlat=${5} -v mindate=${6} -v maxdate=${7} -v minmag=${8} -v maxmag=${9} -v mindepth=${10} -v maxdepth=${11} '
-#   @include "tectoplot_functions.awk"
-  # ($5 <= maxlat && $5 >= minlat && $11 >= minmag && $11 <= maxmag && $7 >= mindepth && $7 <= maxdepth) {
-  #   if (test_lon(minlon, maxlon, $6)==1) {
-  #     # Now we check if the event actually falls inside the specified time window
-  #     timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
-  #     if (mindate <= timecode && timecode <= maxdate) {
-  #       print
-  #     }
-  #   }
-  # }' >> ${12}
-# done
-
-# New method reading from zipped tiles.
 for this_file in ${selected_files[@]}; do
-    # echo unzip -p $ANSS_TILEZIP ${this_file}
+    if [[ -s ${ISCTILEDIR}${this_file} ]]; then
+      # echo ${ISCTILEDIR}${this_file}
+      #head ${ISCTILEDIR}${this_file}
 
-    rm -f ${F_SEIS}isc_extract.txt
-    # If the start time is earlier than the break between old and new
-    if [[ "${STARTTIME}" < "${ARG_OLDDATE}" ]]; then
-      unzip -p $ISC_TILEOLDZIP ${this_file} 2>/dev/null > ${F_SEIS}isc_extract.txt
-    fi
-    # If the end time is later than the break between old and new
-
-    if [[  "${ENDTIME}" > "${ARG_OLDDATE}" ]]; then
-      unzip -p $ISC_TILENEWZIP ${this_file} 2>/dev/null >> ${F_SEIS}isc_extract.txt
-    fi
-
-    gawk < ${F_SEIS}isc_extract.txt -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | \
-    gawk -F, -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '
-    @include "tectoplot_functions.awk"
-    ($5 <= maxlat && $5 >= minlat && $11 >= minmag && $11 <= maxmag && $7 >= mindepth && $7 <= maxdepth) {
-      if (test_lon(minlon, maxlon, $6)==1) {
-        # Now we check if the event actually falls inside the specified time window
-        timecode=sprintf("%sT%s", $3, substr($4, 1, 8))
-        if (mindate <= timecode && timecode <= maxdate) {
-          print
+      # Not sure this is needed for ISC data...?
+      #gawk < ${ISCTILEDIR}${this_file} -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | head
+      # echo gawk -F, \< ${ISCTILEDIR}${this_file} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH}
+      gawk -F, < ${ISCTILEDIR}${this_file} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '
+      @include "tectoplot_functions.awk"
+      {
+        lat=$6+0
+        lon=$7+0
+        depth=$8+0
+        mag=$12+0
+        if ($6+0==$6 && $7+0==$7 && $8+0==$8 && $12+0==$12) {
+          if (lat <= maxlat && lat >= minlat && mag >= minmag && mag <= maxmag && depth >= mindepth && depth <= maxdepth) {
+            if (test_lon(minlon, maxlon, lon)==1) {
+              # Now we check if the event actually falls inside the specified time window
+              timecode=sprintf("%sT%s", $4, substr($5, 1, 8))
+              if (mindate <= timecode && timecode <= maxdate) {
+                print
+              }
+            }
+          }
         }
-      }
-    }' >> ${OUTPUTFILE}
+      }' >> ${OUTPUTFILE}
+  fi
 done

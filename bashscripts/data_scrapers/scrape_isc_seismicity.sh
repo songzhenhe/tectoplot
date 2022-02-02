@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Catalog files are separated into 4 segments per month. A list of possible catalog
+# files is generated each time this scraper is run: isc_list.txt
+
+# Each time this scraper is run, catalog files younger than or overlapping with the date
+# stored in isc_last_downloaded_event.txt are downloaded. Catalog files without a STOP
+# line are considered failed and are deleted upon download.
+
+# After downloads are complete
+
+
+
 # tectoplot
 # bashscripts/scrape_isc_seismicity.sh
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
@@ -36,7 +47,6 @@
 # to some failures due to number of events. The script can be run multiple times
 # and will not re-download files that already exist. Some error checking is done
 # to look for empty files and delete them.
-# The
 
 # Example curl command (broken onto multiple lines)
 # curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV
@@ -48,18 +58,28 @@
 
 # Note that ISC queries require the correct final day of the month, including leap years!
 
-# tac not available in all environments but tail usually is.
+# Reverse the order of lines in each file, printing the files in order specified
+# tac preferred over tail -r preferred over gawk
+
+# This is the date that separates old catalog from new (more rapidly updated) catalog
+ISC_MIRROR="http://isc-mirror.iris.washington.edu"
 
 function tecto_tac() {
-  gawk '{
-    data[NR]=$0
-  }
-  END {
-    num=NR
-    for(i=num;i>=1;i--) {
-      print data[i]
+  if hash tac 2>/dev/null; then
+    tac $@
+  elif echo "a" | tail -r >/dev/null 2>&1; then
+    tail -r $@
+  else
+    gawk '{
+      data[NR]=$0
     }
-  }' "$@"
+    END {
+      num=NR
+      for(i=num;i>=1;i--) {
+        print data[i]
+      }
+    }' $@
+  fi
 }
 
 function epoch_ymdhms() {
@@ -86,54 +106,6 @@ function lastday_of_month() {
   echo $days
 }
 
-function download_and_check() {
-  local s_year=$1
-  local s_month=$2
-  local s_day=$3
-  local e_year=$4
-  local e_month=$5
-  local e_day=$6
-
-  start_epoch=$(epoch_ymdhms $s_year $s_month $s_day 0 0 0)
-  end_epoch=$(epoch_ymdhms $e_year $e_month $e_day 23 59 59)
-
-  # Test whether the file is entirely within the future. If so, don't download.
-  if [[ $start_epoch -ge $today_epoch ]]; then
-    echo "Requested range is beyond current date. Not downloading anything."
-  else
-    local OUTFILE=$(printf "isc_seis_%04d%02d%02d_%04d%02d%02d.dat" $s_year $s_month $s_day $e_year $e_month $e_day)
-    # echo outfile is $OUTFILE
-    if [[ $start_epoch -le $today_epoch && $end_epoch -gt $today_epoch ]]; then
-      echo "Requested file spans today and needs to be redownloaded."
-      rm -f $OUTFILE
-    fi
-
-    # Test whether the file time spans the current date. If so, delete it so we can redownload.
-
-    # Check if this is a valid ISC_SEIS file by looking for the terminating STOP command
-    if [[ -e "$OUTFILE" ]]; then
-        # echo "Requested file $OUTFILE already exists"
-        local iscomplete=$(tail -n 10 "${OUTFILE}" | grep STOP | wc -l)  # == 1 is complete, == 0 is not
-        if [[ $iscomplete -eq 0 ]]; then
-          echo "${OUTFILE} is not a complete/valid ISC SEIS file. Deleting"
-          rm -f "${OUTFILE}"
-        fi
-    fi
-    if [[ ! -e "$OUTFILE" ]]; then
-      echo "Dowloading seismicity from ${s_year}-${s_month}-${s_day} to ${e_year}-${e_month}-${e_day}"
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${s_year}&start_month=${s_month}&start_day=${s_day}&start_time=00%3A00%3A00&end_year=${e_year}&end_month=${e_month}&end_day=${e_day}&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
-      local iscomplete=$(tail -n 10 "${OUTFILE}" | grep STOP | wc -l)  # == 1 is complete, == 0 is not
-      if [[ $iscomplete -eq 0 ]]; then
-        echo "Newly downloaded ${OUTFILE} is not a complete/valid ISC SEIS file. Deleting"
-        rm -f "${OUTFILE}"
-      else
-        echo ${OUTFILE} >> to_add_to_cat.txt
-        add_to_catalog+=("$OUTFILE")
-      fi
-    fi
-  fi
-}
-
 function has_a_line() {
   if [[ -e $1 ]]; then
     gawk '
@@ -158,77 +130,154 @@ function has_a_line() {
   fi
 }
 
-function download_isc_file() {
-  local parsed=($(echo $1 | gawk -F_ '{ split($5, d, "."); print $3, $4, d[1]}'))
-  local year=${parsed[0]}
-  local month=${parsed[1]}
-  local segment=${parsed[2]}
+function generate_isc_list() {
+  startyear=$1
+  thisdate=$2
 
-  if [[ $1 =~ "isc_events_1900_to_1950.cat" ]]; then
-    echo "Downloading seismicity for $1: Year=1900 to 1950"
-    curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=1900&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=1950&end_month=12&end_day=31&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $1
+  gawk -v startyear=$startyear -v thisdate=$thisdate '
+  BEGIN {
+    split(thisdate, a, ":")
+    thisyear=a[1]
+    thismonth=a[2]
+    for (year=startyear; year<=thisyear; year++) {
+      for (month=1; month<=12; month++) {
+        if (year==thisyear && month > thismonth) {
+          break
+        }
+        for (segment=1; segment<=4; segment++) {
+          if (year==thisyear && month > thismonth) {
+            if ((segment==1 && thisday < 7) || (segment==2 && thisday < 14) || (segment==3 && thisday < 21)) {
+              break
+            }
+          }
+          print "isc_events_" year "_" month "_" segment "_.cat"
+        }
+      }
+    }
+  }'
+}
+
+# This function will manage downloading of an ISC seismicity catalog file spanning the given
+# date range. If the date range is valid, the function will check whether such a file already
+# exists, and if so whether it is a valid catalog file containing events. If the date range
+# spans the current date, it will delete the file and redownload because new events are likely.
+
+# arguments: startyear startmonth startday endyear endmonth endday today_epoch segmentnumber
+
+function download_and_check() {
+  local s_year=$1
+  local s_month=$2
+  local s_day=$3
+  local e_year=$4
+  local e_month=$5
+  local e_day=$6
+  local today_epoch=$7
+  local mark_as_complete=1
+
+  start_epoch=$(epoch_ymdhms $s_year $s_month $s_day 0 0 0)
+  end_epoch=$(epoch_ymdhms $e_year $e_month $e_day 23 59 59)
+
+  # Test whether the file is entirely within the future. If so, don't download.
+  if [[ $start_epoch -ge $today_epoch ]]; then
+    echo "s" $start_epoch "t" $today_epoch
+    echo "Requested begin date ${s_year}-${s_month}-${s_day} is in the future. Not downloading anything."
   else
-    echo "Downloading seismicity for $1: Year=${year} Month=${month} Segment=${segment}"
+    # Generate the filename
+    local OUTFILE=$(printf "isc_events_%d_%d_%d_.cat" $s_year $s_month $segment)
 
-    case ${parsed[2]} in
+    # Test whether the file time spans the current date. If so, delete it so we can redownload.
+    if [[ $start_epoch -le $today_epoch && $end_epoch -gt $today_epoch ]]; then
+      echo "Requested end date ${s_year}-${s_month}-${s_day} is in the future. Removing existing file."
+      rm -f $OUTFILE
+      mark_as_complete=0
+    fi
+
+    # If the file already exists, check to see if it in the completed downloads file list.
+    if [[ -s "$OUTFILE" ]]; then
+        # Search from the end of the file toward the beginning, stop at first match
+        local iscomplete=$(grep -m 1 ${OUTFILE} isc_complete.txt)
+        if [[ $iscomplete == "${OUTFILE}" ]]; then
+          echo "${OUTFILE} is in the completed download list. Not redownloading"
+          return
+        else
+          echo "${OUTFILE} exists but is not marked as complete. Deleting and redownloading."
+          rm -f "${OUTFILE}"
+        fi
+    fi
+
+    echo "Dowloading seismicity from ${s_year}-${s_month}-${s_day} to ${e_year}-${e_month}-${e_day}"
+
+    curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${s_year}&start_month=${s_month}&start_day=${s_day}&start_time=00%3A00%3A00&end_year=${e_year}&end_month=${e_month}&end_day=${e_day}&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
+
+    CURL_EXIT=$?
+    echo "CURL returned exit code ${CURL_EXIT}"
+    # Test for STOP line
+    local iscomplete=$(tecto_tac "${OUTFILE}" | grep -m 1 STOP)  # == 1 is complete, == 0 is not
+    if [[ $iscomplete != "STOP" ]]; then
+      echo "Newly downloaded ${OUTFILE} does not have STOP line and is not a complete/valid ISC SEIS file. Deleting."
+      # rm -f "${OUTFILE}"
+    else
+      if [[ $mark_as_complete -eq 1 ]]; then
+        echo "Newly downloaded ${OUTFILE} does have STOP line and mark_as_complete is 1: marking as complete"
+        echo "${OUTFILE}" >> isc_complete.txt
+      fi
+    fi
+  fi
+}
+
+
+# This is the logic for downloading an ISC file
+
+# Input is the filename of the catalog to be downloaded although it could also just be
+# year month segment today_epoch
+
+function download_isc_file() {
+  local year=${1}
+  local month=${2}
+  local segment=${3}
+  local today_epoch=${4}
+
+  if [[ $year -eq 1900 ]]; then
+    echo "Downloading seismicity for years 1900 to 1953"
+    download_and_check 1900 01 01 1953 12 31 $today_epoch 0
+  else
+
+    case ${segment} in
       1)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=07&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $1
-      ;;
+        s_day=01
+        e_day=07
+        ;;
       2)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=08&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=14&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $1
+        s_day=08
+        e_day=14
       ;;
       3)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=15&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=21&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $1
+        s_day=15
+        e_day=21
       ;;
       4)
-      last_day=$(lastday_of_month $month)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}&start_month=${month}&start_day=22&start_time=00%3A00%3A00&end_year=${year}&end_month=${month}&end_day=${last_day}&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $1
+        s_day=22
+        e_day=$(lastday_of_month $month)
       ;;
     esac
-  fi
-  # If curl returned a non-zero exit code or doesn't contain at least two lines, delete the file we just created
-  if ! [ 0 -eq $? ]; then
-    echo "File $1 had download error. Deleting."
-    rm -f $1
-  elif [[ $(has_a_line $1) -eq 0 ]]; then
-    echo "File $1 was empty. Deleting."
-    rm -f $1
+
+    echo "Downloading seismicity for $1: Year=${year} Month=${month} Segment=${segment}"
+    download_and_check ${year} ${month} ${s_day} ${year} ${month} ${e_day} ${today_epoch} ${segment}
   fi
 }
 
 # Change into the ISC data directory, creating if needed, and check Tiles directory
 # Create tile files using touch
 
-ISCDIR="${1}"
+function download_isc_main {
+  # isc_complete.txt contains the names of catalog files that are verified to be
+  # complete (the catalog contains a STOP line and the end date is not in the future)
 
-# Sort the isc_complete.txt file to preserve the order of earliest->latest
-if [[ -e isc_complete.txt ]]; then
-  sort < isc_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_complete.txt.sort
-  mv isc_complete.txt.sort isc_complete.txt
-fi
-
-if [[ -d $ISCDIR ]]; then
-  echo "ISC tile directory exists."
-else
-  echo "Creating tile files in ISC tile directory :${ISCDIR}:."
-  mkdir -p ${ISCDIR}
-fi
-
-cd $ISCDIR
-
-if ! [[ $2 =~ "rebuild" ]]; then
-
-  rm -f isc_just_downloaded.txt
-
-  if [[ -e isc_last_downloaded_event.txt ]]; then
-    lastevent_epoch=$(tail -n 1 isc_last_downloaded_event.txt | gawk -F, '{ printf("%sT%s", $3, substr($4, 1, 8)) }' | iso8601_to_epoch)
-    lastevent_date=$(tail -n 1 isc_last_downloaded_event.txt | gawk -F, '{ printf("%sT%s", $3, substr($4, 1, 8)) }')
-  else
-    lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
-    lastevent_date="1900-01-01T00:00:01"
+  # Sort the isc_complete.txt file to preserve the order of earliest->latest
+  if [[ -s isc_complete.txt ]]; then
+    sort < isc_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_complete.txt.sort
+    mv isc_complete.txt.sort isc_complete.txt
   fi
-  echo "Last event from previous scrape has epoch $lastevent_epoch"
-  echo "Last event from previous scrape has date $lastevent_date"
 
   this_year=$(date -u +"%Y")
   this_month=$(date -u +"%m")
@@ -237,192 +286,121 @@ if ! [[ $2 =~ "rebuild" ]]; then
   this_minute=$(date -u +"%M")
   this_second=$(date -u +"%S")
 
-  today_epoch=$(epoch_ymdhms $this_year $this_month $this_day $this_hour $this_minute $this_second)
+  thisdate=$(date -u +"%Y:%m:%d:%H:%M:%S")
 
+  today_epoch=$(epoch_ymdhms $this_year $this_month $this_day $this_hour $this_minute $this_second)
 
   # new format for isc is isc_events_year_month_segment.cat
 
   # Look for the last entry in the list of catalog files
-  final_cat=($(tail -n 1 ./isc_list.txt 2>/dev/null | gawk -F_ '{split($5, a, "."); print $3, $4, a[1]}'))
+  startyear=1954
 
-  # If there is no last entry (no file), regenerate the list
-  if [[ -z ${final_cat[0]} ]]; then
-    echo "Generating new catalog file list..."
-    echo "isc_events_1900_to_1950.cat" > ./isc_list.txt
-    for year in $(seq 1951 $this_year); do
-      for month in $(seq 1 12); do
-        if [[ $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
-          break 1
-        fi
-        for segment in $(seq 1 4); do
-          if [[ $(echo "($year == $this_year) && ($month == $this_month)" | bc) -eq 1 ]]; then
-            [[ $(echo "($segment == 2) && ($this_day < 7)"  | bc) -eq 1 ]] && break
-            [[ $(echo "($segment == 2) && ($this_day < 14)"  | bc) -eq 1 ]] && break
-            [[ $(echo "($segment == 3) && ($this_day < 21)"  | bc) -eq 1 ]] && break
-          fi
-          echo "isc_events_${year}_${month}_${segment}.cat" >> ./isc_list.txt
-        done
-      done
-    done
-  else
-  # Otherwise, add the events that postdate the last catalog file.
-    echo "Adding new catalog files to file list..."
-    final_year=${final_cat[0]}
-    final_month=${final_cat[1]}
-    final_segment=${final_cat[2]}
+  # Generate the list of files
+  echo "Generating list of ISC catalog files"
+  echo "isc_events_1900_1_0_.cat" > ./isc_list.txt
+  generate_isc_list $startyear $thisdate >> ./isc_list.txt
 
-    for year in $(seq $final_year $this_year); do
-      for month in $(seq 1 12); do
-        if [[  $(echo "($year == $this_year) && ($month > $this_month)" | bc) -eq 1 ]]; then
-          break 1
-        fi
-        for segment in $(seq 1 4); do
-          # Determine when to exit the loop as we have gone into the future
-          if [[ $(echo "($year >= $this_year) && ($month >= $this_month)" | bc) -eq 1 ]]; then
-             [[ $(echo "($segment == 2) && ($this_day < 7)"  | bc) -eq 1 ]] && break
-             [[ $(echo "($segment == 3) && ($this_day < 14)"  | bc) -eq 1 ]] && break
-             [[ $(echo "($segment == 4) && ($this_day < 21)"  | bc) -eq 1 ]] && break
-          fi
-          # Determine whether to suppress printing of the catalog ID as it already exists
-          if ! [[ $(echo "($year <= $final_year) && ($month < $final_month)" | bc) -eq 1 ]]; then
-            if [[ $(echo "($year == $final_year) && ($month == $final_month) && ($segment <= $final_segment)" | bc) -eq 0 ]]; then
-              echo "isc_events_${year}_${month}_${segment}.cat" >> ./isc_list.txt
-            fi
-          fi
-        done
-      done
-    done
-  fi
-
-  # Get a list of files that should exist but are not marked as complete
+  echo "Getting list of catalog files to download"
+  # Get a list of files that should exist but are not already marked as complete
   cat isc_complete.txt isc_list.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -u > isc_incomplete.txt
 
   isc_list_files=($(tecto_tac isc_incomplete.txt))
 
-  # echo ${isc_list_files[@]}
-
-  testcount=0
-  last_index=-1
   for d_file in ${isc_list_files[@]}; do
-    download_isc_file ${d_file}
-    if [[ ! -e ${d_file} || $(has_a_line ${d_file}) -eq 0 ]]; then
-      echo "File ${d_file} was not downloaded or has no events. Not marking as complete"
-    else
-
-      if ! grep "No events were found" ${d_file}; then
-
-        echo ${d_file} >> isc_just_downloaded.txt
-        if [[ $last_index -ge 0 ]]; then
-          # Need to check whether the last file exists still before marking as complete (could have been deleted)
-          echo "File ${d_file} had events... marking earlier file ${isc_list_files[$last_index]} as complete."
-          [[ -e ${isc_list_files[$last_index]} ]] && echo ${isc_list_files[$last_index]} >> isc_complete.txt
-        fi
-      else
-        echo "File ${d_file} had no events inside"
-      fi
-    fi
-    last_index=$(echo "$last_index + 1" | bc)
-    testcount=$(echo "$testcount + 1" | bc)
+    datearr=($(echo $d_file | gawk '{ split($0,a,"_"); print a[3]; print a[4]; print a[5]; }'))
+    echo "Downloading ${d_file}"
+    download_isc_file ${datearr[0]} ${datearr[1]} ${datearr[2]} ${today_epoch}
   done
-else
-  # Rebuild the tile from the downloaded
-  echo "Rebuilding ISC tiles no longer supported - remove manually and rescrape"
-  # rm -f ${ISCDIR}tile*.cat
-  # cp isc_complete.txt isc_just_downloaded.txt
-  # lastevent_epoch=$(echo "1900-01-01T00:00:01" | iso8601_to_epoch)
-  # lastevent_date="1900-01-01T00:00:01"
-  #
-  # for long in $(seq -180 5 175); do
-  #   for lati in $(seq -90 5 85); do
-  #     touch ${ISCDIR}"tile_${long}_${lati}.cat"
-  #   done
-  # done
-fi
+}
 
-# If we downloaded a file (should always happen as newest file is never marked complete)
+function tile_downloaded_catalogs {
+  # Don't match tile_*.cat as a file...
+  TILEDIR=$1
+  COMPLETEDIR=$2
 
-#   EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG
+  shopt -s nullglob
 
-if [[ -e isc_just_downloaded.txt ]]; then
+  echo "Getting list of complete catalog files to add to tiles"
+  ls isc_events_*.cat > isc_catalog_files.txt 2>/dev/null
+  # Get a list of files that should exist but are not already marked as complete
+  # If a name is in BOTH the complete list AND the files in directory, tile it
+  cat isc_complete.txt isc_catalog_files.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -d > isc_catalogs_to_tile.txt
 
-  selected_files=$(cat isc_just_downloaded.txt)
+  echo "Getting list of incomplete catalog files to add to temporary catalog file"
+  # Get a list of files that should exist but are not already marked as complete
+  cat isc_complete.txt isc_list.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -u  > isc_temporary_catalogs.txt
 
   # For each candidate file, examine events and see if they are younger than the
   # last event that has been added to a tile file. Keep track of the youngest
   # event added to tiles and record that for future scrapes.
+  selected_files=$(cat isc_catalogs_to_tile.txt)
 
   for isc_file in $selected_files; do
     echo "Processing file $isc_file into tile files"
-
-    cat $isc_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${ISCDIR} -v mindate=$lastevent_date -v oldcatdate=${OLDCAT_DATE} '
-    @include "tectoplot_functions.awk"
+    sed -n '/^  EVENTID/,/^STOP/p' $isc_file | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${TILEDIR} -v mindate=$lastevent_date -v oldcatdate=${OLDCAT_DATE} '
     BEGIN { added=0 }
+    function rd(n, multipleOf)
     {
-      thisdate=sprintf("%sT%s", $3, substr($4, 1, 8))
-
-      if (thisdate > mindate) {
-
-        if (thisdate > oldcatdate) {
-          catstr="_new"
-        } else {
-          catstr="_old"
-        }
-
-        tilestr=sprintf("%stile_%d_%d%s.cat", tiledir, rd($6,5), rd($5,5), catstr);
-
-        print $0 >> tilestr
-        added++
+      if (n % multipleOf == 0) {
+        num = n
       } else {
-        print $0 >> "./not_tiled.cat"
+         if (n > 0) {
+            num = n - n % multipleOf;
+         } else {
+            num = n + (-multipleOf - n % multipleOf);
+         }
       }
+      return num
+    }
+    {
+      tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($7,5), rd($6,5));
+      print $0 >> tilestr
+      added++
     }
     END {
       print "Added", added, "events to ISC tiles."
     }'
-
+    mv $isc_file $COMPLETEDIR
   done
 
-  # Now all the tile files have been created with all of the added events
+  selected_files=$(cat isc_temporary_catalogs.txt)
 
-
-  # Don't match tile_*.cat as a file...
-  shopt -s nullglob
-  newfiles=(${ISCDIR}tile_*_old.cat)
-
-  # The tile files are the new data that needs to be added into the ZIP file
-  for newfile in ${newfiles[@]}; do
-    thisname=$(basename $newfile | sed 's/_old//')
-    unzip -p ${ISC_TILEOLDZIP} ${thisname} > temp.cat 2>/dev/null
-    cat temp.cat ${newfile} > temp2.cat
-    mv temp2.cat ${thisname}
-    zip ${ISC_TILEOLDZIP} ${thisname} && rm -f ${thisname}
+  rm -f ${TILEDIR}isc_temporary.cat
+  for isc_file in $selected_files; do
+    if [[ -s $isc_file ]]; then
+      echo "Processing temporary file $isc_file into temporary file"
+      sed -n '/^  EVENTID/,/^STOP/p' $isc_file | sed '1d;$d' | sed '$d' >> ${TILEDIR}isc_temporary.cat
+      echo "Deleting temporary catalog file $isc_file"
+      rm -f $isc_file
+    fi
   done
+  echo "Temporary catalog contains $(wc -l < ${TILEDIR}isc_temporary.cat) events"
+}
 
-  shopt -s nullglob
-  newfiles=(${ISCDIR}tile_*_new.cat)
+ISCDIR="$1"
 
-  # The tile files are the new data that needs to be added into the ZIP file
-  for newfile in ${newfiles[@]}; do
-    thisname=$(basename $newfile | sed 's/_new//')
-    unzip -p ${ISC_TILENEWZIP} ${thisname} > temp.cat
-    cat temp.cat ${newfile} > temp2.cat
-    mv temp2.cat ${thisname}
-    zip ${ISC_TILENEWZIP} ${thisname} && rm -f ${thisname}
-  done
-
-  # not_tiled.cat is a file containing old events that have alread been tiled
-  # It is kept for inspection purposes but is deleted with each scrape
-
-  last_downloaded_file=$(tail -n 1 isc_just_downloaded.txt)
-  last_downloaded_event=$(cat $last_downloaded_file | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | tail -n 1)
-
-  # Check whether the latest event exists, and if so mark it
-  if [[ ! -z ${last_downloaded_event} ]]; then
-    echo "Marking last downloaded event: $last_downloaded_event"
-    echo $last_downloaded_event > isc_last_downloaded_event.txt
-    # Update last_downloaded_event.txt
-  fi
+if [[ -d $ISCDIR ]]; then
+  echo "ISC tile directory exists."
+else
+  echo "Creating ISC seismicity directory ${ISCDIR}"
+  mkdir -p ${ISCDIR}
 fi
 
-rm -f isc_events_*.cat not_tiled.cat
-rm -f isc_incomplete.txt isc_just_downloaded.txt
+cd $ISCDIR
+
+if [[ ! -d ./tiles ]]; then
+  mkdir -p ./tiles
+fi
+
+if [[ ! -d ./savedcats ]]; then
+  mkdir -p ./savedcats
+fi
+
+# First we download ISC catalog files
+
+download_isc_main
+
+# Then we process any complete .cat files into tile files and delete them,
+# and put the contents of any incomplete .cat files into the isc_temporary.cat file
+
+tile_downloaded_catalogs "./tiles/" "./savedcats/"

@@ -5480,11 +5480,11 @@ fi
                 ;;
             (*)
                 info_msg "[-r]: Input file is binary: assuming it is a grid file"
-                rasrange=$(grid_zrange $(abs_path $2))
-                MINLON=$(echo $rasrange | gawk  '{print $2}')
-                MAXLON=$(echo $rasrange | gawk  '{print $3}')
-                MINLAT=$(echo $rasrange | gawk  '{print $4}')
-                MAXLAT=$(echo $rasrange | gawk  '{print $5}')
+                rasrange=($(grid_xyrange $(abs_path $2)))
+                MINLON=${rasrange[0]}
+                MAXLON=${rasrange[1]}
+                MINLAT=${rasrange[2]}
+                MAXLAT=${rasrange[3]}
                 ;;
             esac
           shift
@@ -5569,11 +5569,11 @@ fi
               ind=$(echo "$ind+1"| bc)
               usecustomregionrjstringflag=1
 
-              # Check the custom region strings for projections that require a different bounding box method
-              if [[ ${ISCUSTOMREGION[${ind}]} == *"-JOc"* ]]; then
-                # echo "Found Oblique Mercator"
-                boundboxfrompsbasemapflag=1
-              fi
+              # # Check the custom region strings for projections that require a different bounding box method
+              # if [[ ${ISCUSTOMREGION[${ind}]} == *"-JOc"* ]]; then
+              #   # echo "Found Oblique Mercator"
+              #   boundboxfrompsbasemapflag=1
+              # fi
 
             done
             if [[ $usecustomregionrjstringflag -eq 1 ]]; then
@@ -5795,9 +5795,14 @@ Usage: -RJ [projection] [[central_meridian]]
     Eckert6|Ks
 
 Hemisphere:
+Region should be -180:180;minlat:maxlat where latitude range depends on view location
 Usage: -RJ Hemisphere or A [[central_meridian]] [[central_latitude]]
 
 Circular plots with a specified horizon distance from center point:
+Region should be minlon:maxlon;minlat:maxlat depending on view location and distance
+If circle contains north (south) pole, then minlon (maxlon) is 90-view latitude? and
+longitude is -180:180. If circle does not contain a pole, then range is
+viewlon-angle:viewlon+angle;viewlat-angle:viewlat+angle
 Usage: -RJ [projection] [[central_meridian]] [[central_latitude]] [[degree_horizon]]
     Gnomonic|F
     Orthographic|G
@@ -5935,7 +5940,7 @@ fi
         rj+=("-Rg")
         case $ARG1 in
           Gnomonic|Fg|F)      [[ $DEGRANGE -ge 90 ]] && DEGRANGE=60   # Gnomonic can't have default degree range
-                           rj+=("-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
+                              rj+=("-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
           Orthographic|Gg|G)  rj+=("-JG${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
           Stereo|Sg|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
         esac
@@ -5944,8 +5949,9 @@ fi
         if [[ ${ARG1:1:2} == "g" ]]; then
           info_msg "[-RJ]: using global circle map ($ARG1)"
         else
-          info_msg "[-RJ]: will recalculate data region using lonlat"
-          recalcregionflag_lonlat=1
+          info_msg "[-RJ]: will recalculate data region using circle method"
+          # recalcregionflag_lonlat=1
+          recalcregionflag_circle=1
         fi
       ;;
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
@@ -5954,8 +5960,8 @@ fi
         CENTRALLON=0
         CENTRALLAT=0
         ORIENTAZIMUTH=0
-        MAPWIDTHKM="200k"
-        MAPHEIGHTKM="100k"
+        MAPWIDTH="200"
+        MAPHEIGHT="100"
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALLON=$2
           shift
@@ -5967,11 +5973,11 @@ fi
               shift
 
               # Have to divide by two to get full cross-map width+height
-              if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
-                MAPWIDTHKM=$(echo $2 | gawk '{print ($1+0)/2 "k"}')
+              if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+ ]]; then   # Specified a width with unit k
+                MAPWIDTH=$(echo $2 | gawk '{print ($1+0)/2 }')
                 shift
-                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
-                  MAPHEIGHTKM=$(echo $2 | gawk '{print ($1+0)/2 "k"}')
+                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+ ]]; then   # Specified a width with unit k
+                  MAPHEIGHT=$(echo $2 | gawk '{print ($1+0)/2 }')
                   shift
                 fi
               fi
@@ -5979,7 +5985,7 @@ fi
           fi
         fi
 
-        rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
+        rj+=("-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk")
         rj+=("-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i")
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
@@ -5992,8 +5998,8 @@ fi
         CENTRALLAT=0
         POLELON=0
         POLELAT=0
-        MAPWIDTHKM="200k"
-        MAPHEIGHTKM="100k"
+        MAPWIDTH="200"
+        MAPHEIGHT="100"
         if arg_is_float $2; then   # Specified a central meridian
           CENTRALLON=$2
           shift
@@ -6006,11 +6012,11 @@ fi
               if arg_is_float $2; then   # Specified a latitude
                 POLELAT=$2
                 shift
-                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
-                  MAPWIDTHKM=$2
+                if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+ ]]; then   # Specified a width with unit k
+                  MAPWIDTH=$(echo $2 | gawk '{print ($1+0)/2 }')
                   shift
-                  if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+[k]$ ]]; then   # Specified a width with unit k
-                    MAPHEIGHTKM=$2
+                  if [[ $2 =~ ^[-+]?[0-9]*.*[0-9]+ ]]; then   # Specified a width with unit k
+                    MAPHEIGHT=$(echo $2 | gawk '{print ($1+0)/2 }')
                     shift
                   fi
                 fi
@@ -6035,11 +6041,10 @@ fi
         # This calculation (as far as I can tell) will set the length of the map box closest to
         # the pole!
 
-        MAPWIDTHNUM=$(echo $MAPWIDTHKM | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
-        MAPHEIGHTNUM=$(echo $MAPHEIGHTKM | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
+        MAPWIDTH=$(echo $MAPWIDTH | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
+        MAPHEIGHT=$(echo $MAPHEIGHT | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
 
-        # rj+=("-Rk-${MAPWIDTHKM}/${MAPWIDTHKM}/-${MAPHEIGHTKM}/${MAPHEIGHTKM}")
-        rj+=("-Rk-${MAPWIDTHNUM}k/${MAPWIDTHNUM}k/-${MAPHEIGHTNUM}k/${MAPHEIGHTNUM}k")
+        rj+=("-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk")
         rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
@@ -6084,8 +6089,7 @@ fi
         esac
 
         RJSTRING="${rj[@]}"
-        # echo ${RJSTRING[@]}
-        recalcregionflag_lonlat=1
+        recalcregionflag_bounds=1
         projcoordsflag=1
       ;;
       *)
@@ -6425,7 +6429,7 @@ fi
     fi
     if [[ ${SCRAPESTRING} =~ .*c.* ]]; then
       info_msg "Scraping ISC seismic data"
-      source $SCRAPE_ISCSEIS ${ISC_EQS_DIR} ${REBUILD}
+      source $SCRAPE_ISCSEIS ${ISC_EQS_DIR}
     fi
     if [[ ${SCRAPESTRING} =~ .*z.* ]]; then
       info_msg "Scraping GFZ focal mechanisms"
@@ -7863,24 +7867,43 @@ Usage: -makeply [[option1 value1]] [[option2 value2]] ...
     automatically if the equivalent -t, -z, -c, -g, -vf, or -b commands are given.
 
     Options:
-    [[landkm spacing=${PLY_FIB_KM}]]          Spacing of surface grid pts if no DEM given
-    [[scale factor=${PLY_SCALE}]]            Rescale scaleable items by multiplying by this factor
-    [[vexag factor=${PLY_VEXAG}]]            Vertical exaggeration of data
-    [[topoexag factor=${PLY_VEXAG_TOPO}]]    Vertical exaggeration of DEM
-    [[demonly]]                       Only make DEM mesh and texture, not other 3D data
-    [[addz offset=${PLY_ZOFFSET}]]           Vertical shift (positive away from Earth center) in km
-    [[maxsize size=${PLY_MAXSIZE}]]        Resample DEM to given maximum width (cells) before meshing
-    [[alpha value=${PLY_ALPHACUT}]]         Apply alpha mask to DEM texture using transparent PNG
-    [[sidebox depth=${PLY_SIDEBOXDEPTH} color=${PLY_SIDEBOXCOLOR}]]   Make sides and bottom of box under topo
-    [[sidetext on|off v_int h_int]]   Plot text on sidebox? If on, v_int in km, h_int in degrees
-    [[maptiff]]  Use the rendered map TIFF and not just shaded relief as the texture for the DEM
-    [[mtl name=${PLY_MTLNAME}]]            Name of DEM OBJ and its corresponding material
-    [[fault file1 file2 ...]]         Make colored mesh of gridded fault data
-    [[ocean]]                         Make ocean layer at given ocean depth
-    [[box depth(km)=${PLY_BOXDEPTH}]]                 Draw box encompassing seismicity OR at fixed depth
-    [[text depth(km) string of words ]]   Print text at center of plane defined by corner points
+    [[landkm spacing=${PLY_FIB_KM}]]
+       Spacing of surface grid pts if no DEM given
+    [[scale factor=${PLY_SCALE}]]
+       Rescale scaleable items by multiplying by this factor
+    [[vexag factor=${PLY_VEXAG}]]
+       Vertical exaggeration of data
+    [[topoexag factor=${PLY_VEXAG_TOPO}]]
+       Vertical exaggeration of DEM
+    [[demonly]]
+       Only make DEM mesh and texture, not other 3D data
+    [[addz offset=${PLY_ZOFFSET}]]
+       Vertical shift (positive away from Earth center) in km
+    [[maxsize size=${PLY_MAXSIZE}]]
+       Resample DEM to given maximum width (cells) before meshing
+    [[alpha value=${PLY_ALPHACUT}]]
+       Apply alpha mask to DEM texture using transparent PNG
+    [[sidebox depth=${PLY_SIDEBOXDEPTH} color=${PLY_SIDEBOXCOLOR}]]
+       Make sides and bottom of box under topo
+    [[sidetext on|off v_int h_int]]
+       Plot text on sidebox? If on, v_int in km, h_int in degrees
+    [[maptiff]]
+       Use rendered map TIFF as topo texture
+    [[mtl name=${PLY_MTLNAME}]]
+       Set name of DEM OBJ and its corresponding material
+    [[fault file1 file2 ...]]
+       Make colored mesh of gridded fault(s) data
+    [[ocean]]
+       Make ocean layer at given ocean depth
+    [[box depth(km)=${PLY_BOXDEPTH}]]
+       Draw box encompassing seismicity OR at fixed depth
+    [[text depth(km) string of words ]]
+       Print text at center of plane defined by corner points
     [[floattext lon lat depth scale string of words]]
-
+       Generate 3d text at specified location and scale
+    [[seisball minmag=${PLT_POLYMAG} power=${PLY_POLYMAG_POWER} scale=${PLY_POLYSCALE}]]
+       Generate 3d balls for seismicity above the specified magnitude
+       
     See also: -addobj    Include OBJ files from specified directory
 
 --------------------------------------------------------------------------------
@@ -7895,6 +7918,30 @@ fi
   while ! arg_is_flag "${2}"; do
 
     case "${2}" in
+    seisball)
+      shift
+      PLY_SEISBALL=1
+      if arg_is_float "${2}"; then
+        PLY_POLYMAG="${2}"      # Minimum magnitude of earthquakes drawn as polygons instead of points
+        shift
+      fi
+      if arg_is_positive_float "${2}"; then
+        PLY_POLYMAG_POWER="${2}"    # Radius of polymag eqs is multiplied by magnitude to this power
+        shift
+      fi
+      if arg_is_positive_float "${2}"; then
+        PLY_POLYSCALE="${2}"    # Scale factor (radius of M=1) for earthquake polygons 1 = 100km
+        shift
+      fi
+      ;;
+    # center)
+    #   shift
+    #   PLY_CENTERFLAG=1
+    #   ;;
+    # shift)
+    #   shift
+    #   PLY_SHIFTFLAG=1
+    #   ;;
     sidetext)
       shift
       echo 2 is now ${2}
@@ -9861,60 +9908,52 @@ echo ${MAXLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 echo ${MINLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 echo ${MINLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 
-#
-# # The reason to do this is because our -R/// string needs to change based on
-# # various earlier settings, so we need to update MINLON/MAXLON/MINLAT/MAXLAT
-#
-# if [[ $recalcregionflag_lonlat -eq 1 ]]; then
-#
-#     NEWRANGETL=($(gmt mapproject ${RJSTRING[@]} -WjTL ${VERBOSE}))
-#     NEWRANGETR=($(gmt mapproject ${RJSTRING[@]} -WjTR ${VERBOSE}))
-#     NEWRANGEBL=($(gmt mapproject ${RJSTRING[@]} -WjBL ${VERBOSE}))
-#     NEWRANGEBR=($(gmt mapproject ${RJSTRING[@]} -WjBR ${VERBOSE}))
-#     # NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
-#
-#     # echo "TL: ${NEWRANGETL[@]}"
-#     # echo "BR: ${NEWRANGEBR[@]}"
-#     # echo "CM: ${NEWRANGECM[@]}"
-#
-#     NEWRANGE=($(echo ${NEWRANGETL[0]} ${NEWRANGEBR[0]} ${NEWRANGEBR[1]} ${NEWRANGETL[1]}))
-#     info_msg "mapproject points method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-#
-#     # # Only adopt the new range if the max/min values are numbers and their order is OK
-#     usenewrange=1
-#     if [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]]; then
-#       info_msg "recalcregion: The corner method has NaN outputs. Try the bounds method."
-#       recalcregionflag_bounds=1
-#
-#     fi
-#     # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-#     # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
-#     # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
-#
-#     # This newrange needs to take into account longitudes below -180 and above 180...
-#
-#     if [[ $usenewrange -eq 1 ]]; then
-#       info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-#       MINLON=${NEWRANGE[0]}
-#       MAXLON=${NEWRANGE[1]}
-#       MINLAT=${NEWRANGE[2]}
-#       MAXLAT=${NEWRANGE[3]}
-#     else
-#       info_msg "Could not update AOI based on map extent."
-#     fi
-# fi
-#
-
 # This section is needed to make the circular AOI for e.g. stereographic maps with a given horizon.
 # Not yet implemented
 
 if [[ $recalcregionflag_circle -eq 1 ]]; then
-  echo "Trying to make AOI bounds.txt using gmt project"
-  # COMEBACK
-fi
+  # For science, make a small circle that approximates the map edge
+  polelat=${CENTRALLATITUDE}
+  polelon=${CENTRALMERIDIAN}
+  poledeg=${DEGRANGE}
 
+  poleantilat=$(echo "0 - (${polelat}+0.0000001)" | bc -l)
+  poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
+
+  gmt_init_tmpdir
+    gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${poledeg} -L-360/0 $VERBOSE | gawk '{print $1, $2}' > ${TMP}${F_MAPELEMENTS}mapedge_smallcircle.txt
+  gmt_remove_tmpdir
+
+  gotrange=0
+  # Calculate the distance in degrees from the center point to the north pole
+  if [[ $(echo "$CENTRALLATITUDE >= 0") -eq 1 ]]; then
+    if [[ $(echo "$CENTRALLATITUDE + $DEGRANGE > 90" | bc) -eq 1 ]]; then
+      MINLON=-180
+      MAXLON=180
+      MINLAT=$(echo "$CENTRALLATITUDE - $DEGRANGE" | bc -l)
+      MAXLAT=90
+      gotrange=1
+    fi
+  else # Negative latitude
+    if [[ $(echo "$CENTRALLATITUDE - $DEGRANGE < -90" | bc) -eq 1 ]]; then
+      MINLON=-180
+      MAXLON=180
+      MINLAT=-90
+      MAXLAT=$(echo "$CENTRALLATITUDE + $DEGRANGE" | bc -l)
+      gotrange=1
+    fi
+  fi
+
+  # The circle does not overlap a pole
+  if [[ $gotrange -eq 0 ]]; then
+    MINLON=$(echo "$CENTRALMERIDIAN - $DEGRANGE" | bc -l)
+    MAXLON=$(echo "$CENTRALMERIDIAN + $DEGRANGE" | bc -l)
+    MINLAT=$(echo "$CENTRALLATITUDE - $DEGRANGE" | bc -l)
+    MAXLAT=$(echo "$CENTRALLATITUDE + $DEGRANGE" | bc -l)
+  fi
+  rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+  RJSTRING="${rj[@]}"
+fi
 
 # If we read the RJ string from the custom regions file, set it here before we
 # determine the bounding box and projected bounding box
@@ -9932,57 +9971,22 @@ fi
 # This section is needed to determine the region and bounding box for oblique Mercator type projections
 # Not yet tested for maps crossing the dateline!
 
-if [[ $boundboxfrompsbasemapflag -eq 1 || $recalcregionflag_bounds -eq 1 ]]; then
-  gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
-    ($1!="NaN") {
-      while ($1>180) { $1=$1-360 }
-      while ($1<-180) { $1=$1+360 }
-      if ($1==($1+0) && $2==($2+0)) {
-        print
-      }
-    }' > ${TMP}${F_MAPELEMENTS}bounds.txt
-fi
-
 if [[ $recalcregionflag_bounds -eq 1 ]]; then
+    NEWRANGE=($(gmt mapproject ${RJSTRING[@]} -Wr))
+    info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
+    MINLON=${NEWRANGE[0]}
+    MAXLON=${NEWRANGE[1]}
+    MINLAT=${NEWRANGE[2]}
+    MAXLAT=${NEWRANGE[3]}
 
-    # Recalculate the bounding box using RJSTRING; this replaces the MINLON/MAXLON/MINLAT/MAXLAT bounding box
-
-    # Calculate the range in longitude and latitude in order to set MINLON...etc
-
-    # Split the polygon across the dateline if necessary - xy_range should still work!
-    gmt spatial -Ss ${TMP}${F_MAPELEMENTS}bounds.txt > ${TMP}${F_MAPELEMENTS}ss_bounds.txt
-
-    NEWRANGE=($(xy_range ${TMP}${F_MAPELEMENTS}ss_bounds.txt))
-
-    # We need to account for boundary box crossing the dateline here.
-
-
-    info_msg "Bounds method: Suggested updated range is: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-
-    # # Only adopt the new range if the max/min values are numbers and their order is OK
-    usenewrange=1
-    [[ ${NEWRANGE[0]} =~ "NaN" || ${NEWRANGE[1]} =~ "NaN" || ${NEWRANGE[2]} =~ "NaN" || ${NEWRANGE[3]} =~ "NaN" ]] && usenewrange=0
-
-    # Outdated rules... not used
-    # [[ ${NEWRANGE[0]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[1]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[2]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # [[ ${NEWRANGE[3]} =~ ^[-+]?[0-9]*.*[0-9]+$ ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[0]} < ${NEWRANGE[1]}" | bc -l) -eq 1 ]] || usenewrange=0
-    # # [[ $(echo "${NEWRANGE[2]} < ${NEWRANGE[3]}" | bc -l) -eq 1 ]] || usenewrange=0
-
-    # Not sure what happens if we cross the dateline...
-
-    if [[ $usenewrange -eq 1 ]]; then
-      info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
-      MINLON=${NEWRANGE[0]}
-      MAXLON=${NEWRANGE[1]}
-      MINLAT=${NEWRANGE[2]}
-      MAXLAT=${NEWRANGE[3]}
-
-    else
-      info_msg "Could not update AOI based on map extent."
-    fi
+    gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+      ($1!="NaN") {
+        while ($1>180) { $1=$1-360 }
+        while ($1<-180) { $1=$1+360 }
+        if ($1==($1+0) && $2==($2+0)) {
+          print
+        }
+      }' > ${TMP}${F_MAPELEMENTS}bounds.txt
 fi
 
 # Find the center point of the map
@@ -10025,6 +10029,7 @@ if [[ $addregionidflag -eq 1 ]]; then
   mv ./regions.tmp ${CUSTOMREGIONS}
   cp ${TMP}${F_MAPELEMENTS}bounds.txt ${CUSTOMREGIONSDIR}${REGIONTOADD}.xy
 fi
+
 
 
 # Move the data source files into the temporary directory
@@ -11100,18 +11105,18 @@ if [[ $plotseis -eq 1 ]]; then
     fi
     if [[ $eqcattype =~ "ISC" ]]; then
       F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-      info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEOLDZIP $ANSS_TILENEWZIP ${OLDCAT_DATE} $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat"
-      $EXTRACT_ISC_TILES $ISC_TILEOLDZIP $ISC_TILENEWZIP ${OLDCAT_DATE} $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat
+      # echo "[-z]: $EXTRACT_ISC_TILES $ISC_TILE_DIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat"
+      $EXTRACT_ISC_TILES $ISC_TILE_DIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}isc_extract_tiles.cat
 
       # 1       2         3           4          5        6         7     8      9         10     11   12+
-      # EVENTID,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
-      #  752622,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
+      # EVENTID,WHAT      ,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
+      #  752622,ke        ,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
 
       gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
       @include "tectoplot_functions.awk"
       {
-        type=tolower(substr($10,1,2))
-        mag=$11
+        type=tolower(substr($11,1,2))
+        mag=$12
         typeindex=10
         magindex=11
         while($(typeindex)!="") {
@@ -11128,30 +11133,32 @@ if [[ $plotseis -eq 1 ]]; then
         if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
           # ISC mb > Mw(GCMT) Weatherill, 2016
           oldval=mag
-          $11 = 1.084 * mag - 0.142
+          $12 = 1.084 * mag - 0.142
           print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
         } else if (tolower(type) == "ms") {
           # ISC Ms > Mw(GCMT) Weatherill, 2016
           oldval=mag
           if (mag >= 3.5 && mag <= 6.0) {
-              $11 = 0.616 * mag + 2.369
+              $12 = 0.616 * mag + 2.369
               print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
 
           } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
-            $11 = 0.994 * mag + 0.1
+            $12 = 0.994 * mag + 0.1
             print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
           }
         } else if (tolower(type) == "ml") {
           # Is it more wrong to use a local ml->Mw conversion or leave the ml alone? Not sure!
           # Mereu, 2020
           oldval=mag
-          $11 = 0.62 * mag + 1.09
+          $12 = 0.62 * mag + 1.09
           print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
         }
-        timestring=sprintf("%sT%s", $3, substr($4, 1, 8))
+        timestring=sprintf("%sT%s", $4, substr($5, 1, 8))
         epoch=iso8601_to_epoch(timestring)
-        print $6, $5, $7, $11, timestring, $1, epoch
+
+        print $7, $6, $8, $12, timestring, "isc" $1, epoch
       }' >> ${F_SEIS}eqs.txt
+      # head ${F_SEIS}eqs.txt
       ((NUMEQCATS+=1))
     fi
     if [[ $eqcattype =~ "EHB" ]]; then
@@ -15686,7 +15693,6 @@ for plot in ${plots[@]} ; do
 
       # The values of SCALECMD will be set by the scale) section
       ARROWCMD="-Tdg${ARROWREFLON}/${ARROWREFLAT}+w${ARROWSIZE}"
-      # SMALLJ_RJOK=$(echo ${RJSTRING[@]} | tr 'J' 'j')
       gmt psbasemap ${ARROWCMD} $RJOK $VERBOSE >> map.ps
       ;;
 
@@ -17044,21 +17050,22 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         fi
       fi  # fasttopoflag = 0
 
-      if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
-        [[ $dontplottopoflag -eq 0 ]] && gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
-      else # If we are doing fast topo visualization
-
-
+      # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated
+      if [[ $fasttopoflag -eq 0 ]]; then
+        if [[ $dontplottopoflag -eq 0 ]]; then
+          gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+        fi
+      else
+      # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
         gmt_init_tmpdir
           gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+          COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
         gmt_remove_tmpdir
-        COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
 
         if [[ $dontplottopoflag -eq 0 ]]; then
-          gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+          gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJOK} >> map.ps
         fi
       fi
-
       ;;
 
     # usergrid)

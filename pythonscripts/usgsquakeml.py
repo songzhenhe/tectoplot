@@ -7,13 +7,9 @@
 from xml.etree import cElementTree as ElementTree
 import time, sys, os
 
-# compatibility with Python 2 and 3
-from future.standard_library import install_aliases
-install_aliases()
+# Requires Python 3
 
-from urllib.parse import urlparse, urlencode
-from urllib.request import urlopen, Request
-from urllib.error import HTTPError
+from urllib import urlopen
 
 # Some generic utilities I use to parse the xml
 #

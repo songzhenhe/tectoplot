@@ -522,11 +522,8 @@ ANSS_TILEOLDZIP=${ANSSDIR}"/ANSSTiles.zip"
 ISC_MIRROR="http://isc-mirror.iris.washington.edu"
 
 ISC_EQS_DIR=$DATAROOT"ISC_SEIS/"
+ISC_TILE_DIR="${ISC_EQS_DIR}tiles/"
 
-ISC_TILENEWZIP=${ISC_EQS_DIR}"/ISCTiles_new.zip"
-ISC_TILEOLDZIP=${ISC_EQS_DIR}"/ISCTiles.zip"
-
-ISC_EQ_CATALOG=$ISC_EQS_DIR"isc_seis.cat"
 ISC_EQ_SOURCESTRING="ISC earthquake catalog, http://www.isc.ac.uk/iscbulletin/search/"
 ISC_EQ_SHORT_SOURCESTRING="ISC"
 

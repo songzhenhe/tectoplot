@@ -41,7 +41,7 @@ if [[ $makeplyflag -eq 1 ]]; then
   if [[ $makeplysurfptsflag -eq 1 && $plydemonlyflag -eq 0 ]]; then
     ##### MAKE FIBONACCI GRID POINTS
     # Surface area of Earth = 510,000,000 km^2
-  #  echo  FIB_N=\$\(echo "510000000 / \( ${PLY_FIB_KM} * ${PLY_FIB_KM} - 1 \) / 2" \| bc\)
+    # echo  FIB_N=\$\(echo "510000000 / \( ${PLY_FIB_KM} * ${PLY_FIB_KM} - 1 \) / 2" \| bc\)
 
     FIB_N=$(echo "510000000 / ( ${PLY_FIB_KM} * ${PLY_FIB_KM} ) / 2" | bc)
       echo "" | gawk  -v n=${FIB_N}  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
@@ -126,9 +126,7 @@ EOF
 
   ${FLOAT_TEXT} ${PLY_FLOAT_TEXT_FONT_DIR} ${F_3D}sentence.obj ${PLY_FLOAT_TEXT_STRING}
 
-
   # gawk < ${F_3D}sentence.obj -v v_exag=${PLY_VEXAG} -v text_lat=${PLY_FLOAT_TEXT_LAT} -v text_lon=${PLY_FLOAT_TEXT_LON} -v text_depth=${PLY_FLOAT_TEXT_DEPTH} -v text_scale=${PLY_FLOAT_TEXT_SCALE} '
-
 
   # The problem with calculating from the extent of the text is that it changes as
   # different letters are added to the string. We want to specify a fixed scaling of
@@ -503,7 +501,7 @@ EOF
   fi
 
   # Now work on the seismicity data
-  if [[ -s ${F_SEIS}eqs.txt && $plydemonlyflag -eq 0 ]]; then
+  if [[ -s ${F_SEIS}eqs.txt && $plydemonlyflag -eq 0 && ${PLY_SEISBALL} -eq 1 ]]; then
           # gmt grdtrack using the existing DEM
           numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
 cat <<-EOF > ${F_3D}tectoplot_header.ply

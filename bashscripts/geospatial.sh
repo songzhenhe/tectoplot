@@ -38,7 +38,11 @@ function grid_zrange() {
   gdalinfo $1 -stats | grep "Minimum=" | tr '=' ' ' | tr ',' ' ' | gawk '{print $2, $4}'
 }
 
-# Old function that failed for some grids 
+function grid_xyrange() {
+  echo $(gdalinfo $1 | grep "Upper Left" | tr '(' ' ' | tr ')' ' ' | tr ',' ' ' | gawk '{printf("%s %s ", $3, $4)}') $(gdalinfo $1 | grep "Lower Right" | tr '(' ' ' | tr ')' ' ' | tr ',' ' ' | gawk '{printf("%s %s\n", $3, $4)}') | gawk '{print $1, $3, $4, $2}'
+}
+
+# Old function that failed for some grids
 # function grid_zrange() {
 #    output=$(gmt grdinfo -C -Vn $@)
 #    zmin=$(echo "${output}" | gawk  '{printf "%f", $6+0}')
