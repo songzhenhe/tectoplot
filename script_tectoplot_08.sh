@@ -16801,7 +16801,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
                   # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
                   # cp ${F_TOPO}dem.tif ${F_TOPO}demold.nc
                   rm -f ${F_TOPO}dem.tif
-                  gmt grdcut ${F_TOPO}dem_warp.tif -R${F_TOPO}dem_warp.tif -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
+                  gmt grdcut ${F_TOPO}dem_warp.tif -R${F_TOPO}dem_warp.tif -G${F_TOPO}dem.tif ${VERBOSE}
                   TOPOGRAPHY_DATA=${F_TOPO}dem.tif
                 else
                   info_msg "Resampling Sentinel image to match DEM resolution"
