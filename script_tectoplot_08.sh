@@ -7846,11 +7846,20 @@ fi
       SENTINEL_GAMMA=${2}
       shift
     fi
-    if [[ $2 =~ "notopo" ]]; then
-      info_msg "[-tsent]: No topo plotted with Sentinel data"
-      sentinelnotopoflag=1
-      shift
-    fi
+    while ! arg_is_flag $2; do
+      case $2 in
+        notopo)
+          info_msg "[-tsent]: No topo plotted with Sentinel data"
+          sentinelnotopoflag=1
+          shift
+        ;;
+        upsample)
+          shift
+          SENTINEL_DOWNSAMPLE=0
+        ;;
+      esac
+    done
+
     touch ./sentinel.tif
     sentineldownloadflag=1
     # Replace -tsent with -timg [[sentinel.tif]] [[alpha]]
