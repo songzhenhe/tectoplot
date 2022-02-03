@@ -31,6 +31,8 @@
 VERSION="0.4.2"
 TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
 
+# [[ -s ~/.bash_profile ]] && source ~/.bash_profile
+
 
 # To do 2022: Update to GMT 6.3, require Python 3.9, accommodate installing Miniconda3
 # on OSX as installing miniconda the old way breaks when Python2.7 is used...
@@ -1683,10 +1685,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eventmap:     plot an earthquake summary map using a USGS event code
-Usage: -eventmap [earthquakeID] [[options]]
+Usage: -eventmap [earthquakeID] [[degrees]] [[options]]
+
+  degrees is the width/height of the map centered on the event
 
   options:
-  [deg]
+  deg [degrees]      define width/height of AOI
+  mmi                plot colored contours of MMI using the USGS color scheme
+  topo [dataset]     plot topography; dataset is argument to -t
 
   Plot a basic seismotectonic map and cross section centered on an earthquake
   Includes topography, Slab2.0, seismicity, focal mechanisms (ORIGIN location).
@@ -1733,6 +1739,10 @@ fi
             echo "[-eventmap]: topo option requires topo datset argument"
           fi
           ;;
+        mmi)
+          EVENTMAP_MMI=("-mmi", ${EVENTMAP_ID})
+          shift
+          ;;
         *)
           echo "[-eventmap]: unrecognized option ${2}"
           exit 1
@@ -1740,12 +1750,43 @@ fi
       esac
     done
 
-    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
+    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" ${EVENTMAP_MMI[@]} "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
     # echo $@
     ;;
 
   # Normal commands
 
+  -mmi) # args: eventID
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-mmi:         plot Shakemap MMI contours for USGS event
+Usage: -mmi [eventID] [[eventID2 ...]] [[grid]] [[label color]]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  MMI_LABELCOLOR="black"
+  while ! arg_is_flag $2; do
+    if [[ $2 == "grid" ]]; then
+      MMI_PLOTGRID=1
+      shift
+    elif [[ $2 == "label" ]]; then
+      shift
+      if ! arg_is_flag $2; then
+        MMI_LABELCOLOR="${2}"
+        shift
+      else
+        echo "[-mmi]: label option requires color argument"
+        exit 1
+      fi
+    else
+      MMI_EVENTID+=("${2}")
+      shift
+    fi
+  done
+  plots+=("mmi")
+  ;;
   -af) # args: string string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -2238,7 +2279,7 @@ Usage: -usgs [event_id1] [[event_id2]] ...
   event_id are USGS ID codes, e.g. us7000fxq2
 
   Output is a tectoplot format focal mechanism file: ${TMP}${F_CMT}usgs_foc.dat
-  If no focal mechanism exists but origin does, output is: ${TMP}${F_SEIS}usgs.cat
+  If origin exists, also outputs origin event to ${TMP}${F_SEIS}usgs.cat
 
 Example: Plot a USGS event focal mechanism
 tectoplot -usgs us7000fxq2 -c -a -o example_usgsfoc
@@ -2252,17 +2293,7 @@ fi
     info_msg "Attempting to retrieve USGS event ${2}"
     python ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
     if [[ -s ${TMP}${F_CMT}usgs_foc.cat ]]; then
-      test=$(gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $15}')
-      if [[ $test == "None" ]]; then
-        info_msg "[-usgs]: Got only origin for event ${2}"
-        USGSEVENTTYPE="origin"
-        # output eq format lon lat depth magnitude origintime id epoch
-        gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $12 $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
-        rm -f ${TMP}${F_CMT}usgs_foc.cat
-      else
-        info_msg "[-usgs]: Got focal mechanism for event ${2}"
-        USGSEVENTTYPE="focal"
-      fi
+      gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
     else
       echo "[-usgs]: No such event $2"
       exit 1
@@ -7903,7 +7934,7 @@ Usage: -makeply [[option1 value1]] [[option2 value2]] ...
        Generate 3d text at specified location and scale
     [[seisball minmag=${PLT_POLYMAG} power=${PLY_POLYMAG_POWER} scale=${PLY_POLYSCALE}]]
        Generate 3d balls for seismicity above the specified magnitude
-       
+
     See also: -addobj    Include OBJ files from specified directory
 
 --------------------------------------------------------------------------------
@@ -14577,7 +14608,94 @@ fi
 for plot in ${plots[@]} ; do
 	case $plot in
 
-    #  gmt psvelo ${USERGPSDATAFILE[$current_usergpsfilenumber]} -W${EXTRAGPS_LINEWIDTH},${EXTRAGPS_LINECOLOR} -G${USERGPSCOLOR_arr[$current_usergpsfilenumber]} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0
+    mmi)
+
+cat<<-EOF > mmi.cpt
+0 255 255 255 1 255 255 255
+1 255 255 255 2 191 204 255
+2 191 204 255 3 160 230 255
+3 160 230 255 4 128 255 255
+4 128 255 255 5 122 255 147
+5 122 255 147 6 255 255 0
+6 255 255 0 7 255 200 0
+7 255 200 0 8 255 145 0
+8 255 145 0 9 255 0 0
+9 255 0 0 10 200 0 0
+10 200 0 0 13 128 0 0
+B 255 255 255
+F 128 0 0
+N 255 255 255
+EOF
+
+# <contlevel> [<angle>] C|c|A|a [<pen>]
+cat<<-EOF > mmi.contourdef
+1 c 0.5p,200/200/200
+2 c 0.5p,191/204/255
+3 A 1p,160/230/255
+3.5 c 0.5p,160/230/255
+4 A 1p,128/255/255
+4.5 c 0.5p,128/255/255
+5 A 1p,122/255/147
+5.5 c 0.5p,122/255/147
+6 A 1p,255/255/0
+6.5 c 0.5p,255/255/0
+7 A 1p,255/200/0
+7.5 c 0.5p,255/200/0
+8 A 1p,255/145/0
+8.5 c 0.5p,255/145/0
+9 A 1p,255/0/0
+9.5 c 0.5p,255/0/0
+10 A 1p,200/0/0
+EOF
+
+    for THIS_MMI_EVENTID in ${MMI_EVENTID[@]}; do
+      info_msg "[-mmi]: Processing event ${THIS_MMI_EVENTID}"
+
+      curl -s "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventid=${THIS_MMI_EVENTID}&producttype=shakemap" > event.geojson
+
+      if [[ -s event.geojson ]]; then
+        rm -f mmi_mean.nc mmi_filt.nc
+        rm -f raster.zip
+
+        # Find the url that ends in raster.zip and has the latest epoch of update
+        raster_url=$(tr < event.geojson '{' '\n' | grep raster.zip | gawk -F\" '{ for(i=1; i<=NF; i++) { if ($(i)=="url") { print $(i+2) } } }' | grep "raster.zip$" | gawk -F/ 'BEGIN{max=0}{url[NR]=$0; if ($8>max) { max=$8; maxind=NR }} END { print url[maxind] }')
+
+        info_msg "[-mmi]: Trying to download raster.zip from ${raster_url}"
+        curl -s "${raster_url}" > raster.zip
+
+        if [[ -s raster.zip ]]; then
+          info_msg "[-mmi]: Downloaded a raster.zip file"
+          mkdir -p ./raster_zip_extract/
+          rm -f ./raster_zip_extract/*
+          unzip -qq raster.zip -d ./raster_zip_extract/
+          rm -f raster.zip
+
+          if [[ -s ./raster_zip_extract/mi.fit ]]; then
+            info_msg "[-mmi]: Found a mi.fit file"
+            gdal_translate -q -of "NetCDF" ./raster_zip_extract/mi.fit mmi_mean.nc
+          elif [[ -s ./raster_zip_extract/mmi_mean.flt ]]; then
+            info_msg "[-mmi]: Found a mmi_mean.flt file"
+            gdal_translate -q -of "NetCDF" ./raster_zip_extract/mmi_mean.flt mmi_mean.nc
+          else
+            info_msg "[-mmi]: Didn't find a MMI file"
+          fi
+
+          # Plot and contour the MMI raster
+          if [[ -s mmi_mean.nc ]]; then
+            info_msg "[-mmi]: Processing mmi raster"
+            # Gaussian filter to smooth the data to avoid crazy contours
+            gmt grdfilter -Fg9 mmi_mean.nc -Gmmi_filt.nc -Dp
+            # Set anything less to MMI=3 to 0
+        #    gmt grdclip mmi_filt.nc -Sb2.99/NaN -Gmmi_clip.nc
+            if [[ ${MMI_PLOTGRID} -eq 1 ]]; then
+              gmt grdimage mmi_filt.nc -Cmmi.cpt -t80 -Q ${RJOK} >> map.ps
+            fi
+            gmt grdcontour mmi_filt.nc -A+f12p,Helvetica,${MMI_LABELCOLOR} -Cmmi.contourdef -S3  -Q50k ${RJOK}  >> map.ps
+          fi
+        fi
+      fi
+    done
+    ;;
 
     tomoslice)
 

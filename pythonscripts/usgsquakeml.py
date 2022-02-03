@@ -7,9 +7,11 @@
 from xml.etree import cElementTree as ElementTree
 import time, sys, os
 
-# Requires Python 3
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib import urlopen
 
-from urllib import urlopen
 
 # Some generic utilities I use to parse the xml
 #
@@ -70,11 +72,22 @@ def parse_origins(xevent):
     origins = []
     for xorigin in xorigins:
         anOrigin = xorigin.attrib.copy()
+
+        depthstr=get_xitem_value_as_text(xorigin,'d:depth','d:value')
+        if (depthstr=="None"):
+            depth=0
+        else:
+            # Sometimes depth reported in meters... whyyyyy
+            if (float(depthstr) > 1000):
+                depth=float(depthstr)/1000
+            else:
+                depth=float(depthstr)
+
         anOrigin.update({
         'otime': get_xitem_value_as_text(xorigin,'d:time','d:value').split("Z")[0].split(".")[0],
         'latitude' : get_xitem_value_as_text(xorigin,'d:latitude','d:value'),
         'longitude' : get_xitem_value_as_text(xorigin,'d:longitude','d:value'),
-        'depth' : str(float(get_xitem_value_as_text(xorigin,'d:depth','d:value'))/1000),
+        'depth' : depth,
         'dotime' : get_xitem_value_as_text(xorigin,'d:time','d:uncertainty'),
         'dlatitude' : get_xitem_value_as_text(xorigin,'d:latitude','d:uncertainty'),
         'dlongitude' : get_xitem_value_as_text(xorigin,'d:longitude','d:uncertainty'),
@@ -140,27 +153,34 @@ def parse_moment_tensors(xevent):
 
         # Find the momentTensor section(s) - should only be one!
         momtens=xmom.findall('d:momentTensor',ns)
+
         for thistens in momtens:
             anMom.update({"scalarMoment" : get_xitem_value_as_text(thistens,'d:scalarMoment','d:value')})
             anMom.update({"centroid_dt" : get_xitem_value_as_text(thistens,'d:sourceTimeFunction','d:riseTime')})
-            anMom.update({"mantissa" : get_xitem_value_as_text(thistens,'d:scalarMoment','d:value').split("e")[0]})
+            anMom.update({"mantissa" : "{:e}".format(float(get_xitem_value_as_text(thistens,'d:scalarMoment','d:value'))).lower().split("e")[0]})
 
             tensors=thistens.findall('d:tensor',ns)
             for tensor in tensors:
-                mrr_exp=int(get_xitem_value_as_text(tensor,'d:Mrr','d:value').lower().split("+")[-1])
-                mtt_exp=int(get_xitem_value_as_text(tensor,'d:Mtt','d:value').lower().split("+")[-1])
-                mpp_exp=int(get_xitem_value_as_text(tensor,'d:Mpp','d:value').lower().split("+")[-1])
-                mrt_exp=int(get_xitem_value_as_text(tensor,'d:Mrr','d:value').lower().split("+")[-1])
-                mrp_exp=int(get_xitem_value_as_text(tensor,'d:Mrp','d:value').lower().split("+")[-1])
-                mtp_exp=int(get_xitem_value_as_text(tensor,'d:Mtp','d:value').lower().split("+")[-1])
+                mrr_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrr','d:value'))).lower().split("+")[-1])
+                mtt_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mtt','d:value'))).lower().split("+")[-1])
+                mpp_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mpp','d:value'))).lower().split("+")[-1])
+                mrt_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrt','d:value'))).lower().split("+")[-1])
+                mrp_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrp','d:value'))).lower().split("+")[-1])
+                mtp_exp=int("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mtp','d:value'))).lower().split("+")[-1])
+
+                # mtt_exp=int(get_xitem_value_as_text(tensor,'d:Mtt','d:value').lower().split("+")[-1])
+                # mpp_exp=int(get_xitem_value_as_text(tensor,'d:Mpp','d:value').lower().split("+")[-1])
+                # mrt_exp=int(get_xitem_value_as_text(tensor,'d:Mrr','d:value').lower().split("+")[-1])
+                # mrp_exp=int(get_xitem_value_as_text(tensor,'d:Mrp','d:value').lower().split("+")[-1])
+                # mtp_exp=int(get_xitem_value_as_text(tensor,'d:Mtp','d:value').lower().split("+")[-1])
                 max_exponent=max(mrr_exp, mtt_exp, mpp_exp, mrt_exp, mrp_exp, mtp_exp)
 
-                mrr=float(get_xitem_value_as_text(tensor,'d:Mrr','d:value').lower().split("e")[0])*10**(mrr_exp-max_exponent)
-                mtt=float(get_xitem_value_as_text(tensor,'d:Mtt','d:value').lower().split("e")[0])*10**(mtt_exp-max_exponent)
-                mpp=float(get_xitem_value_as_text(tensor,'d:Mpp','d:value').lower().split("e")[0])*10**(mpp_exp-max_exponent)
-                mrt=float(get_xitem_value_as_text(tensor,'d:Mrt','d:value').lower().split("e")[0])*10**(mrt_exp-max_exponent)
-                mrp=float(get_xitem_value_as_text(tensor,'d:Mrp','d:value').lower().split("e")[0])*10**(mrp_exp-max_exponent)
-                mtp=float(get_xitem_value_as_text(tensor,'d:Mtp','d:value').lower().split("e")[0])*10**(mtp_exp-max_exponent)
+                mrr=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrr','d:value'))).lower().split("e")[0])*10**(mrr_exp-max_exponent)
+                mtt=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mtt','d:value'))).lower().split("e")[0])*10**(mtt_exp-max_exponent)
+                mpp=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mpp','d:value'))).lower().split("e")[0])*10**(mpp_exp-max_exponent)
+                mrt=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrt','d:value'))).lower().split("e")[0])*10**(mrt_exp-max_exponent)
+                mrp=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mrp','d:value'))).lower().split("e")[0])*10**(mrp_exp-max_exponent)
+                mtp=float("{:e}".format(float(get_xitem_value_as_text(tensor,'d:Mtp','d:value'))).lower().split("e")[0])*10**(mtp_exp-max_exponent)
 
                 anMom.update({"Mrr" : mrr})
                 anMom.update({"Mtt" : mtt})
@@ -184,33 +204,42 @@ def parse_moment_tensors(xevent):
                 anMom.update({"dip2" : get_xitem_value_as_text(nodal,'d:dip','d:value')})
                 anMom.update({"rake2" : get_xitem_value_as_text(nodal,'d:rake','d:value')})
 
+        didprincipalaxes=0
         # Find the nodalPlanes section(s) - should only be one!
         principalaxes=xmom.findall('d:principalAxes',ns)
         for thisaxis in principalaxes:
+            didprincipalaxes=1
             axes=thisaxis.findall('d:tAxis',ns)
             for axis in axes:
+                taz=get_xitem_value_as_text(axis,'d:azimuth','d:value')
                 anMom.update({"Taz" : get_xitem_value_as_text(axis,'d:azimuth','d:value')})
                 anMom.update({"Tinc" : get_xitem_value_as_text(axis,'d:plunge','d:value')})
-                texp=int(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("+")[-1])
-                anMom.update({"Tval" : float(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("e")[0])*10**(texp-max_exponent)})
+                thist=get_xitem_value_as_text(axis,'d:length','d:value').lower()
+                tread="{:E}".format(float(get_xitem_value_as_text(axis,'d:length','d:value')))
+                texp=int(tread.lower().split("+")[-1])
+                anMom.update({"Tval" : float(tread.lower().split("e")[0])*10**(texp-max_exponent)})
+
             axes=thisaxis.findall('d:pAxis',ns)
             for axis in axes:
                 anMom.update({"Paz" : get_xitem_value_as_text(axis,'d:azimuth','d:value')})
                 anMom.update({"Pinc" : get_xitem_value_as_text(axis,'d:plunge','d:value')})
                 # anMom.update({"Pval" : get_xitem_value_as_text(axis,'d:length','d:value')})
-                pexp=int(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("+")[-1])
-                anMom.update({"Pval" : float(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("e")[0])*10**(pexp-max_exponent)})
+                pread="{:E}".format(float(get_xitem_value_as_text(axis,'d:length','d:value')))
+                pexp=int(pread.lower().split("+")[-1])
+                anMom.update({"Pval" : float(pread.lower().split("e")[0])*10**(pexp-max_exponent)})
 
             axes=thisaxis.findall('d:nAxis',ns)
             for axis in axes:
                 anMom.update({"Naz" : get_xitem_value_as_text(axis,'d:azimuth','d:value')})
                 anMom.update({"Ninc" : get_xitem_value_as_text(axis,'d:plunge','d:value')})
                 # anMom.update({"Nval" : get_xitem_value_as_text(axis,'d:length','d:value')})
-                nexp=int(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("+")[-1])
-                anMom.update({"Nval" : float(get_xitem_value_as_text(axis,'d:length','d:value').lower().split("e")[0])*10**(nexp-max_exponent)})
+                nread="{:E}".format(float(get_xitem_value_as_text(axis,'d:length','d:value')))
+                nexp=int(nread.lower().split("+")[-1])
+                anMom.update({"Nval" : float(nread.lower().split("e")[0])*10**(nexp-max_exponent)})
 
         # Append this focal mechanism
-        moms.append(anMom)
+        if (didprincipalaxes==1):
+            moms.append(anMom)
 
         # Append the focal mechanism section to the dictionary
     if len(moms) > 0:
@@ -264,12 +293,12 @@ def parse_moment_tensors(xevent):
 # 38.     Mtp	              number
 # 39.     centroid_dt       (seconds)   Time between origin and centroid
 
-def print_focal_tectoplot(e):
+def print_focal_tectoplot(e, id):
     p = '%Y-%m-%dT%H:%M:%S'
     epoch=int(time.mktime(time.strptime(e['origin']['otime'], p)))
     if len(e['focal'])!=0:
-        print("{}{} {}{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format("U", mechanism_type_from_TNP(float(e['focal']['Tinc']), float(e['focal']['Ninc']), float(e['focal']['Pinc'])),
-            e['focal']['agency'], e['eventInfo']['eventid'],
+        print("{}{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format("U", mechanism_type_from_TNP(float(e['focal']['Tinc']), float(e['focal']['Ninc']), float(e['focal']['Pinc'])),
+            id,
             e['origin']['otime'],
             epoch,
             e['origin']['longitude'],
@@ -387,13 +416,10 @@ def parse_usgs_xml(event_id_code):
     else:
         url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/{}.quakeml'.format(event_id_code)
         xmlstring = urlopen(url).read()
-
-        # xmlstring = response.read()
-
+        
         if len(xmlstring)==0:
             # Quit without message if the URL is bogus
             quit()
-
         xroot = ElementTree.fromstring(xmlstring)
 
     xeventParameters = xroot.findall('d:eventParameters',ns)
@@ -411,11 +437,11 @@ def parse_usgs_xml(event_id_code):
         ev['datasource'] = xev.attrib['{http://anss.org/xmlns/catalog/0.1}datasource']
         ev['preferredOriginID'] = xev.find("d:preferredOriginID",ns).text
         ev['preferredMagnitudeID'] = xev.find("d:preferredMagnitudeID",ns).text
-
         # Get moment tensors - but only one will come out!
         moment_tensors=parse_moment_tensors(xev)
 
         origins=parse_origins(xev)
+
         oneorigin=get_preferred_origin(ev,origins)
 
         # Parse all magnitudes
@@ -432,4 +458,4 @@ if len(sys.argv) > 1:
 
     events = parse_usgs_xml(sys.argv[1])
     for thisevent in events:
-        print_focal_tectoplot(thisevent)
+        print_focal_tectoplot(thisevent, sys.argv[1])
