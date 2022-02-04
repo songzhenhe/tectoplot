@@ -98,7 +98,7 @@ PLY_MAXSIZE=800         # Maximum X/Y size of DEM mesh; prevents hanging for lar
 PLY_FIB_KM=250          # Distance in km between global Fibonacci spiral points, PLY output
 PLY_VEXAG=1             # Vertical exaggeration of seismicity
 PLY_VEXAG_TOPO=1        # Vertical exaggeration of topography
-PLY_POLYMAG=6         # Minimum magnitude of earthquakes drawn as polygons instead of points
+PLY_POLYMAG=6           # Minimum magnitude of earthquakes drawn as polygons instead of points
 PLY_POLYMAG_POWER=2     # Radius of polymag eqs is multiplied by magnitude to this power
 PLY_POLYSCALE=0.001     # Scale factor (radius of M=1) for earthquake polygons 1 = 100km
 PLY_VOLCSCALE=0.05      # Scale factor for volcano objects

@@ -1768,22 +1768,30 @@ fi
 
   MMI_LABELCOLOR="black"
   while ! arg_is_flag $2; do
-    if [[ $2 == "grid" ]]; then
-      MMI_PLOTGRID=1
-      shift
-    elif [[ $2 == "label" ]]; then
-      shift
-      if ! arg_is_flag $2; then
-        MMI_LABELCOLOR="${2}"
+    case $2 in
+      grid)
+        MMI_PLOTGRID=1
         shift
-      else
-        echo "[-mmi]: label option requires color argument"
-        exit 1
-      fi
-    else
-      MMI_EVENTID+=("${2}")
-      shift
-    fi
+      ;;
+      clip)
+        MMI_CLIPGRID=1
+        shift
+      ;;
+      label)
+        shift
+        if ! arg_is_flag $2; then
+          MMI_LABELCOLOR="${2}"
+          shift
+        else
+          echo "[-mmi]: label option requires color argument"
+          exit 1
+        fi
+      ;;
+      *)
+        MMI_EVENTID+=("${2}")
+        shift
+      ;;
+    esac
   done
   plots+=("mmi")
   ;;
@@ -14695,11 +14703,15 @@ EOF
             # Gaussian filter to smooth the data to avoid crazy contours
             gmt grdfilter -Fg9 mmi_mean.nc -Gmmi_filt.nc -Dp
             # Set anything less to MMI=3 to 0
-        #    gmt grdclip mmi_filt.nc -Sb2.99/NaN -Gmmi_clip.nc
-            if [[ ${MMI_PLOTGRID} -eq 1 ]]; then
-              gmt grdimage mmi_filt.nc -Cmmi.cpt -t80 -Q ${RJOK} >> map.ps
+            MMI_GRIDNAME="mmi_filt.nc"
+            if [[ $MMI_CLIPGRID -eq 1 ]]; then
+              gmt grdclip mmi_filt.nc -Sb3.45/NaN -Gmmi_clip.nc
+              [[ -s mmi_clip.nc ]] && MMI_GRIDNAME="mmi_clip.nc"
             fi
-            gmt grdcontour mmi_filt.nc -A+f12p,Helvetica,${MMI_LABELCOLOR} -Cmmi.contourdef -S3  -Q50k ${RJOK}  >> map.ps
+            if [[ ${MMI_PLOTGRID} -eq 1 ]]; then
+              gmt grdimage ${MMI_GRIDNAME} -Cmmi.cpt -t80 -Q ${RJOK} >> map.ps
+            fi
+            gmt grdcontour ${MMI_GRIDNAME} -A+f12p,Helvetica,${MMI_LABELCOLOR} -Cmmi.contourdef -S3  -Q50k ${RJOK}  >> map.ps
           fi
         fi
       fi
@@ -14888,7 +14900,8 @@ EOF
       AFLAG=-A$TOPOCONTOURINT
       CFLAG=-C$TOPOCONTOURINT
       SFLAG=-S$TOPOCONTOURSMOOTH
-
+      QFLAG=-Q${TOPOCONTOURMINPTS}
+      
       for i in ${TOPOCONTOURVARS[@]}; do
         if [[ ${i:0:2} =~ "-A" ]]; then
           AFLAG=""
@@ -14899,9 +14912,12 @@ EOF
         if [[ ${i:0:2} =~ "-S" ]]; then
           SFLAG=""
         fi
+        if [[ ${i:0:2} =~ "-Q" ]]; then
+          QFLAG=""
+        fi
       done
       info_msg "Plotting topographic contours using $BATHY and contour options ${CONTOUROPTSTRING[@]}"
-      gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]} -Q${TOPOCONTOURMINPTS} $RJOK ${VERBOSE} >> map.ps
+      gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
 
       ;;
 
