@@ -14900,8 +14900,8 @@ EOF
       AFLAG=-A$TOPOCONTOURINT
       CFLAG=-C$TOPOCONTOURINT
       SFLAG=-S$TOPOCONTOURSMOOTH
-      QFLAG=-Q${TOPOCONTOURMINPTS}
-      
+      QFLAG=-Q$TOPOCONTOURMINPTS
+
       for i in ${TOPOCONTOURVARS[@]}; do
         if [[ ${i:0:2} =~ "-A" ]]; then
           AFLAG=""
@@ -14917,7 +14917,8 @@ EOF
         fi
       done
       info_msg "Plotting topographic contours using $BATHY and contour options ${CONTOUROPTSTRING[@]}"
-      gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
+      echo gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE}
+      gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
 
       ;;
 
