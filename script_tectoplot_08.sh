@@ -7626,6 +7626,17 @@ shift && continue
 fi
 
   tdenoiseflag=1
+  DENOISE_THRESHOLD=0.4
+  DENOISE_ITERS=5
+
+  if arg_is_positive_float $2; then
+    DENOISE_THRESHOLD=$2
+    shift
+  fi
+  if arg_is_positive_float $2; then
+    DENOISE_ITERS=$2
+    shift
+  fi
   ;;
 
 
@@ -11165,10 +11176,16 @@ fi
 
 # Denoise the DEM if asked
 
+if [[ $tdenoiseflag -eq 1 ]]; then
+  gmt grd2xyz ${TOPOGRAPHY_DATA} > ${F_TOPO}dem_denoise_wgs.xyz
+  cs2cs +init=epsg:4326 +to +init=epsg:3395 ${F_TOPO}dem_denoise_wgs.xyz > ${F_TOPO}dem_denoise_merc.xyz
+  ${MDENOISE} -i ${F_TOPO}dem_denoise_merc.xyz -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_out.xyz
+  paste ${F_TOPO}dem_denoise_wgs.xyz ${F_TOPO}dem_denoise_out.xyz | gawk '{print $1, $2, $6}' > ${F_TOPO}ddd.xyz
+  gmt xyz2grd -R${TOPOGRAPHY_DATA} ${F_TOPO}ddd.xyz -G${F_TOPO}ddd.tif=gd:GTiff
+  [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
+fi
+
 # if [[ $tdenoiseflag -eq 1 ]]; then
-#
-#   gmt grd2xyz ${TOPOGRAPHY_DATA} > ${F_TOPO}dem_denoise_wgs.xyz
-#
 #   # echo gmt grdconvert ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_denoise.asc
 #   # gmt grdconvert ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_denoise.asc
 #   # echo gdal_translate -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc
@@ -11186,23 +11203,23 @@ fi
 #   [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
 # fi
 
-if [[ $tdenoiseflag -eq 1 ]]; then
-  demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
-  demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
-  demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
-  demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
-  demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
-  demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
-
-  gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
-  ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 3 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
-  gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif 
-  # # GMT is not reading the .prj file or something?
-  #     cd ${F_TOPO}
-  #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
-  #     cd ..
-  [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
-fi
+# if [[ $tdenoiseflag -eq 1 ]]; then
+#   demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+#   demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+#   demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+#   demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+#   demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+#   demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
+#
+#   gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
+#   ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 3 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
+#   gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
+#   # # GMT is not reading the .prj file or something?
+#   #     cd ${F_TOPO}
+#   #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
+#   #     cd ..
+#   [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
+# fi
 
 # if [[ ${TOPOGRAPHY_DATA} == *nc ]]; then
 #   echo "Checking DEM NetCDF file for reasonable variable names"
