@@ -935,6 +935,11 @@ do
         ${F90COMPILER} ${REASENBERG_SCRIPT} -w -std=legacy -o ${REASENBERG_EXEC}
       fi
 
+      echo "Compiling mdenoise"
+      if [[ ! -x ${MDENOISE} ]]; then
+        ${CXXCOMPILER} -o ${MDENOISE} ${MDENOISEDIR}mdenoise.cpp ${MDENOISEDIR}triangle.c
+      fi
+
       if [[ -s ${LITHO1FILE} ]]; then
 
         echo "Compiling LITHO1 extract tool"
@@ -7608,9 +7613,21 @@ fi
     TZEROADJUSTVAL=${2}
     shift
   fi
-  echo "TZEROADJUSTVAL is ${TZEROADJUSTVAL}"
-
   ;;
+
+  -tdenoise) # Subtract 0.1 meters from any topo cells with elevation=0
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tdenoise:     Use Xianfang Sun's mdenoise to smooth DEM
+Usage: -tdenoise [[value]]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  tdenoiseflag=1
+  ;;
+
 
 #Build your own topo visualization using these commands in sequence.
 #  [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
@@ -11098,30 +11115,31 @@ if [[ $tflatflag -eq 1 ]]; then
 fi
 
 # At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
+echo "clipdemflag=${clipdemflag} and topodata=${BATHY}"
 
-if [[ $clipdemflag -eq 1 && -s ${TOPOGRAPHY_DATA} ]]; then
+if [[ $clipdemflag -eq 1 && -s ${BATHY} ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.tif"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
       echo flattening
-      flatten_sea ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif -1
+      flatten_sea ${BATHY} ${F_TOPO}dem.tif -1
     else
       # This assumes that BATHY is a tif file.
-      if [[ ${TOPOGRAPHY_DATA} == *tif ]]; then
-        cp ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif
+      if [[ ${BATHY} == *tif ]]; then
+        cp ${BATHY} ${F_TOPO}dem.tif
       else
-        echo "${TOPOGRAPHY_DATA} is not a TIF file? Aborting"
+        echo "${BATHY} is not a TIF file? Aborting"
         exit 1
       fi
     fi
   else
     if [[ $tflatflag -eq 1 ]]; then
-      gmt grdcut ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       flatten_sea ${F_TOPO}dem_preflat.tif ${F_TOPO}dem.tif -1
       cleanup ${F_TOPO}dem_preflat.tif
     else
-      if [[ -s ${TOPOGRAPHY_DATA} && ! -s ${F_TOPO}dem.tif ]]; then
-        gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif
+      if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.tif ]]; then
+        gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${BATHY} ${F_TOPO}dem.tif
 
         # In this case we may need to fill NaNs...
 
@@ -11143,6 +11161,47 @@ if [[ $tzeroadjustflag -eq 1 ]]; then
   if [[ -s ${F_TOPO}dem_zero.tif ]]; then
     TOPOGRAPHY_DATA=${F_TOPO}dem_zero.tif
   fi
+fi
+
+# Denoise the DEM if asked
+
+# if [[ $tdenoiseflag -eq 1 ]]; then
+#
+#   gmt grd2xyz ${TOPOGRAPHY_DATA} > ${F_TOPO}dem_denoise_wgs.xyz
+#
+#   # echo gmt grdconvert ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_denoise.asc
+#   # gmt grdconvert ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_denoise.asc
+#   # echo gdal_translate -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc
+#   gdal_translate -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc
+#   # echo ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 5 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
+#   ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 3 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
+#   # echo gdal_translate -of GTiff ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
+#   # gdal_translate -of GTiff ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
+#
+#   # For some reason I have to be in the same directory when converting from ASC to Gtiff
+#   # GMT is not reading the .prj file or something?
+#     cd ${F_TOPO}
+#     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
+#     cd ..
+#   [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
+# fi
+
+if [[ $tdenoiseflag -eq 1 ]]; then
+  demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+  demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+  demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+  demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+  demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+  demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
+
+  gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
+  ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 3 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
+  gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif 
+  # # GMT is not reading the .prj file or something?
+  #     cd ${F_TOPO}
+  #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
+  #     cd ..
+  [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
 fi
 
 # if [[ ${TOPOGRAPHY_DATA} == *nc ]]; then
