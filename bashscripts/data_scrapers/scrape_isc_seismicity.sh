@@ -9,8 +9,6 @@
 
 # After downloads are complete
 
-
-
 # tectoplot
 # bashscripts/scrape_isc_seismicity.sh
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
@@ -172,6 +170,8 @@ function download_and_check() {
   local e_month=$5
   local e_day=$6
   local today_epoch=$7
+
+  
   local mark_as_complete=1
 
   start_epoch=$(epoch_ymdhms $s_year $s_month $s_day 0 0 0)
@@ -230,6 +230,13 @@ function download_and_check() {
 
 # Input is the filename of the catalog to be downloaded although it could also just be
 # year month segment today_epoch
+
+# Arguments
+#   year
+#   month
+#   segment
+#   today_epoch
+#   start_epoch
 
 function download_isc_file() {
   local year=${1}
@@ -309,6 +316,7 @@ function download_isc_main {
   for d_file in ${isc_list_files[@]}; do
     datearr=($(echo $d_file | gawk '{ split($0,a,"_"); print a[3]; print a[4]; print a[5]; }'))
     echo "Downloading ${d_file}"
+    # year month segment today_epoch
     download_isc_file ${datearr[0]} ${datearr[1]} ${datearr[2]} ${today_epoch}
   done
 }
