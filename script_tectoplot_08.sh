@@ -15047,13 +15047,6 @@ EOF
 
       # We want to plot contours intelligently and nicely including major-minor contour thickness and labeling only of major contours, without double plotting of contours.
 
-
-      TOPOCONTOURTRANS=""
-      TOPOCONTOURSPACE=""
-      TOPOCONTOURMINSIZE=""
-
-      CONTOURMAJORSPACE=5
-
       # Contour interval for grid if not specified using -cn
       zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
       if [[ $topocontourcalcflag -eq 1 ]]; then
