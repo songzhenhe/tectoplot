@@ -7355,7 +7355,7 @@ fi
         minsize)
           shift
           if ! arg_is_flag $2; then
-            TOPOCONTOURMINSIZE=$2
+            TOPOCONTOURMINSIZE="-Q${2}"
             shift
           else
             echo "[-tn]: minsize requires argument"
