@@ -7292,10 +7292,25 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tn:           plot topographic contours
-Usage: -tn [contour_interval] [[ { GMT ARGS } ]]
+Usage: -tn [contour_interval] [[options]]
 
   Plot contours of -t topography.
-  GMT ARGS are any GMT format specifications of -A, -C, -S flags
+
+  Options:
+
+  minsize [arg]
+      Suppresses plotting of small closed contours
+      specify minimum numbner of points (e.g. 500) or length (e.g. 10k)
+  smooth [arg]
+      Smooth contours by a factor (e.g. 3)
+  major [width] [[color]]
+      Set appearance of major contours
+  minor [width] [[color]]
+      Set appearance of minor contours
+  trans [percent]
+      Set transparency of all contours
+  space [degrees]
+      Set spacing between contour labels (degrees)
 
 Example:
 tectoplot -t -tn 1000 -o example_tn
@@ -7304,25 +7319,123 @@ ExampleEnd
 EOF
 shift && continue
 fi
+    TOPOCONTOURTRANS=""
+    TOPOCONTOURSPACE=""
+    TOPOCONTOURMINSIZE=""
+    TOPOCONTOURSMOOTH=""
+
+    CONTOURMAJORSPACE=5
+    TOPOCONTOURSPACE=""
+
+    TOPOCONTOURMINORWIDTH=0.1
+    TOPOCONTOURMAJORWIDTH=0.25
+    TOPOCONTOURMINORCOLOR="black"
+    TOPOCONTOURMAJORCOLOR="black"
+
     if arg_is_flag $2; then
-      info_msg "[-tn]: Contour interval not specified. Calculating automatically from Z range using $TOPOCONTOURNUMDEF contours"
+      info_msg "[-tn]: Contour interval not specified. Calculating automatically from Z range using $TOPOCONTOURNUMDEF contours, setting major to every fifth minor"
       topocontourcalcflag=1
     else
       TOPOCONTOURINT="${2}"
       shift
     fi
-    if [[ ${2:0:1} == [{] ]]; then
-      info_msg "[-tn]: GMT argument string detected"
-      shift
-      while : ; do
-          [[ ${2:0:1} != [}] ]] || break
-          topocvars+=("${2}")
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        number)
           shift
-      done
-      shift
-      CONTOURGRIDVARS="${topocvars[@]}"
-    fi
-    info_msg "[-tn]: Custom GMT topo contour commands: ${TOPOCONTOURVARS[@]}"
+          if arg_is_positive_integer $2; then
+            TOPOCONTOURNUMDEF=$2
+            shift
+          else
+            echo "[-tn]: number requires positive integer argument"
+            exit 1
+          fi
+          ;;
+        minsize)
+          shift
+          if ! arg_is_flag $2; then
+            TOPOCONTOURMINSIZE=$2
+            shift
+          else
+            echo "[-tn]: minsize requires argument"
+            exit 1
+          fi
+        ;;
+        smooth) # int
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURSMOOTH="-S${2}"
+            shift
+          else
+            echo "[-tn]: smooth requires positive float argument"
+            exit 1
+          fi
+        ;;
+        major) # [width] [[color]]
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURMAJORWIDTH=$2
+            shift
+            if ! arg_is_flag $2; then
+              TOPOCONTOURMAJORCOLOR=$2
+              shift
+            fi
+          else
+            echo "[-tn]: major requires positive float width argument"
+            exit 1
+          fi
+        ;;
+        minor) # [width] [[color]]
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURMINORWIDTH=$2
+            shift
+            if ! arg_is_flag $2; then
+              TOPOCONTOURMINORCOLOR=$2
+              shift
+            fi
+          else
+            echo "[-tn]: minor requires positive float width argument"
+            exit 1
+          fi
+        ;;
+        trans) # [percent]
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURTRANS=$2
+            shift
+          else
+            echo "[-tn]: trans requires positive float width argument"
+            exit 1
+          fi
+        ;;
+        space) # [degrees]
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURSPACE="-G${2}d"
+            shift
+          else
+            echo "[-tn]: space requires positive float width argument"
+            exit 1
+          fi
+        shift
+        ;;
+      esac
+    done
+
+    # if [[ ${2:0:1} == [{] ]]; then
+    #   info_msg "[-tn]: GMT argument string detected"
+    #   shift
+    #   while : ; do
+    #       [[ ${2:0:1} != [}] ]] || break
+    #       TOPOCONTOURVARS+=("${2}")
+    #       shift
+    #   done
+    #   shift
+    #   CONTOURGRIDVARS="${topocvars[@]}"
+    # fi
+    # info_msg "[-tn]: Custom GMT topo contour commands: ${TOPOCONTOURVARS[@]}"
     plots+=("contours")
     ;;
 
@@ -7479,8 +7592,30 @@ fi
     HS_ALT=45
     ;;
 
+  -tzero) # Subtract 0.1 meters from any topo cells with elevation=0
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tzero:        fix 0 elevation to -0.1 meters before plotting topo
+Usage: -tzero [[value]]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  tzeroadjustflag=1
+  TZEROADJUSTVAL=-0.1
+  if arg_is_float $2; then
+    TZEROADJUSTVAL=${2}
+    shift
+  fi
+  echo "TZEROADJUSTVAL is ${TZEROADJUSTVAL}"
+
+  ;;
+
 #Build your own topo visualization using these commands in sequence.
 #  [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
+
+
 
   -tshad) #         [[sun_az]] [[sun_el]]   [[fact]]    add cast shadows to intensity (fact=opacity)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -10706,7 +10841,8 @@ if [[ $plottopo -eq 1 ]]; then
     bestname=$BESTDIR"best_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
     if [[ -e $bestname ]]; then
       info_msg "Best merged topography tile already exists."
-      BATHY=$bestname
+      cp $bestname ${F_TOPO}dem.tif
+      BATHY=${F_TOPO}dem.tif
       bestexistsflag=1
       demiscutflag=1
     fi
@@ -10932,14 +11068,26 @@ if [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
   # gmt grdsample ${BATHY} -R -I0.00055555555 -Gpos.tif
   # gmt grdsample ${NEGBATHYGRID} -R -I0.00055555555 -Gneg.tif
 
-  gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neg.tif
-  gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY pos.tif
-  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A pos.tif -B neg.tif --calc="((A>=0)*A + (B<=0)*B)" --outfile=merged.tif
+  # Is it best to resample SRTM to the BATHY resolution
 
-  # # gmt grdsample -R${NEGBATHYGRID} $BATHY -Gpos.tif -T ${VERBOSE}
-  # gmt grdclip -Sb0/0 pos.tif -Gposclip.tif=gd:GTiff ${VERBOSE}
-  # gmt grdclip -Si0/10000000/0 neg.tif -Gnegclip.tif=gd:GTiff ${VERBOSE}
-  # # gmt grdmath posclip.tif negclip.tif ADD = merged.tif ${VERBOSE}
+  gmt_init_tmpdir
+  gmt grdsample ${NEGBATHYGRID} -R${BATHY} -Gneg.tif=gd:GTiff
+  gmt_remove_tmpdir
+
+  # gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neg.tif
+  # gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY pos.tif
+
+  GMRT_MERGELEVEL_BOTTOM=-500
+  GMRT_MERGELEVEL_TOP=0
+  #
+  GMRT_MERGELEVEL=-100
+
+  # This is a straight merge with a hard line
+  #gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
+
+  # This is a linear interpolation over the defined topographic interval
+  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>${GMRT_MERGELEVEL_TOP})*A + (A<${GMRT_MERGELEVEL_BOTTOM})*B+(A>=${GMRT_MERGELEVEL_BOTTOM})*(A<=${GMRT_MERGELEVEL_TOP})*(B*(${GMRT_MERGELEVEL_TOP}-A)+A*(A - ${GMRT_MERGELEVEL_BOTTOM}))/(${GMRT_MERGELEVEL_TOP}-${GMRT_MERGELEVEL_BOTTOM}))" --outfile=merged.tif
+
   cp merged.tif $bestname
   # cp neggdal.tif $bestname
   BATHY=$bestname
@@ -10951,29 +11099,29 @@ fi
 
 # At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
 
-if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
+if [[ $clipdemflag -eq 1 && -s ${TOPOGRAPHY_DATA} ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.tif"
   if [[ $demiscutflag -eq 1 ]]; then
     if [[ $tflatflag -eq 1 ]]; then
       echo flattening
-      flatten_sea ${BATHY} ${F_TOPO}dem.tif -1
+      flatten_sea ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif -1
     else
       # This assumes that BATHY is a tif file.
-      if [[ $BATHY == *tif ]]; then
-        cp $BATHY ${F_TOPO}dem.tif
+      if [[ ${TOPOGRAPHY_DATA} == *tif ]]; then
+        cp ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif
       else
-        echo "$BATHY is not a TIF file? Aborting"
+        echo "${TOPOGRAPHY_DATA} is not a TIF file? Aborting"
         exit 1
       fi
     fi
   else
     if [[ $tflatflag -eq 1 ]]; then
-      gmt grdcut ${BATHY} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+      gmt grdcut ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_preflat.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
       flatten_sea ${F_TOPO}dem_preflat.tif ${F_TOPO}dem.tif -1
       cleanup ${F_TOPO}dem_preflat.tif
     else
-      if [[ -s ${BATHY} && ! -s ${F_TOPO}dem.tif ]]; then
-        gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${BATHY} ${F_TOPO}dem.tif
+      if [[ -s ${TOPOGRAPHY_DATA} && ! -s ${F_TOPO}dem.tif ]]; then
+        gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${TOPOGRAPHY_DATA} ${F_TOPO}dem.tif
 
         # In this case we may need to fill NaNs...
 
@@ -10986,6 +11134,15 @@ if [[ $clipdemflag -eq 1 && -s $BATHY ]]; then
   TOPOGRAPHY_DATA=${F_TOPO}dem.tif
 else
   TOPOGRAPHY_DATA=${BATHY}
+fi
+
+# Adjust the DEM if asked (setting 0 values to something else, can be useful sometimes)
+
+if [[ $tzeroadjustflag -eq 1 ]]; then
+  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${TOPOGRAPHY_DATA} --calc="((A<=0)*(A>=${TZEROADJUSTVAL})*${TZEROADJUSTVAL} + (A>0)*A + (A<${TZEROADJUSTVAL})*A)" --outfile=${F_TOPO}dem_zero.tif
+  if [[ -s ${F_TOPO}dem_zero.tif ]]; then
+    TOPOGRAPHY_DATA=${F_TOPO}dem_zero.tif
+  fi
 fi
 
 # if [[ ${TOPOGRAPHY_DATA} == *nc ]]; then
@@ -11059,16 +11216,7 @@ if [[ $gridcontourcalcflag -eq 1 ]]; then
   fi
 fi
 
-# Contour interval for grid if not specified using -cn
-if [[ $topocontourcalcflag -eq 1 ]]; then
-  zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
-  MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
-  MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
-  TOPOCONTOURINT=$(echo "($MAXCONTOUR - $MINCONTOUR) / $TOPOCONTOURNUMDEF" | bc -l)
-  if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
-    TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
-  fi
-fi
+
 
 
 
@@ -13892,7 +14040,7 @@ for cptfile in ${cpts[@]} ; do
         topoctrlstring=${topoctrlstring}"c"
       fi
 
-      info_msg "Plotting topo from $BATHY: control string is ${topoctrlstring}"
+      info_msg "Plotting topo from ${TOPOGRAPHY_DATA}: control string is ${topoctrlstring}"
       touch $TOPO_CPT
       TOPO_CPT=$(abs_path $TOPO_CPT)
       if [[ $customgridcptflag -eq 1 ]]; then
@@ -13914,7 +14062,7 @@ for cptfile in ${cpts[@]} ; do
 
       # 1. Determine the range of the DEM
 
-      zrange=$(grid_zrange $BATHY -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
+      zrange=$(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
       MINZ=$(echo $zrange | gawk  '{printf "%d\n", $1}')
       MAXZ=$(echo $zrange | gawk  '{printf "%d\n", $2}')
 
@@ -14896,30 +15044,73 @@ EOF
       ;;
 
     contours)
+
+      # We want to plot contours intelligently and nicely including major-minor contour thickness and labeling only of major contours, without double plotting of contours.
+
+
+      TOPOCONTOURTRANS=""
+      TOPOCONTOURSPACE=""
+      TOPOCONTOURMINSIZE=""
+
+      CONTOURMAJORSPACE=5
+
+      # Contour interval for grid if not specified using -cn
+      zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
+      if [[ $topocontourcalcflag -eq 1 ]]; then
+        TOPOCONTOURINT=$(echo "(${zrange[1]} - ${zrange[0]}) / $TOPOCONTOURNUMDEF" | bc -l)
+        if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
+          TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
+        fi
+      fi
+
+      gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=$TOPOCONTOURINT -v majorspace=${CONTOURMAJORSPACE} -v minwidth=${TOPOCONTOURMINORWIDTH} -v maxwidth=${TOPOCONTOURMAJORWIDTH} -v mincolor=${TOPOCONTOURMINORCOLOR} -v maxcolor=${TOPOCONTOURMAJORCOLOR} '
+        BEGIN {
+          # If the range straddles 0, ensure 0 is a major contour
+          if (minz<0 && maxz>0) {
+            ismaj=1
+            print 0, "A", maxwidth "p," maxcolor
+            for(i=0-cint; i>=minz; i-=cint) {
+              if (++ismaj == majorspace) {
+                print i, "A", maxwidth "p," maxcolor
+                ismaj=0
+              } else {
+                print i, "c", minwidth "p," mincolor
+              }
+            }
+            ismaj=1
+            for(i=cint; i<=maxz; i+=cint) {
+              if (++ismaj == majorspace) {
+                print i, "A", maxwidth "p," maxcolor
+                ismaj=0
+              } else {
+                print i, "c", minwidth "p," mincolor
+              }
+            }
+          } else {
+          # If the range does not straddle 0, just make contours
+            ismaj=0
+            minz=minz-minz%cint
+            for(i=minz; i<maxz; i+=cint) {
+              if (++ismaj == majorspace) {
+                print i, "A", maxwidth "p," maxcolor
+                ismaj=0
+              } else {
+                print i, "c", minwidth "p," mincolor
+              }
+            }
+          }
+        }' > topo.contourdef
+
       # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
-      AFLAG=-A$TOPOCONTOURINT
-      CFLAG=-C$TOPOCONTOURINT
-      SFLAG=-S$TOPOCONTOURSMOOTH
-      QFLAG=-Q$TOPOCONTOURMINPTS
+      info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
 
-      for i in ${TOPOCONTOURVARS[@]}; do
-        if [[ ${i:0:2} =~ "-A" ]]; then
-          AFLAG=""
-        fi
-        if [[ ${i:0:2} =~ "-C" ]]; then
-          CFLAG=""
-        fi
-        if [[ ${i:0:2} =~ "-S" ]]; then
-          SFLAG=""
-        fi
-        if [[ ${i:0:2} =~ "-Q" ]]; then
-          QFLAG=""
-        fi
-      done
-      info_msg "Plotting topographic contours using $BATHY and contour options ${CONTOUROPTSTRING[@]}"
-      echo gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE}
-      gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
+      echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} map.ps
+      gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} >> map.ps
+      # gmt grdcontour $BATHY -A+f2p,Helvetica,black -Ctopo.contourdef $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]} -t${TOPOCONTOURTRANS} $RJOK ${VERBOSE} >> map.ps
+      # gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
 
+
+# TOPOCONTOURSPACE="-G${2}d"
       ;;
 
     # countries)
@@ -15994,7 +16185,7 @@ EOF
         #   info_msg "Adding custom grid to sprof"
         #   echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
 
-        elif [[ -e $BATHY ]]; then
+        elif [[ -s ${TOPOGRAPHY_DATA} ]]; then
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
           echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
           echo "G ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
@@ -16866,7 +17057,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
 
               replace_gmt_colornames_rgb ${TOPO_CPT} ${CPTHINGE} > ./cpttmp.cpt
-              cpt_to_gdalcolor ./cpttmp.cpt > ${F_CPTS}topocolor.dat
+              cpt_to_gdalcolor ./cpttmp.cpt 0 > ${F_CPTS}topocolor.dat
               rm -f ./cpttmp.cpt
 
               # gawk < $TOPO_CPT -v hinge=$CPTHINGE '{
@@ -16893,7 +17084,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # }' > ${F_CPTS}topocolor.dat
             else
               replace_gmt_colornames_rgb ${TOPO_CPT} > ./cpttmp.cpt
-              cpt_to_gdalcolor ./cpttmp.cpt > ${F_CPTS}topocolor.dat
+              cpt_to_gdalcolor ./cpttmp.cpt 0 > ${F_CPTS}topocolor.dat
               # gawk < $TOPO_CPT '{ print $1, $2 }' | tr '/' ' ' > ${F_CPTS}topocolor.dat
             fi
           fi
@@ -17182,7 +17373,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           fi
 
           if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
-            info_msg "Creating and blending color stretch (alpha=$DEM_ALPHA)."
+            info_msg "Creating and blending color stretch from ${TOPOGRAPHY_DATA} (alpha=$DEM_ALPHA)."
             gdaldem color-relief ${TOPOGRAPHY_DATA} ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
             alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
             multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
@@ -17190,7 +17381,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           else
             COLORED_RELIEF=$INTENSITY_RELIEF
           fi
-          BATHY=${TOPOGRAPHY_DATA}
+          # BATHY=${TOPOGRAPHY_DATA}
         fi
       fi  # fasttopoflag = 0
 
@@ -18658,7 +18849,7 @@ if [[ $plottedtopoflag -eq 1 ]]; then
 
 
   # zrange is the elevation change across the DEM
-  zrange=($(grid_zrange $BATHY -R${BATHY}))
+  zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${TOPOGRAPHY_DATA}))
 
   if [[ $obplotboxflag -eq 1 ]]; then
     OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
@@ -18706,7 +18897,7 @@ if [[ $plottedtopoflag -eq 1 ]]; then
   if [[ $plotimageflag -eq 1 ]]; then
     echo "gmt grdimage im.tiff ${RJSTRING[@]} ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > ob2.ps" >> ./make_oblique.sh
   fi
-  echo "gmt grdview $BATHY -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
+  echo "gmt grdview ${TOPOGRAPHY_DATA} -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
   echo "gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}" >> ./make_oblique.sh
   chmod a+x ./make_oblique.sh
 
