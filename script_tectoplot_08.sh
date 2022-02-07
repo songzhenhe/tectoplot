@@ -2304,7 +2304,7 @@ fi
 
   while ! arg_is_flag $2; do
     info_msg "Attempting to retrieve USGS event ${2}"
-    python ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
+    python3 ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
     if [[ -s ${TMP}${F_CMT}usgs_foc.cat ]]; then
       gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
     else
@@ -2313,7 +2313,6 @@ fi
     fi
     shift
   done
-
   ;;
 
 	-c) # args: none || number
@@ -11126,7 +11125,6 @@ if [[ $tflatflag -eq 1 ]]; then
 fi
 
 # At this stage, BATHY contains a path to the DEM and can be replaced by TOPOGRAPHY_DATA
-echo "clipdemflag=${clipdemflag} and topodata=${BATHY}"
 
 if [[ $clipdemflag -eq 1 && -s ${BATHY} ]]; then
   info_msg "[-clipdem]: saving DEM as ${F_TOPO}dem.tif"
@@ -11176,14 +11174,14 @@ fi
 
 # Denoise the DEM if asked
 
-if [[ $tdenoiseflag -eq 1 ]]; then
-  gmt grd2xyz ${TOPOGRAPHY_DATA} > ${F_TOPO}dem_denoise_wgs.xyz
-  cs2cs +init=epsg:4326 +to +init=epsg:3395 ${F_TOPO}dem_denoise_wgs.xyz > ${F_TOPO}dem_denoise_merc.xyz
-  ${MDENOISE} -i ${F_TOPO}dem_denoise_merc.xyz -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_out.xyz
-  paste ${F_TOPO}dem_denoise_wgs.xyz ${F_TOPO}dem_denoise_out.xyz | gawk '{print $1, $2, $6}' > ${F_TOPO}ddd.xyz
-  gmt xyz2grd -R${TOPOGRAPHY_DATA} ${F_TOPO}ddd.xyz -G${F_TOPO}ddd.tif=gd:GTiff
-  [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
-fi
+# if [[ $tdenoiseflag -eq 1 ]]; then
+#   gmt grd2xyz ${TOPOGRAPHY_DATA} > ${F_TOPO}dem_denoise_wgs.xyz
+#   cs2cs +init=epsg:4326 +to +init=epsg:3395 ${F_TOPO}dem_denoise_wgs.xyz > ${F_TOPO}dem_denoise_merc.xyz
+#   ${MDENOISE} -i ${F_TOPO}dem_denoise_merc.xyz -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_out.xyz
+#   paste ${F_TOPO}dem_denoise_wgs.xyz ${F_TOPO}dem_denoise_out.xyz | gawk '{print $1, $2, $6}' > ${F_TOPO}ddd.xyz
+#   gmt xyz2grd -R${TOPOGRAPHY_DATA} ${F_TOPO}ddd.xyz -G${F_TOPO}ddd.tif=gd:GTiff
+#   [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
+# fi
 
 # if [[ $tdenoiseflag -eq 1 ]]; then
 #   # echo gmt grdconvert ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_denoise.asc
@@ -11203,23 +11201,24 @@ fi
 #   [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
 # fi
 
-# if [[ $tdenoiseflag -eq 1 ]]; then
-#   demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
-#   demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
-#   demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
-#   demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
-#   demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
-#   demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
-#
-#   gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
-#   ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -n 3 -t 0.99 -o ${F_TOPO}dem_denoise_DN.asc
-#   gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
-#   # # GMT is not reading the .prj file or something?
-#   #     cd ${F_TOPO}
-#   #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
-#   #     cd ..
-#   [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
-# fi
+if [[ $tdenoiseflag -eq 1 ]]; then
+  demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
+  demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
+  demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
+  demxmax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $3}')
+  demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
+  demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
+
+  gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
+  ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_DN.asc
+  gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}ddd.tif -q
+  gmt grdedit -A ${F_TOPO}ddd.tif
+  # # GMT is not reading the .prj file or something?
+  #     cd ${F_TOPO}
+  #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
+  #     cd ..
+  [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
+fi
 
 # if [[ ${TOPOGRAPHY_DATA} == *nc ]]; then
 #   echo "Checking DEM NetCDF file for reasonable variable names"

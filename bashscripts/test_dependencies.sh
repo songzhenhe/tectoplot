@@ -34,9 +34,9 @@
 
 # Call by sourcing this file: source ${BASHSCRIPTSDIR}test_dependencies.sh
 
-# python might be in .bash_profile...
-shopt -s expand_aliases
-source ~/.bash_profile
+# # python might be in .bash_profile...
+# shopt -s expand_aliases
+# source ~/.bash_profile
 
 CCOMPILER="gcc"
 CXXCOMPILER="g++"
@@ -131,17 +131,17 @@ else
   needed+=("geod")
 fi
 
-if [ `which python` ]; then
-  PYTHON_VERSION=$(python --version | gawk '(NR==1) { print substr($2,1,3) }')
+if [ `which python3` ]; then
+  PYTHON_VERSION=$(python3 --version | gawk '(NR==1) { print substr($2,1,3) }')
   if [[  $(echo ${PYTHON_VERSION} $PYTHONREQ | gawk '{if($1 >= $2){print 1}}') -ne 1 ]]; then
     echo "python version $PYTHONREQ or greater is required (detected ${PYTHON_VERSION})"
-    needed+=("python")
+    needed+=("python3")
   else
-    echo -n "Found python: " && which python | awk '{ printf("%s ", $0)}' && python --version 2>&1 | head -n 1
+    echo -n "Found python3: " && which python3 | awk '{ printf("%s ", $0)}' && python3 --version 2>&1 | head -n 1
   fi
 else
-  echo "Error: python not found"
-  needed+=("python")
+  echo "Error: python3 not found"
+  needed+=("python3")
 fi
 
 need_gdal=0
