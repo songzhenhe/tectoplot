@@ -1022,48 +1022,67 @@ do
       # # Download GSFML seafloor data
       # check_and_download_dataset "GSFML" $GSFML_SOURCEURL "yes" $GSFMLDIR $GSFML_CHECK $GSFMLDIR"gsfml.tbz" $GSFML_CHECK_BYTES $GSFML_ZIP_BYTES
 
-
-
       if [[ "${2}" == "dropbox" ]]; then
         shift
-        if [[ -d $GCMTDIR || -d $GFZDIR || -d $ISCDIR || -d $ISC_EQS_DIR || -d $ANSSDIR ]]; then
-          echo "[-getdata]: dropbox option will not run if any of the following directories exist. Delete and re-run."
-          echo $GCMTDIR
-          echo $GFZDIR
-          echo $ISCDIR
-          echo $ISC_EQS_DIR
-          echo $ANSSDIR
-        else
-          if [[ -s EarthquakeData.zip ]]; then
-            echo "Earthquake data archive already exists in current folder. Not downloading or extracting."
-            echo "Delete $(pwd)/EarthquakeData.zip and call tectoplot -getdata dropbox again to re-download"
+dropbox_urls+=("ij67aon9dvvzanv/ANSS.zip")
+dropbox_urls+=("rp485yy8scn99my/CableMap.zip")
+dropbox_urls+=("yecuuj5nqyvuhbf/EarthByte.zip")
+dropbox_urls+=("pey6y8dl86qldmx/EMAG_V2.zip")
+dropbox_urls+=("2gqwl7dfst0b8kf/GCDM.zip")
+dropbox_urls+=("qh9lpd7qtex88rx/GCMT.zip")
+dropbox_urls+=("3mpn2osxi00mv9i/GEBCO_ONE.zip")
+dropbox_urls+=("3zzjaijzungiz3q/GEBCO20.zip")
+dropbox_urls+=("mfzz8m6p1ivnhm4/GEMActiveFaults.zip")
+dropbox_urls+=("2vpnng7j7l7en8g/GFZ.zip")
+dropbox_urls+=("fwsatdjm06z6v3q/GSFML_SF.zip")
+dropbox_urls+=("x3ibfitlembsn17/Heatflow.zip")
+dropbox_urls+=("2n37kv0f9fdyq7p/ISC_SEIS.zip")
+dropbox_urls+=("398txkifqxx22r5/ISC-EHB.zip")
+dropbox_urls+=("qltrgbz9yniygv4/ISC.zip")
+dropbox_urls+=("ext01bsci2l9kbu/LITHO1.zip")
+dropbox_urls+=("8madlfzq0nj0hvg/Muller2016.zip")
+dropbox_urls+=("m8c1ch37nqfi91u/OC_AGE.zip")
+dropbox_urls+=("24t312wmtu26d7q/Sandwell2019.zip")
+dropbox_urls+=("l7t86w8mbtfadr3/SLAB2.zip")
+dropbox_urls+=("pob422sc7m6pf8q/Smithsonian.zip")
+dropbox_urls+=("lcf8o3yecxb5fmw/SRCMOD.zip")
+dropbox_urls+=("lj9qezf4p3h9wl1/SRTM30_plus.zip")
+dropbox_urls+=("lx5jsf515x15xcz/WGM2012.zip")
+dropbox_urls+=("twxypwzjc2h69rn/WorldCities.zip")
+dropbox_urls+=("iwbz20qydz7e6li/WSM.zip")
+
+        for this_zip in ${dropbox_urls[@]}; do
+          zip_name=$(echo $this_zip | gawk -F/ '{print $2}')
+          zip_id=$(echo $zip_name | gawk -F. '{print $1}')
+          if [[ -d ${DATAROOT}${zip_id} ]]; then
+            echo "Folder $zip_id already exists in ${DATAROOT}. Not downloading or extracting ${zip_name}."
+            echo "Delete ${DATAROOT}${zip_name} and ${DATAROOT}${zip_id} and call tectoplot -getdata dropbox again to re-download"
           else
-            echo "Getting earthquake data from Dropbox link"
-            if curl https://dl.dropboxusercontent.com/s/0jt228tmcgy2cfz/EarthquakeData_30July2021.zip -o EarthquakeData.zip; then
-              echo "Earthquake archive downloaded. Testing..."
-              if unzip -t EarthquakeData.zip >/dev/null; then
-                echo "Earthquake data archive is OK"
-                if unzip EarthquakeData.zip -d ${DATAROOT}/; then
-                  echo "Unzip operation succeeded - removing earthquake data archive."
-                  rm -f EarthquakeData.zip
+            echo "Getting ${zip_name} from Dropbox"
+            if curl "https://dl.dropboxusercontent.com/s/${this_zip}" -o ${DATAROOT}${zip_name}; then
+              echo "ZIP file downloaded. Testing extraction."
+              if unzip -t ${DATAROOT}${zip_name} >/dev/null; then
+                echo "File is OK. Removing potential __MACOSX directories."
+                zip -d ${DATAROOT}${zip_name} "__MACOSX*"
+                if unzip -u ${DATAROOT}${zip_name} -d ${DATAROOT}; then
+                  echo "Unzip succeeded."
+                  rm -f ${DATAROOT}${zip_name}
                 else
-                  echo "Unzip operation failed. Remove EarthquakeData.zip and retry?"
+                  echo "Unzip operation failed. Removing zip file."
+                  rm -f ${DATAROOT}${zip_name}
                 fi
               fi
             else
               echo "curl download failed. Removing archive"
-              rm -f EarthquakeData.zip
+              rm -f ${DATAROOT}${zip_name}
             fi
           fi
-        fi
+        done
         exit 0
       else
         check_and_download_dataset "MULLER_OCAGE" $MULLER_OCAGE_SOURCEURL "no" $MULLER_DIR $MULLER_OCAGE "none" $MULLER_OCAGE_BYTES "none"
-
-
         check_and_download_dataset "GEBCO1" $GEBCO1_SOURCEURL "yes" $GEBCO1DIR $GEBCO1FILE $GEBCO1DIR"data.zip" $GEBCO1_BYTES $GEBCO1_ZIP_BYTES
         check_and_download_dataset "EMAG_V2" $EMAG_V2_SOURCEURL "no" $EMAG_V2_DIR $EMAG_V2 "none" $EMAG_V2_BYTES "none"
-
         check_and_download_dataset "WGM2012-Bouguer" $WGMBOUGUER_SOURCEURL "no" $WGMDIR $WGMBOUGUER_ORIG "none" $WGMBOUGUER_BYTES "none"
         check_and_download_dataset "WGM2012-Isostatic" $WGMISOSTATIC_SOURCEURL "no" $WGMDIR $WGMISOSTATIC_ORIG "none" $WGMISOSTATIC_BYTES "none"
         check_and_download_dataset "WGM2012-FreeAir" $WGMFREEAIR_SOURCEURL "no" $WGMDIR $WGMFREEAIR_ORIG "none" $WGMFREEAIR_BYTES "none"
@@ -1075,14 +1094,12 @@ do
         check_and_download_dataset "WGM2012-Bouguer-CPT" $WGMBOUGUER_CPT_SOURCEURL "no" $WGMDIR $WGMBOUGUER_CPT "none" $WGMBOUGUER_CPT_BYTES "none"
         check_and_download_dataset "WGM2012-Isostatic-CPT" $WGMISOSTATIC_CPT_SOURCEURL "no" $WGMDIR $WGMISOSTATIC_CPT "none" $WGMISOSTATIC_CPT_BYTES "none"
         check_and_download_dataset "WGM2012-FreeAir-CPT" $WGMFREEAIR_CPT_SOURCEURL "no" $WGMDIR $WGMFREEAIR_CPT "none" $WGMFREEAIR_CPT_BYTES "none"
-
         check_and_download_dataset "Geonames-Cities" $CITIES_SOURCEURL "yes" $CITIESDIR $CITIES500 $CITIESDIR"data.zip" "none" "none"
 
         [[ -s $CITIESDIR"cities500.txt" ]] && info_msg "Processing cities data to correct format" && gawk  < $CITIESDIR"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
 
         check_and_download_dataset "GlobalCurieDepthMap" $GCDM_SOURCEURL "no" $GCDMDIR $GCDMDATA_ORIG "none" $GCDM_BYTES "none"
         [[ ! -e $GCDMDATA ]] && info_msg "Processing GCDM data to grid format" && gmt xyz2grd -R-180/180/-80/80 $GCDMDATA_ORIG -I10m -G$GCDMDATA
-
         check_and_download_dataset "SLAB2" $SLAB2_SOURCEURL "yes" $SLAB2_DATADIR $SLAB2_CHECKFILE $SLAB2_DATADIR"data.zip" $SLAB2_CHECK_BYTES $SLAB2_ZIP_BYTES
         [[ ! -d $SLAB2DIR ]] && [[ -e $SLAB2_CHECKFILE ]] && tar -xvf $SLAB2_DATADIR"Slab2Distribute_Mar2018.tar.gz" --directory $SLAB2_DATADIR
 
@@ -6424,15 +6441,17 @@ cat <<-EOF
 Usage: -scrapedata [[controlstring]]
 
   letters in controlstring determine what gets scraped/updated:
+  Default = giace
   g = GCMT focal mechanisms
   i = ISC focal mechanisms
-  z = GFZ focal mechanisms
-  m = merge focal mechanism catalogs to avoid duplications
   a = ANSS (Comcat) seismicity
   c = ISC seismicity catalog
   e = ISC-EHB seismicity catalog
 
-  Focal mechanism catalog merging is done by priority of source institution
+  z = GFZ focal mechanisms (optional - takes a long time!)
+
+
+  Equivalent mechanisms from each subsequent dataset are removed by default
 
 --------------------------------------------------------------------------------
 EOF
@@ -6440,7 +6459,7 @@ shift && continue
 fi
     if arg_is_flag $2; then
       info_msg "[-scrapedata]: No datasets specified. Scraping all catalogs."
-      SCRAPESTRING="gizmace"
+      SCRAPESTRING="giace"
     else
       SCRAPESTRING="${2}"
       shift
@@ -6468,7 +6487,7 @@ fi
     fi
     if [[ ${SCRAPESTRING} =~ .*a.* ]]; then
       info_msg "Scraping ANSS seismic data"
-      source $SCRAPE_ANSS ${ANSSDIR} ${REBUILD}
+      source $SCRAPE_ANSS ${ANSSDIR}
     fi
     if [[ ${SCRAPESTRING} =~ .*c.* ]]; then
       info_msg "Scraping ISC seismic data"
@@ -6478,10 +6497,10 @@ fi
       info_msg "Scraping GFZ focal mechanisms"
       source $SCRAPE_GFZ ${GFZDIR} ${REBUILD}
     fi
-    if [[ ${SCRAPESTRING} =~ .*m.* ]]; then
-      info_msg "Merging focal catalogs"
-      source $MERGECATS
-    fi
+    # if [[ ${SCRAPESTRING} =~ .*m.* ]]; then
+    #   info_msg "Merging focal catalogs"
+    #   source $MERGECATS
+    # fi
     exit
     ;;
 
@@ -8895,6 +8914,27 @@ fi
 #     shift
 #     ;;
 
+  -ztext)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-ztext:            plot magnitude text over earthquakes
+Usage: -ztext [[minmag=${ZTEXT_MINMAG}]]]
+
+Example:
+tectoplot -z -ztext 7
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if ! arg_is_flag "${2}"; then
+    ZTEXT_MINMAG="${2}"
+    shift
+  fi
+  plots+=("ztext")
+  ;;
+
 	-z) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -10883,6 +10923,10 @@ if [[ $plottopo -eq 1 ]]; then
   if [[ $BATHYMETRY =~ "GMRT" || $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
     name=$GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
+    if [[ ! -d ${GMRTDIR} ]]; then
+      mkdir -p ${GMRTDIR}
+    fi
+
     if [[ ! -s ${name} ]]; then
       info_msg "Downloading GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
       curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${DEM_MINLON}&maxlongitude=${DEM_MAXLON}&minlatitude=${DEM_MINLAT}&maxlatitude=${DEM_MAXLAT}&format=geotiff&resolution=max&layer=topo" > $GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
@@ -11211,12 +11255,8 @@ if [[ $tdenoiseflag -eq 1 ]]; then
 
   gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
   ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_DN.asc
-  gdalwarp -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}ddd.tif -q
-  gmt grdedit -A ${F_TOPO}ddd.tif
-  # # GMT is not reading the .prj file or something?
-  #     cd ${F_TOPO}
-  #     gmt grdconvert dem_denoise_DN.asc -G$dem_denoised.tif=gd:GTiff
-  #     cd ..
+  # using -te and -ts seems to fix errors with GMT -R and -I not matching
+  gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}ddd.tif
   [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
 fi
 
@@ -11316,8 +11356,8 @@ if [[ $plotseis -eq 1 ]]; then
   for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
     if [[ $eqcattype =~ "ANSS" ]]; then
       F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-      info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEOLDZIP $ANSS_TILENEWZIP ${OLDCAT_DATE} $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
-      $EXTRACT_ANSS_TILES $ANSS_TILEOLDZIP $ANSS_TILENEWZIP ${OLDCAT_DATE} $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
+      info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
+      $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
 
       # ANSS CSV format is:
       # 1    2        3         4     5   6       7   8   9    10  11  12 13      14    15   16              17         18       19     20     21             22
@@ -17017,6 +17057,16 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
       gmt pstext ${TEXTFILE} -D${TEXTXOFF}/${TEXTYOFF}${TEXTLINE} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
       # gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
       # -Dj-0.05i/0.025i+v0.7p,black
+    ;;
+
+    ztext)
+
+      if [[ -s ${F_SEIS}eqs.txt ]]; then
+        gawk < ${F_SEIS}eqs.txt -v minmag=${ZTEXT_MINMAG} '
+        ($4 >= minmag) {
+          print $1, $2, int($4*10)/10
+        }' | gmt pstext -F+f6p,Helvetica,black+jCM ${RJOK} ${VERBOSE} >> map.ps
+      fi
     ;;
 
     topo)

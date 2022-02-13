@@ -192,11 +192,10 @@ SCRAPE_ISCEHB=$SCRAPERDIR"scrape_isc-ehb.sh"
 
 SCRAPE_GFZ=$SCRAPERDIR"scrape_gfz.sh"
 SCRAPE_GCMT=$SCRAPERDIR"scrape_gcmt.sh"
-SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals_new.sh"
-#SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
+SCRAPE_ISCFOC=$SCRAPERDIR"scrape_isc_focals.sh"
 
 SCRAPE_ISCSEIS=$SCRAPERDIR"scrape_isc_seismicity.sh"
-SCRAPE_ANSS=$SCRAPERDIR"scrape_anss_data.sh"
+SCRAPE_ANSS=$SCRAPERDIR"scrape_anss.sh"
 #EXTRACT_ANSS=$SCRAPERDIR"extract_anss.sh"
 EXTRACT_ANSS_TILES=$SCRAPERDIR"extract_anss_tiles.sh"
 EXTRACT_ISC_TILES=$SCRAPERDIR"extract_isc_tiles.sh"

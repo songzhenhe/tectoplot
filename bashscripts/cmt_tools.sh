@@ -714,13 +714,14 @@ BEGIN {
     #------------------------------#
     if (FMT=="I") {
       # ISC FOCAL MECHANISMS CSV FORMAT
-      # 1       , 2             , 3   , 4   , 5  , 6  , 7    ,   8      ,               9     ,
-      # EVENT_ID, ORIGIN_AUTHOR, DATE, TIME, LAT, LON, DEPTH, ISCENTROID, CENTROID_AUTHOR,
+      # UPDATED FOR NEW FIELD2=
+      # 1       , 2   , 3            , 4   , 5   , 6  , 7  , 8    , 9         ,    10          ,
+      # EVENT_ID, TYPE, ORIGIN_AUTHOR, DATE, TIME, LAT, LON, DEPTH, ISCENTROID, CENTROID_AUTHOR,
       #
-      # 10, 11, 12, 13,  14,  15,  16,  17,  18,  19,     20,  21,   22,     23,  24,   25,
+      # 11, 12, 13, 14,  15,  16,  17,  18,  19,  20,     21,  22,   23,     24,  25,   26,
       # EX, MO, MW, EX, MRR, MTT, MPP, MRT, MTP, MPR, STRIKE, DIP, RAKE, STRIKE, DIP, RAKE,
       #
-      # 26,    27,   28,    29,    30,   31,    32,    33,   34,    35
+      # 27,    28,   29,    30,    31,   32,    33,    34,   35,    36
       # EX, T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, N_VAL, N_PL, N_AZM
       #
       # Because the fields are comma delimited and fixed width, the field entries will contain whitespace.
@@ -745,15 +746,15 @@ BEGIN {
       calc_M_from_mantissa_exponent=0
 
       event_code=$1;      gsub(/^[ \t]+/,"",event_code);gsub(/[ \t]+$/,"",event_code)
-      author_origin=$2; gsub(/^[ \t]+/,"",author_origin);gsub(/[ \t]+$/,"",author_origin)
-      date=$3;          gsub(/^[ \t]+/,"",date);gsub(/[ \t]+$/,"",date)
-      time=substr($4,1,8)
+      author_origin=$3; gsub(/^[ \t]+/,"",author_origin);gsub(/[ \t]+$/,"",author_origin)
+      date=$4;          gsub(/^[ \t]+/,"",date);gsub(/[ \t]+$/,"",date)
+      time=substr($5,1,8)
       id=sprintf("%sT%s", date, time)
-      is_centroid=$8;   gsub(/^[ \t]+/,"",is_centroid);gsub(/[ \t]+$/,"",is_centroid)
+      is_centroid=$9;   gsub(/^[ \t]+/,"",is_centroid);gsub(/[ \t]+$/,"",is_centroid)
 
-      lat_tmp=$5+0;
-      lon_tmp=$6+0;
-      depth_tmp=$7+0;
+      lat_tmp=$6+0;
+      lon_tmp=$7+0;
+      depth_tmp=$8+0;
 
       # This entry is for a centroid location
       if (is_centroid == "TRUE") {
@@ -763,7 +764,7 @@ BEGIN {
         lat_origin="none"
         lon_origin="none"
         depth_origin="none"
-        author_centroid=$9; gsub(/^[ \t]+/,"",author_centroid);gsub(/[ \t]+$/,"",author_centroid);
+        author_centroid=$10; gsub(/^[ \t]+/,"",author_centroid);gsub(/[ \t]+$/,"",author_centroid);
         author_origin="none"
       } else {
         lat_centroid="none"
@@ -772,50 +773,50 @@ BEGIN {
         lat_origin=lat_tmp
         lon_origin=lon_tmp
         depth_origin=depth_tmp
-        author_origin=$2;     gsub(/^[ \t]+/,"",author_origin);gsub(/[ \t]+$/,"",author_origin)
+        author_origin=$3;     gsub(/^[ \t]+/,"",author_origin);gsub(/[ \t]+$/,"",author_origin)
         author_centroid="none"
       }
 
       # Read and check SDR values
-      strike1=$20+0;
-      dip1=$21+0;
-      rake1=$22+0;
-      strike2=$23+0;
-      dip2=$24+0;
-      rake2=$25+0;
+      strike1=$21+0;
+      dip1=$22+0;
+      rake1=$23+0;
+      strike2=$24+0;
+      dip2=$25+0;
+      rake2=$26+0;
 
-      # 10, 11, 12, 13,  14,  15,  16,  17,  18,  19,
+      # 11, 12, 13, 14,  15,  16,  17,  18,  19,  20,
       # EX, MO, MW, EX, MRR, MTT, MPP, MRT, MTP, MPR,
 
       # N-m to dynes-cm is a factor of 10^7
-      moment_exponent=$13+7
+      moment_exponent=$14+7
       # Adopt the moment tensor exponent if M0 exponent is not already set
       if (exponent==0 && moment_moment>0)  { exponent=moment_exponent }
-      Mrr=$14+0;
-      Mtt=$15+0
-      Mpp=$16+0
-      Mrt=$17+0
-      Mtp=$18+0
-      Mrp=$19+0
+      Mrr=$15+0;
+      Mtt=$16+0
+      Mpp=$17+0
+      Mrt=$18+0
+      Mtp=$19+0
+      Mrp=$20+0
 
-      # 26,    27,   28,    29,    30,   31,    32,    33,   34,    35
+      # 27,    28,   29,    30,    31,   32,    33,    34,   35,    36
       # EX, T_VAL, T_PL, T_AZM, P_VAL, P_PL, P_AZM, N_VAL, N_PL, N_AZM
 
       # Read and check principal axes values
       # N-m to dynes-cm is a factor of 10^7
 
-      axes_moment=$26+7
+      axes_moment=$27+7
       if (exponent==0 && axes_moment>0) { exponent=moment_exponent }
 
-      Tval=$27+0
-      Tinc=$28+0
-      Taz=$29+0
-      Pval=$30+0
-      Pinc=$31+0
-      Paz=$32+0
-      Nval=$33+0
-      Ninc=$34+0
-      Naz=$35+0
+      Tval=$28+0
+      Tinc=$29+0
+      Taz=$30+0
+      Pval=$31+0
+      Pinc=$32+0
+      Paz=$33+0
+      Nval=$34+0
+      Ninc=$35+0
+      Naz=$36+0
 
       if (Tval==0 && Pval==0 && Nval==0) {
         Tval=1
@@ -836,11 +837,6 @@ BEGIN {
       } else {
         np1_exists=0
       }
-
-      # print "--"
-      # print "np1: ", np1_exists
-      # print $0
-      # print "--"
 
       if ((isnumber(strike2) && strike2<=360 && strike2 >= -360)   &&
           (isnumber(dip2) && dip2<=90 && dip2 >= 0)                &&
@@ -885,13 +881,13 @@ BEGIN {
 
       # N-m to dynes-cm is a factor of 10^7
 
-      exponent=$10+7
-      mantissa=$11+0
-      MW=$12+0
+      exponent=$11+7
+      mantissa=$12+0
+      MW=$13+0
 
       # ASIES mechanism in the ISC catalog are in the wrong units (dynes-cm) vs ISC
       if (author_centroid == "ASIES" || author_origin == "ASIES") {
-        exponent=$10
+        exponent=$11
         calc_M_from_mantissa_exponent=1
       }
 
