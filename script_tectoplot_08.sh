@@ -1024,46 +1024,57 @@ do
 
       if [[ "${2}" == "dropbox" ]]; then
         shift
-dropbox_urls+=("ij67aon9dvvzanv/ANSS.zip")
-dropbox_urls+=("rp485yy8scn99my/CableMap.zip")
-dropbox_urls+=("yecuuj5nqyvuhbf/EarthByte.zip")
-dropbox_urls+=("pey6y8dl86qldmx/EMAG_V2.zip")
-dropbox_urls+=("2gqwl7dfst0b8kf/GCDM.zip")
-dropbox_urls+=("qh9lpd7qtex88rx/GCMT.zip")
-dropbox_urls+=("3mpn2osxi00mv9i/GEBCO_ONE.zip")
-dropbox_urls+=("3zzjaijzungiz3q/GEBCO20.zip")
-dropbox_urls+=("mfzz8m6p1ivnhm4/GEMActiveFaults.zip")
-dropbox_urls+=("2vpnng7j7l7en8g/GFZ.zip")
-dropbox_urls+=("fwsatdjm06z6v3q/GSFML_SF.zip")
-dropbox_urls+=("x3ibfitlembsn17/Heatflow.zip")
-dropbox_urls+=("2n37kv0f9fdyq7p/ISC_SEIS.zip")
-dropbox_urls+=("398txkifqxx22r5/ISC-EHB.zip")
-dropbox_urls+=("qltrgbz9yniygv4/ISC.zip")
-dropbox_urls+=("ext01bsci2l9kbu/LITHO1.zip")
-dropbox_urls+=("8madlfzq0nj0hvg/Muller2016.zip")
-dropbox_urls+=("m8c1ch37nqfi91u/OC_AGE.zip")
-dropbox_urls+=("24t312wmtu26d7q/Sandwell2019.zip")
-dropbox_urls+=("l7t86w8mbtfadr3/SLAB2.zip")
-dropbox_urls+=("pob422sc7m6pf8q/Smithsonian.zip")
-dropbox_urls+=("lcf8o3yecxb5fmw/SRCMOD.zip")
-dropbox_urls+=("lj9qezf4p3h9wl1/SRTM30_plus.zip")
-dropbox_urls+=("lx5jsf515x15xcz/WGM2012.zip")
-dropbox_urls+=("twxypwzjc2h69rn/WorldCities.zip")
-dropbox_urls+=("iwbz20qydz7e6li/WSM.zip")
+        echo "looking"
+        if curl "https://dl.dropboxusercontent.com/s/d08iy67u8avs2xg/ziplinks.txt" -o ziplinks.txt; then
+          while read p; do
+            dropbox_urls+=("${p}")
+          done < ziplinks.txt
+        else
+          echo "[-getdata dropbox]: Can't download link index file ziplinks.txt from Dropbox"
+          exit 1
+        fi
+        echo found ${dropbox_urls[@]}
+# dropbox_urls+=("ij67aon9dvvzanv/ANSS.zip")
+# dropbox_urls+=("rp485yy8scn99my/CableMap.zip")
+# dropbox_urls+=("yecuuj5nqyvuhbf/EarthByte.zip")
+# dropbox_urls+=("pey6y8dl86qldmx/EMAG_V2.zip")
+# dropbox_urls+=("2gqwl7dfst0b8kf/GCDM.zip")
+# dropbox_urls+=("qh9lpd7qtex88rx/GCMT.zip")
+# dropbox_urls+=("3mpn2osxi00mv9i/GEBCO_ONE.zip")
+# dropbox_urls+=("3zzjaijzungiz3q/GEBCO20.zip")
+# dropbox_urls+=("mfzz8m6p1ivnhm4/GEMActiveFaults.zip")
+# dropbox_urls+=("2vpnng7j7l7en8g/GFZ.zip")
+# dropbox_urls+=("fwsatdjm06z6v3q/GSFML_SF.zip")
+# dropbox_urls+=("x3ibfitlembsn17/Heatflow.zip")
+# dropbox_urls+=("2n37kv0f9fdyq7p/ISC_SEIS.zip")
+# dropbox_urls+=("398txkifqxx22r5/ISC-EHB.zip")
+# dropbox_urls+=("qltrgbz9yniygv4/ISC.zip")
+# dropbox_urls+=("ext01bsci2l9kbu/LITHO1.zip")
+# dropbox_urls+=("8madlfzq0nj0hvg/Muller2016.zip")
+# dropbox_urls+=("m8c1ch37nqfi91u/OC_AGE.zip")
+# dropbox_urls+=("24t312wmtu26d7q/Sandwell2019.zip")
+# dropbox_urls+=("l7t86w8mbtfadr3/SLAB2.zip")
+# dropbox_urls+=("pob422sc7m6pf8q/Smithsonian.zip")
+# dropbox_urls+=("lcf8o3yecxb5fmw/SRCMOD.zip")
+# dropbox_urls+=("lj9qezf4p3h9wl1/SRTM30_plus.zip")
+# dropbox_urls+=("lx5jsf515x15xcz/WGM2012.zip")
+# dropbox_urls+=("twxypwzjc2h69rn/WorldCities.zip")
+# dropbox_urls+=("iwbz20qydz7e6li/WSM.zip")
 
         for this_zip in ${dropbox_urls[@]}; do
-          zip_name=$(echo $this_zip | gawk -F/ '{print $2}')
+          zip_name=$(echo $this_zip | gawk -F/ '{print $(NF)}')
           zip_id=$(echo $zip_name | gawk -F. '{print $1}')
           if [[ -d ${DATAROOT}${zip_id} ]]; then
             echo "Folder $zip_id already exists in ${DATAROOT}. Not downloading or extracting ${zip_name}."
             echo "Delete ${DATAROOT}${zip_name} and ${DATAROOT}${zip_id} and call tectoplot -getdata dropbox again to re-download"
           else
             echo "Getting ${zip_name} from Dropbox"
-            if curl "https://dl.dropboxusercontent.com/s/${this_zip}" -o ${DATAROOT}${zip_name}; then
+            echo curl "${this_zip}" -o ${DATAROOT}${zip_name}
+            if curl "${this_zip}" -o ${DATAROOT}${zip_name}; then
               echo "ZIP file downloaded. Testing extraction."
               if unzip -t ${DATAROOT}${zip_name} >/dev/null; then
                 echo "File is OK. Removing potential __MACOSX directories."
-                zip -d ${DATAROOT}${zip_name} "__MACOSX*"
+                zip -d ${DATAROOT}${zip_name} "__MACOSX*" >/dev/null 2>&1
                 if unzip -u ${DATAROOT}${zip_name} -d ${DATAROOT}; then
                   echo "Unzip succeeded."
                   rm -f ${DATAROOT}${zip_name}
@@ -2354,7 +2365,6 @@ fi
 		calccmtflag=1
 		plotcmtfromglobal=1
     cmtsourcesflag=1
-    # CMTFILE=$FOCALCATALOG
 
     # Select focal mechanisms from GCMT, ISC, GCMT+ISC
     if [[ "${2}" == "ORIGIN" || "${2}" == "CENTROID" ]]; then
@@ -5798,23 +5808,6 @@ EOF
 shift && continue
 fi
     MAKERECTMAP=1
-    ;;
-
-  -reportdates)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--reportdates:  print range of scraped seismic/focal mechanism data, then exit
-Usage: -reportdates
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    echo -n "Focal mechanisms: "
-    echo "$(head -n 1 $FOCALCATALOG | cut -d ' ' -f 3) to $(tail -n 1 $FOCALCATALOG | cut -d ' ' -f 3)"
-    # echo -n "Earthquake hypocenters: "
-    # echo "$(head -n 1 $EQCATALOG | cut -d ' ' -f 5) to $(tail -n 1 $EQCATALOG | cut -d ' ' -f 5)"
-    exit
     ;;
 
 #   -rivers)
@@ -9872,7 +9865,9 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
       exit 1
     fi
   else
-    LOOK1=$(grep $REGION_EQ $FOCALCATALOG | head -n 1)
+    # COMEBACK
+    # This needs to be re-thought: how to find a given focal mechanism?
+    LOOK1=$(grep $REGION_EQ | head -n 1)
     if [[ $LOOK1 != "" ]]; then
       # echo "Found EQ region focal mechanism $REGION_EQ"
       case $CMTTYPE in
@@ -9888,7 +9883,10 @@ if [[ $setregionbyearthquakeflag -eq 1 ]]; then
     else
       if [[ $EQ_CATALOG_TYPE[1] =~ "ANSS" ]]; then
         echo "Looking for event ${REGION_EQ}"
-        LOOK2=$(zipgrep $REGION_EQ ${ANSS_TILENEWZIP})
+
+        # COMEBACK
+        # This also has to be rethought - how to search ANSS catalog? Must look in tiles.
+        LOOK2=$(zipgrep $REGION_EQ)
 
         if [[ $LOOK2 != "" ]]; then
           echo "Found event in new data: ${LOOK2}"
@@ -11356,7 +11354,7 @@ if [[ $plotseis -eq 1 ]]; then
   for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
     if [[ $eqcattype =~ "ANSS" ]]; then
       F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-      info_msg "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
+      echo "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
       $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
 
       # ANSS CSV format is:
@@ -11426,6 +11424,8 @@ if [[ $plotseis -eq 1 ]]; then
       gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
       @include "tectoplot_functions.awk"
       {
+        # Trim leading whitespace from ISC ids
+        gsub(/ /, "", $1)
         type=tolower(substr($11,1,2))
         mag=$12
         typeindex=10
