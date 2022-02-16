@@ -793,6 +793,7 @@ EOF
 }
 
 function scrape_latest_events {
+
     TILEDIR="${1}"
     shopt -s nullglob
     # Expects catalog files in the format isc_events_N.cat
@@ -875,7 +876,7 @@ function tile_catalog {
   CATALOGFILE=${2}
 
   if [[ -s "${2}" ]]; then
-    echo "Processing file ${2} into tile files in ${TILEDIR}"
+    echo "Processing file ${2} into tile files"
     sed < "${2}" -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${TILEDIR} '
     BEGIN { added=0 }
     function rd(n, multipleOf)
@@ -928,6 +929,7 @@ if [[ $2 == "rebuild" ]]; then
 fi
 
 ISC_MIRROR="http://www.isc.ac.uk"
+
 
 if [[ $2 == "wash" ]]; then
   ISC_MIRROR="http://isc-mirror.iris.washington.edu"
