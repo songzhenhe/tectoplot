@@ -53,29 +53,36 @@
 # need to know the extents for psbasemap before we can plot anything. So we have to create a
 # script with the appropriate GMT commands (plot.sh) that can be run AFTER we process the data.
 
-# @ XMIN XMAX ZMIN ZMAX CROSSINGZEROLINE_FILE ZMATCH_FLAG
-#
-# Profile definition
-# P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
-#
-# Command characters
-#
-# Focal mechanism data file
-# C CMTFILE WIDTH ZSCALE GMT_arguments
-# Earthquake (scaled) xyzm data file
+# Profile control file format:
+# ---
+# # First line begins with @ and sets the data range, zero crossing line, zmatch
+# @ XMIN[auto] XMAX[auto] ZMIN[auto] ZMAX[auto] CROSSINGZEROLINE_FILE ZMATCH_FLAG[match|null]
+# # Profile axes labels
+# L |Label X|Label Y|Label Z
+# # Various flags to affect plotting behavior
+# M ...
+# # Focal mechanism data file
+# C CMTFILE SWATH_WIDTH ZSCALE GMT_arguments
+# # Earthquake (scaled) xyzm data file
 # E EQFILE SWATH_WIDTH ZSCALE GMT_arguments
-# XYZ data file
+# # XYZ data file
 # X XYZFILE SWATH_WIDTH ZSCALE GMT_arguments
-# Grid line profile
+# # Grid line profile
 # T GRIDFILE ZSCALE SAMPLE_SPACING GMT_arguments
-# Grid swath profile
+# # Grid swath profile
 # S GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
-# Interpolate XYZ data onto profile and plot as colored grid
-# I XYZVFILE ZSCALE INTERPDISTANCE
-# Top grid for oblique profile
-# G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING
-# Point labels
+# W Grid box-and-whisker profile
+# W GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING CPT
+# # Top grid for oblique profile
+# G GRIDFILE ZSCALE SWATH_SUBSAMPLE_DISTANCE SWATH_WIDTH SWATH_D_SPACING CPT
+# # Point labels
 # B LABELFILE SWATH_WIDTH ZSCALE FONTSTRING
+# # Profiles are defined with P command
+# # XOFFSET/ZOFFSET can be a value, 0 (allow shifting), or null (0 and don't shift)
+
+# Profile line definition
+# P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
+
 
 # project_xyz_pts_onto_track $1 $2 $3 $4 $5 $6
 #
@@ -438,9 +445,10 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
   # S defines grids that we calculate swath profiles from.
   # G defines a grid that will be displayed above oblique profiles.
-  elif [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" ]]; then           # Found a gridded dataset; cut to AOI and store as a nc file
+elif [[ ${FIRSTWORD:0:1} == "S" || ${FIRSTWORD:0:1} == "G" || ${FIRSTWORD:0:1} == "W" ]]; then           # Found a gridded dataset; cut to AOI and store as a netcdf file
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
 
+    # Example format
     # GRIDFILE 0.001 .1k 40k 0.1k
     grididnum[$i]=$(echo "grid${i}")
     gridfilelist[$i]=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
@@ -449,6 +457,9 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     gridspacinglist[$i]="${myarr[3]}"
     gridwidthlist[$i]="${myarr[4]}"
     gridsamplewidthlist[$i]="${myarr[5]}"
+
+    # Record the type of grid being used
+    gridtypelist[$i]=${FIRSTWORD:0:1}
 
     # If this is a top tile grid, we can specify its cpt here and scale its values by gridzscalelist[$i].
     if [[ ${FIRSTWORD:0:1} == "G" ]]; then
@@ -466,37 +477,24 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
         fi
       fi
       info_msg "Loading top grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+    elif [[ ${FIRSTWORD:0:1} == "W" ]]; then
+      if [[ -z "${myarr[6]}" ]]; then
+        info_msg "No CPT specified for box and whisker grid."
+        gridcptlist[$i]="None"
+      else
+        replace_gmt_colornames_rgb "${myarr[6]}" > ${F_CPTS}boxgrid_${i}.cpt
+        if [[ "${myarr[7]}" =~ "scale" ]]; then
+          info_msg "Scaling CPT Z values for boxgrid."
+          scale_cpt ${F_CPTS}boxgrid_${i}.cpt ${gridzscalelist[$i]} > ${F_CPTS}boxgrid_${i}_scale.cpt
+          gridcptlist[$i]=${F_CPTS}boxgrid_${i}_scale.cpt
+        else
+          gridcptlist[$i]=${F_CPTS}boxgrid_${i}.cpt
+        fi
+      fi
+      info_msg "Loading box grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     else
-      info_msg "Loading swath grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
+      info_msg "Loading non-top grid: ${gridfilelist[$i]}: Zscale ${gridzscalelist[$i]}, Spacing: ${gridspacinglist[$i]}, Width: ${gridwidthlist[$i]}, SampWidth: ${gridsamplewidthlist[$i]}"
     fi
-
-
-    # This section could be significantly simplified if we just multiply the outputs of grdtrack by the ZSCALE
-    # and don't do any cutting of the grid file; just sample it directly.
-    #
-    #
-    # # # Cut the grid to the AOI and multiply by its ZSCALE
-    # # If the grid doesn't fall within the buffer AOI, there will be no result but it won't be a problem, so pipe error to /dev/null
-    # rm -f ${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
-    #
-    # GRIDTMPFILE=${F_PROFILES}tmp_$(basename ${gridfilelist[$i]})
-    # # GMT grdcut is messing us up again. Try gdal_translate
-    # # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # # echo     gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # # gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # # Old gmt grdcut which fails for some rasters
-    # gmt grdcut ${gridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${GRIDTMPFILE} --GMT_HISTORY=false -Vn 2>/dev/null
-    #
-    # # if [[ ! -s ${GRIDTMPFILE} ]]; then
-    # #   cp ${gridfilelist[$i]} ${GRIDTMPFILE}
-    # # fi
-    #
-    # info_msg "Multiplying grid ${gridfilelist[$i]} by scaling factor ${gridzscalelist[$i]}"
-    # # echo     gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
-    # gmt grdmath ${GRIDTMPFILE} ${gridzscalelist[$i]} MUL = ${F_PROFILES}${gridfilesellist[$i]}
-    # # WEIRD: I need to use GTiff format even though the output is often a different format name (NC)
-    # # gdal_calc.py --overwrite --type=Float32 --quiet -A "${GRIDTMPFILE}" --calc="A * ${gridzscalelist[$i]}" --outfile="${F_PROFILES}${gridfilesellist[$i]}" --format="GTiff" >/dev/null 2>&1
-
   # T is a grid sampled along a track line
   elif [[ ${FIRSTWORD:0:1} == "T" ]]; then
     myarr=($(head -n ${i} $TRACKFILE  | tail -n 1 | gawk '{ print }'))
@@ -510,7 +508,6 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
     ptgridcommandlist[$i]=$(echo "${myarr[@]:4}")
 
     info_msg "Loading single track sample grid: ${ptgridfilelist[$i]}: Zscale: ${ptgridzscalelist[$i]} Spacing: ${ptgridspacinglist[$i]}"
-
 
     # If the AOI has a MAXLON which is less than 180°, grdedit -L+n the source file.
     # This is likely bad practice as we don't want to edit original data, but for Slab2.0
@@ -528,35 +525,10 @@ echo :$x_axis_label: :$y_axis_label: :$z_axis_label:
 
     rm -f ${F_PROFILES}tmp.nc
 
-    # We can also get away with not cutting this grid if we just multiply the sampled data by ZSCALE
-    #
-    #
-    # if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-    #   info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]}"
-    # else
-    #   info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]}. Trying grdedit -L+n"
-    #   gmt grdedit -L+n ${ptgridfilelist[$i]}
-    #   if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-    #     info_msg "Grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+n"
-    #   else
-    #     info_msg "[profile.sh] grdcut failed on ${ptgridfilelist[$i]} with grdedit -L+n. Trying grdedit -L+p"
-    #     gmt grdedit -L+p ${ptgridfilelist[$i]}
-    #     if gmt grdcut ${ptgridfilelist[$i]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -G${F_PROFILES}tmp.nc --GMT_HISTORY=false -Vn > /dev/null 2>&1; then
-    #       info_msg "[profile.sh] grdcut succeeded on ${ptgridfilelist[$i]} with grdedit -L+p"
-    #     else
-    #       echo "gmt grdcut failed entirely on ${ptgridfilelist[$i]}"
-    #       exit 1
-    #     fi
-    #   fi
-    # fi
-
-    # if [[ -e ${F_PROFILES}tmp.nc ]]; then
-    #   gmt grdmath ${F_PROFILES}tmp.nc ${ptgridzscalelist[$i]} MUL = ${F_PROFILES}${ptgridfilesellist[$i]}
-    # fi
     if [[ $changebackflag -eq 1 ]]; then
       gmt grdedit -L+p ${ptgridfilelist[$i]}
     fi
-    # October 29
+
     echo "T grid: ${F_PROFILES}${ptgridfilesellist[$i]} (now ${ptgridfilelist[$i]}) " >> ${F_PROFILES}data_id.txt
 
   # X is an xyz dataset; E is an earthquake dataset
@@ -892,6 +864,7 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
     # This section processes the grid data that we are sampling along the
     # profile line itself
 
+    # First, do the point grid files (e.g. slab2, fault model, etc.)
     for i in ${!ptgridfilelist[@]}; do
 
       gridfileflag=1
@@ -959,8 +932,8 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
     ############################################################################
     # This section processes grid datasets (usually DEM, gravity, etc) by
-    # calculating swath profiles. This section and the topgrid section are very
-    # similar and if this is modified, please check the topgrid section!
+    # extracting swath data. The three options are swath grid, topgrid, and
+    # box-and-whisker
 
     for i in ${!gridfilelist[@]}; do
       gridfileflag=1
@@ -1355,6 +1328,8 @@ EOF
 
         # profiledata.txt contains space delimited rows of data.
 
+        # Swath profile
+
         # This function calculates the 0, 25, 50, 75, and 100 quartiles of the data. First strip out the NaN values which are in the data.
         cat ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledata.txt | sed 's/NaN//g' |  gawk '{
           q1=-1;
@@ -1400,6 +1375,9 @@ EOF
         # gmt wants X q2 min q1 q3 max
 
         paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt | tr '\t' ' ' | gawk '{print $1, $4, $2, $3, $5, $6}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_data.txt
+
+        # quantile_data.txt has 6 elements: X min q1 q2 q3 max
+
 cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt
         gawk '{print $1, $2}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_data.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt
         gawk '{print $1, $3}' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_data.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamin.txt
@@ -1419,20 +1397,55 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         tecto_tac ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13max.txt >> ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 # cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt
 
-        # PLOT ON THE COMBINED PS
-        echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
+        if [[ ${gridtypelist[$i]} == "S" ]]; then
+          # PLOT ON THE COMBINED PS
+          echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> "${PSFILE}"" >> plot.sh
+          echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> "${PSFILE}"" >> plot.sh
+          echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> "${PSFILE}"" >> plot.sh
 
-        # PLOT ON THE FLAT PROFILE PS
-        echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-        echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+          # PLOT ON THE FLAT PROFILE PS
+          echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+          echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+          echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
-        # PLOT ON THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          # PLOT ON THE OBLIQUE PROFILE PS
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+        # Box-and-whisker diagram
+        fi
+        if [[ ${gridtypelist[$i]} == "W" ]]; then
+          # PLOT ON THE COMBINED PS
+
+          if [[ ${gridcptlist[$i]} == "None" ]]; then
+            boxcptcmd="-Ggray"
+            boxfile=${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_data.txt
+          else
+            boxcptcmd="-C${gridcptlist[$i]}"
+            gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_data.txt -v zscale=${gridzscalelist[$i]} '{print $1, $2, $2/zscale, $3, $4, $5, $6}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_cpt.txt
+            boxfile=${F_PROFILES}${LINEID}_${grididnum[$i]}_quantile_cpt.txt
+          fi
+
+          # To set the bin width, we determine the number of bins and the width of the image in points
+          numboxbins=$(wc -l < ${boxfile})
+
+          echo "width_p=\$(echo \"\${PROFILE_WIDTH_IN}\" | gawk '{print (\$1+0)*72}')" >> plot.sh
+          echo "binwidth_p=\$(echo \"(\${width_p} / ${numboxbins})*0.9\" | bc -l)" >> plot.sh
+          # echo "echo $numboxbins bins over \${width_p} = \$binwidth_p" >> plot.sh
+          echo "gmt psxy  ${boxfile} -EY+p0.1p+w\${binwidth_p}p ${boxcptcmd} -Sp -R -J -O -K >> "${PSFILE}"" >> plot.sh
+
+          # PLOT ON THE FLAT PROFILE PS
+          echo "width_p=\$(echo \"\${PROFILE_WIDTH_IN}\" | gawk '{print (\$1+0)*72}')" >> ${LINEID}_temp_plot.sh
+          echo "binwidth_p=\$(echo \"(\${width_p} / ${numboxbins})*0.9\" | bc -l)" >> ${LINEID}_temp_plot.sh
+          echo "gmt psxy  ${boxfile} -EY+p0.1p+w\${binwidth_p}p -Sp ${boxcptcmd} -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+          # PLOT ON THE OBLIQUE PROFILE PS
+          echo "width_p=\$(echo \"\${PROFILE_WIDTH_IN}\" | gawk '{print (\$1+0)*72}')" >> ${LINEID}_plot.sh
+          echo "binwidth_p=\$(echo \"(\${width_p} / ${numboxbins})*0.9\" | bc -l)" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${boxfile} -EY+p0.1p+w\${binwidth_p}p -Sp ${boxcptcmd} -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+
+        fi
 
         # Paste data for data range calculation
         paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilesummary.txt >> ${F_PROFILES}${LINEID}_all_data.txt

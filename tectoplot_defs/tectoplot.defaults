@@ -48,7 +48,7 @@ FILLGRIDNANS_SPLINE_TENSION=0   # Tension for spline filling of DEM
 T_AXIS_COLOR="black"
 P_AXIS_COLOR="blue"
 N_AXIS_COLOR="green"
-
+SWATHORBOX="S"
 
 SEIS_DEFAULTMAG=5
 

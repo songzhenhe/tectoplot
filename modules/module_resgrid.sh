@@ -12,7 +12,7 @@ function tectoplot_defaults_resgrid() {
   SWATH=${BASHSCRIPTDIR}"swath.sh"
   GRAVCPT=${CPTDIR}"grav2.cpt"
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
-  RESGRID_CPTRANGE=145
+  RESGRID_CPTRANGE=400
   RESGRID_TRANS=0
 
 }

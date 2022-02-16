@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+
+# Add default projection as an option for -RJ
+
 # tectoplot
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
 #
@@ -4206,6 +4209,18 @@ fi
       ;;
     esac
   fi
+  ;;
+
+  -profbox)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profbox:     Plot box-and-whisker instead of swath envelope
+Usage: -profbox
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  SWATHORBOX="W"
   ;;
 
   -mprof)
@@ -16258,7 +16273,7 @@ EOF
           case $PROFRASTER in
             grav)
               info_msg "Adding gravity grid to sprof as swath and top tile"
-              echo "S ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              echo "${SWATHORBOX} ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${GRAV_CPT}" >> sprof.control
               echo "G ${F_GRAV}grav.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${GRAV_CPT}" >> sprof.control
               PROFILE_Z_LABEL="Gravity (mgal*0.1)"
               # Make the gravity top tile and set
@@ -16268,7 +16283,7 @@ EOF
             ;;
             mag)
               info_msg "Adding magnetics grid to sprof as swath and top tile"
-              echo "S ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              echo "${SWATHORBOX} ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${MAG_CPT}" >> sprof.control
               echo "G ${F_MAG}mag.nc 0.1 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${MAG_CPT}" >> sprof.control
               PROFILE_Z_LABEL="Magnetization (nT*0.1)"
 
@@ -16279,7 +16294,7 @@ EOF
             ;;
             *)
               info_msg "Adding custom grid to sprof as swath / shaded relief toptile WITH topo cpt"
-              echo "S ${PROFRASTER} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+              echo "${SWATHORBOX} ${PROFRASTER} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
               # echo "G ${PROFRASTER} ${PROFRASTER_SCALE} ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
             ;;
           esac
@@ -16295,7 +16310,8 @@ EOF
 
         elif [[ -s ${TOPOGRAPHY_DATA} ]]; then
           info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
-          echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          # echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES}" >> sprof.control
+          echo "${SWATHORBOX} ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
           echo "G ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROFWIDTH} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
           echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
         fi
@@ -17383,9 +17399,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
               # echo filling flt file
               # gdal_fillnodata.py ${TOPOGRAPHY_DATA} -of GTiff ${F_TOPO}dem_prefill.tif
-
               [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
-
               #
               # gdal_fillnodata [-q] [-md max_distance] [-si smooth_iterations]
               #   [-o name=value] [-b band]
@@ -17407,7 +17421,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # project back to WGS1984
 
               gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
-
               MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
 
               # Change to 8 bit unsigned format
@@ -18117,7 +18130,8 @@ fi
 #   while read p; do
 #     echo "$p" | tr ' ' '\n' | st --summary | tail -n 1 >> proj_stats.txt
 #   done <  proj_data.txt
-#
+#  # min q1 median q3 max
+
 #   GRID_RANGE=($(gawk < proj_table.txt '
 #     BEGIN {
 #       getline
@@ -18139,9 +18153,9 @@ fi
 #   gmt mapproject ${RJSTRING[@]} proj_pts.txt > proj_xy.txt
 #
 #   paste proj_xy.txt proj_stats.txt | tr '\t' ' ' > proj_box.txt
-#
+#   # X Y min q1 median q3 max
 #   cat proj_box.txt | gawk '{print $1, $5, $5, $3, $4, $6, $7}' > long_box.txt
-#
+#   # X 50p 50p 0p 25p 75p 100p
 #   gmt psxy track.txt -W1p,red ${RJOK} ${VERBOSE} >> map.ps
 #   gmt psxy proj_table.txt -W0.5p,black ${RJOK} ${VERBOSE} >> map.ps
 #

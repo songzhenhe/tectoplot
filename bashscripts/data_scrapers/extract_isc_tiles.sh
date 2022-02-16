@@ -67,76 +67,77 @@ OUTPUTFILE="${12}"
 # # Initial selection of files based on the input latitude and longitude range
 # Include the temporary catalog in the tiles directory for all searches
 
-selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
-  @include "tectoplot_functions.awk"
-  BEGIN   {
-    print "isc_temporary.cat"
-    newminlon=minlon
-    newmaxlon=maxlon
-    if (maxlon > 180) {
-      tilesabove180flag=1
-      maxlon2=maxlon-360
-      maxlon=180
-    }
-    if (minlon < -180) {
-      tilesbelowm180flag=1
-      minlon2=minlon+360
-      minlon=-180
-    }
-    minlattile=rd(minlat,5);
-    minlontile=rd(minlon,5);
-    maxlattile=rd(maxlat,5);
-    maxlontile=rd(maxlon,5);
-    maxlattile=(maxlattile>85)?85:maxlattile;
-    maxlontile=(maxlontile>175)?175:maxlontile;
-    # print "Selecting tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
-    for (i=minlontile; i<=maxlontile; i+=5) {
-      for (j=minlattile; j<=maxlattile; j+=5) {
-        printf("tile_%d_%d.cat\n", i, j)
-      }
-    }
+# If minimum magnitude is 5.0 or larger, only query the catalog file with those events.
 
-    if (tilesabove180flag == 1) {
+if [[ $(echo "${EQ_MINMAG} >= 5.0" | bc -l) -eq 1 ]]; then
+  selected_files=($(gawk '
+    BEGIN {
+      print "isc_m_largerthan_5.cat"
+    }'))
+else
+  selected_files=($(gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+    @include "tectoplot_functions.awk"
+    BEGIN   {
+      print "isc_m_largerthan_5.cat"
+      newminlon=minlon
+      newmaxlon=maxlon
+      if (maxlon > 180) {
+        tilesabove180flag=1
+        maxlon2=maxlon-360
+        maxlon=180
+      }
+      if (minlon < -180) {
+        tilesbelowm180flag=1
+        minlon2=minlon+360
+        minlon=-180
+      }
       minlattile=rd(minlat,5);
-      minlontile=rd(-180,5);
+      minlontile=rd(minlon,5);
       maxlattile=rd(maxlat,5);
-      maxlontile=rd(maxlon2,5);
+      maxlontile=rd(maxlon,5);
       maxlattile=(maxlattile>85)?85:maxlattile;
       maxlontile=(maxlontile>175)?175:maxlontile;
-      # print ":+: Selecting additional tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
+      # print "Selecting tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
       for (i=minlontile; i<=maxlontile; i+=5) {
         for (j=minlattile; j<=maxlattile; j+=5) {
           printf("tile_%d_%d.cat\n", i, j)
         }
       }
-    }
 
-    if (tilesbelowm180flag == 1) {
-      minlattile=rd(minlat,5);
-      minlontile=rd(minlon2,5);
-      maxlattile=rd(maxlat,5);
-      maxlontile=rd(175,5);
-      maxlattile=(maxlattile>85)?85:maxlattile;
-      maxlontile=(maxlontile>175)?175:maxlontile;
-      print ":-: Selecting additional tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
-      for (i=minlontile; i<=maxlontile; i+=5) {
-        for (j=minlattile; j<=maxlattile; j+=5) {
-          printf("tile_%d_%d.cat\n", i, j)
+      if (tilesabove180flag == 1) {
+        minlattile=rd(minlat,5);
+        minlontile=rd(-180,5);
+        maxlattile=rd(maxlat,5);
+        maxlontile=rd(maxlon2,5);
+        maxlattile=(maxlattile>85)?85:maxlattile;
+        maxlontile=(maxlontile>175)?175:maxlontile;
+        # print ":+: Selecting additional tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
+        for (i=minlontile; i<=maxlontile; i+=5) {
+          for (j=minlattile; j<=maxlattile; j+=5) {
+            printf("tile_%d_%d.cat\n", i, j)
+          }
         }
       }
-    }
-  }'))
 
-# echo ${selected_files[@]}
+      if (tilesbelowm180flag == 1) {
+        minlattile=rd(minlat,5);
+        minlontile=rd(minlon2,5);
+        maxlattile=rd(maxlat,5);
+        maxlontile=rd(175,5);
+        maxlattile=(maxlattile>85)?85:maxlattile;
+        maxlontile=(maxlontile>175)?175:maxlontile;
+        print ":-: Selecting additional tiles covering domain [" newminlon, newmaxlon, minlat, maxlat "] -> [" minlontile, maxlontile+5, minlattile, maxlattile+5 "]"  > "/dev/stderr"
+        for (i=minlontile; i<=maxlontile; i+=5) {
+          for (j=minlattile; j<=maxlattile; j+=5) {
+            printf("tile_%d_%d.cat\n", i, j)
+          }
+        }
+      }
+    }'))
+fi
 
 for this_file in ${selected_files[@]}; do
-    if [[ -s ${ISCTILEDIR}${this_file} ]]; then
-      # echo ${ISCTILEDIR}${this_file}
-      #head ${ISCTILEDIR}${this_file}
-
-      # Not sure this is needed for ISC data...?
-      #gawk < ${ISCTILEDIR}${this_file} -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | sed 's/\"//g' | head
-      # echo gawk -F, \< ${ISCTILEDIR}${this_file} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH}
+  if [[ -s ${ISCTILEDIR}${this_file} ]]; then
       gawk -F, < ${ISCTILEDIR}${this_file} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '
       @include "tectoplot_functions.awk"
       {
