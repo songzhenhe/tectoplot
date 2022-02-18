@@ -49,6 +49,7 @@
 # Note that ISC queries require the correct final day of the month, including leap years!
 
 # tac not available in all environments but tail usually is.
+ISC_MIRROR="http://www.isc.ac.uk"
 
 function tecto_tac() {
   gawk '{
@@ -118,6 +119,7 @@ function download_isc_focals_file() {
 
   case ${parsed[1]} in
     1)
+    echo curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=04&end_day=30&end_time=23%3A59%3A59"
       curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=04&end_day=30&end_time=23%3A59%3A59" > $1
     ;;
     2)
