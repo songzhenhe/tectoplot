@@ -834,6 +834,11 @@ do
   key="${1}"
   case ${key} in
 
+ -version|--version)
+  echo "tectoplot ${TECTOPLOT_VERSION}"
+  exit 0
+  ;;
+
  -ips) # args: file
    overplotflag=1
    PLOTFILE=$(abs_path $2)
