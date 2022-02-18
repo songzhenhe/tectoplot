@@ -24,6 +24,7 @@ function tectoplot_defaults_eqslip() {
   EQSLIP_TEXTCOLOR=black
   EQSLIP_CONTOURTRANS=25       # transparency of contours
   EQSLIP_CONTOURSMOOTH=3       # smoothing factor for contours
+  plottedeqslipcptflag=0       # Did we already add to the legend?
 }
 
 function tectoplot_args_eqslip()  {
@@ -168,6 +169,9 @@ function tectoplot_calculate_eqslip()  {
     }')
     calculated_eqslip=1
 
+    gmt makecpt -T${cur_zmin}/${cur_zmax} -Clajolla -Z ${VERBOSE} > ${F_CPTS}slip.cpt
+
+
     for eqindex in $(seq 0 $numeqslipend); do
       # N A pen - annotate
       # N c pen - draw without annotation, minor
@@ -209,9 +213,8 @@ function tectoplot_calculate_eqslip()  {
   fi
 }
 
-function tectoplot_cpt_eqslip() {
-    gmt makecpt -T0/500/10 -Clajolla -Z ${VERBOSE} > ${F_CPTS}slip.cpt
-}
+# function tectoplot_cpt_eqslip() {
+# }
 
 function tectoplot_plot_eqslip() {
 
@@ -270,9 +273,19 @@ function tectoplot_plot_eqslip() {
 #   echo "none"
 # }
 
-# function tectoplot_legendbar_eqslip() {
-#   echo "none"
-# }
+function tectoplot_legendbar_eqslip() {
+  case $1 in
+    eqslip)
+    # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
+    if [[ $plottedeqslipcptflag -eq 0 ]]; then
+      plottedneiscptflag=1
+      echo "G 0.2i" >> legendbars.txt
+      echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu+e -Bxaf+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+      barplotcount=$barplotcount+1
+    fi
+    tectoplot_caught_legendbar=1
+    ;;
+  esac}
 
 
 # function tectoplot_post_eqslip() {
