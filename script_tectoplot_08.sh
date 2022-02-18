@@ -31,14 +31,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-VERSION="0.4.2"
-TECTOPLOT_VERSION="TECTOPLOT ${VERSION}, July 2021"
-
-# [[ -s ~/.bash_profile ]] && source ~/.bash_profile
-
-
-# To do 2022: Update to GMT 6.3, require Python 3.9, accommodate installing Miniconda3
-# on OSX as installing miniconda the old way breaks when Python2.7 is used...
+source ${TECTOPLOTDIR}tectoplot.version
 
 # Specific issues:
 # use gmt mapproject -W to get rectangular region of oblique projections
