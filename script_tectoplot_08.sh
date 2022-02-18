@@ -835,7 +835,7 @@ do
   case ${key} in
 
  -version|--version)
-  echo "tectoplot ${TECTOPLOT_VERSION}"
+  echo "tectoplot v.${TECTOPLOT_VERSION}"
   exit 0
   ;;
 
