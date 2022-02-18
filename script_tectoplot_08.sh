@@ -1608,6 +1608,7 @@ EOF
 shift && continue
 fi
 
+
   if arg_is_flag $2; then
     info_msg "[-recenteq]: No day number specified, using last 7 days"
   else
