@@ -14,7 +14,7 @@ function tectoplot_defaults_resgrid() {
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
   RESGRID_CPTRANGE=400
   RESGRID_TRANS=0
-
+  calcvresflag=0
 }
 
 function tectoplot_args_resgrid()  {
@@ -207,6 +207,7 @@ EOF
 
     plots+=("resgrid")
     cpts+=("resgrid")
+    calcvresflag=1
 
     tectoplot_module_caught=1
     ;;
@@ -218,11 +219,13 @@ EOF
 # }
 
 function tectoplot_calculate_resgrid()  {
-  info_msg "Making residual gravity along ${GRAVXYFILE}"
-  mkdir -p ./resgrav
-  cd ./resgrav
-  ${SWATH} ${GRAVWIDTHKM} ${GRAVALONGAVKM} ${GRAVACROSSAVKM} ${GRAVXYFILE} ${GRAVDATA} 0.1
-  cd ..
+  if [[ $calcvresflag -eq 1 ]]; then
+    info_msg "Making residual gravity along ${GRAVXYFILE}"
+    mkdir -p ./resgrav
+    cd ./resgrav
+    ${SWATH} ${GRAVWIDTHKM} ${GRAVALONGAVKM} ${GRAVACROSSAVKM} ${GRAVXYFILE} ${GRAVDATA} 0.1
+    cd ..
+  fi
 }
 
 function tectoplot_cpt_resgrid() {
