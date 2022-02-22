@@ -61,6 +61,9 @@
 
 # This is the date that separates old catalog from new (more rapidly updated) catalog
 
+ISC_VERBOSE=0
+[[ $ISC_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
+# Set ISC_VERBOSE=1 to enable various messages about the scraping process
 
 function tecto_tac() {
   if hash tac 2>/dev/null; then
@@ -207,7 +210,7 @@ function download_and_check() {
 
     echo "Dowloading seismicity from ${s_year}-${s_month}-${s_day} to ${e_year}-${e_month}-${e_day}"
 
-    curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${s_year}&start_month=${s_month}&start_day=${s_day}&start_time=00%3A00%3A00&end_year=${e_year}&end_month=${e_month}&end_day=${e_day}&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
+    curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${s_year}&start_month=${s_month}&start_day=${s_day}&start_time=00%3A00%3A00&end_year=${e_year}&end_month=${e_month}&end_day=${e_day}&end_time=23%3A59%3A59&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
 
     CURL_EXIT=$?
     echo "CURL returned exit code ${CURL_EXIT}"
@@ -277,8 +280,8 @@ function download_by_code {
   # 214 2021 10 05 05 16 47 2022 02 12 08 36 35
   OUTFILE="isc_events_${1}.cat"
   echo "Dowloading seismicity for catalog file number {1}"
-  echo curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${2}&start_month=${3}&start_day=${4}&start_time=${5}%3A${6}%3A${7}&end_year=${8}&end_month=${9}&end_day=${10}&end_time=${11}%3A${12}%3A${13}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \| sed -n '/^  EVENTID/,/^STOP/p' \| sed '1d;$d' \| sed '$d' \> $OUTFILE
-  curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${2}&start_month=${3}&start_day=${4}&start_time=${5}%3A${6}%3A${7}&end_year=${8}&end_month=${9}&end_day=${10}&end_time=${11}%3A${12}%3A${13}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' > $OUTFILE
+  echo curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${2}&start_month=${3}&start_day=${4}&start_time=${5}%3A${6}%3A${7}&end_year=${8}&end_month=${9}&end_day=${10}&end_time=${11}%3A${12}%3A${13}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \| sed -n '/^  EVENTID/,/^STOP/p' \| sed '1d;$d' \| sed '$d' \> $OUTFILE
+  curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${2}&start_month=${3}&start_day=${4}&start_time=${5}%3A${6}%3A${7}&end_year=${8}&end_month=${9}&end_day=${10}&end_time=${11}%3A${12}%3A${13}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' > $OUTFILE
 }
 
 # Change into the ISC data directory, creating if needed, and check Tiles directory
@@ -294,7 +297,7 @@ fi
 TILEDIR=${1}
 
 if [[ ! -d ${TILEDIR} ]]; then
-  echo "download_isc_catalogs: no tile directory ${TILEDIR}"
+  echo "ISC seismicity scrape: no such tile directory ${TILEDIR}"
   return
 fi
 
@@ -737,7 +740,7 @@ EOF
   added_catalog=0
   while read this_cat; do
     catargs=($(echo $this_cat))
-    echo "Looking at catargs: ${catargs[@]}"
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Looking at catargs: ${catargs[@]}"
     OUTFILE="isc_catalog_${catargs[0]}.cat"
 
     if [[ ! -s "isc_catalog_${catargs[0]}.cat" ]]; then
@@ -745,9 +748,9 @@ EOF
       keep_going=1
       while [[ $keep_going -eq 1 ]]; do
         # download_by_code ${catargs[@]}
-        echo "Dowloading seismicity for catalog file number ${catargs[0]}"
-        echo curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${catargs[1]}&start_month=${catargs[2]}&start_day=${catargs[3]}&start_time=${catargs[4]}%3A${catargs[5]}%3A${catargs[6]}&end_year=${catargs[7]}&end_month=${catargs[8]}&end_day=${catargs[9]}&end_time=${catargs[10]}%3A${catargs[11]}%3A${catargs[12]}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \| sed -n '/^  EVENTID/,/^STOP/p' \| sed '1d;$d' \| sed '$d' \> $OUTFILE
-        curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${catargs[1]}&start_month=${catargs[2]}&start_day=${catargs[3]}&start_time=${catargs[4]}%3A${catargs[5]}%3A${catargs[6]}&end_year=${catargs[7]}&end_month=${catargs[8]}&end_day=${catargs[9]}&end_time=${catargs[10]}%3A${catargs[11]}%3A${catargs[12]}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
+        [[ $ISC_VERBOSE -eq 1 ]] && echo "Dowloading seismicity for catalog file number ${catargs[0]}"
+        [[ $ISC_VERBOSE -eq 1 ]] && echo curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${catargs[1]}&start_month=${catargs[2]}&start_day=${catargs[3]}&start_time=${catargs[4]}%3A${catargs[5]}%3A${catargs[6]}&end_year=${catargs[7]}&end_month=${catargs[8]}&end_day=${catargs[9]}&end_time=${catargs[10]}%3A${catargs[11]}%3A${catargs[12]}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \| sed -n '/^  EVENTID/,/^STOP/p' \| sed '1d;$d' \| sed '$d' \> $OUTFILE
+        curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${catargs[1]}&start_month=${catargs[2]}&start_day=${catargs[3]}&start_time=${catargs[4]}%3A${catargs[5]}%3A${catargs[6]}&end_year=${catargs[7]}&end_month=${catargs[8]}&end_day=${catargs[9]}&end_time=${catargs[10]}%3A${catargs[11]}%3A${catargs[12]}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
 
         iscomplete=$(tecto_tac "${OUTFILE}" | grep -m 1 STOP)
         if [[ $iscomplete != "STOP" ]]; then
@@ -766,7 +769,7 @@ EOF
       done
       tile_catalog ${TILEDIR} ${OUTFILE}
     else
-      echo "File isc_catalog_${catargs[0]}.cat exists already"
+      [[ $ISC_VERBOSE -eq 1 ]] && echo "File isc_catalog_${catargs[0]}.cat exists already"
     fi
   done < isc_program.txt
 
@@ -781,9 +784,9 @@ EOF
     iscomplete=1
     for fileind in $(seq $endnum -1 0); do
       latest_catalog_file=${catalog_files[$fileind]}
-      echo "Verifying catalog file ${latest_catalog_file}"
+      [[ $ISC_VERBOSE -eq 1 ]] && echo "Verifying catalog file ${latest_catalog_file}"
       if [[ $(tecto_tac $latest_catalog_file | grep -m 1 "STOP") != "STOP" ]]; then
-        echo "Deleting catalog file without STOP line: $latest_catalog_file"
+        [[ $ISC_VERBOSE -eq 1 ]] && echo "Deleting catalog file without STOP line: $latest_catalog_file"
         iscomplete=0
       fi
     done
@@ -802,9 +805,9 @@ function scrape_latest_events {
     # Delete any empty catalog files until we find one that isn't empty
     for fileind in $(seq $endnum -1 0); do
       latest_catalog_file=${catalog_files[$fileind]}
-      echo $latest_catalog_file
+      # echo $latest_catalog_file
       if [[ $(grep "STOP" $latest_catalog_file) != "STOP" ]]; then
-        echo "Deleting catalog file without STOP: $latest_catalog_file"
+        [[ $ISC_VERBOSE -eq 1 ]] && echo "Deleting catalog file without STOP: $latest_catalog_file"
         rm -f $latest_catalog_file
       else
         break
@@ -812,11 +815,11 @@ function scrape_latest_events {
     done
 
     if [[ $file_ind -lt 0 ]]; then
-      echo "No catalogs exist."
+      echo "ISC seismicity scraper: No catalogs exist."
       return
     fi
 
-    echo "Last file with a recorded event is ${catalog_files[$fileind]}"
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Last file with a recorded event is ${catalog_files[$fileind]}"
 
     latest_catalog_num=$(echo ${catalog_files[$fileind]} | cut -f 3 -d '_' | cut -f 1 -d '.')
 
@@ -852,13 +855,13 @@ function scrape_latest_events {
     this_minute=$(date -u +"%M")
     this_second=$(date -u +"%S")
 
-    echo mirror is ${ISC_MIRROR}
+    [[ $ISC_VERBOSE -eq 1 ]] && echo mirror is ${ISC_MIRROR}
     OUTFILE="newisc_catalog_${new_catalog_num}.cat"
 
-    echo "Dowloading seismicity after latest saved event: $lastline"
-    echo       curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${lastdatetime[0]}&start_month=${lastdatetime[1]}&start_day=${lastdatetime[2]}&start_time=${lastdatetime[3]}%3A${lastdatetime[4]}%3A${lastdatetime[5]}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=${this_hour}%3A${this_minute}%3A${this_second}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \> $OUTFILE
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Dowloading seismicity after latest saved event: $lastline"
+    [[ $ISC_VERBOSE -eq 1 ]] && echo       curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${lastdatetime[0]}&start_month=${lastdatetime[1]}&start_day=${lastdatetime[2]}&start_time=${lastdatetime[3]}%3A${lastdatetime[4]}%3A${lastdatetime[5]}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=${this_hour}%3A${this_minute}%3A${this_second}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" \> $OUTFILE
 
-    curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${lastdatetime[0]}&start_month=${lastdatetime[1]}&start_day=${lastdatetime[2]}&start_time=${lastdatetime[3]}%3A${lastdatetime[4]}%3A${lastdatetime[5]}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=${this_hour}%3A${this_minute}%3A${this_second}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
+    curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV&searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${lastdatetime[0]}&start_month=${lastdatetime[1]}&start_day=${lastdatetime[2]}&start_time=${lastdatetime[3]}%3A${lastdatetime[4]}%3A${lastdatetime[5]}&end_year=${this_year}&end_month=${this_month}&end_day=${this_day}&end_time=${this_hour}%3A${this_minute}%3A${this_second}&min_dep=&max_dep=&min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > $OUTFILE
 
     # Delete the new catalog file if it is empty
     if [[ -e ${OUTFILE} && ! -s ${OUTFILE} ]]; then
@@ -876,7 +879,7 @@ function tile_catalog {
   CATALOGFILE=${2}
 
   if [[ -s "${2}" ]]; then
-    echo "Processing file ${2} into tile files"
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Processing file ${2} into tile files"
     sed < "${2}" -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | gawk -F, -v tiledir=${TILEDIR} '
     BEGIN { added=0 }
     function rd(n, multipleOf)
@@ -911,16 +914,16 @@ function tile_catalog {
 ISCDIR="$1"
 
 if [[ -d $ISCDIR ]]; then
-  echo "ISC tile directory exists."
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "ISC tile directory exists."
 else
-  echo "Creating ISC seismicity directory ${ISCDIR}"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Creating ISC seismicity directory ${ISCDIR}"
   mkdir -p ${ISCDIR}
 fi
 
 cd $ISCDIR
 
 if [[ $2 == "rebuild" ]]; then
-  echo "Rebuilding tiles from saved catalogs"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Rebuilding tiles from saved catalogs"
   rm -f ./tiles/*.cat
   for i in *.cat; do
     tile_catalog ./tiles/ $i
