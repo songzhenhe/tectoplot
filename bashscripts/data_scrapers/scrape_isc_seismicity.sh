@@ -903,7 +903,7 @@ function tile_catalog {
       added++
     }
     END {
-      print "Added", added, "events to ISC tiles."
+      print ">>>> Added", added, "events to ISC seismicity tiles <<<<"
     }'
   fi
 }

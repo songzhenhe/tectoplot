@@ -62,6 +62,9 @@
 # This is the date that separates old catalog from new (more rapidly updated) catalog
 ANSS_MIRROR="https://earthquake.usgs.gov"
 
+# Set ANSS_VERBOSE=1 for more illuminating messages
+ANSS_VERBOSE=0
+[[ $ANSS_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 # Not needed anymore
 # function tecto_tac() {
 #   if hash tac 2>/dev/null; then
@@ -83,7 +86,7 @@ ANSS_MIRROR="https://earthquake.usgs.gov"
 
 function anss_update_catalog() {
 
-  echo "Scraping ANSS data in directory $(pwd)"
+  [[ $ANSS_VERBOSE -eq 1 ]] && echo "Scraping ANSS data in directory $(pwd)"
   TILEDIR="${1}"
 
   if [[ ! -d ${TILEDIR} ]]; then
@@ -98,7 +101,7 @@ function anss_update_catalog() {
   # scraping from there.
 
   while [[ ! -s $latest_anss_file ]]; do
-    echo "Removing empty catalog file $latest_anss_file; probably leftover from previous scrape"
+    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Removing empty catalog file $latest_anss_file; probably leftover from previous scrape"
     rm -f $latest_anss_file
     latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
   done
@@ -128,7 +131,7 @@ function anss_update_catalog() {
         newtime = strftime("%FT%T", secs+2);
         print newtime
       }')
-      echo "Looking for events following last downloaded event at: ${new_time}"
+      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Looking for events following last downloaded event at: ${new_time}"
       s_year=${new_time:0:4}
       s_month=${new_time:5:2}
       s_day=${new_time:8:2}
@@ -149,9 +152,12 @@ function anss_update_catalog() {
     # 1000       1959     18804
     # 1959       1969     19639
     if [[ ! -s anss_index_1.cat ]]; then
-      echo "Downloading events from 1000 AD to 1959 AD"
-      curl "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1000-01-01T00:00:00&endtime=1959-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_1.cat
+      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1000 AD to 1959 AD"
+
+      curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1000-01-01T00:00:00&endtime=1959-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_1.cat
+
       lastevent=$(tail -n 1 anss_index_1.cat | gawk -F, '{split($1, a, "."); print a[1]}')
+
       if [[ $lastevent == "" ]]; then
         echo "Error: could not download events from 1000 to 1959"
         rm -f anss_index_1.cat
@@ -159,8 +165,8 @@ function anss_update_catalog() {
       fi
     fi
     if [[ ! -s anss_index_2.cat ]]; then
-      echo "Downloading events from 1960 AD to 1969 AD"
-      curl "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1960-01-01T00:00:00&endtime=1969-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_2.cat
+      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1960 AD to 1969 AD"
+      curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1960-01-01T00:00:00&endtime=1969-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_2.cat
       lastevent=$(tail -n 1 anss_index_2.cat | gawk -F, '{split($1, a, "."); print a[1]}')
       if [[ $lastevent == "" ]]; then
         echo "Error: could not download events from 1960 to 1969"
@@ -193,14 +199,15 @@ function anss_update_catalog() {
   # download the first several increments
 
   while [[ $got_events -eq 1 ]]; do
-    echo "Downloading 20000 events starting at ${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second} into anss_index_${file_ind}.cat"
+    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading 20000 events starting at ${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second} into anss_index_${file_ind}.cat"
 
-    echo curl "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc"
+    [[ $ANSS_VERBOSE -eq 1 ]] && echo curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc"
 
-    curl "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_${file_ind}.cat
-    tail anss_index_${file_ind}.cat
+    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_${file_ind}.cat
+
     # Read the date string of the last downloaded event
     lastevent=$(tail -n 1 anss_index_${file_ind}.cat | gawk -F, '{split($1, a, "."); print a[1]}')
+
     if [[ $lastevent == "" || $lastevent == "</BODY></HTML>" ]]; then
       got_events=0
 
@@ -225,7 +232,7 @@ function anss_update_catalog() {
           newtime = strftime("%FT%T", secs+2);
           print newtime
         }')
-        echo "newtime is ${new_time}"
+        [[ $ANSS_VERBOSE -eq 1 ]] && echo "newtime is ${new_time}"
         s_year=${new_time:0:4}
         s_month=${new_time:5:2}
         s_day=${new_time:8:2}
@@ -250,7 +257,7 @@ function tile_catalog_file {
   TILEDIR=$1
   CATALOGFILE=$2
 
-  echo "Processing ANSS file $CATALOGFILE into tile files"
+  [[ $ANSS_VERBOSE -eq 1 ]] && echo "Processing ANSS file $CATALOGFILE into tile files"
   gawk < ${CATALOGFILE} -F, -v tiledir=${TILEDIR} '
     BEGIN { added=0 }
     function rd(n, multipleOf)
@@ -277,7 +284,7 @@ function tile_catalog_file {
       added++
     }
     END {
-      print "Added", added, "events to ANSS tiles."
+      print ">>>> Added", added, "events to ANSS tiles <<<<"
     }'
 }
 
@@ -286,9 +293,9 @@ function tile_catalog_file {
 ANSSDIR="${1}"
 
 if [[ -d $ANSSDIR ]]; then
-  echo "ANSS tile directory exists."
+  [[ $ANSS_VERBOSE -eq 1 ]] && echo "ANSS tile directory exists."
 else
-  echo "Creating ANSS seismicity directory ${ANSSDIR}"
+  [[ $ANSS_VERBOSE -eq 1 ]] && echo "Creating ANSS seismicity directory ${ANSSDIR}"
   mkdir -p ${ANSSDIR}
 fi
 

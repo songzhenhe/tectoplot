@@ -113,4 +113,4 @@ cat gcmt_extract_pre.cat gcmt_quick.cat | gawk '
 
 AFTER=$(wc -l < gcmt_extract.cat)
 GCMT_ADDED=$(echo "$AFTER - $BEFORE" | bc)
-echo "Added $GCMT_ADDED GCMT focal mechanisms"
+echo ">>>> Added $GCMT_ADDED GCMT focal mechanisms <<<<"

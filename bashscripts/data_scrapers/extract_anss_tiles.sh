@@ -64,14 +64,12 @@ EQCUTMINDEPTH="${10}"
 EQCUTMAXDEPTH="${11}"
 OUTPUTFILE="${12}"
 
-echo ${@}
 # # Initial selection of files based on the input latitude and longitude range
 # Include the temporary catalog in the tiles directory for all searches
 
 # If minimum magnitude is 5.0 or larger, only query the catalog file with those events.
 
 if [[ $(echo "${EQ_MINMAG} >= 5.0" | bc -l) -eq 1 ]]; then
-  echo a
   selected_files=($(gawk '
     BEGIN {
       print "anss_m_largerthan_5.cat"
@@ -138,7 +136,7 @@ else
     }'))
 fi
 
-echo ${selected_files[@]}
+# echo ${selected_files[@]}
 
 for this_file in ${selected_files[@]}; do
     # echo unzip -p $ANSS_TILEZIP ${this_file}
@@ -154,28 +152,3 @@ for this_file in ${selected_files[@]}; do
       }' >> ${OUTPUTFILE}
     fi
 done
-
-#
-# for this_file in ${selected_files[@]}; do
-#   if [[ -s ${ANSSTILEDIR}${this_file} ]]; then
-#       gawk -F, < ${ANSSTILEDIR}${this_file} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v mindate=${STARTTIME} -v maxdate=${ENDTIME} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} '
-#       @include "tectoplot_functions.awk"
-#       {
-#         lat=$6+0
-#         lon=$7+0
-#         depth=$8+0
-#         mag=$12+0
-#         if ($6+0==$6 && $7+0==$7 && $8+0==$8 && $12+0==$12) {
-#           if (lat <= maxlat && lat >= minlat && mag >= minmag && mag <= maxmag && depth >= mindepth && depth <= maxdepth) {
-#             if (test_lon(minlon, maxlon, lon)==1) {
-#               # Now we check if the event actually falls inside the specified time window
-#               timecode=sprintf("%sT%s", $4, substr($5, 1, 8))
-#               if (mindate <= timecode && timecode <= maxdate) {
-#                 print
-#               }
-#             }
-#           }
-#         }
-#       }' >> ${OUTPUTFILE}
-#   fi
-# done

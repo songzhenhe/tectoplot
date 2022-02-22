@@ -1065,7 +1065,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
                     split($5, vec, "-");
                     offset=vec[3]
                   } else {
-                    yval=$3
+                    yval=-$3
                     xval=(offset * (dinc + 0) + xoff);
                     redval=$5
                     greenval=$6
@@ -1147,7 +1147,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt
               paste ${F_PROFILES}${LINEID}_${grididnum[$i]}_dadtpre.txt tmp1.txt | gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '
               {
                 xval=($7 * (dinc + 0) + xoff)
-                yval=-$4*$5/1000
+                yval=$4*$5/1000
                 redval=$12
                 greenval=$13
                 blueval=$14
@@ -1175,7 +1175,7 @@ cat << EOF > ${F_PROFILES}${LINEID}_${grididnum[$i]}_data.vrt
     <OGRVRTLayer name="${LINEID}_${grididnum[$i]}_data">
         <SrcDataSource>${LINEID}_${grididnum[$i]}_data.csv</SrcDataSource>
         <GeometryType>wkbPoint</GeometryType>
-        <LayerSRS>EPSG:32612</LayerSRS>
+        <LayerSRS>EPSG:3857</LayerSRS>
         <GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"/>
     </OGRVRTLayer>
 </OGRVRTDataSource>
@@ -1187,7 +1187,7 @@ cat << EOF > ${F_PROFILES}red.vrt
     <OGRVRTLayer name="red">
         <SrcDataSource>red.csv</SrcDataSource>
         <GeometryType>wkbPoint</GeometryType>
-        <LayerSRS>EPSG:32612</LayerSRS>
+        <LayerSRS>EPSG:3857</LayerSRS>
         <GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"/>
     </OGRVRTLayer>
 </OGRVRTDataSource>
@@ -1198,7 +1198,7 @@ cat << EOF > ${F_PROFILES}green.vrt
     <OGRVRTLayer name="green">
         <SrcDataSource>green.csv</SrcDataSource>
         <GeometryType>wkbPoint</GeometryType>
-        <LayerSRS>EPSG:32612</LayerSRS>
+        <LayerSRS>EPSG:3857</LayerSRS>
         <GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"/>
     </OGRVRTLayer>
 </OGRVRTDataSource>
@@ -1209,51 +1209,44 @@ cat << EOF > ${F_PROFILES}blue.vrt
     <OGRVRTLayer name="blue">
         <SrcDataSource>blue.csv</SrcDataSource>
         <GeometryType>wkbPoint</GeometryType>
-        <LayerSRS>EPSG:32612</LayerSRS>
+        <LayerSRS>EPSG:3857</LayerSRS>
         <GeometryField encoding="PointFromColumns" x="field_1" y="field_2" z="field_3"/>
     </OGRVRTLayer>
 </OGRVRTDataSource>
 EOF
         fi
-
+        dem_minz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $5*zs}')
+    >         dem_maxz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $6*zs}')
         # dem_minx,y are in units of km
         dem_minx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
         dem_maxx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $2}')
         dem_miny=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $3}')
         dem_maxy=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $4}')
-
-        # COMEBACK: The profile DEM is in meters and not km at this point for some reason
         dem_minz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $5*zs}')
         dem_maxz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $6*zs}')
         # echo dem_minx $dem_minx dem_maxx $dem_maxx dem_miny $dem_miny dem_maxy $dem_maxy dem_minz $dem_minz dem_maxz $dem_maxz
 
         dem_xtoyratio=$(echo "($dem_maxx - $dem_minx)/($dem_maxy - $dem_miny)" | bc -l)
         dem_ztoxratio=$(echo "($dem_maxz - $dem_minz)/($dem_maxx - $dem_minx)" | bc -l)
-        # echo demztoxratio is $dem_ztoxratio
 
         # Calculate zsize from xsize
         xsize=$(echo $PROFILE_WIDTH_IN | gawk '{print $1+0}')
-        # echo xsize is $xsize
-
-        # multiply Z by scale
         zsize=$(echo "$xsize * $dem_ztoxratio" | bc -l)
-        # echo zsize is $zsize
 
         numx=$(echo "($dem_maxx - $dem_minx)/$PERSPECTIVE_RES" | bc)
         numy=$(echo "($dem_maxy - $dem_miny)/$PERSPECTIVE_RES" | bc)
 
         cd ${F_PROFILES}
 
-          gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.tif
+          gdal_grid -q -of "netCDF" -txe $dem_minx $dem_maxx -tye $dem_maxy $dem_miny  -outsize $numx $numy -zfield field_3 -a nearest -l ${LINEID}_${grididnum[$i]}_data ${LINEID}_${grididnum[$i]}_data.vrt ${LINEID}_${grididnum[$i]}_newgrid.nc
 
           if [[ $topgridcoloredreliefflag -eq 1 ]]; then
-            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l red red.vrt ${LINEID}_${grididnum[$i]}_red.tif
-            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l green green.vrt ${LINEID}_${grididnum[$i]}_green.tif
-            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_miny $dem_maxy -outsize $numx $numy -zfield field_3 -a nearest -l blue blue.vrt ${LINEID}_${grididnum[$i]}_blue.tif
+            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_maxy $dem_miny -outsize $numx $numy -zfield field_3 -a nearest -l red red.vrt red.tif
+            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_maxy $dem_miny -outsize $numx $numy -zfield field_3 -a nearest -l green green.vrt green.tif
+            gdal_grid -q -of "GTiff" -txe $dem_minx $dem_maxx -tye $dem_maxy $dem_miny -outsize $numx $numy -zfield field_3 -a nearest -l blue blue.vrt blue.tif
 
-            gdal_merge.py -of "GTiff" -q -separate ${LINEID}_${grididnum[$i]}_red.tif ${LINEID}_${grididnum[$i]}_green.tif ${LINEID}_${grididnum[$i]}_blue.tif -ot Byte -o ${LINEID}_${grididnum[$i]}_colored_hillshade.tif
-           rm -f ./red.csv ./green.csv ./blue.csv ./red.vrt ./green.vrt ./blue.vrt
-           # ./red.tif ./green.tif ./blue.tif
+            gdal_merge.py -q -separate red.tif green.tif blue.tif -ot Byte -o ${LINEID}_${grididnum[$i]}_colored_hillshade.tif
+            rm -f ./red.tif ./green.tif ./blue.tif ./red.csv ./green.csv ./blue.csv ./red.vrt ./green.vrt ./blue.vrt
           fi
         cd ..
 
@@ -1327,8 +1320,9 @@ EOF
         # This assumes topo is in m and needs to be in km... not applicable for other grids
 
         gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${F_PROFILES}${LINEID}_topokm.cpt
+        echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc  -G${F_PROFILES}${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        # echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc -Cgeo -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-        echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.tif  -G${F_PROFILES}${LINEID}_${grididnum[$i]}_red.tif -G${F_PROFILES}${LINEID}_${grididnum[$i]}_green.tif -G${F_PROFILES}${LINEID}_${grididnum[$i]}_blue.tif -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
       fi
 
 
@@ -2387,7 +2381,7 @@ EOF
       echo "fi" >> ${LINEID}_plot_start.sh
 
       echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_plot_start.sh
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --FONT_ANNOT_PRIMARY=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_ANNOT_PRIMARY=\"10p,Helvetica,black\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh
@@ -2497,11 +2491,8 @@ EOF
     # Center the frame on the new PS document
     echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
-cleanup ${LINEID}_temp_plot.sh
-
-    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --FONT_ANNOT_PRIMARY=\"10p,Helvetica,black\" --FONT_ANNOT_SECONDARY=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
-
-
+    cleanup ${LINEID}_temp_plot.sh
+    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile_plot.sh
 
     echo "./${LINEID}_profile_plot.sh ${line_min_z} ${line_max_z}" >> ./plot_flat_profiles.sh
@@ -2616,7 +2607,7 @@ echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)"  >> plot_combi
 echo "PROFILE_Y_C=\$(echo \${PROFILE_HEIGHT_IN} \${PROFILE_WIDTH_IN} | gawk '{print (\$1+0)+(\$2+0)  \"i\"}')"  >> plot_combined_profiles.sh
 echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
 cat plot.sh >> plot_combined_profiles.sh
-echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --FONT_ANNOT_PRIMARY=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
+echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psxy -T -R -J -O -Vn >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps >/dev/null 2>&1" >> plot_combined_profiles.sh
 

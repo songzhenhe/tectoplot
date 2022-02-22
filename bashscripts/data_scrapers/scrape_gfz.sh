@@ -135,7 +135,7 @@ while read p; do
     fi
   fi
 done < gfz_list_newevents.txt
-echo "Added ${added} events."
+echo ">>>> Added ${added} events to GFZ database <<<<"
 
 rm -f gfz_list_*.txt
 rm -f cmt_tools_rejected.dat

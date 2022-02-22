@@ -192,13 +192,8 @@ source ${TECTOPLOTDIR}tectoplot.version
 # Add option to plot GPS velocity vectors at the surface along profiles?
 #     --> e.g. sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
 # Add option to profile.control to plot 3D datasets within the box?
-# Add option to smooth/filter the DEM before hillshading?
 
-# Add option to specify only a profile and plot default data onto that profile and a map within that AOI
-# Add routines to plot existing cached data tile extents (e.g. GMRT, other topo) and clear cached data
-# Need to formalize argument checking approach and apply it to all options
 # Need to change program structure so that multiple grids can be overlaid onto shaded relief.
-# Add option to plot a USGS event from a URL?
 # Add option to plot stacked data across a profile swath
 # Add option to take a data selection polygon from a plate model?
 # add option to plot NASA Blue Marble / day/night images, and crustal age maps, from GMT online server
@@ -1796,6 +1791,11 @@ if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -mmi:         plot Shakemap MMI contours for USGS event
 Usage: -mmi [eventID] [[eventID2 ...]] [[grid]] [[label color]]
+
+  eventIDs are ANSS ID codes
+  Options:
+  grid             Plot the MMI raster beneath the contours
+  label [color]    Change the color of the contour label text
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -2336,7 +2336,7 @@ fi
     info_msg "Attempting to retrieve USGS event ${2}"
     python3 ${USGSQUAKEML} ${2} >> ${TMP}${F_CMT}usgs_foc.cat
     if [[ -s ${TMP}${F_CMT}usgs_foc.cat ]]; then
-      gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
+      gawk < ${TMP}${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3, $11 $2, $4 }' > ${TMP}${F_SEIS}usgs.cat
     else
       echo "[-usgs]: No such event $2"
       exit 1
@@ -11368,7 +11368,7 @@ if [[ $plotseis -eq 1 ]]; then
   for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
     if [[ $eqcattype =~ "ANSS" ]]; then
       F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-      echo "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
+      # echo "[-z]: $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat"
       $EXTRACT_ANSS_TILES $ANSS_TILEDIR $MINLON $MAXLON $MINLAT $MAXLAT $STARTTIME $ENDTIME $EQ_MINMAG $EQ_MAXMAG $EQCUTMINDEPTH $EQCUTMAXDEPTH ${F_SEIS_FULLPATH}anss_extract_tiles.cat
 
       # ANSS CSV format is:
@@ -11483,7 +11483,6 @@ if [[ $plotseis -eq 1 ]]; then
 
         print $7, $6, $8, $12, timestring, "isc" $1, epoch
       }' >> ${F_SEIS}eqs.txt
-      # head ${F_SEIS}eqs.txt
       ((NUMEQCATS+=1))
     fi
     if [[ $eqcattype =~ "EHB" ]]; then
