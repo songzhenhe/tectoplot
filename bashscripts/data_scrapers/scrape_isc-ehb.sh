@@ -32,17 +32,17 @@
 # This script will download the ISC-EHB yearly data files in HDR format.
 
 # Output is a file containing centroid (gcmt_centroid.txt) and origin (gcmt_origin.txt) location focal mechanisms in tectoplot 27 field format:
+ISC_VERBOSE=0
+[[ $ISC_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 
 [[ ! -d $ISCEHBDIR ]] && mkdir -p $ISCEHBDIR
 
 cd $ISCEHBDIR
 
-echo "Downloading ISC-EHB data in HDF format"
-
 for year in $(seq 1964 2017); do
   if [[ ! -s ${year}.hdf ]]; then
-    echo "Downloading ${year}.hdf.gz"
-    curl "ftp://isc-mirror.iris.washington.edu/pub/isc-ehb/${year}.hdf.gz" > ${year}.hdf.gz
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Downloading ${year}.hdf.gz"
+    curl ${CURL_QUIET} "ftp://isc-mirror.iris.washington.edu/pub/isc-ehb/${year}.hdf.gz" > ${year}.hdf.gz
     if gunzip -t ${year}.hdf.gz; then
       gunzip ${year}.hdf.gz
     else
@@ -76,7 +76,7 @@ if [[ $1 == "rebuild" || ! -s ehb_events.cat ]]; then
 
   rm -f ehb_events.cat
 
-  echo "Assembling ISC-EHB catalog from HDF files"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Assembling ISC-EHB catalog from HDF files"
 
   for ehbfile in *.hdf; do
     gawk < $ehbfile '
@@ -120,5 +120,5 @@ if [[ $1 == "rebuild" || ! -s ehb_events.cat ]]; then
       ' >> ehb_events.cat
   done
 else
-  echo "ISC-EHB catalog already exists; to remake catalog, use -scrapedata e rebuild"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "ISC-EHB catalog already exists; to remake catalog, use -scrapedata e rebuild"
 fi

@@ -266,6 +266,13 @@ SRTM30FILE=$SRTM30DIR"topo30.grd"
 SRTM30_SOURCEURL="ftp://topex.ucsd.edu/pub/srtm30_plus/topo30/topo30.grd"
 SRTM30_BYTES="1866759096"
 
+##### SRTM15_v2.3 Global digital elevation model
+
+SRTM15DIR=$DATAROOT"SRTM15_plus_V2/"
+SRTM15FILE=$SRTM15DIR"SRTM15_V2.3.nc"
+SRTM15_SOURCEURL="https://topex.ucsd.edu/pub/srtm15_plus/SRTM15_V2.3.nc"
+SRTM15_BYTES="6503827533"
+
 
 ##### GEBCO 2020 global bathymetry compilation
 

@@ -34,6 +34,8 @@
 # produce a final joined catalog.
 
 # Output is a file containing centroid (gcmt_centroid.txt) and origin (gcmt_origin.txt) location focal mechanisms in tectoplot 27 field format:
+GCMT_VERBOSE=0
+[[ $GCMT_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 
 [[ ! -d $GCMTDIR ]] && mkdir -p $GCMTDIR
 
@@ -66,34 +68,34 @@ rm -f gcmt_quick.cmt
 
 for ndkfile in *.ndk; do
   if [[ $ndkfile == "quick.ndk" ]]; then
-    echo "Skipping QuickCMT"
+    [[ $GCMT_VERBOSE -eq 1 ]] && echo "Skipping QuickCMT"
     continue
   fi
   res=$(grep 404 $ndkfile)
   if [[ $res =~ "<title>404" ]]; then
-    echo "ndk file $ndkfile was not correctly downloaded... deleting."
+    [[ $GCMT_VERBOSE -eq 1 ]] && echo "ndk file $ndkfile was not correctly downloaded... deleting."
     rm -f $ndkfile
   else
     if ! grep $ndkfile gcmt_extracted.txt > /dev/null; then
-      echo "Extracting $ndkfile to pre-catalog"
+      [[ $GCMT_VERBOSE -eq 1 ]] && echo "Extracting $ndkfile to pre-catalog"
       ${CMTTOOLS} $ndkfile K G >> gcmt_extract_pre.cat
       echo $ndkfile >> gcmt_extracted.txt
     fi
   fi
 done
 
-echo "Downloading Quick CMTs"
+[[ $GCMT_VERBOSE -eq 1 ]] && echo "Downloading Quick CMTs"
 
-if ! curl "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk; then
-  echo "Quick CMT download failed... deleting partial file"
+if ! curl ${CURL_QUIET} "https://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_QUICK/qcmt.ndk" > quick.ndk; then
+  [[ $GCMT_VERBOSE -eq 1 ]] && echo "Quick CMT download failed... deleting partial file"
   rm quick.ndk
 else
-  echo "Extracting Quick CMT file"
+  [[ $GCMT_VERBOSE -eq 1 ]] && echo "Extracting Quick CMT file"
   ${CMTTOOLS} quick.ndk K G > gcmt_quick.cat
 fi
 
 # Go through the catalog and remove Quick CMTs (PDEQ) that have a PDEW equivalent
-echo "Combining catalogs and filtering out PDEQ QuickCMTs with equivalent PDEW solutions"
+[[ $GCMT_VERBOSE -eq 1 ]] && echo "Combining catalogs and filtering out PDEQ QuickCMTs with equivalent PDEW solutions"
 cat gcmt_extract_pre.cat gcmt_quick.cat | gawk '
  {
    seen[$2]++

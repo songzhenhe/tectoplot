@@ -2,7 +2,7 @@
 #
 
 # Add default projection as an option for -RJ
-
+# Calculate normal distance to the subduction interface? Vs vertical distance
 # tectoplot
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
 #
@@ -1030,32 +1030,6 @@ do
           exit 1
         fi
         echo found ${dropbox_urls[@]}
-# dropbox_urls+=("ij67aon9dvvzanv/ANSS.zip")
-# dropbox_urls+=("rp485yy8scn99my/CableMap.zip")
-# dropbox_urls+=("yecuuj5nqyvuhbf/EarthByte.zip")
-# dropbox_urls+=("pey6y8dl86qldmx/EMAG_V2.zip")
-# dropbox_urls+=("2gqwl7dfst0b8kf/GCDM.zip")
-# dropbox_urls+=("qh9lpd7qtex88rx/GCMT.zip")
-# dropbox_urls+=("3mpn2osxi00mv9i/GEBCO_ONE.zip")
-# dropbox_urls+=("3zzjaijzungiz3q/GEBCO20.zip")
-# dropbox_urls+=("mfzz8m6p1ivnhm4/GEMActiveFaults.zip")
-# dropbox_urls+=("2vpnng7j7l7en8g/GFZ.zip")
-# dropbox_urls+=("fwsatdjm06z6v3q/GSFML_SF.zip")
-# dropbox_urls+=("x3ibfitlembsn17/Heatflow.zip")
-# dropbox_urls+=("2n37kv0f9fdyq7p/ISC_SEIS.zip")
-# dropbox_urls+=("398txkifqxx22r5/ISC-EHB.zip")
-# dropbox_urls+=("qltrgbz9yniygv4/ISC.zip")
-# dropbox_urls+=("ext01bsci2l9kbu/LITHO1.zip")
-# dropbox_urls+=("8madlfzq0nj0hvg/Muller2016.zip")
-# dropbox_urls+=("m8c1ch37nqfi91u/OC_AGE.zip")
-# dropbox_urls+=("24t312wmtu26d7q/Sandwell2019.zip")
-# dropbox_urls+=("l7t86w8mbtfadr3/SLAB2.zip")
-# dropbox_urls+=("pob422sc7m6pf8q/Smithsonian.zip")
-# dropbox_urls+=("lcf8o3yecxb5fmw/SRCMOD.zip")
-# dropbox_urls+=("lj9qezf4p3h9wl1/SRTM30_plus.zip")
-# dropbox_urls+=("lx5jsf515x15xcz/WGM2012.zip")
-# dropbox_urls+=("twxypwzjc2h69rn/WorldCities.zip")
-# dropbox_urls+=("iwbz20qydz7e6li/WSM.zip")
 
         for this_zip in ${dropbox_urls[@]}; do
           zip_name=$(echo $this_zip | gawk -F/ '{print $(NF)}')
@@ -1131,6 +1105,8 @@ do
         check_and_download_dataset "GEBCO20" $GEBCO20_SOURCEURL "yes" $GEBCO20DIR $GEBCO20FILE $GEBCO20DIR"data.zip" $GEBCO20_BYTES $GEBCO20_ZIP_BYTES
 
         check_and_download_dataset "SRTM30" $SRTM30_SOURCEURL "yes" $SRTM30DIR $SRTM30FILE "none" $SRTM30_BYTES "none"
+        check_and_download_dataset "SRTM25" $SRTM15_SOURCEURL "yes" $SRTM15DIR $SRTM15FILE "none" $SRTM15_BYTES "none"
+
         exit 0
       fi
     fi
@@ -6825,7 +6801,7 @@ Usage: -t [[datasource=SRTM30]] [[ { gmt topo args } ]]
   -t [demfile] [[reproject]]
 
   Local large datasets downloaded using -getdata:
-  -t SRTM30 | GEBCO20 | GEBCO21 | GEBCO1
+  -t SRTM15 | SRTM30 | GEBCO20 | GEBCO21 | GEBCO1
 
   Dynamically downloaded data (tiles managed by tectoplot + GMT)
   -t GMRT | BEST
@@ -6884,6 +6860,13 @@ fi
 
         [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
 
+        ;;
+      SRTM15)
+        plottopo=1
+        GRIDFILE=$SRTM15FILE
+				plots+=("topo")
+        echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+        echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
         ;;
 			SRTM30)
 			  plottopo=1
@@ -11071,7 +11054,6 @@ if [[ $plottopo -eq 1 ]]; then
   	if [[ -s $name ]]; then
   		info_msg "DEM file $name already exists"
       demiscutflag=1
-  	else
       case $BATHYMETRY in
         01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
           gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
@@ -11080,7 +11062,7 @@ if [[ $plottopo -eq 1 ]]; then
           name=${F_TOPO}dem.tif
           TOPOGRAPHY_DATA=${F_TOPO}dem.tif
         ;;
-        SRTM30|GEBCO20|GEBCO1)
+        SRTM15|SRTM30|GEBCO20|GEBCO1)
         # GMT grdcut works on these
           gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
           cp ${name} ${F_TOPO}dem.tif
@@ -16398,9 +16380,6 @@ EOF
           COLOR=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $3}')
           # echo $FIRSTWORD $ind $k
 
-          # NOTE: IT IS UNCLEAR WHETHER WE SHOULD USE psxy -A to draw straight lines or psxy [not -A] to draw
-          # geodesic arcs. It will depend on what grdtrack uses...
-
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
           # info_msg "is it this"
           head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
@@ -17415,14 +17394,24 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
                 MERCMINLAT=$MINLAT
               fi
 
+              # echo "DEM"
+              # gdalinfo ${F_TOPO}dem.tif
+              # echo "DEMFLT"
+              # gdalinfo ${F_TOPO}dem_flt.flt
+
               ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
               # project back to WGS1984
 
-              gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
+              # bilinear interpolation was really messing up the output resolution... removed 
+              gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
               MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
 
               # Change to 8 bit unsigned format
               gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
+
+              # echo "SHADOW"
+              # gdalinfo ${F_TOPO}shadow.tif
+
               # Combine it with the existing intensity
               alpha_value ${F_TOPO}shadow.tif ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
 

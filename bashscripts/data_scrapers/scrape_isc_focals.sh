@@ -47,7 +47,8 @@
 #       &min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > isc_seis_2019_01_week1.dat
 
 # Note that ISC queries require the correct final day of the month, including leap years!
-
+ISC_VERBOSE=0
+[[ $ISC_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 # tac not available in all environments but tail usually is.
 ISC_MIRROR="http://www.isc.ac.uk"
 
@@ -111,7 +112,7 @@ function download_isc_focals_file() {
   # local month=${parsed[1]}
   local segment=${parsed[1]}
 
-  echo "Downloading data for $1: Year=${year} Segment=${segment}"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Downloading data for $1: Year=${year} Segment=${segment}"
 
   # Segment 1 is January - April 01-04
   # Segment 2 is May - August 05-08
@@ -119,24 +120,23 @@ function download_isc_focals_file() {
 
   case ${parsed[1]} in
     1)
-    echo curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=04&end_day=30&end_time=23%3A59%3A59"
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=04&end_day=30&end_time=23%3A59%3A59" > $1
+      curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=01&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=04&end_day=30&end_time=23%3A59%3A59" > $1
     ;;
     2)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=05&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=08&end_day=31&end_time=23%3A59%3A59" > $1
+      curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=05&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=08&end_day=31&end_time=23%3A59%3A59" > $1
     ;;
     3)
-      curl "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=09&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=12&end_day=31&end_time=23%3A59%3A59" > $1
+      curl ${CURL_QUIET} "${ISC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=FMCSV&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180&ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&searchshape=GLOBAL&srn=&grn=&start_year=${year}&start_month=09&start_day=01&start_time=00%3A00%3A00&end_year=${year}&end_month=12&end_day=31&end_time=23%3A59%3A59" > $1
     ;;
   esac
 
   # If curl returned a non-zero exit code or doesn't contain at least two lines, delete the file we just created
   if ! [ 0 -eq $? ]; then
-    echo "File $1 had download error. Deleting."
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "File $1 had download error. Deleting."
     rm -f $1
     return 1
   elif [[ $(has_a_line $1) -eq 0 ]]; then
-    echo "File $1 was empty. Deleting."
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "File $1 was empty. Deleting."
     rm -f $1
     return 1
   fi
@@ -149,9 +149,9 @@ function download_isc_focals_file() {
 ISC_FOCALS_DIR="${1}"
 
 if [[ -d $ISC_FOCALS_DIR ]]; then
-  echo "ISC focals directory exists."
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "ISC focals directory exists."
 else
-  echo "Creating IS focals directory: ${ISC_FOCALS_DIR}"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Creating IS focals directory: ${ISC_FOCALS_DIR}"
   mkdir -p ${ISC_FOCALS_DIR}
 fi
 
@@ -185,7 +185,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
 
   # If there is no last entry (no file), regenerate the list
   if [[ -z ${last_cat[0]} ]]; then
-    echo "Generating new focal catalog file list..."
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Generating new focal catalog file list..."
     for year in $(seq 1951 $this_year); do
         for segment in $(seq 1 3); do
           if [[ $(echo "($year == $this_year)" | bc) -eq 1 ]]; then
@@ -197,7 +197,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
     done
   else
   # Otherwise, only add the events that postdate the last catalog file.
-    echo "Adding new catalog files to file list..."
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Adding new catalog files to file list..."
     last_year=${last_cat[0]}
     last_segment=${last_cat[1]}
 
@@ -240,11 +240,11 @@ if ! [[ $2 =~ "rebuild" ]]; then
     # If we download the focals file successfully, then
     if download_isc_focals_file ${d_file}; then
 
-      echo "Downloaded ${d_file}"
+      [[ $ISC_VERBOSE -eq 1 ]] && echo "Downloaded ${d_file}"
       echo ${d_file} >> isc_focals_just_downloaded.txt
       if [[ $last_index -ge 0 ]]; then
         # Need to check whether the last file exists still before marking as complete (could have been deleted)
-        echo "File ${d_file} downloaded succesfully. Marking earlier file ${isc_focals_list_files[$last_index]} as complete, if it exists."
+        [[ $ISC_VERBOSE -eq 1 ]] && echo "File ${d_file} downloaded succesfully. Marking earlier file ${isc_focals_list_files[$last_index]} as complete, if it exists."
         [[ -e ${isc_focals_list_files[$last_index]} ]] && echo ${isc_focals_list_files[$last_index]} >> isc_focals_complete.txt
       fi
 
@@ -263,7 +263,7 @@ if [[ -e isc_focals_just_downloaded.txt ]]; then
   last_added_event_date=$(tail -n 1 isc_extract.cat | gawk '{print $3}')
   last_added_event_id=$(tail -n 1 isc_extract.cat | gawk '{print $2}')
 
-  echo "Date of last ISC focal mechanism in catalog is: ${last_added_event_date}"
+  [[ $ISC_VERBOSE -eq 1 ]] && echo "Date of last ISC focal mechanism in catalog is: ${last_added_event_date}"
   selected_files=$(cat isc_focals_just_downloaded.txt)
 
   # For each candidate file, examine events and see if they are younger than the
@@ -271,8 +271,7 @@ if [[ -e isc_focals_just_downloaded.txt ]]; then
 
   rm -f  to_clean.cat
   for foc_file in $selected_files; do
-    echo "Processing newly downloaded file $foc_file into ISC CMT database"
-
+    [[ $ISC_VERBOSE -eq 1 ]] && echo "Processing newly downloaded file $foc_file into ISC CMT database"
     cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
                     grep -v "PNSN" | grep -v "EVBIB" | gawk -F, -v lastdate=${last_added_event_date} -v lastid=${last_added_event_id} '
                     BEGIN {
@@ -287,9 +286,7 @@ if [[ -e isc_focals_just_downloaded.txt ]]; then
                     } ' > isc.toadd
     ${CMTTOOLS} isc.toadd I I > isc.toadd.cat
     cat isc.toadd.cat >> isc_extract.cat
-    echo
     echo ">>>>  Added $(wc -l < isc.toadd.cat | gawk '{print $1}') events to ISC focal mechanisms catalog <<<<"
-    echo
   done
 fi
 
