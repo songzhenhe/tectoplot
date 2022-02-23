@@ -1020,7 +1020,7 @@ do
 
       if [[ "${2}" == "dropbox" ]]; then
         shift
-        echo "looking"
+        echo "Looking up index of ZIP files..."
         if curl "https://dl.dropboxusercontent.com/s/d08iy67u8avs2xg/ziplinks.txt" -o ziplinks.txt; then
           while read p; do
             dropbox_urls+=("${p}")
@@ -1029,7 +1029,7 @@ do
           echo "[-getdata dropbox]: Can't download link index file ziplinks.txt from Dropbox"
           exit 1
         fi
-        echo found ${dropbox_urls[@]}
+        echo "Found the following URLs: ${dropbox_urls[@]}"
 
         for this_zip in ${dropbox_urls[@]}; do
           zip_name=$(echo $this_zip | gawk -F/ '{print $(NF)}')
@@ -9962,7 +9962,9 @@ echo $LATSIZE $LONSIZE | gawk '
 
 if [[ ! $usecustomrjflag -eq 1 ]]; then
   rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-  rj+=("-JQ${CENTERLON}/${PSSIZE}i")
+  # rj+=("-JQ${CENTERLON}/${PSSIZE}i")
+  rj+=("-JX${PSSIZE}id")
+
   RJSTRING="${rj[@]}"
   # echo "Basic RJSTRING is $RJSTRING"
   usecustomrjflag=1
@@ -18946,28 +18948,14 @@ fi
 
 ##### MAKE GEOTIFF OF MAP
 if [[ $tifflag -eq 1 ]]; then
+  # echo gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
   gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
-
-
-  # For some reason the TFW file often comes out with funky latitude/longitude values...
-
-  gawk < map.tfw -v maxlat=${MAXLAT} -v minlon=${MINLON} '{
-    if (NR==6) {
-      print maxlat
-    } else if (NR==5) {
-      print minlon
-    } else {
-      print
-    }
-  }' > map2.tfw
-
-  mv map2.tfw map.tfw
-
-  # For some reason the latitudes come out as +270 degrees...?
-  # mv map.tif "${THISDIR}/${MAPOUT}.tif"
-  # mv map.tfw "${THISDIR}/${MAPOUT}.tfw"
-
-
+  rm -f map.tfw
+  # map.tiff is created from map.tif and is smaller, so keep it
+  # Reset the coordinates of map.tiff for some reason or another. This
+  # produces a TIFF with variable X and Y resolution
+  gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} map.tiff
+  mv map.tiff map.tif
   [[ $openflag -eq 1 ]] && open_pdf "map.tif"
 fi
 
