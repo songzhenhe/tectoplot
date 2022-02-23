@@ -8959,6 +8959,23 @@ fi
 
     ;;
 
+  -zmodifymags)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zmodifymags:    Convert magnitudes to GCMT Mw equivalent when possible
+Usage: -zmodifymags
+
+Example:
+tectoplot -z -zmodifymags -o example_zcnoscale
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  modifymagnitudes=1
+  ;;
+
   -zcnoscale)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -11054,6 +11071,7 @@ if [[ $plottopo -eq 1 ]]; then
   	if [[ -s $name ]]; then
   		info_msg "DEM file $name already exists"
       demiscutflag=1
+    else
       case $BATHYMETRY in
         01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
           gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
@@ -11093,6 +11111,7 @@ if [[ $plottopo -eq 1 ]]; then
           # demiscutflag=1
         ;;
       esac
+      demiscutflag=1
   	fi
   	BATHY=$name
   fi
@@ -11358,50 +11377,53 @@ if [[ $plotseis -eq 1 ]]; then
       # time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
 
       # Tectoplot catalog is Lon,Lat,Depth,Mag,Timecode,ID,epoch (or -1)
+
       TZ=UTC
-      gawk -F, < ${F_SEIS}anss_extract_tiles.cat '
+      gawk -F, < ${F_SEIS}anss_extract_tiles.cat -v modifymagsflag=${modifymagnitudes} '
       @include "tectoplot_functions.awk"
       {
-        type=tolower($6)
-        if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
-          # NEIC mb > Mw Weatherill, 2016
-          oldval=$5
-          $5 = 1.159 * $5 - 0.659
-          print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
-        } else if (tolower(type) == "mw") {
-          # NEIC Mw > Mw(GCMT) Weatherill, 2016
-          oldval=mag
-          $11 = 1.021 * mag - 0.091
-          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
-        } else if (tolower(type) == "ms") {
-          oldval=$5
-          if (tolower(substr($6,1,3))=="msz") {
-            # NEIC Msz > Mw Weatherill, 2016
-            if ($5 >= 3.5 && $5 <= 6.47) {
-                $5 = 0.707 * $5 + 19.33
+        if (modifymagsflag==1) {
+          type=tolower($6)
+          if (tolower(type) == "mb" && $5 >= 3.5 && $5 <=7.0) {
+            # NEIC mb > Mw Weatherill, 2016
+            oldval=$5
+            $5 = 1.159 * $5 - 0.659
+            print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "mw") {
+            # NEIC Mw > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            $11 = 1.021 * mag - 0.091
+            print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "ms") {
+            oldval=$5
+            if (tolower(substr($6,1,3))=="msz") {
+              # NEIC Msz > Mw Weatherill, 2016
+              if ($5 >= 3.5 && $5 <= 6.47) {
+                  $5 = 0.707 * $5 + 19.33
+                  print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+              if ($5 > 6.47 && $5 <= 8.0) {
+                $5 = 0.950 * $5 + 0.359
                 print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
-            }
-            if ($5 > 6.47 && $5 <= 8.0) {
-              $5 = 0.950 * $5 + 0.359
-              print $12, "Msz=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
-            }
-            print $1, tolower(substr($6,1,3)) "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
-          } else {
-            # NEIC Ms > Mw(GCMT) Weatherill, 2016
-            if ($5 >= 3.5 && $5 <= 6.47) {
-                $5 = 0.723 * $5 + 1.798
+              }
+              print $1, tolower(substr($6,1,3)) "=" oldval, "to Mw=", $5 >> "./mag_conversions.dat"
+            } else {
+              # NEIC Ms > Mw(GCMT) Weatherill, 2016
+              if ($5 >= 3.5 && $5 <= 6.47) {
+                  $5 = 0.723 * $5 + 1.798
+                  print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
+              if ($5 > 6.47 && $5 <= 8.0) {
+                $5 = 1.005 * $5 - 0.026
                 print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
-            }
-            if ($5 > 6.47 && $5 <= 8.0) {
-              $5 = 1.005 * $5 - 0.026
-              print $12, type "=", oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+              }
             }
           }
-        }
-      else if (tolower(type) == "ml") { # Mereu, 2020
-          oldval=$5
-          $5 = 0.62 * $5 + 1.09
-          print $12, type "=" oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+          else if (tolower(type) == "ml") { # Mereu, 2020
+            oldval=$5
+            $5 = 0.62 * $5 + 1.09
+            print $12, type "=" oldval, "to Mw(GCMT)=", $5 >> "./mag_conversions.dat"
+          }
         }
         epoch=iso8601_to_epoch(substr($1,1,19))
         print $3, $2, $4, $5, substr($1,1,19), $12, epoch
@@ -11417,7 +11439,7 @@ if [[ $plotseis -eq 1 ]]; then
       # EVENTID,WHAT      ,AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG  [, extra...]
       #  752622,ke        ,ISC      ,1974-01-14,03:59:31.48, 28.0911, 131.4943, 10.0,TRUE  ,ISC      ,mb    , 4.3
 
-      gawk -F, < ${F_SEIS}isc_extract_tiles.cat '
+      gawk -F, < ${F_SEIS}isc_extract_tiles.cat -v modifymagsflag=${modifymagnitudes} '
       @include "tectoplot_functions.awk"
       {
         # Trim leading whitespace from ISC ids
@@ -11437,28 +11459,32 @@ if [[ $plotseis -eq 1 ]]; then
           typeindex+=3
           magindex+=3
         }
-        if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
-          # ISC mb > Mw(GCMT) Weatherill, 2016
-          oldval=mag
-          $12 = 1.084 * mag - 0.142
-          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
-        } else if (tolower(type) == "ms") {
-          # ISC Ms > Mw(GCMT) Weatherill, 2016
-          oldval=mag
-          if (mag >= 3.5 && mag <= 6.0) {
-              $12 = 0.616 * mag + 2.369
-              print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
 
-          } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
-            $12 = 0.994 * mag + 0.1
+        if (modifymagsflag==1) {
+
+          if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+            # ISC mb > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            $12 = 1.084 * mag - 0.142
+            print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+          } else if (tolower(type) == "ms") {
+            # ISC Ms > Mw(GCMT) Weatherill, 2016
+            oldval=mag
+            if (mag >= 3.5 && mag <= 6.0) {
+                $12 = 0.616 * mag + 2.369
+                print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+
+            } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+              $12 = 0.994 * mag + 0.1
+              print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
+            }
+          } else if (tolower(type) == "ml") {
+            # Is it more wrong to use a local ml->Mw conversion or leave the ml alone? Not sure!
+            # Mereu, 2020
+            oldval=mag
+            $12 = 0.62 * mag + 1.09
             print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
           }
-        } else if (tolower(type) == "ml") {
-          # Is it more wrong to use a local ml->Mw conversion or leave the ml alone? Not sure!
-          # Mereu, 2020
-          oldval=mag
-          $12 = 0.62 * mag + 1.09
-          print $1, type "=" oldval, "to Mw(GCMT)=", $11 >> "./mag_conversions.dat"
         }
         timestring=sprintf("%sT%s", $4, substr($5, 1, 8))
         epoch=iso8601_to_epoch(timestring)
@@ -11472,7 +11498,7 @@ if [[ $plotseis -eq 1 ]]; then
       # lon, lat, depth, mag, timestring, id, epoch, type
       # type = "mw" or "ms" or "mb"
 
-        gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME '
+        gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
           @include "tectoplot_functions.awk"
           {
             lon=$1
@@ -11488,23 +11514,24 @@ if [[ $plotseis -eq 1 ]]; then
             if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
               if (test_lon(minlon, maxlon, lon) == 1) {
 
-                if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
-                  # ISC mb > Mw(GCMT) Weatherill, 2016
-                  oldval=mag
-                  $4 = 1.084 * mag - 0.142
-                  print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
-                } else if (tolower(type) == "ms") {
-                  # ISC Ms > Mw(GCMT) Weatherill, 2016
-                  oldval=mag
-                  if (mag >= 3.5 && mag <= 6.0) {
-                      $4 = 0.616 * mag + 2.369
-                      print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
-                  } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
-                    $4 = 0.994 * mag + 0.1
+                if (modifymagsflag==1) {
+                  if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+                    # ISC mb > Mw(GCMT) Weatherill, 2016
+                    oldval=mag
+                    $4 = 1.084 * mag - 0.142
                     print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                  } else if (tolower(type) == "ms") {
+                    # ISC Ms > Mw(GCMT) Weatherill, 2016
+                    oldval=mag
+                    if (mag >= 3.5 && mag <= 6.0) {
+                        $4 = 0.616 * mag + 2.369
+                        print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                    } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+                      $4 = 0.994 * mag + 0.1
+                      print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                    }
                   }
                 }
-
                 $8=""
                 print
               }
@@ -17402,7 +17429,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
               # project back to WGS1984
 
-              # bilinear interpolation was really messing up the output resolution... removed 
+              # bilinear interpolation was really messing up the output resolution... removed
               gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
               MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
 
