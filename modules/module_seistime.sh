@@ -189,14 +189,14 @@ function tectoplot_post_seistime() {
       [[ $seistimefixminz -eq 1 ]] && date_and_mag_range[2]=$seistimeminz
       [[ $seistimefixmaxz -eq 1 ]] && date_and_mag_range[3]=$seistimemaxz
 
-      gmt gmtset PS_MEDIA 100ix100i
+      # gmt gmtset PS_MEDIA 100ix100i
       if [[ $SCALEEQS -eq 1 ]]; then
-        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} ${VERBOSE} -K > seistime.ps
+        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} ${VERBOSE} --GMT_HISTORY=false -K > seistime.ps
       else
-        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} -K ${VERBOSE} > seistime.ps
+        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} --GMT_HISTORY=false -K ${VERBOSE} > seistime.ps
       fi
 
-      gmt psbasemap -R -J -Bpaf -BtrSW -Bx+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p >>  seistime.ps
+      gmt psbasemap -R -J -Bpaf -BtrSW -Bx+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p --GMT_HISTORY=false >>  seistime.ps
 
       gmt psconvert seistime.ps -Tf -A+m0.5i
 
@@ -209,13 +209,12 @@ function tectoplot_post_seistime() {
         SEISTIME_PS_DIM=($(gmt psconvert seistime.ps -Fseistime -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, $10/2.54-(mapwidth+0) }'))
 
         # echo "It is" ${SEISTIME_PS_DIM[@]}
-        gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps $RJOK ${VERBOSE} >> map.ps
+        gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
 
         # Set PS_HEIGHT_IN so another module can concatenate a panel
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
 
   fi
-
 
 }

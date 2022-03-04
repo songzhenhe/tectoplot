@@ -1,6 +1,6 @@
 
 #TEXT_KMLFILE=/Users/kylebradley/Dropbox/scripts/tectoplot/labels/TextLabels.kml
-TEXT_KMLFILE=/Users/kylebradley/tectonicplates.kml
+TEXT_KMLFILE=/Users/kylebradley/southeastasiamap/SoutheastAsiaLabels.kml
 TEXT_FONT="AvantGarde-Demi,black"
 
 value=0
@@ -41,7 +41,7 @@ gmt mapproject data_pre.txt -i0,1 -G+uC+a -R -J  > data_proj_dist.txt
 
 #gmt mapproject data_pre.txt -i0,1 -G+ud+a > data_dist.txt
 
-gawk '
+gawk -v maxfontsize=20 '
   function max(a,b) { return (a>b)?a:b }
   function min(a,b) { return (a<b)?a:b }
   BEGIN {
@@ -73,7 +73,7 @@ gawk '
       textlength=length($0)-6
       # fontsize is the font that will fit:
       # dist[curout]=0.65*fontsize_p*1cm/28.3465p*numchar
-      fontsize_p = thisdistance*28.3465/0.65/textlength
+      fontsize_p = min(maxfontsize, thisdistance*28.3465/0.65/textlength)
       filename=sprintf("text_%0.1f_file.gmt", int(fontsize_p*10)/10)
       print "> -L" substr($0,5,length($0)-1) >> filename
     } else {

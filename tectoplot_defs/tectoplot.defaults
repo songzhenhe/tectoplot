@@ -437,7 +437,7 @@ HS_GAMMA=1                   # gamma factor for texture file
 HS_AZ=325
 HS_ALT=40                    # Altitude of sun for multiple hillshade
 HS_VEXAG=1                   # Vertical exaggeration applied to terrain for hillshading
-HS_Z_FACTOR=2.5
+HS_Z_FACTOR=2
 
 # Texture shading options (-tshade)
 TS_FRAC=0.7                 # Texture shader parameter 1

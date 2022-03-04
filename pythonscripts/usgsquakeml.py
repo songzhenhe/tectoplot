@@ -337,48 +337,59 @@ def print_focal_tectoplot(e, id):
             e['focal']['Mtp'],
             e['focal']['centroid_dt']
             ))
-    elif len(e['magnitude'])!=0:
-        print("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format(
-            "UX",
-            e['eventInfo']['eventid'],
-            e['origin']['otime'],
-            epoch,
-            e['origin']['longitude'],
-            e['origin']['latitude'],
-            e['origin']['depth'],
-            e['origin']['longitude'],
-            e['origin']['latitude'],
-            e['origin']['depth'],
-            e['magnitude']['agencyID'],
-            e['magnitude']['agencyID'],
-            e['magnitude']['mag'],
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            "None",
-            ))
+
+
+    if len(e['magnitude'])!=0:
+
+        original_stdout = sys.stdout # Save a reference to the original standard output
+
+        with open('cmt.txt', 'w') as f:
+            sys.stdout = f # Change the standard output to the file we created.
+
+            print("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}".format(
+                "UX",
+                e['eventInfo']['eventid'],
+                e['origin']['otime'],
+                epoch,
+                e['origin']['longitude'],
+                e['origin']['latitude'],
+                e['origin']['depth'],
+                e['origin']['longitude'],
+                e['origin']['latitude'],
+                e['origin']['depth'],
+                e['magnitude']['agencyID'],
+                e['magnitude']['agencyID'],
+                e['magnitude']['mag'],
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                "None",
+                ))
+
+            sys.stdout = original_stdout
+
 
 #---------------------------------------------------------------------------------
 # get the preferred origin from the eventInfo dict and the origins list
@@ -416,10 +427,19 @@ def parse_usgs_xml(event_id_code):
     else:
         url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/{}.quakeml'.format(event_id_code)
         xmlstring = urlopen(url).read()
-        
+
         if len(xmlstring)==0:
             # Quit without message if the URL is bogus
             quit()
+
+        original_stdout = sys.stdout # Save a reference to the original standard output
+
+        with open('{}.quakeml'.format(event_id_code), 'w') as f:
+            sys.stdout = f # Change the standard output to the file we created.
+            print(xmlstring)
+            sys.stdout = original_stdout
+
+
         xroot = ElementTree.fromstring(xmlstring)
 
     xeventParameters = xroot.findall('d:eventParameters',ns)

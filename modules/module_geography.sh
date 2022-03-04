@@ -42,6 +42,26 @@ BORDER_STATE_QUALITY="-Da"
 BORDER_STATE_LINEWIDTH="0.3p"
 BORDER_STATE_LINECOLOR="red"
 
+################################################################################
+##### OpenStreetMap coastline data
+
+OSMCOASTDIR=${DATAROOT}"OSMCoasts/"
+# These files exist in the original download and processing workflow but not
+# in the data distributed with tectoplot
+# OSMCOASTORIGFILE=${OSMCOASTDIR}"land_polygons.shp"
+# OSMCOASTGMTFILE=${OSMCOASTDIR}"land_polygons_osm_planet.gmt"
+OSMCOASTBF2FILE=${OSMCOASTDIR}"land_polygons_osm_planet.bf2"
+
+OSMCOAST_LINEWIDTH="0.1p"       # pscoast line width
+OSMCOAST_LINECOLOR="black"      # pscoast line color
+OSMCOAST_POLYFILL="lightbrown"
+OSMCOAST_TRANS=0
+
+osmcoast_extract=0
+
+OSMCOAST_SHORT_SOURCESTRING="OpenStreetMap"
+OSMCOAST_SOURCESTRING="Coastlines are from OpenStreetMap (www.openstreetmap.org/copyright) via FOSSGIS (https://osmdata.openstreetmap.de/data/land-polygons.html)"
+
 }
 
 function tectoplot_args_geography()  {
@@ -51,6 +71,91 @@ function tectoplot_args_geography()  {
 
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
+
+  -aosm)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-aosm:  plot high quality coastlines from OSM database
+Usage: -aosm [[options]]
+
+Options:
+width [width=${OSMCOAST_LINEWIDTH}]              Width of coastline (e.g. 0.5p)
+color [color=${OSMCOAST_LINECOLOR}]             Color of coastline
+fill [[color=${OSMCOAST_POLYFILL}]]       Fill color of land polygons
+trans [transparency]                              Percent transparency
+
+Example:
+tectoplot -aosm
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+fi
+
+  shift
+  OSMCOAST_PLOTFILLCMD=""
+
+  while ! arg_is_flag $1; do
+    case $1 in
+      width)
+        shift
+        ((tectoplot_module_shift++))
+        if ! arg_is_flag $1; then
+          OSMCOAST_LINEWIDTH="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-aosm]: width option requires argument"
+          exit 1
+        fi
+      ;;
+      color)
+        shift
+        ((tectoplot_module_shift++))
+        if ! arg_is_flag $1; then
+          OSMCOAST_LINECOLOR="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-aosm]: color option requires argument"
+          exit 1
+        fi
+      ;;
+      trans)
+        shift
+        ((tectoplot_module_shift++))
+        if arg_is_positive_float $1; then
+          OSMCOAST_TRANS="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-aosm]: trans option requires argument"
+          exit 1
+        fi
+      ;;
+      fill)
+        shift
+        ((tectoplot_module_shift++))
+        if ! arg_is_flag $1; then
+          OSMCOAST_POLYFILL="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-aosm]: fill option requires argument"
+          exit 1
+        fi
+        OSMCOAST_PLOTFILLCMD="-G${OSMCOAST_POLYFILL}"
+      ;;
+    esac
+  done
+
+  plots+=("osmcoasts")
+  osmcoast_extract=1
+
+  echo $OSMCOAST_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+  echo $OSMCOAST_SOURCESTRING >> ${LONGSOURCES}
+
+  tectoplot_module_caught=1
+  ;;
 
   -a) # args: none || string
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -327,8 +432,27 @@ fi
 #
 # }
 
-# function tectoplot_calculate_geography()  {
-# }
+function tectoplot_calculate_geography()  {
+
+  # # Check for OSM high quality coast data
+  # if [[ -d ${OSMCOASTDIR} ]]; then
+  #   # If the directory exists and has the source data, but no transformed file,
+  #   if [[ -s ${OSMCOASTORIGFILE} ]]; then
+  #     if [[ ! -s ${OSMCOASTGMTFILE} ]]; then
+  #       echo "[-aosm]: Converting OSM coast data to BF2 format"
+  #       ogr2ogr -f OGR_GMT ${OSMCOASTGMTFILE} ${OSMCOASTORIGFILE}
+  #       gmt convert ${OSMCOASTGMTFILE} -bo2f > ${OSMCOASTBF2FILE}
+  #     fi
+  #   fi
+  # fi
+
+  # Extract the data for the current AOI
+  if [[ -s ${OSMCOASTBF2FILE} && $osmcoast_extract -eq 1 ]]; then
+    gmt spatial ${OSMCOASTBF2FILE} -bi2f -bo2f -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C > osmcoasts.bf2
+    # gmt select ${OSMCOASTBF2FILE} -bi2f -bo2f -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} > osmcoasts.bf2
+  fi
+
+}
 
 # function tectoplot_cpt_geography() {
 # }
@@ -338,6 +462,11 @@ function tectoplot_plot_geography() {
 
   coasts)
     gmt pscoast $COAST_QUALITY ${RIVER_COMMAND} -W1/$COAST_LINEWIDTH,$COAST_LINECOLOR -W2/$LAKE_LINEWIDTH,$LAKE_LINECOLOR $FILLCOASTS -A$COAST_KM2 $RJOK $VERBOSE >> map.ps
+    tectoplot_plot_caught=1
+    ;;
+
+  osmcoasts)
+    [[ -s osmcoasts.bf2 ]] && gmt psxy osmcoasts.bf2 -bi2f -t${OSMCOAST_TRANS} ${OSMCOAST_PLOTFILLCMD} -W${OSMCOAST_LINEWIDTH},${OSMCOAST_LINECOLOR}  ${RJOK} ${VERBOSE} >> map.ps
     tectoplot_plot_caught=1
     ;;
 

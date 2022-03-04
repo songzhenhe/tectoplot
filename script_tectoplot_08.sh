@@ -3010,6 +3010,30 @@ fi
     shift
     ;;
 
+  -shiftlabels)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-shiftlabels:  automatically adjust label locations
+Usage: -shiftlabels
+
+  This option uses a genetic algorithm to try to find a good justification for
+  the input labels, avoiding covering the input data points, having labels
+  extend off the map, and having overlapping labels. Can take a long time
+  with a very large number of labels.
+
+  There is a random nature to the algorithm so running again will likely
+  produce a slightly different label position.
+
+Example: Label focal mechanisms of earthquakes larger than Mw=7
+tectoplot -z -zmag 7 -eqlabel 7.5 yearmag -shiftlabels
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  shiftlabelsflag=1
+  ;;
+
   -eqlabel)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -4415,16 +4439,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ob:           plot oblique perspective of topography
-Usage: -ob [[azimuth=${OBLIQUEAZ}]] [[inclination=${OBLIQUEINC}]] [[vexag=${OBLIQUE_VEXAG}]] [[floorlevel=${OBBOXLEVEL}]] [[gridlabelstring=${OBBCOMMAND}]]
+Usage: -ob [[options...]]
 
-  tectoplot always generates a script that can be used to plot an oblique view
-  of the shaded relief (tempdir/make_oblique.sh)
-  This command runs that script and adjusts its arguments.
-  azimuth = direction topo is viewed from, degrees CW from north
-  inclination = angle above horizon, degrees
-  vexag = vertical exaggeration
-  floorlevel = plot a reference level and vertical edge fences (m, negative down)
-  gridlabelstring = plain | fancy
+  options:
+  az [number=${OBLIQUEAZ}]         direction looking FROM, CW from north
+  inc [number=${OBLIQUEINC}]       downward look angle, from horizontal
+  vexag [number=${OBLIQUE_VEXAG}]   vertical exaggeration factor
+  floor [number=${OBBOXLEVEL}]     plot reference level and fence edges, meters, negative down
+  frame [string=${OBBAXISTYPE}]   plain | fancy
 
 Example:
 tectoplot -r IT -t -ob 120 20 4 -20000 fancy -o example_ob
@@ -4434,50 +4456,73 @@ EOF
 shift && continue
 fi
 
-    info_msg "[-ob]: Plotting oblique view of bathymetry data."
+    info_msg "[-ob]: Getting parameters for oblique perspective image."
     obliqueflag=1
+    obplotboxflag=0
     OBBAXISTYPE="plain"
-    if arg_is_flag $2; then
-      info_msg "[-ob]: No azimuth/inc specified. Using default ${OBLIQUEAZ}/${OBLIQUEINC}."
-    else
-      OBLIQUEAZ="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-ob]: Azimuth but no inclination specified. Using default ${OBLIQUEINC}."
-    else
-      OBLIQUEINC="${2}"
-      shift
-    fi
-    if arg_is_float $2; then
-      OBLIQUE_VEXAG="${2}"
-      shift
-      info_msg "[-ob]: Vertical exaggeration is ${OBLIQUE_VEXAG}."
-    else
-      info_msg "[-ob]: No vertical exaggeration given. Using ${OBLIQUE_VEXAG}."
-    fi
-    if arg_is_float $2; then
-      obplotboxflag=1
-      OBBOXLEVEL="${2}"
-      shift
-      info_msg "[-ob]: Plotting box with base level ${OBBOXLEVEL}."
-    else
-      info_msg "[-ob]: No floor level specified. Not plotting box."
-      obplotboxflag=0
-      OBBOXLEVEL=-9999
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-ob]: No grid label indicated. Not labeling."
-      OBBCOMMAND=""
-    else
-      if [[ $2 == "plain" ]]; then
-        OBBCOMMAND="-Bxaf -Byaf -Bzaf"
-      elif [[ $2 == "fancy" ]]; then
-        OBBCOMMAND="-Bxaf -Byaf -Bzaf"
-        OBBAXISTYPE="fancy"
-      fi
-      shift
-    fi
+    OBBCOMMAND=""
+    OBBOXLEVEL=-9999
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        az)
+          shift
+          if arg_is_float $2; then
+            OBLIQUEAZ=$2
+            shift
+          else
+            echo "[-ob]: az option requires number argument"
+            exit 1
+          fi
+        ;;
+        inc)
+          shift
+          if arg_is_float $2; then
+            OBLIQUEINC=$2
+            shift
+          else
+            echo "[-ob]: inc option requires number argument"
+            exit 1
+          fi
+        ;;
+        vexag)
+          shift
+          if arg_is_float $2; then
+            OBLIQUE_VEXAG=$2
+            shift
+          else
+            echo "[-ob]: vexag option requires number argument"
+            exit 1
+          fi
+        ;;
+        floor)
+          shift
+          if arg_is_float $2; then
+            OBBOXLEVEL=$2
+            obplotboxflag=1
+            shift
+          else
+            echo "[-ob]: floor option requires number argument"
+            exit 1
+          fi
+        ;;
+        frame)
+          shift
+          OBBCOMMAND="-Bxaf -Byaf -Bzaf"
+          if [[ $2 == "plain" || $2 == "fancy" ]]; then
+            OBBAXISTYPE="${2}"
+            shift
+          else
+            echo "[-ob]: frame option requires plain or fancy argument"
+            exit 1
+          fi
+        ;;
+        *)
+          echo "[-ob]: Option $2 not recognized"
+          exit 1
+        ;;
+      esac
+    done
     ;;
 
 
@@ -4835,7 +4880,7 @@ fi
     plots+=("plateedge")
     ;;
 
-  -pf|--fibsp) # args: number
+  -pf) # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pf:           create grid of almost equally spaced points with fibonacci spiral
@@ -5866,6 +5911,9 @@ Usage: -RJ [projection] [[central_lon] [central_lat] [parallel_1] [parallel_2]]
     If no parameters are given for these -RJ B|L|D, the standard parallels
     are taken to be the maximum and minimum latitudes from -r.
 
+Linear transformation of geographic coordinatesw:
+Usage: -RJ Cartesian|X
+
 Example:
 tectoplot -r IS -RJ UTM -a -title "UTM projection" -keepopenps
 tectoplot -r IS -a -pos 0i -3.5i -title "WGS1984" -gridlabels EWSn -ips tempfiles_to_delete/map.ps -o example_RJ
@@ -6134,6 +6182,18 @@ fi
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1
+      ;;
+      Cartesian|X)
+
+        # X and Y spacing are uniform
+        PSSIZE_ALT=$(gawk -v size=${PSSIZE} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+          BEGIN {
+            print size*(minlat-maxlat)/(minlon-maxlon)
+          }')
+
+        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+        rj+=("-JX${PSSIZE}i/${PSSIZE_ALT}id")
+        RJSTRING="${rj[@]}"
       ;;
       *)
         echo "[-RJ]: projection ${ARG1} not recognized."
@@ -7624,18 +7684,27 @@ fi
   ;;
 
   -tdenoise) # Subtract 0.1 meters from any topo cells with elevation=0
+  DENOISE_THRESHOLD=0.9
+  DENOISE_ITERS=5
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tdenoise:     Use Xianfang Sun's mdenoise to smooth DEM
-Usage: -tdenoise [[value]]
+Usage: -tdenoise [[threshold=${DENOISE_THRESHOLD}]] [[iterations=${DENOISE_ITERS}]]
+
+  Apply mdenoise algorithm to DEM. This algorithm is a mesh-based smoothing
+  routine that can reduce bumps and pits while preserving facets.
+
+  threshold [0-1]: controls how far the mesh can deviate from the original.
+                   low values allow larger deviations from true
+  iterations [1-N]: the number of times the smoothing is applied. more=smoother
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
   tdenoiseflag=1
-  DENOISE_THRESHOLD=0.4
-  DENOISE_ITERS=5
+
 
   if arg_is_positive_float $2; then
     DENOISE_THRESHOLD=$2
@@ -7726,6 +7795,29 @@ fi
     topoctrlstring=${topoctrlstring}"t"
     useowntopoctrlflag=1
     ;;
+
+  -tmultcolor)
+  TMULT_COLOR_ALT=35
+  TMULT_COLOR_AZ=315
+  TMULT_COLOR_TRANS=0
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tmultcolor:   make a vibrant multiple direction hillshade
+Usage: -tmultcolor
+
+  Multiple hillshade is a combination of illumination from different directions
+  under a constant solar altitude. This version uses three different hillshades
+  as the R/G/B bands of a tiff
+
+Example: Multiple hillshade map
+tectoplot -t -tmultcolor -o example_tmultcolor
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plots+=("tmultcolor")
+   ;;
 
   -tmult) #           [[sun_el]]              [[fact]]    add multiple hillshade to intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -8043,7 +8135,7 @@ fi
     sentineldownloadflag=1
     # Replace -tsent with -timg [[sentinel.tif]] [[alpha]]
     shift
-    set -- "blank" "$@" "-timg" "sentinel.tif" "${SENTINEL_FACT}"
+    set -- "blank" "$@" "-timg" "img" "sentinel.tif" "${SENTINEL_FACT}"
     ;;
 
   -tsky) #            [[num_angles]]          [[fact]]    add sky view factor to intensity
@@ -8458,7 +8550,20 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -timg:         color terrain intensity using a georeferenced image
--timg [filename] [fact=${IMAGE_FACT}]
+-timg [[options]] [img filename1] [[fact1]] [[img filename2]] [[fact2]] ...
+
+  Blends georeferenced RGB images to form an overlay that is then
+  multiply combined with terrain intensity.
+
+  If more than one grid is specified, then subsequent grids will be
+  resampled to the extent and resolution of the first grid, and will
+  be overlay combined with the first grid before fusing with terrain.
+
+  fact [0-1]     blending factor with terrain intensity image
+                  0 or 1 is fully opaque; 0.9 is highly transparent
+
+  Options:
+  noterrain      override terrain blending; just use the fused images
 
 --------------------------------------------------------------------------------
 EOF
@@ -8466,28 +8571,60 @@ shift && continue
 fi
 
     fasttopoflag=0
-    if arg_is_flag $2; then
-      info_msg "[-timg]: No image given. Ignoring."
-    else
+    timgnotopoflag=0
+    timg_index=1
 
-      if [[ ! -s ${2} && "${2}" != "sentinel.tif" ]]; then
-        echo "[-timg]: File $2 not found or is empty"
-        exit 1
-      else
-        P_IMAGE=$(abs_path ${2})
-        shift
-        if [[ $sentinelnotopoflag -eq 1 ]]; then
-          topoctrlstring="p"
-        else
-          topoctrlstring=${topoctrlstring}"p"
-        fi
-        useowntopoctrlflag=1
-      fi
+    while ! arg_is_flag $2; do
+      case $2 in
+        noterrain)
+          shift
+          timgnotopoflag=1
+          ;;
+        img)
+          shift
+          if [[ -s "${2}" ]]; then
+            TIMG_IMAGES[$timg_index]=$(abs_path "${2}")
+            shift
+          else
+            TIMG_IMAGES[$timg_index]="${2}"
+            shift
+          fi
+
+          if arg_is_positive_float $2; then
+            TIMG_FACTS[$timg_index]="${2}"
+            shift
+          else
+            TIMG_FACTS[$timg_index]=0  # Default value is fully opaque
+          fi
+          ((timg_index++))
+          ;;
+        *)
+          echo "[-timg]: option $2 not recognized"
+          exit 1
+          ;;
+      esac
+    done
+    ((timg_index--))
+
+    # if [[ -s ${2} ]]; then
+    #       # if [[ ! -s ${2} && "${2}" != "sentinel.tif" && ]]; then
+    #       #   echo "[-timg]: File $2 not found or is empty"
+    #       #   exit 1
+    #       # else
+    #   P_IMAGE=$(abs_path ${2})
+    #   shift
+    # else
+    #   P_IMAGE="${2}"
+    #   shift
+    # fi
+
+    # Specific to sentinel imagery,
+    if [[ $timgnotopoflag -eq 1 ]]; then
+      topoctrlstring="p"
+    else
+      topoctrlstring=${topoctrlstring}"p"
     fi
-    if arg_is_positive_float $2; then
-      IMAGE_FACT=$2
-      shift
-    fi
+    useowntopoctrlflag=1
     ;;
 
   -tclip) # Shouldn't I just clip the DEM here? Why have it as part of processing when that can mess things up?
@@ -8542,6 +8679,19 @@ fi
 
     demisclippedflag=1
     # topoctrlstring="w"${topoctrlstring}   # Clip before other actions
+    ;;
+
+  -tposwhite)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tposwhite:  set color of areas above sea level to white in DEM stretch
+Usage: -tposwhite
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    tposwhiteflag=1
     ;;
 
   -tunsetflat)
@@ -9963,7 +10113,8 @@ echo $LATSIZE $LONSIZE | gawk '
 if [[ ! $usecustomrjflag -eq 1 ]]; then
   rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
   # rj+=("-JQ${CENTERLON}/${PSSIZE}i")
-  rj+=("-JX${PSSIZE}id")
+  # rj+=("-JX${PSSIZE}id")
+  rj+=("-JQ${CENTERLON}/${PSSIZE}i")
 
   RJSTRING="${rj[@]}"
   # echo "Basic RJSTRING is $RJSTRING"
@@ -11102,10 +11253,15 @@ if [[ $plottopo -eq 1 ]]; then
           # GMT grdcut works on many files but FAILS on many others... can we use gdal_translate?
 
           # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} cutfirst.tif
-
           # Assume grdcut will work with the file
-          gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          # gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
           # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
+
+          gmt grdconvert ${GRIDFILE} ${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          # gmt grdcut ${F_TOPO}dem_convert.tif -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+          # Just convert the whole grid to tiff?
+          # gdal_translate -q -of "GTiff" -r bilinear -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
+          # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
 
           name=${F_TOPO}dem.tif
           clipdemflag=0
@@ -14792,9 +14948,11 @@ cleanup gmt.history
 
 # This outputs a single string with two values
 
-MAP_PS_DIM=$(gmt psconvert base_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+# MAP_PS_DIM=($(gmt psconvert base_fake.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10/2.54, $17/2.54}'))
+# echo MAP_PS_DIM is ${MAP_PS_DIM[0]} ${MAP_PS_DIM[1]}
 # MAP_PS_NOLABELS_DIM=$(gmt psconvert base_fake_nolabels.ps -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
 
+MAP_PS_DIM=($(grep GMTBoundingBox base_fake.ps | gawk '{print $4/72+0.5, $5/72+0.5}'))
 
 
 MAP_PS_NOLABELS_DIM_IN=($(grep GMTBoundingBox base_fake_nolabels.ps | gawk '{print $4/72, $5/72}'))
@@ -14804,15 +14962,14 @@ MAP_PS_NOLABELS_DIM_IN=($(grep GMTBoundingBox base_fake_nolabels.ps | gawk '{pri
 # MAP_PS_WITHLABELS_BB=($(gmt psconvert base_fake.ps -Te -A0.01i 2> >(grep -v Processing | grep -v Find | grep -v Figure | grep -v Format | head -n 1) | gawk -F'[[]' '{print $3}' | gawk -F '[]]' '{print $1}'))
 # MAP_ANNOT_VDIFF=$(echo )
 
-MAP_PS_WIDTH_IN=$(echo $MAP_PS_DIM | gawk  '{print $1/2.54}')
-MAP_PS_HEIGHT_IN=$(echo $MAP_PS_DIM | gawk  '{print $2/2.54}')
+MAP_PS_WIDTH_IN=$(echo ${MAP_PS_DIM[0]})
+MAP_PS_HEIGHT_IN=$(echo ${MAP_PS_DIM[1]})
 
 # MAP_PS_WIDTH_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $1/2.54}')
 # MAP_PS_HEIGHT_NOLABELS_IN=$(echo $MAP_PS_NOLABELS_DIM | gawk  '{print $2/2.54}')
 
 MAP_PS_WIDTH_NOLABELS_IN=${MAP_PS_NOLABELS_DIM_IN[0]}
 MAP_PS_HEIGHT_NOLABELS_IN=${MAP_PS_NOLABELS_DIM_IN[1]}
-
 
 info_msg "Labeled map dimensions (in) are W: $MAP_PS_WIDTH_IN, H: $MAP_PS_HEIGHT_IN"
 info_msg "Unlabeled map frame dimensions (in) are W: $MAP_PS_WIDTH_NOLABELS_IN, H: $MAP_PS_HEIGHT_NOLABELS_IN"
@@ -15199,7 +15356,9 @@ EOF
         BEGIN {
           # If the range straddles 0, ensure 0 is a major contour
           if (minz<0 && maxz>0) {
-            ismaj=1
+            ismaj=0
+            print "OTHER" > "/dev/stderr"
+
             print 0, "A", maxwidth "p," maxcolor
             for(i=0-cint; i>=minz; i-=cint) {
               if (++ismaj == majorspace) {
@@ -15209,7 +15368,7 @@ EOF
                 print i, "c", minwidth "p," mincolor
               }
             }
-            ismaj=1
+            ismaj=0
             for(i=cint; i<=maxz; i+=cint) {
               if (++ismaj == majorspace) {
                 print i, "A", maxwidth "p," maxcolor
@@ -15220,7 +15379,7 @@ EOF
             }
           } else {
           # If the range does not straddle 0, just make contours
-            ismaj=0
+            ismaj=1
             minz=minz-minz%cint
             for(i=minz; i<maxz; i+=cint) {
               if (++ismaj == majorspace) {
@@ -15524,18 +15683,66 @@ EOF
         # -70.3007	-33.2867	10p,Helvetica,black	0	TL	us6000diw5(4.1)
 
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, $6, $4  }' >> ${F_SEIS}eq.labels
-        [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%0.1f)\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "idmag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s M%0.1f\n", $1, $2, $8, 0, $9, $6, $4  }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "datemag" ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s M%0.1f\n", $1, $2, $8, 0, $9, tmp[1], $4 }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "datetime" ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s %s\n", $1, $2, $8, 0, $9, tmp[1], tmp[2] }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "dateid"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp[1], $6 }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "id"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, $6  }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "date"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp[1] }' >> ${F_SEIS}eq.labels
         [[ $EQ_LABELFORMAT == "year"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $8, 0, $9, tmp2[1] }' >> ${F_SEIS}eq.labels
-        [[ $EQ_LABELFORMAT == "yearmag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s(%s)\n", $1, $2, $8, 0, $9, tmp2[1], $4 }' >> ${F_SEIS}eq.labels
-        [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\t%0.1f\n", $1, $2, $8, 0, $9, $4  }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "yearmag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ split($5,tmp,"T"); split(tmp[1],tmp2,"-"); printf "%s\t%s\t%s\t%s\t%s\t%s M%0.1f\n", $1, $2, $8, 0, $9, tmp2[1], $4 }' >> ${F_SEIS}eq.labels
+        [[ $EQ_LABELFORMAT == "mag"   ]] && gawk  < ${F_SEIS}eqlabel_pos.sel '{ printf "%s\t%s\t%s\t%s\t%s\tM%0.1f\n", $1, $2, $8, 0, $9, $4  }' >> ${F_SEIS}eq.labels
 
         if [[ $LABELSONMAP -eq 1 ]]; then
-            uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
+            # output the X and Y page coordinates of the labeled points
+
+            #
+            # gmt mapproject ${F_SEIS}eq.labels ${RJSTRING[@]} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > eq.labels.xy
+            # LABEL_WIDTH_P=$(echo "${MAP_PS_WIDTH_NOLABELS_IN} * 72" | bc -l)
+            # LABEL_HEIGHT_P=$(echo "${MAP_PS_HEIGHT_NOLABELS_IN} * 72" | bc -l)
+            # paste eq.labels.xy ${F_SEIS}eq.labels > eq.labels.combined
+            #
+            # EQ_LABEL_DISTX_1=".1i"
+            # EQ_LABEL_DISTY_1=".1i"
+            # EQ_LABEL_DIST=$(echo "${EQ_LABEL_DISTX}" | gawk '{print ($1+0)*72}')
+            # EQ_LABEL_DISTX_2=$(echo "${EQ_LABEL_DISTX_1}" | gawk '{print ($1+0)*1.5 "i"}')
+            # EQ_LABEL_DISTY_2=$(echo "${EQ_LABEL_DISTY_1}" | gawk '{print ($1+0)*1.5 "i"}')
+            # EQFONTSIZE=$(echo ${EQ_LABEL_FONTSIZE} | gawk '{print $1+0}')
+            # python ~/Dropbox/scripts/tectoplot/pythonscripts/labelme_extended.py eq.labels.combined ${LABEL_WIDTH_P} ${LABEL_HEIGHT_P} ${EQ_LABEL_DIST} ${EQFONTSIZE}
+            #
+            # # uniq -u ${F_SEIS}eq.labels | gmt pstext -DJ${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gred  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
+            #
+            # gawk < newlabels.txt '
+            #   BEGIN {
+            #     IFS="\t"
+            #     OFS="\t"
+            #   }
+            #   {
+            #     id=$1
+            #     outstring=$2
+            #     for(i=3; i<=NF; i++) {
+            #       outstring=sprintf("%s\t%s", outstring, $(i))
+            #     }
+            #     print outstring >> "newlabels_" id ".txt"
+            #   }
+            # '
+            #
+            # if [[ -s newlabels_1.txt ]]; then
+            #   uniq -u newlabels_1.txt | gmt pstext -Dj${EQ_LABEL_DISTX_1}/${EQ_LABEL_DISTY_1}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
+            # fi
+            # if [[ -s newlabels_2.txt ]]; then
+            #   uniq -u newlabels_2.txt | gmt pstext -Dj${EQ_LABEL_DISTX_2}/${EQ_LABEL_DISTY_2}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
+            # fi
+
+            LABEL_FILE=${F_SEIS}eq.labels
+            LABEL_FONTSIZE=$(echo ${EQ_LABEL_FONTSIZE})
+            LABEL_DIST=${EQ_LABEL_DISTX}
+            LABEL_PSFILE=map.ps
+            LABEL_BOXLINE=""
+            LABEL_BOXCOLOR=""
+
+            source ${PLOTLABELS}
+
         else
             # Create a 'labels only' map for easier editing
             gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > eqlabel_map.ps
@@ -17087,7 +17294,22 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         gawk < ${F_SEIS}eqs.txt -v minmag=${ZTEXT_MINMAG} '
         ($4 >= minmag) {
           print $1, $2, int($4*10)/10
-        }' | gmt pstext -F+f6p,Helvetica,black+jCM ${RJOK} ${VERBOSE} >> map.ps
+        }' | gmt pstext -F+f6p,Helvetica,black=~0.5,white+jCM -t20 ${RJOK} ${VERBOSE} >> map.ps
+      fi
+    ;;
+
+
+    tmultcolor)
+      if [[ -s ${F_TOPO}dem.tif ]]; then
+
+        TMULT_Z_FACTOR=0.5
+        TMULT_MULFACT=$(echo "1 / $TMULT_Z_FACTOR * 111120" | bc -l)
+
+        gdaldem hillshade -q -alt ${TMULT_COLOR_ALT} -az ${TMULT_COLOR_AZ} -s ${MULFACT} ${F_TOPO}dem.tif ${F_TOPO}315.tif
+        gdaldem hillshade -q -alt ${TMULT_COLOR_ALT} -az $(echo "scale=0; (${TMULT_COLOR_AZ} + 120) % 360" | bc -l) -s ${MULFACT} ${F_TOPO}dem.tif ${F_TOPO}195.tif
+        gdaldem hillshade -q -alt ${TMULT_COLOR_ALT} -az $(echo "scale=0; (${TMULT_COLOR_AZ} + 240) % 360" | bc -l) -s ${MULFACT} ${F_TOPO}dem.tif ${F_TOPO}75.tif
+        gdal_merge.py -q -separate -o ${F_TOPO}mhs.tif ${F_TOPO}315.tif ${F_TOPO}195.tif ${F_TOPO}75.tif
+        gmt grdimage ${F_TOPO}mhs.tif -t${TMULT_COLOR_TRANS} ${RJOK} ${VERBOSE} >> map.ps
       fi
     ;;
 
@@ -17140,6 +17362,7 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           # If a topography dataset exists, then...
           if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
+            # COMEBACK: This needs to be adjusted to work with -timg sentinel.tif instead?
             # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
             if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
                 # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG?
@@ -17195,7 +17418,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               # the color from land not bleed to the hinge elevation.
               # CPTHINGE=0
 
-
               replace_gmt_colornames_rgb ${TOPO_CPT} ${CPTHINGE} > ./cpttmp.cpt
               cpt_to_gdalcolor ./cpttmp.cpt 0 > ${F_CPTS}topocolor.dat
               rm -f ./cpttmp.cpt
@@ -17243,12 +17465,23 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
           # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
           # q = height above local quantile                                  [WEIGHTED AVE]
           # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
-          # p = use TIFF image instead of color stretch
+          # p = use TIFF image(s) instead of color stretch
           # w = clip to alternative AOI
           # u = tunsetflat
 
           while read -n1 character; do
             case $character in
+
+            c)
+              info_msg "Creating and blending color stretch from ${TOPOGRAPHY_DATA} (alpha=$DEM_ALPHA)."
+              gdaldem color-relief ${TOPOGRAPHY_DATA} ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
+              if [[ $tposwhiteflag -eq 1 ]]; then
+                # If raster $2 has value above $3, outval=$4, else outval=raster $1, put into $5
+                image_setabove ${F_TOPO}colordem.tif ${TOPOGRAPHY_DATA} 0 254 ${F_TOPO}colordemwhite.tif
+                [[ -s ${F_TOPO}colordemwhite.tif ]] && mv ${F_TOPO}colordemwhite.tif ${F_TOPO}colordem.tif
+              fi
+              alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
+            ;;
 
             w)
               info_msg "Clipping DEM to new AOI"
@@ -17355,7 +17588,6 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
             # Compute and render the sky view factor
             v)
-
               demwidth=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $10}')
               demheight=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $11}')
               demxmin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $2}')
@@ -17478,54 +17710,69 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
           INTENSITY_RELIEF=${F_TOPO}intensity.tif
 
+          # Handle the TIFF images we will blend onto the intensity file
+
           if [[ ${topoctrlstring} =~ .*p.* ]]; then
 
-              # if [[ $demisclippedflag -eq 1 ]]; then
-              #   P_MAXLON=${CLIP_MAXLON}
-              #   P_MINLON=${CLIP_MINLON}
-              #   P_MAXLAT=${CLIP_MAXLAT}
-              #   P_MINLAT=${CLIP_MINLAT}
-              # else
-              #   P_MAXLON=${MAXLON}
-              #   P_MINLON=${MINLON}
-              #   P_MAXLAT=${MAXLAT}
-              #   P_MINLAT=${MINLAT}
-              # fi
               dem_dim=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -L -Vn))
               dem_dimx=${dem_dim[9]}
               dem_dimy=${dem_dim[10]}
-              info_msg "Rendering georeferenced RGB image ${P_IMAGE} as colored texture."
-              if [[ ${P_IMAGE} =~ "sentinel.tif" ]]; then
-                info_msg "Rendering Sentinel image"
-                gdalwarp -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} sentinel.tif ${F_TOPO}image_pre.tif
-                cp ${F_TOPO}image_pre.tif ${F_TOPO}image.tif
-  # This is the problematic command that overly brightens the image sometimes
-  #              histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
-  # Causes major clipping of white areas in original image.
-              else
-                gdalwarp -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${P_IMAGE} ${F_TOPO}image.tif
-              fi
-              if [[ $(echo "${IMAGE_FACT} == 1" | bc) -ne 1 ]]; then
-                alpha_value ${F_TOPO}image.tif ${IMAGE_FACT} ${F_TOPO}image_alpha.tif
-                # values of 255 in image.tif are set to nodata in image_alpha.tif
-                # This seems to have fixed the issue?
-                gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
-                multiply_combine ${F_TOPO}image_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-              else
-              # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
+
+              for this_image_ind in $(seq 1 $timg_index); do
+                this_image=${TIMG_IMAGES[$this_image_ind]}
+                this_fact=${TIMG_FACTS[$this_image_ind]}
+
+                info_msg "Rendering georeferenced RGB image ${this_image} as colored texture."
+
+                if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
+                  info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
+                  rm -f ${F_TOPO}image_alpha.tif
+                  alpha_value ${this_image} ${this_fact} ${F_TOPO}image_alpha.tif
+                  gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
+                  this_image=${F_TOPO}image_alpha.tif
+                  cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
+                fi
+
+                info_msg "Rescaling ${this_image} to match DEM"
+                gdalwarp -overwrite -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${this_image} ${F_TOPO}image_pre.tif
+                gdal_edit.py -colorinterp_1 red -colorinterp_2 green -colorinterp_3 blue ${F_TOPO}image_pre.tif
+
+                # Either copy (first) or overlay (subsequent) the rescaled image
+                if [[ ! -s ${F_TOPO}image.tif ]]; then
+                  cp ${F_TOPO}image_pre.tif ${F_TOPO}image.tif
+                else
+                  info_msg "Overlay combining ${this_image}"
+                  white_pixels_combine ${F_TOPO}image_pre.tif ${F_TOPO}image.tif ${F_TOPO}image_out.tif
+                  cp ${F_TOPO}image_out.tif ${F_TOPO}image.tif
+                fi
+
+    # This is the problematic command that overly brightens the image sometimes
+    #              histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
+    # Causes major clipping of white areas in original image.
+              done
+
+              # if [[ $(echo "${IMAGE_FACT} == 1" | bc) -ne 1 ]]; then
+              #   info_msg "Applying alpha ${IMAGE_FACT} to image"
+              #   alpha_value ${F_TOPO}image.tif ${IMAGE_FACT} ${F_TOPO}image_alpha.tif
+              #   # values of 255 in image.tif are set to nodata in image_alpha.tif
+              #   # This seems to have fixed the issue?
+              #   gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
+              #   info_msg "Multiply combine of color with intensity."
+              #   multiply_combine ${F_TOPO}image_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
+              # else
+              # # weighted_average_combine ${F_TOPO}image.tif ${F_TOPO}intensity.tif ${IMAGE_FACT} ${F_TOPO}intensity.tif
 
                 multiply_combine ${F_TOPO}image.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
-              fi
+              # fi
               INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
           fi
 
+          # If we have a color stretch but NOT an image overlay
           if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
-            info_msg "Creating and blending color stretch from ${TOPOGRAPHY_DATA} (alpha=$DEM_ALPHA)."
-            gdaldem color-relief ${TOPOGRAPHY_DATA} ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
-            alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
             multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
             COLORED_RELIEF=${F_TOPO}colored_intensity.tif
           else
+            # colored relief is already generated from an image overlay OR is the blank intensity
             COLORED_RELIEF=$INTENSITY_RELIEF
           fi
           # BATHY=${TOPOGRAPHY_DATA}
@@ -17545,7 +17792,9 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
         gmt_remove_tmpdir
 
         if [[ $dontplottopoflag -eq 0 ]]; then
-          gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJOK} >> map.ps
+          # echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJSTRING[@]} \> test.ps
+          gmt grdimage ${COLORED_RELIEF}  -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+          # GRID_PRINT_RES
         fi
       fi
       ;;
@@ -18651,14 +18900,14 @@ if [[ $makelegendflag -eq 1 ]]; then
       eqlabel)
         info_msg "Legend: eqlabel"
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
         [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk '{ printf "%s %s M%s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
 
         cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O ${VERBOSE} >> eqlabel.ps
         PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
@@ -18951,10 +19200,13 @@ if [[ $tifflag -eq 1 ]]; then
   # echo gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
   gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
   rm -f map.tfw
+
   # map.tiff is created from map.tif and is smaller, so keep it
+
   # Reset the coordinates of map.tiff for some reason or another. This
   # produces a TIFF with variable X and Y resolution
   gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} map.tiff
+  # Rename
   mv map.tiff map.tif
   [[ $openflag -eq 1 ]] && open_pdf "map.tif"
 fi
@@ -18969,24 +19221,11 @@ if [[ $plottedtopoflag -eq 1 ]]; then
   info_msg "Oblique map (${OBLIQUEAZ}/${OBLIQUEINC})"
   PSSIZENUM=$(echo $PSSIZE | gawk  '{print $1+0}')
 
-  # if [[ $demisclippedflag -eq 1 ]]; then
-  #   P_MAXLON=${CLIP_MAXLON}
-  #   P_MINLON=${CLIP_MINLON}
-  #   P_MAXLAT=${CLIP_MAXLAT}
-  #   P_MINLAT=${CLIP_MINLAT}
-  # else
-  #   P_MAXLON=${MAXLON}
-  #   P_MINLON=${MINLON}
-  #   P_MAXLAT=${MAXLAT}
-  #   P_MINLAT=${MINLAT}
-  # fi
-
-
   # zrange is the elevation change across the DEM
   zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${TOPOGRAPHY_DATA}))
 
   if [[ $obplotboxflag -eq 1 ]]; then
-    OBBOXCMD="-N${OBBOXLEVEL}+gwhite"
+    OBBOXCMD="-N${OBBOXLEVEL}+gwhite -Wf0.1p,black"
     # If the box goes upward for some reason???
     if [[ $(echo "${zrange[1]} < $OBBOXLEVEL" | bc -l) -eq 1 ]]; then
       zrange[1]=$OBBOXLEVEL;
@@ -19000,39 +19239,70 @@ if [[ $plottedtopoflag -eq 1 ]]; then
 
   # make_oblique.sh takes up to three arguments: vertical exaggeration, azimuth, inclination
 
-  echo "#!/bin/sh" >> ./make_oblique.sh
-  echo "if [[ \$# -ge 1 ]]; then" >> ./make_oblique.sh
-  echo "  OBLIQUE_VEXAG=\${1}" >> ./make_oblique.sh
-  echo "else" >> ./make_oblique.sh
-  echo "  OBLIQUE_VEXAG=${OBLIQUE_VEXAG}"  >> ./make_oblique.sh
-  echo "fi" >> ./make_oblique.sh
+cat<<-EOF > ./make_oblique.sh
+#!/usr/bin/env bash
+if [[ \$# -ge 1 ]]; then
+  OBLIQUE_VEXAG=\${1}
+else
+  OBLIQUE_VEXAG=${OBLIQUE_VEXAG}
+fi
 
-  echo "if [[ \$# -ge 2 ]]; then" >> ./make_oblique.sh
-  echo "  OBLIQUEAZ=\${2}" >> ./make_oblique.sh
-  echo "else" >> ./make_oblique.sh
-  echo "  OBLIQUEAZ=${OBLIQUEAZ}"  >> ./make_oblique.sh
-  echo "fi" >> ./make_oblique.sh
+if [[ \$# -ge 2 ]]; then
+  OBLIQUEAZ=\${2}
+else
+  OBLIQUEAZ=${OBLIQUEAZ}
+fi
 
-  echo "if [[ \$# -ge 3 ]]; then" >> ./make_oblique.sh
-  echo "  OBLIQUEINC=\${3}" >> ./make_oblique.sh
-  echo "else" >> ./make_oblique.sh
-  echo "  OBLIQUEINC=${OBLIQUEINC}"  >> ./make_oblique.sh
-  echo "fi" >> ./make_oblique.sh
+if [[ \$# -ge 3 ]]; then
+  OBLIQUEINC=\${3}
+else
+  OBLIQUEINC=${OBLIQUEINC}
+fi
 
-  echo "if [[ \$# -ge 4 ]]; then" >> ./make_oblique.sh
-  echo "  OBLIQUERES=\${4}" >> ./make_oblique.sh
-  echo "else" >> ./make_oblique.sh
-  echo "  OBLIQUERES=${OBLIQUERES}"  >> ./make_oblique.sh
-  echo "fi" >> ./make_oblique.sh
+if [[ \$# -ge 4 ]]; then
+  OBLIQUERES=\${4}
+else
+  OBLIQUERES=${OBLIQUERES}
+fi
+GEOTIFFRES=${GEOTIFFRES}
 
-  echo "DELTAZ_IN=\$(echo \"\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${DEM_MAXLON} - ${DEM_MINLON}) * 111000 )\"  | bc -l)"  >> ./make_oblique.sh
+OBRSTRING=\$(gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+BEGIN {
+  londiff=maxlon-minlon
+  latdiff=maxlat-minlat
+  maxdiff=((londiff>latdiff)?londiff:latdiff)
+  maxlatnew=(maxlat+maxdiff*2>90)?90:maxlat+maxdiff*2
+  minlatnew=(minlat-maxdiff*2<-90)?-90:minlat-maxdiff*2
+  maxlonnew=maxlon+maxdiff*2
+  minlonnew=maxlon-maxdiff*2
+  print "-R" minlonnew "/" maxlonnew "/" minlatnew "/" maxlatnew
+}')
 
-  # echo "gmt grdview $BATHY -G${COLORED_RELIEF} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -JM${MINLON}/${PSSIZENUM}i -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
-  if [[ $plotimageflag -eq 1 ]]; then
-    echo "gmt grdimage im.tiff ${RJSTRING[@]} ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > ob2.ps" >> ./make_oblique.sh
-  fi
-  echo "gmt grdview ${TOPOGRAPHY_DATA} -G${COLORED_RELIEF} ${RJSTRING[@]} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} ${OBBCOMMAND} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps" >> ./make_oblique.sh
-  echo "gmt psconvert oblique.ps -Tf -A0.5i --GMT_HISTORY=false ${VERBOSE}" >> ./make_oblique.sh
+OBJSTRING=\$(echo ${RJSTRING[@]} | gawk '
+{
+  for(i=1;i<=NF;i++) {
+    if (substr(\$(i),1,2) == "-J") {
+      print \$(i)
+      break
+    }
+  }
+}
+')
+
+DELTAZ_IN=\$(echo "\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0]})/ ( (${DEM_MAXLON} - ${DEM_MINLON}) * 111000 )"  | bc -l)
+
+if [[ -s map.tif ]]; then
+  gmt grdview -Xc -Yc ${TOPOGRAPHY_DATA} -Gmap.tif \${OBRSTRING} \${OBJSTRING} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${GEOTIFFRES} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps
+  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING[@]} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE  ${VERBOSE} > oblique_grid.ps
+  gmt psconvert oblique_tiff.ps -Tf -A+m0.5i --GMT_HISTORY=false ${VERBOSE}
+else
+  gmt grdview -Xc -Yc ${TOPOGRAPHY_DATA} -G${COLORED_RELIEF} \${OBRSTRING} \${OBJSTRING} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps
+  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING[@]} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique_grid.ps
+  gmt psconvert oblique.ps -Tf -A+m0.5i --GMT_HISTORY=false ${VERBOSE}
+fi
+
+EOF
+  # Drape map.tif if it exists, otherwise drape colored relief
   chmod a+x ./make_oblique.sh
 
   if [[ $obliqueflag -eq 1 ]]; then

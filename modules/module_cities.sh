@@ -19,7 +19,7 @@ function tectoplot_defaults_cities() {
   CITIES_ZIP_BYTES="10353983"
   CITIES500_BYTES="31818630"
 
-  CITIES_SYMBOL="s"
+  CITIES_SYMBOL="c"
   CITIES_SYMBOL_SIZE="0.1i"
   CITIES_SYMBOL_LINEWIDTH="0.25p"
   CITIES_SYMBOL_LINECOLOR="black"
@@ -173,6 +173,9 @@ function tectoplot_plot_cities() {
   case $1 in
     cities)
       info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
+
+      # We curate the cities plot by choosing the largest city within a given
+      # map distance to avoid overlaying many cities.
 
       # Sort the cities so that dense areas plot on top of less dense areas
       # Could also do some kind of symbol scaling

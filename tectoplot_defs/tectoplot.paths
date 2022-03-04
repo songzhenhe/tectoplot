@@ -100,6 +100,7 @@ CMTSLURP=${BASHSCRIPTDIR}"cmt_tools.sh"
 FLOAT_TEXT=${BASHSCRIPTDIR}"textobj.sh"
 SET_THEME=${BASHSCRIPTDIR}"settheme.sh"
 GMT_WRAPPERS=${BASHSCRIPTDIR}"gmt_wrappers.sh"
+PLOTLABELS=${BASHSCRIPTDIR}"plotlabels.sh"
 
 ##### bash scraper scripts
 SCRAPERDIR=${BASHSCRIPTDIR}"data_scrapers/"
@@ -136,7 +137,7 @@ MAKE3D_SCRIPT=$BASHSCRIPTDIR"make3d.sh"
 # Python code for scraping USGS focal mechanisms from event summary Quakeml
 PYTHONSCRIPTDIR=${TECTOPLOTDIR}"pythonscripts/"
 USGSQUAKEML=${PYTHONSCRIPTDIR}"usgsquakeml.py"
-
+SHIFTLABELS=${PYTHONSCRIPTDIR}"shiftlabels.py"
 
 ########################################################################################
 #### Programs that are redistributed alongside tectoplot

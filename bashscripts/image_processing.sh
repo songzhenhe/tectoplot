@@ -56,11 +56,20 @@ function alpha_value() {
   #                  ) * 255 )" --outfile="${3}"
   #   gdal_edit.py -unsetnodata "${3}"
   # fi
-  gdal_calc.py --NoDataValue=255 --overwrite --quiet -A "${1}" --allBands=A --calc "uint8( ( \
-                 ((A/255.)*(1-${2})+(255/255.)*(${2}))
-                 ) * 255 )" --outfile "${3}"
-  gdal_edit.py -unsetnodata "${3}"
+  if [[ $(echo "${2} != 0" | bc) -eq 1 ]]; then
 
+    # If nodata is set then any pixel in any band with value==NoData causes the
+    # output image to have a NoData pixel. So a saturated color (R=255) kills.
+    # Solution is to unset the nodata option before alpha and then reset it
+    # to 255 after.
+    gdal_edit.py -unsetnodata ${1}
+    gdal_calc.py --overwrite --quiet -A "${1}" --allBands=A --calc "uint8( ( \
+                  ((A/255.)*(1-${2})+(255/255.)*(${2}))
+                  ) * 255 )" --outfile "${3}"
+    gdal_edit.py -a_nodata 255 "${3}"
+  else
+    cp ${1} ${3}
+  fi
 }
 
 # function alpha_multiply_combine() {
@@ -205,6 +214,11 @@ function image_setval() {
   gdal_calc.py --type=Byte --overwrite --quiet -A "${1}" -B "${2}" --calc="uint8(( (B==${3})*$4.+(B!=${3})*A))" --outfile="${5}"
 }
 
+# If raster $2 has value above $3, outval=$4, else outval=raster $1, put into $5
+function image_setabove() {
+  gdal_calc.py --type=Byte --overwrite --quiet -A "${1}" -B "${2}" --allBands=A --calc="uint8(( (B>${3})*$4.+(B<=${3})*A))" --outfile="${5}"
+}
+
 # Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
 function histogram_rescale_stretch() {
   gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"
@@ -232,6 +246,38 @@ function overlay_combine() {
           (2 * (A/255.)*(B/255.)*(A<128) + \
           (1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128))/2 \
           ) * 255 )" --outfile="${3}"
+}
+
+# usage: gdal_calc.py [--help] --calc [expression ...] [-a [filename ...]] [--a_band [n ...]] [-b [filename ...]] [--b_band [n ...]] [-c [filename ...]] [--c_band [n ...]] [-d [filename ...]]
+#                     [--d_band [n ...]] [-e [filename ...]] [--e_band [n ...]] [-f [filename ...]] [--f_band [n ...]] [-g [filename ...]] [--g_band [n ...]] [-h [filename ...]] [--h_band [n ...]]
+#                     [-i [filename ...]] [--i_band [n ...]] [-j [filename ...]] [--j_band [n ...]] [-k [filename ...]] [--k_band [n ...]] [-l [filename ...]] [--l_band [n ...]] [-m [filename ...]]
+#                     [--m_band [n ...]] [-n [filename ...]] [--n_band [n ...]]
+
+function white_pixels_combine() {
+  # Find the pixels in the first image that are white and outputs a uint8 TIFF with values 1 (white) and 0 (not white)
+  gdal_edit.py -unsetnodata ${2}
+  gdal_calc.py --overwrite --quiet -A "${2}" --A_band 1 -B "${2}" --B_band 2 -C "${2}" --C_band 3 --calc="uint8( ( \
+          ((A==255)*(B==255)*(C==255))*100/255. \
+          ) * 255 )" --outfile=whitegrid.tif
+  gdal_translate -q -b 1 ${1} grid1band1.tif
+  gdal_translate -q -b 2 ${1} grid1band2.tif
+  gdal_translate -q -b 3 ${1} grid1band3.tif
+  gdal_translate -q -b 1 ${2} grid2band1.tif
+  gdal_translate -q -b 2 ${2} grid2band2.tif
+  gdal_translate -q -b 3 ${2} grid2band3.tif
+
+# (A>0) means the SECOND input image (the overlay) is white
+  gdal_calc.py --overwrite --quiet -A whitegrid.tif --A_band 1 -B grid1band1.tif --B_band 1 -C grid2band1.tif --C_band 1 --calc="uint8( ( \
+          (A>0)*B/255. + (A==0)*C/255. \
+          ) * 254 )" --outfile=fusedgrid1.tif
+          # If the overlay is white, the value will be the base image; otherwise, the overlay
+  gdal_calc.py --overwrite --quiet -A whitegrid.tif --A_band 1 -B grid1band2.tif --B_band 1 -C grid2band2.tif --C_band 1 --calc="uint8( ( \
+          (A>0)*B/255. + (A==0)*C/255. \
+          ) * 254 )" --outfile=fusedgrid2.tif
+  gdal_calc.py --overwrite --quiet -A whitegrid.tif --A_band 1 -B grid1band3.tif --B_band 1 -C grid2band3.tif --C_band 1 --calc="uint8( ( \
+          (A>0)*B/255. + (A==0)*C/255. \
+          ) * 254 )" --outfile=fusedgrid3.tif
+  gdal_merge.py -q -separate -o "${3}" fusedgrid1.tif fusedgrid2.tif fusedgrid3.tif
 }
 
 function flatten_sea() {

@@ -63,7 +63,7 @@
 ANSS_MIRROR="https://earthquake.usgs.gov"
 
 # Set ANSS_VERBOSE=1 for more illuminating messages
-ANSS_VERBOSE=0
+ANSS_VERBOSE=1
 [[ $ANSS_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 # Not needed anymore
 # function tecto_tac() {
@@ -94,19 +94,51 @@ function anss_update_catalog() {
     exit 1
   fi
 
-  # Determine the latest anss catalog file
-  latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
+  if [[ ! -s anss_index_1.cat ]]; then
+    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1000 AD to 1959 AD"
 
-  # If the file exists, then determine the date of the latest event and start
-  # scraping from there.
+    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1000-01-01T00:00:00&endtime=1959-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_1.cat
 
-  while [[ ! -s $latest_anss_file ]]; do
-    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Removing empty catalog file $latest_anss_file; probably leftover from previous scrape"
-    rm -f $latest_anss_file
+    lastevent=$(tail -n 1 anss_index_1.cat | gawk -F, '{split($1, a, "."); print a[1]}')
+
+    if [[ $lastevent == "" ]]; then
+      echo "Error: could not download events from 1000 to 1959"
+      rm -f anss_index_1.cat
+      exit 1
+    else
+      tile_catalog_file $TILEDIR anss_index_1.cat
+    fi
+  fi
+  if [[ ! -s anss_index_2.cat ]]; then
+    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1960 AD to 1969 AD"
+    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1960-01-01T00:00:00&endtime=1969-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_2.cat
+    lastevent=$(tail -n 1 anss_index_2.cat | gawk -F, '{split($1, a, "."); print a[1]}')
+    if [[ $lastevent == "" ]]; then
+      echo "Error: could not download events from 1960 to 1969"
+      rm -f anss_index_2.cat
+      exit 1
+    else
+      tile_catalog_file $TILEDIR anss_index_2.cat
+    fi
+  fi
+
+  anss_num=$(ls 2>/dev/null -Ubad1 -- anss_*.cat | wc -l)
+
+  # If there is at least one file called anss_*.cat
+  if [[ $anss_num -ne 0 ]]; then
+
+    # Determine the latest anss catalog file
     latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
-  done
 
-  if [[ -s $latest_anss_file ]]; then
+    # If the file exists, then determine the date of the latest event and start
+    # scraping from there.
+
+    while [[ ! -s $latest_anss_file ]]; do
+      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Removing empty catalog file $latest_anss_file; probably leftover from previous scrape"
+      rm -f $latest_anss_file
+      latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
+    done
+
     # determine the catalog number of the next file to create
     # filename of latest file is anss_index_N.cat where N is an integer
 
@@ -145,39 +177,18 @@ function anss_update_catalog() {
       e_hour=${s_hour}
       e_minute=${s_minute}
       e_second=${s_second}
+
   else
     # If there is no catalog, download the first two large chunks before going
     # to year/20000 event files
 
     # 1000       1959     18804
     # 1959       1969     19639
-    if [[ ! -s anss_index_1.cat ]]; then
-      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1000 AD to 1959 AD"
 
-      curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1000-01-01T00:00:00&endtime=1959-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_1.cat
-
-      lastevent=$(tail -n 1 anss_index_1.cat | gawk -F, '{split($1, a, "."); print a[1]}')
-
-      if [[ $lastevent == "" ]]; then
-        echo "Error: could not download events from 1000 to 1959"
-        rm -f anss_index_1.cat
-        exit 1
-      fi
-    fi
-    if [[ ! -s anss_index_2.cat ]]; then
-      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1960 AD to 1969 AD"
-      curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1960-01-01T00:00:00&endtime=1969-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_2.cat
-      lastevent=$(tail -n 1 anss_index_2.cat | gawk -F, '{split($1, a, "."); print a[1]}')
-      if [[ $lastevent == "" ]]; then
-        echo "Error: could not download events from 1960 to 1969"
-        rm -f anss_index_2.cat
-        exit 1
-      fi
-    fi
 
     # Initialize the downloads which will be by year or by 20000 increment, whichever is smaller
 
-    s_year=1970
+    s_year=1000
     s_month=01
     s_day=01
     s_hour=00

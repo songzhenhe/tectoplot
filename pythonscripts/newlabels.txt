@@ -1,0 +1,18 @@
+159.248	-10	10p,Helvetica,black	0	TR	1926
+161.11	-11.117	10p,Helvetica,black	0	TR	1931 longer
+161.211	-9.732	10p,Helvetica,black	0	BR	1931
+161.443	-10.345	10p,Helvetica,black	0	TM	1935
+155.468	-7.042	10p,Helvetica,black	0	CR	1939
+159.812	-9.873	10p,Helvetica,black	0	CR	1939 1974(12)
+155.054	-6.59	10p,Helvetica,black	0	TR	1975
+155.152	-7.104	10p,Helvetica,black	0	TR	1975
+160.348	-9.89	10p,Helvetica,black	0	CR	1977
+160.822	-9.844	10p,Helvetica,black	0	TM	1977
+160.731	-9.965	10p,Helvetica,black	0	BM	1977
+160.469	-10.012	10p,Helvetica,black	0	TM	1984
+160.819	-10.366	10p,Helvetica,black	0	BL	1988
+154.178	-5.799	10p,Helvetica,black	0	CL	1995
+157.043	-8.466	10p,Helvetica,black	0	BR	2007
+155.0241	-6.7547	10p,Helvetica,black	0	TR	2014
+161.3273	-10.6812	10p,Helvetica,black	0	TM	2016
+155.1718	-6.2464	10p,Helvetica,black	0	BM	2017

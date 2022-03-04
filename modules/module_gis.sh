@@ -20,7 +20,8 @@ function tectoplot_defaults_gis() {
   ### GIS line options
   USERLINECOLOR=black           # GIS line data file, line color
   USERLINEWIDTH="0.5p"          # GIS line data file, line width
-
+  GIS_LINEEND_STYLE=butt
+  
   #############################################################################
   ### Contoured grid options
   CONTOURNUMDEF=20             # Number of contours to plot
@@ -638,9 +639,7 @@ function tectoplot_plot_gis() {
 
   gis_line)
     info_msg "Plotting line dataset $current_userlinefilenumber"
-    echo       gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE \>\> map.ps
-
-    gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} $RJOK $VERBOSE >> map.ps
+    gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
     current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)
     tectoplot_plot_caught=1
   ;;
