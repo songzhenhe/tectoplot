@@ -114,13 +114,14 @@ function tectoplot_plot_gpwv4() {
     gpwv4_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
     gpwv4_rj+=("-JX${PSSIZE}i/${BASINATLAS_PSSIZE_ALT}id")
 
-    gmt grdclip ${GPWV4DATA} -Sb${GPWV4_LOWCUT}/NaN ${RSTRING} ${VERBOSE} -Gpopdens.nc
-    [[ $gpwv4_noplot -eq 0 ]] && gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -Q -t${GPWV4_TRANS} ${RJOK} ${VERBOSE} >> map.ps
     gmt_init_tmpdir
-    gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -t${GPWV4_TRANS} -Apopdensity.tif ${VERBOSE}
+    gmt grdclip ${GPWV4DATA} -Sb${GPWV4_LOWCUT}/NaN -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} -Gpopdens.nc
+    gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -t${GPWV4_TRANS} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Apopdensity.tif ${VERBOSE}
     gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} popdensity.tif
-
     gmt_remove_tmpdir
+
+    [[ $gpwv4_noplot -eq 0 ]] && gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -Q -t${GPWV4_TRANS} ${RJOK} ${VERBOSE} >> map.ps
+
     tectoplot_plot_caught=1
 
   ;;

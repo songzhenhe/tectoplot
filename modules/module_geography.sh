@@ -81,8 +81,10 @@ Usage: -aosm [[options]]
 Options:
 width [width=${OSMCOAST_LINEWIDTH}]              Width of coastline (e.g. 0.5p)
 color [color=${OSMCOAST_LINECOLOR}]             Color of coastline
-fill [[color=${OSMCOAST_POLYFILL}]]       Fill color of land polygons
+fill [[color=${OSMCOAST_POLYFILL}]]          Fill color of land polygons
 trans [transparency]                              Percent transparency
+fixdem                             Ensure ${F_TOPO}dem.tif is positive on land
+noplot                             Do not plot the coastlines/polygons
 
 Example:
 tectoplot -aosm
@@ -120,6 +122,11 @@ fi
           exit 1
         fi
       ;;
+      fixdem)
+        shift
+        ((tectoplot_module_shift++))
+        OSM_FIXDEMFLAG=1
+      ;;
       trans)
         shift
         ((tectoplot_module_shift++))
@@ -145,10 +152,16 @@ fi
         fi
         OSMCOAST_PLOTFILLCMD="-G${OSMCOAST_POLYFILL}"
       ;;
+      noplot)
+        shift
+        ((tectoplot_module_shift++))
+        OSM_NOPLOTFLAG=1
+      ;;
     esac
   done
 
-  plots+=("osmcoasts")
+
+  [[ $OSM_NOPLOTFLAG -ne 1 ]] && plots+=("osmcoasts")
   osmcoast_extract=1
 
   echo $OSMCOAST_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -449,8 +462,35 @@ function tectoplot_calculate_geography()  {
   # Extract the data for the current AOI
   if [[ -s ${OSMCOASTBF2FILE} && $osmcoast_extract -eq 1 ]]; then
     gmt spatial ${OSMCOASTBF2FILE} -bi2f -bo2f -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C > osmcoasts.bf2
+    gmt spatial ${OSMCOASTBF2FILE} -bi2f -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C -F > osmcoasts.gmt
     # gmt select ${OSMCOASTBF2FILE} -bi2f -bo2f -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} > osmcoasts.bf2
   fi
+
+  if [[ -s osmcoasts.gmt && ${OSM_FIXDEMFLAG} -eq 1 ]]; then
+    info_msg "[-aosm]: Setting land polygons in DEM to positive"
+    ogr2ogr -a_srs "EPSG:4326" -s_srs "EPSG:4326" -nlt POLYGON osmcoasts.shp osmcoasts.gmt
+    rasterpixelsize=($(grid_pixelsize ${F_TOPO}dem.tif))
+    # rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Pixel Size" | gawk 'function abs(a) { return (a>$1)?a:-a } {str1=substr($4,2,length($4)-2); split(str1,a,","); if (substr(a[2],1,1)=="-") { a[2]=substr(a[2],2,length(a[2])); print a[1], a[2]} }'))
+    # gdal_rasterize -a_srs "EPSG:4326" -at -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -burn 1 -tr ${rasterinfo[0]} ${rasterinfo[1]} osmcoasts.shp shapemask.tif
+    rasterdomain=($(grid_xyrange ${F_TOPO}dem.tif))
+
+    # echo ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT}
+    # echo ${rasterdomain[@]}
+
+    gdal_rasterize -q -a_srs "EPSG:4326" -at -te ${rasterdomain[0]} ${rasterdomain[2]} ${rasterdomain[1]} ${rasterdomain[3]} -burn 1 -ts ${rasterpixelsize[0]} ${rasterpixelsize[1]} osmcoasts.shp shapemask.tif
+
+    # Set pixels below sea level but inside the land polygon to sea level
+    # gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*B)" --outfile=fixeddem.tif
+
+    # Set pixels below sea level but inside the land polygon to above sea level, and pixels outside land polygon above sea level to below sea level
+    gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*(B<0)*B + (A==0)*(B>=0)*-0.1)" --outfile=fixeddem.tif
+
+
+    # gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
+    [[ -s fixeddem.tif ]] && cp fixeddem.tif ${F_TOPO}dem.tif 2>/dev/null
+  fi
+
+
 
 }
 

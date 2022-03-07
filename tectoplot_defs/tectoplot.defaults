@@ -170,6 +170,8 @@ SENTINEL_RECOLOR_G=44
 SENTINEL_RECOLOR_B=77
 
 EQ_CATALOG_TYPE+=("ANSS")
+EQ_CATALOG_TYPE+=("GHEC")
+
 COUNTRIES_TRANS=0
 
 STARTTIME="0000-01-01T00:00:00"
@@ -227,7 +229,8 @@ DATE_FORMAT="-u"
 
 # Page layout and element formatting options
 PLOTFILE="map.ps"            # name of PS file bearing plot data
-PLOTSHIFTX="1i"              # GMT shift of origin, X direction
+PLOTSHIFTX="c"              # GMT shift of origin, X direction
+#PLOTSHIFTX="1i"              # GMT shift of origin, X direction
 PLOTSHIFTY="c"               # GMT shift of origin, Y direction
 PLOTTITLE=""                 # title (default will be replaced with no title)
 PSSCALE=1                    # fraction of PSSIZE to plot at (1=no scaling)

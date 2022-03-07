@@ -470,11 +470,23 @@ source $GMT_WRAPPERS
 
 FULL_TMP=$(abs_path ${TMP})
 
-# echo INFO_MSG="\$(abs_path ./${INFO_MSG_NAME})"
+##### Set up temporary directory to contain some files before moving to ${TMP}
 
-INFO_MSG="./${INFO_MSG_NAME}"
-rm -f ${INFO_MSG}
+FILETMP=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')/
+
+touch ${FILETMP}${SHORTSOURCES}
+touch ${FILETMP}${LONGSOURCES}
+
+# Set up the source listing files that will be moved to ${TMP}
+SHORTSOURCES=${FILETMP}${SHORTSOURCES}
+LONGSOURCES=${FILETMP}${LONGSOURCES}
+
+# Record the command
+echo $COMMAND > ${FILETMP}tectoplot.last
+
+INFO_MSG=${FILETMP}${INFO_MSG_NAME}
 touch ${INFO_MSG}
+
 
 
 ################################################################################
@@ -609,9 +621,8 @@ fi
 # SPECIAL CASE 1: If only one argument is given and it is '-remake', rerun
 # the command in file tectoplot.last and exit
 if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
-  info_msg "Rerunning last tectoplot command executed in this directory"
-  cat tectoplot.last
-  . tectoplot.last
+  info_msg "Rerunning last tectoplot command executed in the temporary directory"
+  [[ -s ${TMP}tectoplot.last ]] && cat ${TMP}tectoplot.last && source ${TMP}tectoplot.last
   exit 1
 fi
 
@@ -816,9 +827,6 @@ fi
   exit 1
 fi
 
-# This file needs to be reset as they are used before the tempdir is created
-rm -f ${LONGSOURCES}
-rm -f ${SHORTSOURCES}
 
 DONTRESETCOMSFLAG=0
 
@@ -879,6 +887,7 @@ if [[ $DONTRESETCOMSFLAG -eq 0 ]]; then
   set -- "${saved_args[@]}"
 fi
 ##### End parse special command line arguments
+
 
 ##### Parse command line arguments that always end with exit
 
@@ -1183,6 +1192,7 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
 
   echo $COMMAND > "${TMP}/tectoplot.cmd"
 
+  # Move the messages into the data folder
   [[ -s ${INFO_MSG} ]] && mv ${INFO_MSG} ${TMP}${INFO_MSG_NAME}
   INFO_MSG=${TMP}${INFO_MSG_NAME}
 
@@ -5062,6 +5072,30 @@ fi
       done
     fi
     ;;
+
+  -cutframe)
+  CUTFRAME_DISTANCE=1
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-cutframe:       plot a white (background color) frame to facilitate cutting
+Usage: -cutframe [[distance=${CUTFRAME_DISTANCE}]]
+
+  Places an unadorned rectangular frame around the map beyond the label extent
+  in order to allow uniform cropping of the page to make superimposition of
+  PDFs easier.
+
+Example:
+tectoplot -a -cutframe -o example_cutframe
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+plots+=("cutframe")
+
+
+  ;;
 
   -pgo)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9721,18 +9755,23 @@ fi
         case $ZCATARG in
           ISC)
             EQ_CATALOG_TYPE+=("ISC")
-            EQ_SOURCESTRING=$ISC_EQ_SOURCESTRING
-            EQ_SHORT_SOURCESTRING=$ISC_EQ_SHORT_SOURCESTRING
+            EQ_SOURCESTRING=("$ISC_EQ_SOURCESTRING")
+            EQ_SHORT_SOURCESTRING=("$ISC_EQ_SHORT_SOURCESTRING")
           ;;
           EHB)
             EQ_CATALOG_TYPE+=("EHB")
-            EQ_SOURCESTRING=$ISCEHB_EQ_SOURCESTRING
-            EQ_SHORT_SOURCESTRING=$ISCEHB_EQ_SHORT_SOURCESTRING
+            EQ_SOURCESTRING=("$ISCEHB_EQ_SOURCESTRING")
+            EQ_SHORT_SOURCESTRING+=("$ISCEHB_EQ_SHORT_SOURCESTRING")
           ;;
           ANSS)
             EQ_CATALOG_TYPE+=("ANSS")
-            EQ_SOURCESTRING=$ANSS_EQ_SOURCESTRING
-            EQ_SHORT_SOURCESTRING=$ANSS_EQ_SHORT_SOURCESTRING
+            EQ_SOURCESTRING=("$ANSS_EQ_SOURCESTRING")
+            EQ_SHORT_SOURCESTRING+=("$ANSS_EQ_SHORT_SOURCESTRING")
+          ;;
+          GHEC)
+            EQ_CATALOG_TYPE+=("GHEC")
+            EQ_SOURCESTRING="($GEMGHEC_SOURCESTRING)"
+            EQ_SHORT_SOURCESTRING+=("$GEMGHEC_SHORT_SOURCESTRING")
           ;;
           nocull)
             CULL_EQ_CATALOGS=0
@@ -9999,12 +10038,6 @@ if [[ $plotselectedfeflag -eq 1 ]]; then
   plots+=("selected-flinn-engdahl")
 fi
 
-
-if [[ $ADD_EQ_SOURCESTRING -eq 1 ]]; then
-  echo $EQ_SOURCESTRING >> ${LONGSOURCES}
-  echo $EQ_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-fi
-
 # If we are asked to delete the topo for a custom region
 if [[ $tdeleteflag -eq 1 && $usingcustomregionflag -eq 1 ]]; then
   info_msg "[-tdelete]: Deleting saved topo for $CUSTOMREGIONID: ( ${SAVEDTOPODIR}${CUSTOMREGIONID}.tif)"
@@ -10012,8 +10045,6 @@ if [[ $tdeleteflag -eq 1 && $usingcustomregionflag -eq 1 ]]; then
   rm -f ${SAVEDTOPODIR}${CUSTOMREGIONID}.command
 fi
 
-# We made it to the calc/plotting sections, so record the command
-echo $COMMAND > tectoplot.last
 
 if [[ $setregionbyearthquakeflag -eq 1 ]]; then
 
@@ -10163,11 +10194,11 @@ if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
     # echo "Making map outline"
     # echo     gmt psbasemap -A $RJSTRING ${VERBOSE}
 
-    gmt psbasemap -A $RJSTRING ${VERBOSE} | grep -v "#" > mapoutline.txt
-    MINLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
-    MAXLONNEW=$(gawk < mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
-    MINLATNEW=$(gawk < mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
-    MAXLATNEW=$(gawk < mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
+    gmt psbasemap -A $RJSTRING ${VERBOSE} | grep -v "#" > ${FILETMP}mapoutline.txt
+    MINLONNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
+    MAXLONNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
+    MINLATNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
+    MAXLATNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
     info_msg "Updating AOI from ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} to ${MINLONNEW}/${MAXLONNEW}/${MINLATNEW}/${MAXLATNEW}"
     MINLON=$MINLONNEW
     MAXLON=$MAXLONNEW
@@ -11587,6 +11618,34 @@ if [[ $plotseis -eq 1 ]]; then
         print $3, $2, $4, $5, substr($1,1,19), $12, epoch
       }' >> ${F_SEIS}eqs.txt
       ((NUMEQCATS+=1))
+      echo "${ANSS_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+      echo "${ANSS_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+    fi
+    if [[ $eqcattype =~ "GHEC" ]]; then
+      F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+
+      # lon, lat, depth, mag, timestring, id, epoch, type
+      # type = "mw" or "ms" or "mb"
+        gawk < ${GEMGHEC_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
+          @include "tectoplot_functions.awk"
+          {
+            lon=$1
+            lat=$2
+            depth=$3
+            mag=$4
+            datestring=$5
+
+            if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+              if (test_lon(minlon, maxlon, lon) == 1) {
+                print
+              }
+            }
+          }
+        ' >> ${F_SEIS}eqs.txt
+        ((NUMEQCATS+=1))
+        ((customseisindex+=1))
+        echo "${GEMGHEC_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+        echo "${GEMGHEC_SOURCESTRING}" >> ${LONGSOURCES}
     fi
     if [[ $eqcattype =~ "ISC" ]]; then
       F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
@@ -11650,6 +11709,8 @@ if [[ $plotseis -eq 1 ]]; then
         print $7, $6, $8, $12, timestring, "isc" $1, epoch
       }' >> ${F_SEIS}eqs.txt
       ((NUMEQCATS+=1))
+      echo "${ISC_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+      echo "${ISC_EQ_SOURCESTRING}" >> ${LONGSOURCES}
     fi
     if [[ $eqcattype =~ "EHB" ]]; then
 
@@ -15065,9 +15126,21 @@ fi
 
 #### SECTION PLOT BEGIN
 
-
 for plot in ${plots[@]} ; do
 	case $plot in
+
+    cutframe)
+      MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+      MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+      MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+      MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+
+      gmt_init_tmpdir
+
+      gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i  -Bltrb -O -K --MAP_FRAME_PEN=0.1p,black >> map.ps
+
+      gmt_remove_tmpdir
+    ;;
 
     mmi)
 
@@ -15357,7 +15430,6 @@ EOF
           # If the range straddles 0, ensure 0 is a major contour
           if (minz<0 && maxz>0) {
             ismaj=0
-            print "OTHER" > "/dev/stderr"
 
             print 0, "A", maxwidth "p," maxcolor
             for(i=0-cint; i>=minz; i-=cint) {
@@ -15395,7 +15467,7 @@ EOF
       # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
       info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
 
-      echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} map.ps
+      # echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} map.ps
       gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} >> map.ps
       # gmt grdcontour $BATHY -A+f2p,Helvetica,black -Ctopo.contourdef $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]} -t${TOPOCONTOURTRANS} $RJOK ${VERBOSE} >> map.ps
       # gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
@@ -17215,15 +17287,15 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
 
       if [[ $SSUNIFORM -eq 1 ]]; then
         # Use a magnitude of 4 for all events
-        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 1}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
+        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 1}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
         gmt grd2cpt -Qo -I -Cturbo ${F_SEIS}seissum.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
-        gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+        gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
       else
         # Use the true magnitude for all events
-        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
+        gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
         gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
         gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
-        gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q $RJOK ${VERBOSE} -t${SSTRANS} >> map.ps
+        gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
       fi
 
       ;;
@@ -17323,6 +17395,19 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
    # Requires: dem.nc sentinel.tif TOPO_CPT
    # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
    # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
+
+   # if [[ -s osmcoasts.gmt && ${OSM_FIXDEMFLAG} -eq 1 ]]; then
+   #   info_msg "[-aosm]: Setting land polygons in DEM to positive"
+   #   ogr2ogr -a_srs "EPSG:4326" -s_srs "EPSG:4326" -nlt POLYGON osmcoasts.shp osmcoasts.gmt
+   #   rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Size is" | gawk '{print substr($3,1,length($3)-1), $4}'))
+   #   # rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Pixel Size" | gawk 'function abs(a) { return (a>$1)?a:-a } {str1=substr($4,2,length($4)-2); split(str1,a,","); if (substr(a[2],1,1)=="-") { a[2]=substr(a[2],2,length(a[2])); print a[1], a[2]} }'))
+   #   # gdal_rasterize -a_srs "EPSG:4326" -at -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -burn 1 -tr ${rasterinfo[0]} ${rasterinfo[1]} osmcoasts.shp shapemask.tif
+   #   gdal_rasterize -q -a_srs "EPSG:4326" -at -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -burn 1 -ts ${rasterinfo[0]} ${rasterinfo[1]} osmcoasts.shp shapemask.tif
+   #   gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*B)" --outfile=fixeddem.tif
+   #   # gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
+   #   [[ -s fixeddem.tif ]] && mv fixeddem.tif ${F_TOPO}dem.tif
+   # fi
+
 
        if [[ $FILLGRIDNANS_CLOSEST -eq 1 ]]; then
          info_msg "Filling topo grid file NaN values with nearest non-NaN value"
@@ -17668,13 +17753,23 @@ cleanup ${F_PROFILES}endpoint1.txt ${F_PROFILES}endpoint2.txt
               MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
 
               # Change to 8 bit unsigned format
-              gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadow.tif -q
+              gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadowed.tif -q
 
               # echo "SHADOW"
               # gdalinfo ${F_TOPO}shadow.tif
 
+              if [[ $smoothshadowsflag -eq 1 ]]; then
+                echo smoothing shadows
+                gmt grdfilter -Fg5 ${F_TOPO}shadowed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -Dp
+                shadowtoplot=${F_TOPO}shadow_smoothed.tif
+              else
+                shadowtoplot=${F_TOPO}shadowed.tif
+              fi
+
+              # Smooth the shadows using cubic interpolation
+
               # Combine it with the existing intensity
-              alpha_value ${F_TOPO}shadow.tif ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
+              alpha_value ${shadowtoplot} ${SHADOW_ALPHA} ${F_TOPO}shadow_alpha.tif
 
               multiply_combine ${F_TOPO}shadow_alpha.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
             ;;
@@ -19366,6 +19461,8 @@ fi ### if [[ $noplotflag -ne 1 ]]; then....
 source "${MAKE3D_SCRIPT}"
 
 ##
+
+mv ${FILETMP}tectoplot.last ${TMP}
 
 if [[ $outputdirflag -eq 1 ]]; then
   move_exit ${TMP}
