@@ -365,7 +365,7 @@ EOF
       ((tectoplot_module_shift++))
 
     fi
-    if arg_is_flag $2; then
+    if arg_is_flag $1; then
       info_msg "[-acs]: No border quality specified [a,l,f]. Using $BORDER_STATE_QUALITY"
     else
       BORDER_STATE_QUALITY="-D${1}"

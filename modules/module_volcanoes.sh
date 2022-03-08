@@ -157,12 +157,15 @@ function tectoplot_legend_volcanoes() {
     # Create a new blank map with the same -R -J as our main map
     gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
 
+
+    echo "${CENTERLON} ${CENTERLAT} ." | gmt pstext -F+f6p,Helvetica,white+jLB ${RJOK} $VERBOSE >> volcanoes.ps
+
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
-    echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.1i -O >> volcanoes.ps
+    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -X0.175i -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
+    echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -X0.15i -O >> volcanoes.ps
 
     # Calculate the width and height of the graphic with a margin of 0.05i
-    PS_DIM=$(gmt psconvert volcanoes.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    PS_DIM=$(gmt psconvert volcanoes.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
     PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
     PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
 

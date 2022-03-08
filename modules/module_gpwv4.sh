@@ -38,8 +38,9 @@ modules/module_gpwv4.sh
 
 Options:
 
-lowcut [number]   Minimum population density; lower is transparent
-trans [number]    Transparency
+lowcut [number=${GPWV4_LOWCUT}]   Minimum population density; lower is transparent
+trans [number=${GPWV4_TRANS}]      Transparency
+res [number=${GPWV4_DPI}]      Grid resolution
 
 Example: None
 --------------------------------------------------------------------------------
@@ -81,6 +82,17 @@ fi
             shift
             ((tectoplot_module_shift++))
             gpwv4_noplot=1
+            ;;
+          res)
+            shift
+            if ! arg_is_positive_float $1; then
+              echo "[-popdens]: res option requires number argument"
+              exit 1
+            else
+              GPWV4_DPI=$1
+              shift
+              ((tectoplot_module_shift++))
+            fi
             ;;
           *)
             echo "[-popdens]: Argument $1 not recognized"

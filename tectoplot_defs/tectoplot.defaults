@@ -497,6 +497,7 @@ SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by si
 ##### Focal mechanisms
 PLOTORIGIN=1                 # Plot the origin locations of focal mechanisms. 1 = origin, 0 = centroid
 CMTFORMAT="MomentTensor"     # Choose from GlobalCMT / MomentTensor/ TNP
+CMTLETTER="m"
 CMTEXTRA="-Tn"               # Plot nodal planes on top
 CMTNODAL="-Tn"
 CMTFILE="DefaultNOCMT"

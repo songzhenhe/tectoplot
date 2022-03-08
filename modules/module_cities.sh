@@ -192,7 +192,7 @@ function tectoplot_legendbar_cities() {
   case $1 in
     cities)
       echo "G 0.2i" >> legendbars.txt
-      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"City population (100k)\"" >> legendbars.txt
+      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_legendbar_caught=1
       ;;
@@ -205,8 +205,9 @@ function tectoplot_legend_cities() {
     # Create a new blank map with the same -R -J as our main map
     gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > cities.ps
 
-    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -Xa0.35i -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> cities.ps
-    echo "${CENTERLON} ${CENTERLAT} City > ${CITIES_MINPOP}" | gmt pstext -Y0.15i -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM -R -J -O $VERBOSE >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} ." | gmt pstext -F+f6p,Helvetica,white+jLB -R -J -O -K $VERBOSE >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE -X.175i >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} City with population > ${CITIES_MINPOP}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i -R -J -O $VERBOSE >> cities.ps
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
 

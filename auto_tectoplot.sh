@@ -105,6 +105,9 @@ wait
 
 cp ${MYTMP}control.txt ./auto_tectoplot.control.txt
 
+# Currently using pdftk to layer the PDFs onto one page. Could we use
+# gmt psimage instead?
+
 if [[ $combineflag -eq 1 ]]; then
   if command -v pdftk > /dev/null; then
     index=1
@@ -119,7 +122,7 @@ if [[ $combineflag -eq 1 ]]; then
       ((index++))
     done
     # Clean up intermediate PDFs
-    # rm -f out_*.pdf
+    rm -f out_*.pdf
   else
     echo "pdftk not found... not merging PDFs"
   fi

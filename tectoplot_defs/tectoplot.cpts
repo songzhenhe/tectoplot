@@ -63,6 +63,8 @@ FAULTSLIP_CPT=${F_CPTS}"faultslip.cpt"
 CYCLEAZIMUTH_CPT=${F_CPTS}"cycleaz.cpt"
 #GCDM_CPT=${F_CPTS}"gcdm.cpt"
 PLATEVEL_CPT=${F_CPTS}"platevel.cpt"
+PLATEVELGRID_CPT=${F_CPTS}"platevelgrid.cpt"
+
 PLATEVEL_NORM_CPT=${F_CPTS}"platevel_one.cpt"
 SLIPRATE_DEF_CPT=${F_CPTS}"slipratedeficit.cpt"
 
