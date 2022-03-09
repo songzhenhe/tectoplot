@@ -3991,24 +3991,49 @@ fi
     fi
 
     GPSMAXVEL=$GVEL
-
-
   ;;
 
   -legend) # args: none
+  LEGEND_JUST="BL"
+  LEGEND_ONOFFCODE="j"
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--legend:       plot a map legend above the main map area
-Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap]] [[notext]]
+-legend:       plot a legend drawn from the various map layers
+Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext]]
 
   Plots colorbars and various map elements depending on what has been plotted on
   the map. Also printes the short data source tags of included data.
   width_in: width of color bars, requires a unit (2.5i)
-  onmap: Place the legend above the map
 
+  Options:
+  onmap [[just=${LEGEND_JUST}]]:    Place the legend onto the map area
+    justification codes are two capital letters ()
+      B: Bottom M: Center T: Top
+      L: Left   C: Middle R: Right
+
+      --------------
+      | TL  TM  TR |
+      |            |
+      | CL  CM  CR |
+      |            |
+      | BL  BM  BR |
+      --------------
+
+   offmap [[just=${LEGEND_JUST}]]: Place legend outside of the map area
+    justification codes are to capital letters
+
+      TL    TM    TR
+      --------------
+   LT |            | RT
+      |            |
+   LM |            | RM
+      |            |
+   LB |            | RB
+      --------------
+      BL    BM    BR
 
 Example:
-tectoplot -t -g -pp -ppl 100000 -vc -c -legend
+tectoplot -t -g -pp -ppl 100000 -vc -c -legend onmap TR
 cp tempfiles_to_delete/maplegend.pdf ./example_legend.pdf
 ExampleEnd
 --------------------------------------------------------------------------------
@@ -4020,9 +4045,14 @@ fi
 
     while ! arg_is_flag "${2}"; do
       # legend by default goes into new file
-      if [[ ${2} =~ "onmap" ]]; then
+      if [[ ${2} =~ "onmap" || ${2} == "offmap" ]]; then
+        [[ ${2} == "offmap" ]] && LEGEND_ONOFFCODE="J"
         shift
         legendovermapflag=1
+        if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+          LEGEND_JUST="${2:0:2}"
+          shift
+        fi
       elif [[ ${2} =~ "notext" ]]; then
         shift
         legendnotextflag=1
@@ -14997,6 +15027,7 @@ done
   # Page color
 
   gmt gmtset PS_PAGE_COLOR ${PAGE_COLOR}
+  gmt gmtset MAP_FRAME_PEN 1p,black
 
   if [[ $usecustomgmtvars -eq 1 ]]; then
     info_msg "gmt gmtset ${GMTVARS[@]}"
@@ -19213,7 +19244,46 @@ if [[ $makelegendflag -eq 1 ]]; then
     PS_DIM=$(gmt psconvert maplegend.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
     LEG_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
     LEG_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-    gmt psimage -DjBL+o10p/10p+w${LEG_WIDTH_IN}i -F+gwhite+p0.2p,black maplegend.eps $RJOK ${VERBOSE} >> map.ps
+    LEG_WIDTH_P=$(echo $PS_DIM | gawk  '{print $1/2.54*72}')
+    LEG_HEIGHT_P=$(echo $PS_DIM | gawk  '{print $2/2.54*72}')
+
+    thisJ=""
+    if [[ ${LEGEND_ONOFFCODE} == "J" ]]; then
+      # Place outside the map frame
+      case ${LEGEND_JUST} in
+        TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
+        TM) shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
+        TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
+        BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
+        BM) shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
+        BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
+        RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
+        RM) LEGEND_JUST="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
+        RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
+        LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
+        LM) LEGEND_JUST="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
+        LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
+        *)
+          echo "Outside justification ${LEGEND_JUST} not recognized. Using TL."
+          shifth=0;   shiftv=30;   thisJ="+jBL"  # top edge, left side
+        ;;
+      esac
+    else
+      # Place inside the map frame
+      case ${LEGEND_JUST} in
+        TR|RT) shifth=10; shiftv=10 ;;
+        CR|RC) shifth=10;  shiftv=0  ;;
+        BR|RB) shifth=10;  shiftv=10  ;;
+        TC|CT) shifth=0;  shiftv=10  ;;
+        CM|MC) shifth=0; shiftv=0 ;;
+        BC|CB) shifth=0;  shiftv=10  ;;
+        TL|LT) shifth=10;  shiftv=10  ;;
+        CL|LC) shifth=10;  shiftv=0  ;;
+        BL|LB) shifth=10;  shiftv=10  ;;
+      esac
+    fi
+
+    gmt psimage -D${LEGEND_ONOFFCODE}${LEGEND_JUST}+o${shifth}p/${shiftv}p+w${LEG_WIDTH_IN}i${thisJ} -F+gwhite+p0.5p,black maplegend.eps $RJOK ${VERBOSE} >> map.ps
   else
     # Convert just the legend to a PDF
     gmt psconvert -Tf -A+m0.1i ${VERBOSE} ${LEGMAP}
