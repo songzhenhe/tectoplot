@@ -1220,10 +1220,12 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
   mkdir -p "${TMP}${F_PLATES}"
   mkdir -p "${TMP}${F_3D}"
   mkdir -p "${TMP}rasters/"
+  mkdir -p "${TMP}legend/"
 
   # Create directories registered by modules
   mkdir -p "${TMP}${F_VOLC}"
 
+  LEGENDDIR=$(abs_path "${TMP}legend/")
 
 fi
 
@@ -2391,6 +2393,7 @@ fi
 	  ;;
 
   -ca) #  [nts] [tpn] plot selected P/T/N axes for selected EQ types
+  CMT_AXESSCALE=0.007
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ca:           plot CMT kinematic axes of focal mechanisms
@@ -3956,7 +3959,7 @@ cat <<-EOF
 -legendonly:    plot only the map legend with some variables preset
 Usage: -legendonly { [[VAR val]] ... }
 
-  Plots the legend only, skipping the bookkeeping and data calculation parts of
+  Plots the legend only, skipping the data plotting parts of
   the code. Legend items that require input values (MINELEV, MAXELEV) will use
   default values, or those variables can be specified as arguments.
 
@@ -3969,11 +3972,11 @@ EOF
 shift && continue
 fi
     makelegendflag=1
-    legendovermapflag=0
+    # legendovermapflag=0
     legendonlyflag=1
 
-    # Turn off data processing, book keeping, data plotting
-    DATAPROCESSINGFLAG=0
+    # Turn off data plotting
+    DATAPROCESSINGFLAG=1
     BOOKKEEPINGFLAG=1
     DATAPLOTTINGFLAG=0
 
@@ -3994,19 +3997,50 @@ fi
   ;;
 
   -legend) # args: none
-  LEGEND_JUST="BL"
-  LEGEND_ONOFFCODE="j"
+  LEGEND_JUST_CODES+=("BL")
+  LEGEND_ONOFFCODES+=("j")
+  LEGEND_BORDERON+=("yes")
+  LEGEND_BORDERON+=("yes")
+  LEGEND_MARGIN=0.1  # inches
+  LEGEND_BORDER_WIDTH="0.5p"
+  LEGEND_BORDER_COLOR="black"
+  LEGEND_FONTSIZE="6p"
+  LEGEND_FONT="Helvetica"
+  LEGEND_FONTCOLOR="black"
+  LEGEND_BAR_HEIGHT="0.1i"
+  LEGEND_BAR_GAP="0.175i"
+  LEGEND_WIDTH="2i"
+  LEGEND_TICK_LENGTH="1p"
+  LEGEND_FRAME_WIDTH="0.5p"
+  LEGEND_FRAME_COLOR="black"
+  colorbarshorizontalflag=0
+  noncolorbarhorizontalflag=0
+
+  LEGEND_FONTDEF=${LEGEND_FONTSIZE},${LEGEND_FONT},${LEGEND_FONTCOLOR}
+  LEGEND_BORDER="+p${LEGEND_BORDER_WIDTH},${LEGEND_BORDER_COLOR}"
+  LEGEND_FRAME_PEN="${LEGEND_FRAME_WIDTH},${LEGEND_FRAME_COLOR}"
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -legend:       plot a legend drawn from the various map layers
 Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext]]
 
-  Plots colorbars and various map elements depending on what has been plotted on
-  the map. Also printes the short data source tags of included data.
-  width_in: width of color bars, requires a unit (2.5i)
+  Plots legend entries for layers included on the map.
+  bars = colorbar legend items
+  nonbars = non-colorbar legend itemst
 
   Options:
-  onmap [[just=${LEGEND_JUST}]]:    Place the legend onto the map area
+  barsonly                          Don't plot anything except color bars
+  nobars                            Don't plot the color bars
+  horiz  [[bars | nonbars]]         Plot legend horizontally (both | bars | nonbars)
+  border [none | bars | nonbars]    Set legend border off or on only for bars/nonbars
+  font [${LEGEND_FONT}]             Set font [size | size,font | size,font,color]
+  barwidth [number]                 Width of color bars, in inches without unit
+
+  onmap [[just=${LEGEND_JUST_CODES[0]}]] [[just2]]     Place the legend(s)
+    If two justifications are given, split the legend and use the first code to
+    place the color bars and the second code to place the non-colorbars.
+
     justification codes are two capital letters ()
       B: Bottom M: Center T: Top
       L: Left   C: Middle R: Right
@@ -4019,7 +4053,7 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
       | BL  BM  BR |
       --------------
 
-   offmap [[just=${LEGEND_JUST}]]: Place legend outside of the map area
+   offmap [[just=${LEGEND_JUST_CODES[0]}]]: Place legend outside of the map area
     justification codes are to capital letters
 
       TL    TM    TR
@@ -4032,37 +4066,125 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
       --------------
       BL    BM    BR
 
+    Color bars can be placed on/off the map separately from the non-colorbar by
+    calling onmap [just1] offmap [just2].
+
 Example:
-tectoplot -t -g -pp -ppl 100000 -vc -c -legend onmap TR
+tectoplot -t -g -pp -ppl 100000 -vc -c -legend offmap BM onmap TR horiz bars border nonbars width 2.5 font 8p
 cp tempfiles_to_delete/maplegend.pdf ./example_legend.pdf
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
+
     makelegendflag=1
     legendovermapflag=0
 
     while ! arg_is_flag "${2}"; do
-      # legend by default goes into new file
-      if [[ ${2} =~ "onmap" || ${2} == "offmap" ]]; then
-        [[ ${2} == "offmap" ]] && LEGEND_ONOFFCODE="J"
-        shift
-        legendovermapflag=1
-        if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
-          LEGEND_JUST="${2:0:2}"
+      case "${2}" in
+        horiz)
           shift
-        fi
-      elif [[ ${2} =~ "notext" ]]; then
+          colorbarshorizontalflag=1
+          noncolorbarhorizontalflag=1
+          if [[ $2 == "bars" ]]; then
+            noncolorbarhorizontalflag=0
+            shift
+          elif [[ $2 == "nonbars" ]]; then
+            colorbarshorizontalflag=0
+            shift
+          fi
+        ;;
+        barsonly)
+          shift
+          legendbarsonlyflag=1
+        ;;
+        nobars)
+          shift
+          nolegendbarsflag=1
+        ;;
+        border)
+          shift
+          unset LEGEND_BORDERON
+          if [[ $2 == "none" ]]; then
+            LEGEND_BORDERON+=("no")
+            LEGEND_BORDERON+=("no")
+            shift
+          elif [[ $2 == "bars" ]]; then
+            LEGEND_BORDERON+=("yes")
+            LEGEND_BORDERON+=("no")
+            shift
+          elif [[ $2 == "nonbars" ]]; then
+            LEGEND_BORDERON+=("no")
+            LEGEND_BORDERON+=("yes")
+            shift
+          fi
+        ;;
+        font)
+          shift
+          if ! arg_is_flag $2; then
+
+            fontargs=($(echo "${2}" | gawk -F, '{print $1, $2, $3}'))
+            case ${#fontargs} in
+              1)
+                LEGEND_FONTSIZE=${fontargs[0]}
+              ;;
+              2)
+                LEGEND_FONTSIZE=${fontargs[0]}
+                LEGEND_FONT=${fontargs[1]}
+              ;;
+              3)
+                LEGEND_FONTSIZE=${fontargs[0]}
+                LEGEND_FONT=${fontargs[1]}
+                LEGEND_FONTCOLOR=${fontargs[2]}
+              ;;
+              *)
+                echo "[-legend]: font option requires size | size,font | size,font,color argument"
+                exit 1
+              ;;
+            esac
+            shift
+            LEGEND_FONTDEF=${LEGEND_FONTSIZE},${LEGEND_FONT},${LEGEND_FONTCOLOR}
+          fi
+          ;;
+        onmap|offmap)
+          # The first time we call this, reset the default
+          offmapflag=0
+          [[ $usedonoffmapflag -ne 1 ]] && unset LEGEND_JUST_CODES && unset LEGEND_ONOFFCODES && usedonoffmapflag=1
+          [[ ${2} == "offmap" ]] && offmapflag=1
+          shift
+          legendovermapflag=1
+          if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+            LEGEND_JUST_CODES+=("${2:0:2}")
+            [[ $offmapflag -eq 1 ]] && LEGEND_ONOFFCODES+=("J") || LEGEND_ONOFFCODES+=("j")
+            shift
+          fi
+          if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+            LEGEND_JUST_CODES+=("${2:0:2}")
+            [[ $offmapflag -eq 1 ]] && LEGEND_ONOFFCODES+=("J") || LEGEND_ONOFFCODES+=("j")
+            shift
+          fi
+          ;;
+      notext)
         shift
         legendnotextflag=1
-      elif [[ $2 == *"i" ]]; then
+        ;;
+      width)
+        shift
         LEGEND_WIDTH="${2}"
         shift
-      else
+        # Very wide bars should be made slightly taller and the gap should be made wider
+        LEGEND_BAR_HEIGHT=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", (w/40>0.1)?w/40:0.1)}'))
+        LEGEND_BAR_GAP=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", 0.1+(w/20>=0.15)?w/20:0.1)}'))
+        LEGEND_TICK_LENGTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/5)}'))
+        LEGEND_FRAME_WIDTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/20)}'))
+        LEGEND_FRAME_PEN="${LEGEND_FRAME_WIDTH},${LEGEND_FRAME_COLOR}"
+        ;;
+      *)
         echo "[-legend]: Argument ${2} not recognized"
         exit 1
-      fi
+        ;;
+      esac
     done
     ;;
 
@@ -5178,7 +5300,8 @@ fi
     ;;
 
   -cutframe)
-  CUTFRAME_DISTANCE=1
+  # Default cutframe distance is 2 inches
+  CUTFRAME_DISTANCE=2
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cutframe:       plot a white (background color) frame to facilitate cutting
@@ -5188,6 +5311,8 @@ Usage: -cutframe [[distance=${CUTFRAME_DISTANCE}]]
   in order to allow uniform cropping of the page to make superimposition of
   PDFs easier.
 
+  distance is given without units, and is in inches
+
 Example:
 tectoplot -a -cutframe -o example_cutframe
 ExampleEnd
@@ -5196,7 +5321,13 @@ EOF
 shift && continue
 fi
 cutframeflag=1
-plots+=("cutframe")
+
+  if arg_is_positive_float $2; then
+    CUTFRAME_DISTANCE="${2}"
+    shift
+  fi
+
+  plots+=("cutframe")
 
 
   ;;
@@ -6991,6 +7122,8 @@ fi
     ;;
 
   -t) # args: ID | filename { args }
+  TMIN=-8000
+  TMAX=8000
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography
@@ -15198,7 +15331,6 @@ done
 
 if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
-
   #### SECTION PLOT BEGIN
 
   for plot in ${plots[@]} ; do
@@ -15331,27 +15463,30 @@ EOF
             }' > $kinfile".xy"
         done
 
+        psvelostroke="-W1p,black"
+        psvelostroke="-W0p"
+
         if [[ $axescmtthrustflag -eq 1 ]]; then
           # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
-          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_thrust.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_thrust.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_thrust.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_thrust.txt.xy ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_thrust.txt.xy ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_thrust.txt.xy ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
           # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
           # [[ $axesnflag -eq 1 ]] && gawk  < ${F_KIN}n_axes_thrust.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green  -Gblack $RJOK $VERBOSE >> map.ps
         fi
         if [[ $axescmtnormalflag -eq 1 ]]; then
-          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_normal.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_normal.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_normal.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_normal.txt.xy ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_normal.txt.xy ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_normal.txt.xy ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
           #
           # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
           # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
           # [[ $axesnflag -eq 1 ]] && gawk  < ${F_KIN}n_axes_normal.txt     -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,green  -Gblack $RJOK $VERBOSE >> map.ps
         fi
         if [[ $axescmtssflag -eq 1 ]]; then
-          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_strikeslip.txt.xy -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_strikeslip.txt.xy -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
-          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_strikeslip.txt.xy -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axestflag -eq 1 ]] && gmt psvelo ${F_KIN}t_axes_strikeslip.txt.xy ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axespflag -eq 1 ]] && gmt psvelo ${F_KIN}p_axes_strikeslip.txt.xy ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
+          [[ $axesnflag -eq 1 ]] && gmt psvelo ${F_KIN}n_axes_strikeslip.txt.xy ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> map.ps
 
           # [[ $axestflag -eq 1 ]] && gawk  < ${F_KIN}t_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,purple -Gblack $RJOK $VERBOSE >> map.ps
           # [[ $axespflag -eq 1 ]] && gawk  < ${F_KIN}p_axes_strikeslip.txt -v scalev=${CMTAXESSCALE} 'function abs(v) { return (v>0)?v:-v} {print $1, $2, $3, abs(cos($4*pi/180))*scalev}' | gmt psxy -SV${CMTAXESARROW}+jc+b+e -W0.4p,blue   -Gblack $RJOK $VERBOSE >> map.ps
@@ -16422,13 +16557,13 @@ EOF
         # Currently only plotting strikes and dips of thrust mechanisms
         if [[ kinthrustflag -eq 1 ]]; then
           # Plot dip line of NP1
-          [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb -W0.5p,red -Gwhite ${F_KIN}thrust_gen_slip_vectors_np1_downdip.txt $RJOK $VERBOSE >> map.ps
+          [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb -W0.5p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1_downdip.txt $RJOK $VERBOSE >> map.ps
           # Plot strike line of NP1
-          [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jc -W0.5p,red -Gwhite ${F_KIN}thrust_gen_slip_vectors_np1_str.txt $RJOK $VERBOSE >> map.ps
+          [[ np1flag -eq 1 ]] && gmt psxy -SV0.05i+jc -W0.5p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1_str.txt $RJOK $VERBOSE >> map.ps
           # Plot dip line of NP2
-          [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb -W0.5p,gray -Ggray ${F_KIN}thrust_gen_slip_vectors_np2_downdip.txt $RJOK $VERBOSE >> map.ps
+          [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb -W0.5p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2_downdip.txt $RJOK $VERBOSE >> map.ps
           # Plot strike line of NP2
-          [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jc -W0.5p,gray -Ggray ${F_KIN}thrust_gen_slip_vectors_np2_str.txt $RJOK $VERBOSE >> map.ps
+          [[ np2flag -eq 1 ]] && gmt psxy -SV0.05i+jc -W0.5p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2_str.txt $RJOK $VERBOSE >> map.ps
         fi
         plottedkinsd=1
         ;;
@@ -18701,8 +18836,8 @@ if [[ $makelegendflag -eq 1 ]]; then
   # push onto the map using gmt psimage AFTER making the legend.
 
   info_msg "Plotting legend in its own file"
-  LEGMAP="maplegend.ps"
-  gmt psxy -T ${RJSTRING[@]} -X$PLOTSHIFTX -Y$PLOTSHIFTY -K $VERBOSE > maplegend.ps
+  COLORBARLEGEND=${LEGENDDIR}colorbars.ps
+  gmt psxy -T ${RJSTRING[@]} -X$PLOTSHIFTX -Y$PLOTSHIFTY -K $VERBOSE > ${COLORBARLEGEND}
 
   # Add the plot commands to the legend color bar command list
 
@@ -18714,7 +18849,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   info_msg "Updated legend commands are >>>>> ${legendbarwords[@]} <<<<<"
 
-  echo "# Legend " > legendbars.txt
+  echo "# Legend " > ${LEGENDDIR}legendbars.txt
   barplotcount=0
   plottedneiscptflag=0
 
@@ -18722,36 +18857,36 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   # First, plot the color bars in a column.
 
-  LEGENDBAR_OPTS="--MAP_FRAME_PEN=0.5p,black --FONT_ANNOT_PRIMARY=6p,Helvetica,black"
+  LEGENDBAR_OPTS="--MAP_FRAME_PEN=${LEGEND_FRAME_PEN} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF}"
 
   for legend_plot in ${legendbarwords[@]} ; do
   	case $legend_plot in
 
 # REQUIRES CPT
       secinv)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}secinv.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Second invariant of strain rate\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}secinv.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Second invariant of strain rate\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
       ;;
 
 # REQUIRES CPT
       tomoslice)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}tomography.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa1f0.2+l\"Velocity anomaly (percent)\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}tomography.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa1f0.2+l\"Velocity anomaly (percent)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
       ;;
 
 # REQUIRES CPT
       eulerpoles)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}polerate.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa1f0.2+l\"Rotation rate (degrees/Myr)\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}polerate.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa1f0.2+l\"Rotation rate (degrees/Myr)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
       ;;
 
 # REQUIRES CPT
       plateedgecolor)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}az.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa90f45+l\"Obliquity (degrees)\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}az.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa90f45+l\"Obliquity (degrees)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
       ;;
 
@@ -18761,8 +18896,8 @@ if [[ $makelegendflag -eq 1 ]]; then
           plottedneiscptflag=1
 
           # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake / slab depth (km)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $SEISDEPTH_NODEEPEST_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake / slab depth (km)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         fi
         ;;
@@ -18777,15 +18912,15 @@ if [[ $makelegendflag -eq 1 ]]; then
           ($1+0!=$1) {
             print
           }' > ${F_CPTS}cluster_truncate.cpt
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}cluster_truncate.cpt 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa10 -B+l\"Earthquake cluster ID\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}cluster_truncate.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa10 -B+l\"Earthquake cluster ID\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         ;;
 
 # REQUIRES CPT
       eqtime)
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $SEIS_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bx+l\"Earthquake time\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $SEIS_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bx+l\"Earthquake time\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         ;;
 
@@ -18795,8 +18930,8 @@ if [[ $makelegendflag -eq 1 ]]; then
       #     # Reduce the CPT to the used scale range
       #     gmt makecpt -C$GEOAGE_CPT -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
       #
-      #     echo "G 0.2i" >> legendbars.txt
-      #     echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i 0.1i+malu -Bxa100f50+l\"Age (Ma)\"" >> legendbars.txt
+      #     echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+      #     echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu -Bxa100f50+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
       #     barplotcount=$barplotcount+1
       #   fi
       #   ;;
@@ -18804,8 +18939,8 @@ if [[ $makelegendflag -eq 1 ]]; then
 # Requires CPT
   		grav)
         if [[ -e $GRAV_CPT ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $GRAV_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"$GRAVMODEL gravity (mgal)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $GRAV_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"$GRAVMODEL gravity (mgal)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         fi
   			;;
@@ -18813,8 +18948,8 @@ if [[ $makelegendflag -eq 1 ]]; then
 # Requires CPT
       gravcurv)
         if [[ -e $GRAV_CURV_CPT ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $GRAV_CURV_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"$GRAVMODEL curvature (mgal)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $GRAV_CURV_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"$GRAVMODEL curvature (mgal)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         fi
         ;;
@@ -18822,57 +18957,59 @@ if [[ $makelegendflag -eq 1 ]]; then
 # Requires CPT and LITHO1_TYPE variable
       litho1)
         if [[ $LITHO1_TYPE == "density" ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $LITHO1_DENSITY_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa500f50+l\"LITHO1.0 density (kg/m^3)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $LITHO1_DENSITY_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa500f50+l\"LITHO1.0 density (kg/m^3)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         elif [[ $LITHO1_TYPE == "Vp" ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $LITHO1_VELOCITY_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa1000f250+l\"LITHO1.0Vp velocity (m/s)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $LITHO1_VELOCITY_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa1000f250+l\"LITHO1.0Vp velocity (m/s)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         elif [[ $LITHO_TYPE == "Vs" ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B $LITHO1_VELOCITY_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa1000f250+l\"LITHO1.0 Vs velocity (m/s)\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $LITHO1_VELOCITY_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa1000f250+l\"LITHO1.0 Vs velocity (m/s)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         fi
         ;;
 
 
       # oceanage)
-      #   echo "G 0.2i" >> legendbars.txt
-      #   echo "B $OC_AGE_CPT 0.2i 0.1i+malu -Bxa50+l\"Ocean crust age (Ma)\"" >> legendbars.txt
+      #   echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+      #   echo "B $OC_AGE_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu -Bxa50+l\"Ocean crust age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
       #   barplotcount=$barplotcount+1
       #   ;;
 
 # Requires CPT
       plateazdiff)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${CPTDIR}cycleaz.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa90f30+l\"Azimuth difference (°)\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${CPTDIR}cycleaz.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa90f30+l\"Azimuth difference (°)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         ;;
 
 # Requires CPT
       platevelgrid)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B $PLATEVELGRID_CPT 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa50f10+l\"Plate velocity (mm/yr)\"" >> legendbars.txt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B $PLATEVELGRID_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa50f10+l\"Plate velocity (mm/yr)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         ;;
 
 # Requires CPT and SSUNIFORM variable
       seissum)
         if [[ $SSUNIFORM -eq 1 ]]; then
-          echo "G 0.2i" >> legendbars.txt
-          echo "B ${F_CPTS}seissum.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake count\"" >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${F_CPTS}seissum.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake count\"" >> ${LEGENDDIR}legendbars.txt
         else
-          echo "G 0.2i" >> legendbars.txt
-          echo "B ${F_CPTS}seissum.cpt 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxaf+l\"M0 (x10^N)\"" -W0.001 >> legendbars.txt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${F_CPTS}seissum.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"M0 (x10^N)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
         fi
         barplotcount=$barplotcount+1
         ;;
 
 # Requires CPT and BATHYINC
       topo)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${TOPO_CPT} 0.2i 0.1i+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> legendbars.txt
+        topotranslevel=$(echo "$DEM_ALPHA * 100" | bc -l)
+        gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
+        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         ;;
 
@@ -18888,7 +19025,6 @@ if [[ $makelegendflag -eq 1 ]]; then
             break
           fi
         done
-
         ;;
 
   	esac
@@ -18898,11 +19034,10 @@ if [[ $makelegendflag -eq 1 ]]; then
   [[ $barplotcount -eq 0 ]] && LEGEND_WIDTH=0.01
 
 
-  LEG2_X=0.06i
-  LEG2_Y=${MAP_PS_HEIGHT_IN_plus}
+  LEG2_X=c
+  LEG2_Y=c
 
   # The non-colorbar plots come next.
-
   GPS_ELLIPSE_TEXT=$(gawk -v c=0.95 'BEGIN{print c*100 "%" }')
 
   if [[ $legendnotextflag -ne 1 ]]; then
@@ -18915,295 +19050,339 @@ if [[ $makelegendflag -eq 1 ]]; then
     touch datasourceslegend.txt
   fi
 
+#
+function init_legend_item() {
+  # $1 = ID
+  gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}${1}.ps
+  LEGFILE="${LEGENDDIR}${1}.ps"
+}
 
-  # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${FONT_ANNOT_COLORBAR} >> $LEGMAP
-  gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w2i+jBL -C0.05i/0.05i -J -R ${VERBOSE} --FONT_ANNOT_PRIMARY=${FONT_ANNOT_COLORBAR}  > legendtemp.ps
-  PS_DIM=$(gmt psconvert legendtemp.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-  LEGENDBAR_HEIGHT_IN=$(echo $PS_DIM | gawk '{print $2/2.54+0.1}')
+function close_legend_item() {
+  # $1 = ID
+  gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}${1}.ps
+  PS_DIM=$(gmt psconvert ${LEGENDDIR}${1}.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+  LEGEND_ITEM_PATHS+=("${LEGENDDIR}${1}.eps")
+  LEGEND_ITEM_WIDTHS+=("$(echo $PS_DIM | gawk '{print $1/2.54}')")
+  LEGEND_ITEM_HEIGHTS+=("$(echo $PS_DIM | gawk '{print $2/2.54}')")
+  LEGEPSFILE="${LEGENDDIR}${1}.eps"
+}
 
-  gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w2i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${FONT_ANNOT_COLORBAR} >> $LEGMAP
+# function plot_legend_item() {
+#   # $1 = path to eps file
+#   #
+#   gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}${1}.ps
+#   PS_DIM=$(gmt psconvert ${LEGEND_ITEM} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+#   LEGEND_ITEM_PATHS+=("${LEGENDDIR}${1}.eps")
+#   LEGEND_ITEM_WIDTHS+=("$(echo $PS_DIM | gawk '{print $1/2.54}')")
+#   LEGEND_ITEM_HEIGHTS+=("$(echo $PS_DIM | gawk '{print $2/2.54}')")
+#   LEGEPSFILE="${LEGENDDIR}${1}.eps"
+# }
+
+
+  if [[ $nolegendbarsflag -ne 1 ]]; then
+    # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
+
+    if [[ $colorbarshorizontalflag -eq 1 ]]; then
+      xoffset=0
+      while read p; do
+        if [[ ${p:0:1} == "B" ]]; then
+          echo "${p}" > tmplegend.txt
+          gmt pslegend tmplegend.txt -Dx0i/0i+w${LEGEND_WIDTH}i+jBL -C0.05i/0.05i ${VERBOSE} -X${x_offset}i --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} --FONT_LABEL=${LEGEND_FONTDEF} --MAP_TICK_LENGTH_PRIMARY="${LEGEND_TICK_LENGTH}"  ${RJOK} >> ${COLORBARLEGEND}
+          x_offset=$(echo ${LEGEND_WIDTH} | gawk '{print $1}')
+        fi
+      done < ${LEGENDDIR}legendbars.txt
+      gmt psxy -T -J -R -O >> ${COLORBARLEGEND}
+    else
+      gmt pslegend ${LEGENDDIR}legendbars.txt -Dx0i/0i+w${LEGEND_WIDTH}i+jBL -C0.05i/0.05i -J -R -O ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} --FONT_LABEL=${LEGEND_FONTDEF} --MAP_TICK_LENGTH_PRIMARY="${LEGEND_TICK_LENGTH}" >> ${COLORBARLEGEND}
+    fi
+  fi
+
 
   # Offset origin to above the legend bar plots and offset X so left side of box
   # is around the start of the rectangular bar plot
+  NONCOLORBARLEGEND=${LEGENDDIR}noncolorbars.ps
+  # Initialize the non-colorbar legend
+  gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
 
-  gmt psxy -T ${RJSTRING[@]} -Y${LEGENDBAR_HEIGHT_IN}i -X0.1i -O -K $VERBOSE >> $LEGMAP
+  if [[ $legendbarsonlyflag -ne 1 ]]; then
 
-  info_msg "Plotting non-colorbar legend items: ${plots[@]}"
+    info_msg "Plotting non-colorbar legend items: ${plots[@]}"
 
-  for legend_plot in ${plots[@]} ; do
-  	case $legend_plot in
-      cmt)
-        info_msg "Legend: cmt"
+    for legend_plot in ${plots[@]} ; do
+    	case $legend_plot in
+        cmt)
+          info_msg "Legend: cmt"
+          init_legend_item "cmt"
 
-        MEXP_V_N=7
-        MEXP_V_S=7
-        MEXP_V_T=7
+          MEXP_V_N=7
+          MEXP_V_S=7
+          MEXP_V_T=7
 
-        MEXP_N=($(stretched_m0_from_mw $MEXP_V_N))
-        MEXP_S=($(stretched_m0_from_mw $MEXP_V_S))
-        MEXP_T=($(stretched_m0_from_mw $MEXP_V_T))
+          MEXP_N=($(stretched_m0_from_mw $MEXP_V_N))
+          MEXP_S=($(stretched_m0_from_mw $MEXP_V_S))
+          MEXP_T=($(stretched_m0_from_mw $MEXP_V_T))
 
-        echo "$CENTERLON $CENTERLAT Focal" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -J -R -O -K >> mecaleg.ps
-        echo "$CENTERLON $CENTERLAT mechanism" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT Focal" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -J -R -O -K >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT mechanism" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> ${LEGFILE}
 
-        echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.27i -Y-0.07i ${VERBOSE} >> mecaleg.ps
-        if [[ $axescmtnormalflag -eq 1 ]]; then
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -44.5503 -22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 44.5503 22.6995 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+          psvelostroke="-W1p,black"
+          psvelostroke="-W0p"
+          CMT_AXESSCALE_LEGEND=0.007
 
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -1.30656 3.23385 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 1.30656 -3.23385 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
+          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.27i ${VERBOSE} >> ${LEGFILE}
+          if [[ $axescmtnormalflag -eq 1 ]]; then
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -44.5503 -22.6995 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 44.5503 22.6995 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT T" | gmt pstext -F+f4p,Helvetica,${T_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa-.16i -Ya-0.085i -O -K >> ${LEGFILE}
 
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 22.6442 -44.4418 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -22.6442 44.4418 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-        fi
-        echo "$CENTERLON $CENTERLAT Normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O -K >> mecaleg.ps
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -1.30656 3.23385 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 1.30656 -3.23385 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 22.6442 -44.4418 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -22.6442 44.4418 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT N" | gmt pstext -F+f4p,Helvetica,${N_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa.09i -Ya-0.17i -O -K >> ${LEGFILE}
+
+          fi
+          echo "$CENTERLON $CENTERLAT Normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O -K >> ${LEGFILE}
+
+          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+          if [[ $axescmtssflag -eq 1 ]]; then
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 36.6146 -31.8286 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -36.6146 31.8286 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT T" | gmt pstext -F+f4p,Helvetica,${T_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa0.12i -Ya-0.14i -O -K >> ${LEGFILE}
+
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 26.774 38.2372 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -26.774 -38.2372 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT P" | gmt pstext -F+f4p,Helvetica,${P_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa-.10i -Ya-0.15i -O -K >> ${LEGFILE}
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -20.8458 -6.77321 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 20.8458 6.77321 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+
+          fi
+          echo "$CENTERLON $CENTERLAT Strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O -K >> ${LEGFILE}
+          # echo "$CENTERLON $CENTERLAT strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> ${LEGFILE}
+
+          # Plot thrust event in legend
+
+          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+
+          if [[ $axescmtthrustflag -eq 1 ]]; then
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 7.57264 19.7274 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -7.57264 -19.7274 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -39.8452 -24.8981 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 39.8452 24.8981 0 0 0" | gmt psvelo ${psvelostroke} -G${P_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT P" | gmt pstext -F+f4p,Helvetica,${P_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa-.14i -Ya-0.09i -O -K >> ${LEGFILE}
+
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 29.1969 -38.7456 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -29.1969 38.7456 0 0 0" | gmt psvelo ${psvelostroke} -G${N_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT N" | gmt pstext -F+f4p,Helvetica,${N_AXIS_COLOR}+jCB $VERBOSE -J -R -Xa.12i -Ya-0.15i -O -K >> ${LEGFILE}
+
+          fi
+          echo "$CENTERLON $CENTERLAT Reverse" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Ya0.15i >> ${LEGFILE}
+
+          close_legend_item "cmt"
+
+          # PS_DIM=$(gmt psconvert ${LEGFILE} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          # PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+          # PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+          # # plot_legend_item "cmt" ${NONCOLORBARLEGEND}
+          #
+          # gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i ${LEGEPSFILE} $RJOK ${VERBOSE} >> ${NONCOLORBARLEGEND}
+          # if [[ $horizlegendflag -eq 1 ]]; then
+          #   LEG2_X=$(echo "$LEG2_X + $PS_WIDTH_IN + 0.2" | bc -l)
+          # else
+          #   LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+          # fi
+          ;;
+
+        eqlabel)
+          info_msg "Legend: eqlabel"
+          init_legend_item "eqlabel"
+
+          [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
+          [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk '{ printf "%s %s M%s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+
+          cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} ${RJOK} ${VERBOSE} >> ${LEGFILE}
+
+          close_legend_item "eqlabel"
+
+          ;;
+
+        grid)
+          info_msg "Legend: velocity grid"
+          init_legend_item "grid"
+
+          GRIDMAXVEL_INT=$(echo "scale=0;($GRIDMAXVEL)/1" | bc)
+          GRIDMESSAGE="Plate velocity/$(echo ${REFPLATE} | gawk -F_ '{print $1}') ($GRIDMAXVEL_INT mm/yr)"
+          GRIDoffset=$(echo "(${#GRIDMESSAGE} + 2)* 6 * 0.5" | bc -l)
+
+          echo "$CENTERLON $CENTERLAT ${GRIDMESSAGE}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+          if [[ $PLATEVEC_COLOR =~ "white" ]]; then
+            echo "$CENTERLON $CENTERLAT $GRIDMAXVEL_INT 0 0 0 0 0 ID" | gmt psvelo -W0p,gray@$PLATEVEC_TRANS -Ggray@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK -X${GRIDoffset}p $VERBOSE >> ${LEGFILE} 2>/dev/null
+          else
+            echo "$CENTERLON $CENTERLAT $GRIDMAXVEL_INT 0 0 0 0 0 ID" | gmt psvelo -W0p,$PLATEVEC_COLOR@$PLATEVEC_TRANS -G$PLATEVEC_COLOR@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L -X${GRIDoffset}p $RJOK $VERBOSE >> ${LEGFILE} 2>/dev/null
+          fi
+
+          close_legend_item "grid"
+          ;;
+
+        gps)
+          info_msg "Legend: gps"
+          init_legend_item "gps"
+
+          GPSMAXVEL_INT=$(echo "scale=0;($GPSMAXVEL)/1" | bc)
+          GPSMESSAGE="GPS ($GPSMAXVEL_INT mm/yr / ${GPS_ELLIPSE_TEXT})"
+          GPSoffset=$(echo "(${#GPSMESSAGE} + 2)* 6 * 0.5" | bc -l)
+          echo "$CENTERLON $CENTERLAT ${GPSMESSAGE}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 5 5 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -X${GPSoffset}p -L ${RJOK} $VERBOSE >> ${LEGFILE} 2>/dev/null
+
+          close_legend_item "gps"
+          ;;
+
+        kinsv)
+          info_msg "Legend: kinsv"
+          init_legend_item "kinsv"
+
+          echo "$CENTERLON $CENTERLAT" | gmt psxy -Ss0.4i -W0p,lightblue -Glightblue $RJOK -X0.4i $VERBOSE >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT 31 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+          if [[ $plottedkinsd -eq 1 ]]; then # Don't close
+            echo "$CENTERLON $CENTERLAT 235 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+          else
+            echo "$CENTERLON $CENTERLAT 235 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+          fi
+          if [[ $plottedkinsd -eq 1 ]]; then
+            echo "$CENTERLON $CENTERLAT 55 .1" | gmt psxy -SV0.05i+jb -W0.5p,${NP1_COLOR} -G${NP1_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT 325 0.35" | gmt psxy -SV0.05i+jc -W0.5p,${NP1_COLOR} -G${NP1_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT 211 .1" | gmt psxy -SV0.05i+jb -W0.5p,${NP2_COLOR} -G${NP2_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+            echo "$CENTERLON $CENTERLAT 121 0.35" | gmt psxy -SV0.05i+jc -W0.5p,${NP2_COLOR} -G${NP2_COLOR} $RJOK $VERBOSE >> ${LEGFILE}
+          fi
+          KINMESSAGE="CMT slip vectors"
+          echo "$CENTERLON $CENTERLAT $KINMESSAGE" | gmt pstext -F+f6p,Helvetica,black+jLC $VERBOSE ${RJOK} -Y.03i -X0.55i >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT plane 1 " | gmt pstext -F+f6p,Helvetica,${NP1_COLOR}+jRC $VERBOSE ${RJOK} -Ya-.12i -Xa-0.15i >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT plane 2 " | gmt pstext -F+f6p,Helvetica,${NP2_COLOR}+jRLC $VERBOSE ${RJOK} -Ya-.12i -Xa0.15i >> ${LEGFILE}
+
+          close_legend_item "kinsv"
+         ;;
+
+        plate)
+          # echo "$CENTERLON $CENTERLAT 90 1" | gmt psxy -SV$ARROWFMT -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} $RJOK $VERBOSE >> plate.ps
+          # echo "$CENTERLON $CENTERLAT Kinematics stuff" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -X0.2i -Y0.1i -O >> plate.ps
+          # PS_DIM=$(gmt psconvert plate.ps -Te -A0.05i 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          # PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+          # PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+          # gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i plate.ps $RJOK >> ${NONCOLORBARLEGEND}
+          # LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
+          ;;
+
+        seis)
+          info_msg "Legend: seis"
+          init_legend_item "seis"
+
+          OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
+          gmt gmtset PROJ_LENGTH_UNIT p
+
+          echo "$CENTERLON $CENTERLAT Earthquake" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -J -R -O -K >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT magnitude" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> ${LEGFILE}
+          gmt psxy -T -X0.07i ${RJOK} >> ${LEGFILE}
+
+          for thismag in $(seq 2 9); do
+            if [[ $(echo "$thismag <= $EQ_MAXMAG && $thismag >= $EQ_MINMAG" | bc) -eq 1 ]]; then
+              # stretched_mag is the diameter of the earthquake symbol in points
+              stretched_mag=$(stretched_mw_from_mw $thismag)
+              stretched_mag_over_2_plus_2=$(echo "$stretched_mag / 2 + 2" | bc -l)
+              stretched_mag_over_2_plus_10=$(echo "$stretched_mag / 2 + 10 + ($stretched_mag-8>=0)*($stretched_mag-8)/2" | bc -l)
+              yshift=$(echo "($thismag * 2 - 2)/100" | bc -l)
+              echo "$CENTERLON $CENTERLAT $stretched_mag DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X${stretched_mag_over_2_plus_10}p ${VERBOSE} >> ${LEGFILE}
+              # echo "$CENTERLON $CENTERLAT $stretched_mag DATESTRE ID" | gmt psxy -St${stretched_mag}p -W0.2p,red ${RJOK} >> ${LEGFILE}
+              echo "$CENTERLON $CENTERLAT $thismag" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya${stretched_mag_over_2_plus_2}p -O -K >> ${LEGFILE}
+            fi
+          done
+
+          gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+          close_legend_item "seis"
+          ;;
+
+        *)  # Any unrecognized command is potentially a module command
 
 
-        # echo "$CENTERLON $CENTERLAT normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
+        tectoplot_legend_caught=0
+        for this_mod in ${TECTOPLOT_MODULES[@]}; do
 
+          if type "tectoplot_legend_${this_mod}" >/dev/null 2>&1; then
+            # info_msg "Running module post-processing for ${plot}"
+            cmd="tectoplot_legend_${this_mod}"
+            "$cmd" ${legend_plot}
+          fi
+          if [[ $tectoplot_legend_caught -eq 1 ]]; then
+            break
+          fi
+        done
 
-        echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> mecaleg.ps
-
-        if [[ $axescmtssflag -eq 1 ]]; then
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 36.6146 -31.8286 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -36.6146 31.8286 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 26.774 38.2372 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -26.774 -38.2372 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -20.8458 -6.77321 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 20.8458 6.77321 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-        fi
-        echo "$CENTERLON $CENTERLAT Strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O -K >> mecaleg.ps
-        # echo "$CENTERLON $CENTERLAT strike-slip" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Y0.20i -O -K >> mecaleg.ps
-
-        # Plot thrust event in legend
-
-        echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> mecaleg.ps
-
-        if [[ $axescmtthrustflag -eq 1 ]]; then
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 7.57264 19.7274 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -7.57264 -19.7274 0 0 0" | gmt psvelo -W1p,black -G${T_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -39.8452 -24.8981 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axespflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 39.8452 24.8981 0 0 0" | gmt psvelo -W1p,black -G${P_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 29.1969 -38.7456 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-          [[ $axesnflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -29.1969 38.7456 0 0 0" | gmt psvelo -W1p,black -G${N_AXIS_COLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> mecaleg.ps
-        fi
-        echo "$CENTERLON $CENTERLAT Reverse" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O >> mecaleg.ps
-
-
-        PS_DIM=$(gmt psconvert mecaleg.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i mecaleg.eps $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
         ;;
+      esac
+    done
 
-      eqlabel)
-        info_msg "Legend: eqlabel"
+    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
+    LEG2_X=0
+    LEG2_Y=0
+    OLD_LEG2_X=0
+    OLD_LEG2_Y=0
 
-        [[ $EQ_LABELFORMAT == "idmag"   ]]  && echo "$CENTERLON $CENTERLAT ID Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'      > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "datemag" ]]  && echo "$CENTERLON $CENTERLAT Date Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "dateid"  ]]  && echo "$CENTERLON $CENTERLAT Date ID" | gawk '{ printf "%s %s %s(%s)\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "id"      ]]  && echo "$CENTERLON $CENTERLAT ID" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "date"    ]]  && echo "$CENTERLON $CENTERLAT Date" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "year"    ]]  && echo "$CENTERLON $CENTERLAT Year" | gawk '{ printf "%s %s %s\n", $1, $2, $3 }'               > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "yearmag" ]]  && echo "$CENTERLON $CENTERLAT Year Mw" | gawk '{ printf "%s %s %s M%s\n", $1, $2, $3, $4 }'    > eqlabel.legend.txt
-        [[ $EQ_LABELFORMAT == "mag"     ]]  && echo "$CENTERLON $CENTERLAT Mw" | gawk '{ printf "%s %s M%s\n", $1, $2, $3 }'                 > eqlabel.legend.txt
+    if [[ $noncolorbarhorizontalflag -eq 1 ]]; then
+      # Calculate the maximum height of the input objects
+      TALLEST_Y=$(echo "${LEGEND_ITEM_HEIGHTS[@]}" | tr ' ' '\n' | sort -nr | head -n1)
+      # Assemble the final legend either horizontally or vertically
+      # Create the legend separator
 
-        cat eqlabel.legend.txt | gmt pstext -Gwhite -W0.5p,black -F+f${EQ_LABEL_FONTSIZE},${EQ_LABEL_FONT},${EQ_LABEL_FONTCOLOR}+j${EQ_LABEL_JUST} -R -J -O ${VERBOSE} >> eqlabel.ps
-        PS_DIM=$(gmt psconvert eqlabel.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i eqlabel.eps ${TESTBOXCMD} $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        ;;
+      gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}separator.ps
+      lat2=$(echo "${CENTERLAT}+1"| bc -l)
+      echo "${CENTERLON} ${CENTERLAT}t${CENTERLON} ${lat2}" | tr 't' '\n' | gmt psxy -W0.2p,black $VERBOSE -J -R -O -K >> ${LEGENDDIR}separator.ps
+      gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}separator.ps
+      gmt psconvert ${LEGENDDIR}separator.ps -Te -A+m0.05i -Vn
+      if [[ ${#LEGEND_ITEM_PATHS[@]} -gt 0 ]]; then
+        for ind in $(seq 1 ${#LEGEND_ITEM_PATHS[@]}); do
+          ((ind--))
+          LEG_Y=$(echo "(${TALLEST_Y} - ${LEGEND_ITEM_HEIGHTS[$ind]}) / 2" | bc -l)
+          gmt psimage -Dx0i/0i+w${LEGEND_ITEM_WIDTHS[$ind]}i+jCL ${LEGEND_ITEM_PATHS[$ind]} -X${OLD_LEG2_X}i -Ya${LEG_Y}i $RJOK ${VERBOSE} >> ${NONCOLORBARLEGEND}
+          OLD_LEG2_X=${LEGEND_ITEM_WIDTHS[$ind]}
+          if [[ $(echo "($ind + 1) != ${#LEGEND_ITEM_HEIGHTS[@]}" | bc) -eq 1 ]]; then
+            offset=$(echo "${OLD_LEG2_X}+0" | bc -l)
+            OLD_LEG2_X=$(echo "${OLD_LEG2_X}+0.1" | bc -l)
+            gmt psimage -Dx0i/0i+w0.1i/${TALLEST_Y}i+jCL ${LEGENDDIR}separator.eps -Xa${offset}i $RJOK ${VERBOSE} >> ${NONCOLORBARLEGEND}
+          fi
+        done
+      fi
+    else
+      # Calculate the maximum width of the input objects
+      WIDEST_X=$(echo "${LEGEND_ITEM_WIDTHS[@]}" | tr ' ' '\n' | sort -nr | head -n1)
+      # Assemble the final legend either horizontally or vertically
+      if [[ ${#LEGEND_ITEM_PATHS[@]} -gt 0 ]]; then
+        for ind in $(seq 1 ${#LEGEND_ITEM_PATHS[@]}); do
+          ((ind--))
+          LEG_X=$(echo "(${WIDEST_X} - ${LEGEND_ITEM_WIDTHS[$ind]}) / 2" | bc -l)
+          gmt psimage -Dx0i/0i+w${LEGEND_ITEM_WIDTHS[$ind]}i+jCL ${LEGEND_ITEM_PATHS[$ind]} -Xa${LEG_X}i -Y${OLD_LEG2_Y}i $RJOK ${VERBOSE} >> ${NONCOLORBARLEGEND}
+          OLD_LEG2_Y=${LEGEND_ITEM_HEIGHTS[$ind]}
+        done
+      fi
+    fi
+    gmt psxy -T -R -J -O $VERBOSE >> ${NONCOLORBARLEGEND}
 
-      grid)
-        info_msg "Legend: grid"
-
-        GRIDMAXVEL_INT=$(echo "scale=0;($GRIDMAXVEL+5)/1" | bc)
-        V100=$(echo "$GRIDMAXVEL_INT" | bc -l)
-        if [[ $PLATEVEC_COLOR =~ "white" ]]; then
-          echo "$CENTERLON $CENTERLAT $GRIDMAXVEL_INT 0 0 0 0 0 ID" | gmt psvelo -W0p,gray@$PLATEVEC_TRANS -Ggray@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> velarrow.ps 2>/dev/null
-        else
-          echo "$CENTERLON $CENTERLAT $GRIDMAXVEL_INT 0 0 0 0 0 ID" | gmt psvelo -W0p,$PLATEVEC_COLOR@$PLATEVEC_TRANS -G$PLATEVEC_COLOR@$PLATEVEC_TRANS -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> velarrow.ps 2>/dev/null
-        fi
-        echo "$CENTERLON $CENTERLAT Plate velocity ($GRIDMAXVEL_INT mm/yr)" | gmt pstext -F+f6p,Helvetica,black+jLB $VERBOSE -J -R -Y0.1i -O >> velarrow.ps
-        PS_DIM=$(gmt psconvert velarrow.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i velarrow.eps ${TESTBOXCMD} $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        ;;
-
-      gps)
-        info_msg "Legend: gps"
-
-        GPSMAXVEL_INT=$(echo "scale=0;($GPSMAXVEL)/1" | bc)
-        GPSMESSAGE="GPS ($GPSMAXVEL_INT mm/yr / ${GPS_ELLIPSE_TEXT})"
-        GPSoffset=$(echo "(${#GPSMESSAGE} + 2)* 6 * 0.5" | bc -l)
-
-        echo "$CENTERLON $CENTERLAT ${GPSMESSAGE}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} ${VERBOSE} >> velgps.ps
-        echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 5 5 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -X${GPSoffset}p -L -R -J -O $VERBOSE >> velgps.ps 2>/dev/null
-
-        PS_DIM=$(gmt psconvert velgps.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        XSHIFT=$(echo ${PS_WIDTH_IN} | gawk '{val=(1.64 - $1)/2; print (val>0)?val:0}')
-        gmt psimage -Dx"${XSHIFT}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i velgps.eps $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        ;;
-
-      kinsv)
-        info_msg "Legend: kinsv"
-        echo "$CENTERLON $CENTERLAT" | gmt psxy -Sc0.01i -W0p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
-        echo "$CENTERLON $CENTERLAT" | gmt psxy -Ss0.4i -W0p,lightblue -Glightblue $RJOK -X0.4i $VERBOSE >> kinsv.ps
-        KINMESSAGE=" EQ kinematic vectors "
-        echo "$CENTERLON $CENTERLAT $KINMESSAGE" | gmt pstext -F+f6p,Helvetica,black+jLB $VERBOSE -J -R -Y0.2i -X-0.35i -O -K >> kinsv.ps
-        echo "$CENTERLON $CENTERLAT 31 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} $RJOK -X0.35i  -Y-0.2i $VERBOSE >> kinsv.ps
-
-        if [[ $plottedkinsd -eq 1 ]]; then # Don't close
-          echo "$CENTERLON $CENTERLAT 235 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} $RJOK $VERBOSE >> kinsv.ps
-        else
-          echo "$CENTERLON $CENTERLAT 235 .35" | gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} -R -J -O $VERBOSE >> kinsv.ps
-        fi
-        if [[ $plottedkinsd -eq 1 ]]; then
-          echo "$CENTERLON $CENTERLAT 55 .1" | gmt psxy -SV0.05i+jb -W0.5p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
-          echo "$CENTERLON $CENTERLAT 325 0.175" | gmt psxy -SV0.05i+jb -W0.5p,white -Gwhite $RJOK $VERBOSE >> kinsv.ps
-          echo "$CENTERLON $CENTERLAT 211 .1" | gmt psxy -SV0.05i+jb -W0.5p,gray -Ggray $RJOK $VERBOSE >> kinsv.ps
-          echo "$CENTERLON $CENTERLAT 121 0.175" | gmt psxy -SV0.05i+jb -W0.5p,gray -Ggray -R -J -O $VERBOSE >> kinsv.ps
-        fi
-        PS_DIM=$(gmt psconvert kinsv.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i kinsv.eps ${TESTBOXCMD}  $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-       ;;
-
-      plate)
-        # echo "$CENTERLON $CENTERLAT 90 1" | gmt psxy -SV$ARROWFMT -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} $RJOK $VERBOSE >> plate.ps
-        # echo "$CENTERLON $CENTERLAT Kinematics stuff" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -X0.2i -Y0.1i -O >> plate.ps
-        # PS_DIM=$(gmt psconvert plate.ps -Te -A0.05i 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        # PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        # PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        # gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i plate.ps $RJOK >> $LEGMAP
-        # LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        ;;
-
-      seis)
-        info_msg "Legend: seis"
-
-        # if [[ -e $CMTFILE ]]; then
-        #   # Get magnitude range from CMT
-        #   SEIS_QUINT=$(gawk < $CMTFILE '
-        #     @include "tectoplot_functions.awk"
-        #     # function ceil(x){return int(x)+(x>int(x))}
-        #     BEGIN {
-        #       getline;
-        #       maxmag=$13
-        #     }
-        #     {
-        #       maxmag=($13>maxmag)?$13:maxmag
-        #     }
-        #     END {
-        #       if (maxmag>9) {
-        #         maxmag=9
-        #       }
-        #       print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
-        #     }')
-        # else  # Get magnitude range from seismicity
-        #   SEIS_QUINT=$(gawk < ${F_SEIS}eqs.txt '
-        #     BEGIN {
-        #       getline;
-        #       maxmag=$4
-        #     }
-        #     {
-        #       maxmag=($4>maxmag)?$4:maxmag
-        #     }
-        #     END {
-        #       print (maxmag>8)?"5.0 6.0 7.0 8.0 9.0":(maxmag>7)?"4.0 5.0 6.0 7.0 8.0":(maxmag>6)?"3.0 4.0 5.0 6.0 7.0":(maxmag>5)?"2.0 3.0 4.0 5.0 6.0":"1.0 2.0 3.0 4.0 5.0"
-        #     }')
-        # fi
-        # SEIS_ARRAY=($(echo $SEIS_QUINT))
-
-        # MW_A=$(stretched_mw_from_mw ${SEIS_ARRAY[0]})
-        # MW_B=$(stretched_mw_from_mw ${SEIS_ARRAY[1]})
-        # MW_C=$(stretched_mw_from_mw ${SEIS_ARRAY[2]})
-        # MW_D=$(stretched_mw_from_mw ${SEIS_ARRAY[3]})
-        # MW_E=$(stretched_mw_from_mw ${SEIS_ARRAY[4]})
-        MW_1=$(stretched_mw_from_mw 1)
-        MW_2=$(stretched_mw_from_mw 2)
-        MW_3=$(stretched_mw_from_mw 3)
-        MW_4=$(stretched_mw_from_mw 4)
-        MW_5=$(stretched_mw_from_mw 5)
-        MW_6=$(stretched_mw_from_mw 6)
-        MW_7=$(stretched_mw_from_mw 7)
-        MW_8=$(stretched_mw_from_mw 8)
-
-
-        OLD_PROJ_LENGTH_UNIT=$(gmt gmtget PROJ_LENGTH_UNIT -Vn)
-        gmt gmtset PROJ_LENGTH_UNIT p
-
-        echo "$CENTERLON $CENTERLAT Earthquake" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -J -R -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT magnitude" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> seissymbol.ps
-
-        echo "$CENTERLON $CENTERLAT $MW_2 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.2i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 2" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.04i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_3 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.15i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 3" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.05i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_4 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.15i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 4" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.06i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_5 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.17i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 5" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.08i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_6 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.18i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 6" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.10i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_7 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.20i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 7" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.12i -O -K >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT $MW_8 DATESTR ID" | gmt psxy -W0.5p,black -G${ZSFILLCOLOR} -i0,1,2+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK -X0.25i ${VERBOSE} >> seissymbol.ps
-        echo "$CENTERLON $CENTERLAT 8" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.14i -O >> seissymbol.ps
-
-        cleanup seissymbol.eps
-
-        gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
-
-        PS_DIM=$(gmt psconvert seissymbol.ps -Te -A0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-        PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-        PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-        gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i seissymbol.eps $RJOK ${VERBOSE} >> $LEGMAP
-        LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-        ;;
-
-      *)  # Any unrecognized command is potentially a module command
-
-
-      tectoplot_legend_caught=0
-      for this_mod in ${TECTOPLOT_MODULES[@]}; do
-
-        if type "tectoplot_legend_${this_mod}" >/dev/null 2>&1; then
-          # info_msg "Running module post-processing for ${plot}"
-          cmd="tectoplot_legend_${this_mod}"
-          "$cmd" ${legend_plot}
-        fi
-        if [[ $tectoplot_legend_caught -eq 1 ]]; then
-          break
-        fi
-      done
-
-      ;;
-    esac
-  done
-
+  fi
 
 
   # gmt gmtset FONT_ANNOT_PRIMARY 8p,Helvetica-bold,black
 
-  # NUMLEGBAR=$(wc -l < legendbars.txt)
+  # NUMLEGBAR=$(wc -l < ${LEGENDDIR}legendbars.txt)
   # if [[ $NUMLEGBAR -eq 1 ]]; then
-  #   gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> $LEGMAP
+  #   gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> ${NONCOLORBARLEGEND}
   # else
   #
   # if [[ $plottitleflag -eq 1 ]]; then
@@ -19213,12 +19392,31 @@ if [[ $makelegendflag -eq 1 ]]; then
   #   MAP_PS_HEIGHT_IN_plus=${MAP_PS_HEIGHT_IN}
   # fi
 
-  # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${FONT_ANNOT_COLORBAR} >> $LEGMAP
-  # gmt pslegend legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${FONT_ANNOT_COLORBAR} >> $LEGMAP
+  # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
+  # gmt pslegend ${LEGENDDIR}legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
   # fi
 
-  # Close the legend document PS
-  gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGMAP}
+  # Close the non-colorbar legend PS
+  # gmt psxy -T -R -J -O ${VERBOSE} >> ${NONCOLORBARLEGEND}
+
+  # If necessary, combine the non-colorbar legend into a single legend file
+  if [[ $(echo "${#LEGEND_JUST_CODES[@]} == 1" | bc) -eq 1 ]]; then
+    PS_DIM=$(gmt psconvert ${COLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    LEG_COLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    LEG_COLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    PS_DIM=$(gmt psconvert ${NONCOLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+    LEG_NONCOLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+    LEG_NONCOLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
+
+    gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+    gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i ${LEGENDDIR}noncolorbars.eps -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+    LEGENDITEMS+=("${LEGENDDIR}maplegend.ps")
+  else
+    # Otherwise, convert the PS to EPS for placement on the map
+    LEGENDITEMS+=("${COLORBARLEGEND}")
+    LEGENDITEMS+=("${NONCOLORBARLEGEND}")
+  fi
 
   if [[ $legendonlyflag -eq 1 && $cutframeflag -eq 1 ]]; then
 
@@ -19227,66 +19425,79 @@ if [[ $makelegendflag -eq 1 ]]; then
     MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
     MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
 
+    # Plot the cutframe as we have skipped the PLOT section
 
-    PS_DIM=$(gmt psconvert maplegend.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    LEG_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    LEG_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-
-    # gmt psbasemap ${RJSTRING[@]} -K -Blrtb -Xc -Yc > mapframe.ps
-    gmt psimage -DjBL+o10p/10p+w${LEG_WIDTH_IN}i ${RJSTRING[@]} -F+gwhite+p0.2p,black maplegend.eps -K ${VERBOSE} > map.ps
-    gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i -Bltrb --MAP_FRAME_PEN=0.1p,black -O >> map.ps
+    gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i -Bltrb --MAP_FRAME_PEN=0.1p,black -O -K >> map.ps
+    gmt psxy -T ${RJSTRING[@]} -K -O ${VERBOSE} >> map.ps
 
     # Create the PDF and name it after the current temporary folder, move to ../
     # thisname=$(pwd | gawk -F/ '{print $(NF)}')
     # gmt psconvert -T map.ps -A+m0.5i
+  fi
 
-  elif [[ $legendovermapflag -eq 1 ]]; then
-    PS_DIM=$(gmt psconvert maplegend.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    LEG_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    LEG_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-    LEG_WIDTH_P=$(echo $PS_DIM | gawk  '{print $1/2.54*72}')
-    LEG_HEIGHT_P=$(echo $PS_DIM | gawk  '{print $2/2.54*72}')
+  if [[ $legendovermapflag -eq 1 ]]; then
+    numlegenditems=$(echo "${#LEGENDITEMS[@]} - 1" | bc)
+    for i in $(seq 0 ${numlegenditems}); do
+      LEGEND_JUST=${LEGEND_JUST_CODES[$i]}
+      rm -f placeme.eps
+      PS_DIM=$(gmt psconvert ${LEGENDITEMS[$i]} -Te -Fplaceme -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      LEG_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      LEG_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+      LEG_WIDTH_P=$(echo $PS_DIM | gawk  '{print $1/2.54*72}')
+      LEG_HEIGHT_P=$(echo $PS_DIM | gawk  '{print $2/2.54*72}')
 
-    thisJ=""
-    if [[ ${LEGEND_ONOFFCODE} == "J" ]]; then
-      # Place outside the map frame
-      case ${LEGEND_JUST} in
-        TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
-        TM) shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
-        TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
-        BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
-        BM) shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
-        BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
-        RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
-        RM) LEGEND_JUST="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
-        RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
-        LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
-        LM) LEGEND_JUST="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
-        LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
-        *)
-          echo "Outside justification ${LEGEND_JUST} not recognized. Using TL."
-          shifth=0;   shiftv=30;   thisJ="+jBL"  # top edge, left side
-        ;;
-      esac
-    else
-      # Place inside the map frame
-      case ${LEGEND_JUST} in
-        TR|RT) shifth=10; shiftv=10 ;;
-        CR|RC) shifth=10;  shiftv=0  ;;
-        BR|RB) shifth=10;  shiftv=10  ;;
-        TC|CT) shifth=0;  shiftv=10  ;;
-        CM|MC) shifth=0; shiftv=0 ;;
-        BC|CB) shifth=0;  shiftv=10  ;;
-        TL|LT) shifth=10;  shiftv=10  ;;
-        CL|LC) shifth=10;  shiftv=0  ;;
-        BL|LB) shifth=10;  shiftv=10  ;;
-      esac
-    fi
+      thisJ=""
+      if [[ ${LEGEND_ONOFFCODES[$i]} == "J" ]]; then
+        # Place outside the map frame
+        case ${LEGEND_JUST} in
+          TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
+          TM) LEGEND_JUST="TC"; shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
+          TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
+          BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
+          BM) LEGEND_JUST="BC"; shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
+          BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
+          RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
+          RM) LEGEND_JUST="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
+          RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
+          LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
+          LM) LEGEND_JUST="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
+          LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
+          *)
+            echo "Outside justification ${LEGEND_JUST} not recognized. Using TL."
+            LEGEND_JUST="TL"
+            shifth=0;   shiftv=30;   thisJ="+jBL"  # top edge, left side
+          ;;
+        esac
+      else
+        # Place inside the map frame
+        case ${LEGEND_JUST} in
+          TR|RT) shifth=10; shiftv=10 ;;
+          CR|RC) shifth=10;  shiftv=0  ;;
+          BR|RB) shifth=10;  shiftv=10  ;;
+          TC|CT) shifth=0;  shiftv=10  ;;
+          CM|MC) shifth=0; shiftv=0 ;;
+          BC|CB) shifth=0;  shiftv=10  ;;
+          TL|LT) shifth=10;  shiftv=10  ;;
+          CL|LC) shifth=10;  shiftv=0  ;;
+          BL|LB) shifth=10;  shiftv=10  ;;
+          *)
+          echo "Outside justification ${LEGEND_JUST} not recognized. Using BL"
+            LEGEND_JUST="BL"; shifth=10;  shiftv=10
+          ;;
+        esac
+      fi
 
-    gmt psimage -D${LEGEND_ONOFFCODE}${LEGEND_JUST}+o${shifth}p/${shiftv}p+w${LEG_WIDTH_IN}i${thisJ} -F+gwhite+p0.5p,black maplegend.eps $RJOK ${VERBOSE} >> map.ps
+      if [[ ${LEGEND_BORDERON[$i]} == "yes" ]]; then
+        LEGEND_BORDER_CALL=${LEGEND_BORDER}
+      else
+        LEGEND_BORDER_CALL=""
+      fi
+
+      gmt psimage -D${LEGEND_ONOFFCODES[$i]}${LEGEND_JUST}+o${shifth}p/${shiftv}p+w${LEG_WIDTH_IN}i${thisJ} -F+gwhite${LEGEND_BORDER_CALL} placeme.eps $RJOK ${VERBOSE} >> map.ps
+    done
   else
     # Convert just the legend to a PDF
-    gmt psconvert -Tf -A+m0.1i ${VERBOSE} ${LEGMAP}
+    gmt psconvert -Tf -A+m${LEGEND_MARGIN}i ${VERBOSE} ${NONCOLORBARLEGEND}
   fi
 fi  # [[ $makelegendflag -eq 1 ]]
 
@@ -19315,7 +19526,7 @@ done
 # Export TECTOPLOT call and GMT command history from PS file to .history file
 
 # Close the PS if we need to
-if [[ $legendonlyflag -ne 1 ]]; then
+# if [[ $legendonlyflag -ne 1 ]]; then
    gmt psxy -T -R -J -O $KEEPOPEN $VERBOSE >> map.ps
 
   echo "${COMMAND}" > "$MAPOUT.history"
@@ -19324,8 +19535,7 @@ if [[ $legendonlyflag -ne 1 ]]; then
   grep "%@GMT:" map.ps | sed -e 's/%@GMT: //' >> "$MAPOUT.history"
 
   ##### MAKE PDF OF MAP
-  # Requires gs 9.26 and not later as they nuked transparency in later versions
-  if [[ $keepopenflag -eq 0 && $legendonlyflag -eq 0 ]]; then
+  if [[ $keepopenflag -eq 0 ]]; then
      if [[ $epsoverlayflag -eq 1 ]]; then
        gmt psconvert -Tf -A+m0.5i -Mf${EPSOVERLAY} $VERBOSE map.ps
      else
@@ -19336,8 +19546,6 @@ if [[ $legendonlyflag -ne 1 ]]; then
       mv map.pdf ${MAPOUT}.pdf
       move_exit ${MAPOUT}.pdf
       move_exit ${MAPOUT}.history
-      # mv map.pdf "${OUTPUTDIRECTORY}/${MAPOUT}.pdf"
-      # mv "$MAPOUT.history" $OUTPUTDIRECTORY"/"$MAPOUT".history"
       info_msg "Map is at ${OUTPUTDIRECTORY}${MAPOUT}.pdf"
       [[ $openflag -eq 1 ]] && open_pdf "$MAPOUT.pdf"
     else
@@ -19364,7 +19572,7 @@ if [[ $legendonlyflag -ne 1 ]]; then
     [[ $openflag -eq 1 ]] && open_pdf "map.tif"
   fi
 
-fi
+# fi
 ##### Copy QGIS project into temporary directory
 
 cp ${TECTOPLOTDIR}"qgis/tempfiles_to_delete/tectoplot.qgz" ./

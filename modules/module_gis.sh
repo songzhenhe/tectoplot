@@ -21,7 +21,7 @@ function tectoplot_defaults_gis() {
   USERLINECOLOR=black           # GIS line data file, line color
   USERLINEWIDTH="0.5p"          # GIS line data file, line width
   GIS_LINEEND_STYLE=butt
-  
+
   #############################################################################
   ### Contoured grid options
   CONTOURNUMDEF=20             # Number of contours to plot
@@ -702,7 +702,7 @@ function tectoplot_legendbar_gis() {
   case $1 in
     gis_grid)
       echo "G 0.2i" >> legendbars.txt
-      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i 0.1i+malu -Q -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> legendbars.txt
+      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> legendbars.txt
       barplotcount=$barplotcount+1
       current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
       tectoplot_caught_legendbar=1

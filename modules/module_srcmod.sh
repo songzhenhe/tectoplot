@@ -280,8 +280,8 @@ function tectoplot_plot_srcmod() {
 function tectoplot_legendbar_srcmod() {
   case $1 in
     srcmod)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B $FAULTSLIP_CPT 0.2i 0.1i+malu -Bxa5f1+l\"Slip (m)\"" >> legendbars.txt
+      echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+      echo "B $FAULTSLIP_CPT 0.2i 0.1i+malu -Bxa5f1+l\"Slip (m)\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

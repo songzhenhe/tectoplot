@@ -217,14 +217,14 @@ function tectoplot_legendbar_slab2() {
     case ${slab2bartype} in
        solo)
         plottedneiscptflag=1
-        echo "G 0.2i" >> legendbars.txt
-        echo "B $SLAB2_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Slab 2.0 plate interface depth (km)\"" >> legendbars.txt
+        echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+        echo "B $SLAB2_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Slab 2.0 plate interface depth (km)\"" >>${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
        ;;
        merged)
         plottedneiscptflag=1
-        echo "G 0.2i" >> legendbars.txt
-        echo "B $SLAB2_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake/Slab 2.0 depth (km)\"" >> legendbars.txt
+        echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+        echo "B $SLAB2_CPT 0.2i 0.1i+malu+e ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake/Slab 2.0 depth (km)\"" >>${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
        ;;
     esac

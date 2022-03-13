@@ -191,8 +191,8 @@ function tectoplot_plot_cities() {
 function tectoplot_legendbar_cities() {
   case $1 in
     cities)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> legendbars.txt
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_legendbar_caught=1
       ;;
@@ -202,29 +202,13 @@ function tectoplot_legendbar_cities() {
 function tectoplot_legend_cities() {
   case $1 in
   cities)
-    # Create a new blank map with the same -R -J as our main map
-    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > cities.ps
+    init_legend_item "cities"
 
-    echo "${CENTERLON} ${CENTERLAT} ." | gmt pstext -F+f6p,Helvetica,white+jLB -R -J -O -K $VERBOSE >> cities.ps
-    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE -X.175i >> cities.ps
-    echo "${CENTERLON} ${CENTERLAT} City with population > ${CITIES_MINPOP}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i -R -J -O $VERBOSE >> cities.ps
+    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE -X.175i >> ${LEGFILE}
+    echo "${CENTERLON} ${CENTERLAT} City with population > ${CITIES_MINPOP}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} $VERBOSE >> ${LEGFILE}
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-
-    # Calculate the width and height of the graphic with a margin of 0.05i
-    PS_DIM=$(gmt psconvert cities.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-
-    # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
-    # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
-    # (The typewriter approach)
-
-    gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i cities.eps $RJOK ${VERBOSE} >> $LEGMAP
-    LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-    count=$count+1
-    NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
-    # cleanup cities.ps cities.eps
+    close_legend_item "cities"
   ;;
   esac
 }

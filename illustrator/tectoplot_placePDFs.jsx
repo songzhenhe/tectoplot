@@ -1,12 +1,9 @@
 // Illustrator script to place and embed all PDF files within a folder as
 // individual layers in a new Illustrator document.
 
-// This script should be installed into the Illustrator scripts folder and
-// Illustrator should be closed and reopened.
+// Each PDF added will be ungrouped and the top-level clipping mask will be
+// released.
 
-// Example path (OSX): /Applications/Adobe Illustrator 2022/Presets.localized/en_US/Scripts/tectoplot_placePDFs.jsx
-
-// The script can be accessed from File > Scripts > tectoplot_placePDFs
 
 
 function importPDFsAsEmbeddedLayers() {
@@ -43,6 +40,9 @@ function importPDFsAsEmbeddedLayers() {
 			   thisPlacedItem = newLayer.placedItems.add()
 			   thisPlacedItem.file = pdfList[i];
 				 thisPlacedItem.embed();
+				 myDocument.activeLayer=newLayer
+				 app.executeMenuCommand ('ungroup')
+				 app.executeMenuCommand ('releaseMask')
 			}
 		}
 

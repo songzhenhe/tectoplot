@@ -23,7 +23,7 @@ modules/module_gsrm.sh
 -gsrm
 
   Data are from Kreemer et al., (2014)
-  
+
 Example: None
 --------------------------------------------------------------------------------
 EOF
@@ -72,8 +72,8 @@ function tectoplot_plot_gsrm() {
 function tectoplot_legendbar_gsrm() {
   case $1 in
     gsrm)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${F_CPTS}gsrm.cpt 0.2i 0.1i+malu -Bxaf+l\"log10(second invariant of strain rate)\"" >> legendbars.txt
+      echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}gsrm.cpt 0.2i 0.1i+malu -Bxaf+l\"log10(second invariant of strain rate)\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

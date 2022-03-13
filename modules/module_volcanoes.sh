@@ -154,30 +154,14 @@ function tectoplot_legend_volcanoes() {
   volcanoes)
     info_msg "[-vc]: plotting volcanoes on legend"
 
-    # Create a new blank map with the same -R -J as our main map
-    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
-
-
-    echo "${CENTERLON} ${CENTERLAT} ." | gmt pstext -F+f6p,Helvetica,white+jLB ${RJOK} $VERBOSE >> volcanoes.ps
+    init_legend_item "volcanoes"
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -X0.175i -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
-    echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -X0.15i -O >> volcanoes.ps
+    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> ${LEGFILE}
+    echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.01i -X0.15i >> ${LEGFILE}
 
-    # Calculate the width and height of the graphic with a margin of 0.05i
-    PS_DIM=$(gmt psconvert volcanoes.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+    close_legend_item "volcanoes"
 
-    # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
-    # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
-    # (The typewriter approach)
-
-    gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i volcanoes.eps $RJOK ${VERBOSE} >> $LEGMAP
-    LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-    count=$count+1
-    NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
-    cleanup volcanoes.ps volcanoes.eps
     tectoplot_legend_caught=1
     ;;
   esac

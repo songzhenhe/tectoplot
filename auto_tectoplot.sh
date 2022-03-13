@@ -6,23 +6,34 @@ Usage: auto_tectoplot [[noopen]] [[combine]] "shared arguments" "[id1] -arg ..."
   or
 Usage: auto_tectoplot.sh [[noopen]] [[combine]] argument_file
 
-If noopen option is given, suppress opening of intermediate PDF files by
+auto_tectoplot.sh runs multiple instances of tectoplot in parallel to create
+map layers that can be combined into a PDF or opened using Adobe Illustrator.
+
+[id] tags layer names and are strings not starting with "-" that have no
+internal whitespace. Layers that do not have ID tags specified are given default
+names of the form "layer_N"
+
+If the "noopen" option is given, suppress opening of intermediate PDF files by
 tectoplot.
 
-If combine option is given, a merged PDF will be created from all layers
+If the "combine" option is given, a merged PDF will be created from all layers
 (requires pdftk). The PDF is stored in combined.pdf and is opened automatically.
+
+An argument string consisting of "wait" will require all prior layers to be
+fully completed before running any following commands. This allows direct access
+to derived datasets like topo/dem.tif or seismicity/eqs.txt that may take a long
+time to initially extract.
 
 argument_file is a plain text file with the first line containing the shared
 arguments and the subsequent lines containing each layer argument string.
 
-If the environment variable TECTO_EPS is set, additionally combine the eps
-files of all output layers into a single eps file called tectomap.eps
-
-[id] tags are strings not starting with - that have no internal whitespace
 Example with layer names:
   auto_tectoplot.sh "-r g -RJ W" "topo -t 01d -t0" "seis1 -z -zmag 7"
 Example without layer names:
   auto_tectoplot.sh "-r g -RJ W" "-t 01d -t0" "-z -zmag 7" "-c -cmag 8"
+
+
+
 EOF
     exit 1
 }
@@ -69,13 +80,13 @@ fi
 
 # cat ${MYTMP}control.txt
 
-i=1
+i=0
 noframe=""
 cutframe="-cutframe"
 
 while read p; do
 
-  if [[ $i -eq 1 ]]; then
+  if [[ $i -eq 0 ]]; then
     shared_args="${p}"
     # shared_args="${p} -noopen"
   else
@@ -86,17 +97,20 @@ while read p; do
       argstring="${p}"
       layername="layer_${i}"
     fi
-    if [[ $noopenflag -eq 0 ]]; then
-      echo tectoplot ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} \&
-      tectoplot ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} &
+    if [[ $layername == "wait" ]]; then
+      wait
     else
-      echo tectoplot -noopen ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} \&
-      tectoplot -noopen ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} &
+      if [[ $noopenflag -eq 0 ]]; then
+        echo tectoplot ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} \&
+        tectoplot ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} &
+      else
+        echo tectoplot -noopen ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} \&
+        tectoplot -noopen ${shared_args} ${argstring} ${noframe} ${cutframe} -o ${layername} -tm ${layername} &
+      fi
+      # ((i++))
+      pslayers+=("${layername}/map.ps")
     fi
-    ((i++))
     noframe="-noframe"
-    pslayers+=("${layername}/map.ps")
-
   fi
   ((i++))
 done < ${MYTMP}control.txt
@@ -105,8 +119,8 @@ wait
 
 cp ${MYTMP}control.txt ./auto_tectoplot.control.txt
 
-# Currently using pdftk to layer the PDFs onto one page. Could we use
-# gmt psimage instead?
+# Currently using pdftk to layer the PDFs onto one page, with the first created
+# PDF being the lowermost layer.
 
 if [[ $combineflag -eq 1 ]]; then
   if command -v pdftk > /dev/null; then

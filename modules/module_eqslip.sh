@@ -279,8 +279,8 @@ function tectoplot_legendbar_eqslip() {
     # Don't plot a color bar if we already have plotted one OR the seis CPT is a solid color
     if [[ $plottedeqslipcptflag -eq 0 ]]; then
       plottedeqslipcptflag=1
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${F_CPTS}slip.cpt  0.2i 0.1i+malu+e -Bxaf+l\"Coseismic slip\"" >> legendbars.txt
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}slip.cpt  0.2i 0.1i+malu+e -Bxaf+l\"Coseismic slip\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
     fi
     tectoplot_caught_legendbar=1

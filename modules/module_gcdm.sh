@@ -104,8 +104,8 @@ function tectoplot_plot_gcdm() {
 function tectoplot_legendbar_gcdm() {
   case $1 in
   gcdm)
-    echo "G 0.2i" >> legendbars.txt
-    echo "B $GCDM_CPT 0.2i 0.1i+malu -Bxa10f2+l\"Curie Depth (km)\"" >> legendbars.txt
+    echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+    echo "B $GCDM_CPT 0.2i 0.1i+malu -Bxa10f2+l\"Curie Depth (km)\"" >> ${LEGENDDIR}legendbars.txt
     barplotcount=$barplotcount+1
     tectoplot_legendbar_caught=1
     ;;

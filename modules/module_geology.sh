@@ -456,19 +456,16 @@ function tectoplot_legendbar_geology() {
       if [[ -e $GEOAGE_CPT && $madegeolegendbar -ne 1 ]]; then
         madegeolegendbar=1
         # Reduce the CPT to the used scale range
-        # cp $GEOAGE_CPT ${F_CPTS}geoage_colorbar.cpt
 
-        gmt makecpt -C${F_CPTS}geogray.cpt -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}geoage_gray_colorbar.cpt
-
-              # gmt makecpt -Cgeogray.cpt -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} | gawk -v trans=${OC_TRANS} '{$2=sprintf("%s@%d", $2, trans); print}' > ${F_CPTS}geoage_gray_colorbar.cpt
+        if [[ -s ${F_CPTS}geogray.cpt ]]; then
+          gmt makecpt -C${F_CPTS}geogray.cpt -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}geoage_gray_colorbar.cpt
+          echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${F_CPTS}geoage_gray_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Btlbr -Bxa1000" >> ${LEGENDDIR}legendbars.txt
+        fi
 
         gmt makecpt -C$GEOAGE_CPT -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
-        #
-
-        echo "G 0.2i" >> legendbars.txt
-        echo "B ${F_CPTS}geoage_gray_colorbar.cpt 0.2i 0.1i+malu -Btlbr -Bxa1000" >> legendbars.txt
-        echo "G -0.21i" >> legendbars.txt
-        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i 0.1i+malu -Bxa100f50+l\"Age (Ma)\"" >> legendbars.txt
+        echo "G -0.21i" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_caught_legendbar=1
       fi
@@ -480,35 +477,38 @@ function tectoplot_legend_geology() {
   case $1 in
     tectonic_fabrics)
     for this_fabric in ${tectonic_fabrics[@]}; do
+      init_legend_item "tectonic_fabrics_${this_fabric}"
       # Create a new blank map with the same -R -J as our main map
-      gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > legendentry.ps
 
-      EXTRALON=$(echo "$CENTERLON + (${MAXLON} - ${CENTERLON})/4" | bc -l)
+      EXTRALON=$(echo "$CENTERLON + (${MAXLON} - ${CENTERLON})/20" | bc -l)
+      EXTRALON_M=$(echo "$CENTERLON - (${MAXLON} - ${CENTERLON})/20" | bc -l)
+
       EXTRALON2=$(echo "$CENTERLON + (${MAXLON} - ${CENTERLON})/20" | bc -l)
       EXTRALON3=$(echo "$CENTERLON - (${MAXLON} - ${CENTERLON})/2" | bc -l)
 
 
-      echo $CENTERLON $CENTERLAT > line.txt
+      echo $EXTRALON_M $CENTERLAT > line.txt
       echo $EXTRALON $CENTERLAT >> line.txt
 
       case $this_fabric in
 
         cp)
-          gmt psxy line.txt  -W0.1p,black -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Continental polygon" | gmt pstext -X-0.125i -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt -W0.1p,black -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT Continental polygon" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
+
         dz)
-          gmt psxy line.txt  -W0.5p,green -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Discordant zone" | gmt pstext -X-0.025i -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt  -W0.5p,green -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT Discordant zone" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
 
         fz)
-          gmt psxy line.txt  -W0.5p,black -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Fracture zone" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt  -W0.5p,black -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT Fracture zone" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
         ht)
-          echo ${CENTERLON} ${CENTERLAT} | gmt psxy -Sc0.1i -Gred -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$CENTERLON $CENTERLAT Hotspot" | gmt pstext -F+f6p,Helvetica,black+jCM $VERBOSE -J -R -X0.5i -O  >> legendentry.ps
+          echo ${CENTERLON} ${CENTERLAT} | gmt psxy -Sc0.1i -Gred -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT Hotspot" | gmt pstext -F+f6p,Helvetica,black+jCM $VERBOSE ${RJOK} -X0.5i >> ${LEGFILE}
         ;;
 
         is)
@@ -550,24 +550,24 @@ ${C15} ${CENTERLAT}
 ${C20} ${CENTERLAT}
 EOF
 
-          gmt psxy isochron.txt ${EBISOCOLOR} $RJOK ${VERBOSE}  >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Isochron" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.1i -O  >> legendentry.ps
+          gmt psxy isochron.txt ${EBISOCOLOR} $RJOK ${VERBOSE}  >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT Isochron" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.1i >> ${LEGFILE}
         ;;
         pf)
-          gmt psxy line.txt -W0.5p,orange -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Psuedofault" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt -W0.5p,orange -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT Psuedofault" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
         pr)
-          gmt psxy line.txt -W0.5p,yellow -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Propagating ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt -W0.5p,yellow -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT Propagating ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
         sr)
-          gmt psxy line.txt -W0.5p,red -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Spreading ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt -W0.5p,red -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT Spreading ridge" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
         va)
-          gmt psxy line.txt -W0.5p,pink -R -J -O -K ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT V-shaped anomaly" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.10i -O  >> legendentry.ps
+          gmt psxy line.txt -W0.5p,pink -R -J -O -K ${VERBOSE} >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT V-shaped anomaly" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
         ;;
         vp)
 
@@ -670,33 +670,14 @@ gawk < blob.txt -v date=30 -v scale=${scale} -v xshift=0.3 -v clon=${CENTERLON} 
   }' >> volcprov.txt
 
 
-          gmt psxy volcprov.txt -W0.1p,black+cf -aZ=FROMAGE -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> legendentry.ps
-          echo "$EXTRALON2 $CENTERLAT Volcanic province" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE -J -R -Y0.13i -O  >> legendentry.ps
+          gmt psxy volcprov.txt -W0.1p,black+cf -aZ=FROMAGE -C${GEOAGE_CPT} $RJOK ${VERBOSE} >> ${LEGFILE}
+          echo "$EXTRALON2 $CENTERLAT Volcanic province" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.13i >> ${LEGFILE}
 
         ;;
 
-
       esac
-      # Calculate the width and height of the graphic with a margin of 0.05i
-      PS_DIM=$(gmt psconvert legendentry.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-      PS_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-      PS_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
 
-      # Place the graphic onto the legend PS file, appropriately shifted. Then shift up.
-      # If we run past the width of the map, then we shift all the way left; otherwise we shift right.
-      # (The typewriter approach)
-
-      gmt psimage -Dx"${LEG2_X}i/${LEG2_Y}i"+w${PS_WIDTH_IN}i legendentry.eps $RJOK ${VERBOSE} >> $LEGMAP
-      LEG2_Y=$(echo "$LEG2_Y + $PS_HEIGHT_IN + 0.02" | bc -l)
-      count=$count+1
-      NEXTX=$(echo $PS_WIDTH_IN $NEXTX | gawk  '{if ($1>$2) { print $1 } else { print $2 } }')
-
-      if [[ $count -eq 4 ]]; then
-        count=0
-        LEG2_X=$(echo "$LEG2_X + $NEXTX" | bc -l)
-        # echo "Updated LEG2_X to $LEG2_X"
-        LEG2_Y=$(echo "${MAP_PS_HEIGHT_IN} + 0.1" | bc -l)
-      fi
+      close_legend_item "tectonic_fabrics_${this_fabric}"
 
     done
     ;;

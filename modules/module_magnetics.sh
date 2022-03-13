@@ -153,8 +153,8 @@ function tectoplot_plot_magnetics() {
 function tectoplot_legendbar_magnetics() {
   case $1 in
     magnetics)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >> legendbars.txt
+      echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+      echo "B $MAG_CPT 0.2i 0.1i+malu -Bxa100f50+l\"Magnetization (nT)\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

@@ -334,8 +334,8 @@ function tectoplot_legendbar_basinatlas() {
   case $1 in
     basinatlas)
 
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${F_CPTS}${BASINPREFIX}.cpt 0.2i 0.1i+malu -Bxaf+l\"${BASINATLAS_LEGENDLABEL}\"" >> legendbars.txt
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}${BASINPREFIX}.cpt 0.2i 0.1i+malu -Bxaf+l\"${BASINATLAS_LEGENDLABEL}\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
       ;;

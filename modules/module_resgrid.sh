@@ -267,8 +267,8 @@ function tectoplot_plot_resgrid() {
 function tectoplot_legendbar_resgrid() {
   case $1 in
     resgrid)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${RESGRID_CPT} 0.2i 0.1i+malu -Bxa100f50+l\"Residual gravity (mGal)\"" >> legendbars.txt
+      echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
+      echo "B ${RESGRID_CPT} 0.2i 0.1i+malu -Bxa100f50+l\"Residual gravity (mGal)\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;
