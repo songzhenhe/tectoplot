@@ -1790,6 +1790,8 @@ cat <<-EOF
 Usage: -mmi [eventID] [[eventID2 ...]] [[grid]] [[label color]]
 
   eventIDs are ANSS ID codes
+  If eventID is a path to an existing ZIP file, use that instead of downloading.
+
   Options:
   grid             Plot the MMI raster beneath the contours
   label [color]    Change the color of the contour label text
@@ -1820,13 +1822,18 @@ fi
         fi
       ;;
       *)
-        MMI_EVENTID+=("${2}")
+        if [[ -s ${2} ]]; then
+          MMI_EVENTID+="$(abs_path ${2})"
+        else
+          MMI_EVENTID+=("${2}")
+        fi
         shift
       ;;
     esac
   done
   plots+=("mmi")
   ;;
+
   -af) # args: string string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6971,15 +6978,45 @@ fi
 
   ;;
 
+  -profgrid)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profgrid:       Interpolate XYZ data for profile grid
+Usage: -profgrid [file1] [[cptfile]]
+
+  Notes:
+         Data file has format X Y Z V
+         Data will be added to -sprof, -aprof, etc profiles where close to lines
+         If file ends in .cpt it will be used as the tomography CPT
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  # Check if a file or CPT file should be loaded
+  while [[ -s $2 ]]; do
+    if [[ "${2}" == *.cpt ]]; then
+      profgridcpt=$(abs_path $2)
+    else
+      profgridfile=$(abs_path "${2}")
+      profgridflag=1
+    fi
+    shift
+  done
+  ;;
+
+
   -tomo)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tomo:         Load Submachine tomography profile data
-Usage: -tomo [file1] [[file2]] ...
+Usage: -tomo [file1] [[file2]] ... [[cptfile]]
 
   Notes: Data file needs to already have been downloaded from Submachine
          Data file has format X Y Z V
          Data will be added to -sprof, -aprof, etc profiles where close to lines
+         If file ends in .cpt it will be used as the tomography CPT
 
 --------------------------------------------------------------------------------
 EOF
@@ -6989,28 +7026,32 @@ fi
   # Check if a file exists, if so, translate it to lon lat depth V
   while [[ -s $2 ]]; do
 
-    gawk < $2 '
-    function sqr(x)        { return x*x                     }
-    function getpi()       { return atan2(0,-1)             }
-    function rad2deg(rad)  { return (180 / getpi()) * rad   }
-    ($1+0==$1 && $2+0==$2 && $3+0==$3) {
-      x=$1
-      y=$2
-      z=$3
-      rxy = sqrt(sqr(x)+sqr(y))
-      # print "rxy:", rxy
-      lon = rad2deg(atan2($2, $1))
-      lat = rad2deg(atan2($3, rxy))
-      val=($1*$1) + ($2*$2) + ($3*$3)
-      if (val<0) {
-        print "What:", $1, $2, $3, val
-      }
-      rxyz = sqrt(sqr(x)+sqr(y)+sqr(z))
-      depth = 6371.0 - rxyz
+    if [[ "${2}" == *.cpt ]]; then
+      tomocpt=$(abs_path $2)
+      tomoowncptflag=1
+    else
+      gawk < $2 '
+      function sqr(x)        { return x*x                     }
+      function getpi()       { return atan2(0,-1)             }
+      function rad2deg(rad)  { return (180 / getpi()) * rad   }
+      ($1+0==$1 && $2+0==$2 && $3+0==$3) {
+        x=$1
+        y=$2
+        z=$3
+        rxy = sqrt(sqr(x)+sqr(y))
+        # print "rxy:", rxy
+        lon = rad2deg(atan2($2, $1))
+        lat = rad2deg(atan2($3, rxy))
+        val=($1*$1) + ($2*$2) + ($3*$3)
+        if (val<0) {
+          print "What:", $1, $2, $3, val
+        }
+        rxyz = sqrt(sqr(x)+sqr(y)+sqr(z))
+        depth = 6371.0 - rxyz
 
-      print lon, lat, depth, $4
-    }' >> ${TMP}tomography.txt
-
+        print lon, lat, depth, $4
+      }' >> ${TMP}tomography.txt
+    fi
     shift
   done
 
@@ -12113,21 +12154,21 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # This command is somtimes screwing up some fields in the output file or messing up with global
     # extents. Make sure we normalize longitudes to -180:180
 
-    if [[ -s ${F_SEIS}eqs.txt ]]; then
-      gawk < ${F_SEIS}eqs.txt '{print $1, $2, NR}' > ${F_SEIS}eqs_selectid.txt
-      gmt select ${F_SEIS}eqs_selectid.txt -R -J -Vn | tr '\t' ' ' | gawk '
-        {
-          print $3
-        }' > ${F_SEIS}eqs_afterselect_ids.txt
-        gawk '
-          (NR==FNR) {
-            data[NR]=$0
-          }
-          (NR != FNR) {
-            print data[$1]
-          }' ${F_SEIS}eqs.txt ${F_SEIS}eqs_afterselect_ids.txt > ${F_SEIS}eqs_afterselect.txt
-        cp ${F_SEIS}eqs_afterselect.txt ${F_SEIS}eqs.txt
-    fi
+    # if [[ -s ${F_SEIS}eqs.txt ]]; then
+    #   gawk < ${F_SEIS}eqs.txt '{print $1, $2, NR}' > ${F_SEIS}eqs_selectid.txt
+    #   gmt select ${F_SEIS}eqs_selectid.txt -R -J -Vn | tr '\t' ' ' | gawk '
+    #     {
+    #       print $3
+    #     }' > ${F_SEIS}eqs_afterselect_ids.txt
+    #     gawk '
+    #       (NR==FNR) {
+    #         data[NR]=$0
+    #       }
+    #       (NR != FNR) {
+    #         print data[$1]
+    #       }' ${F_SEIS}eqs.txt ${F_SEIS}eqs_afterselect_ids.txt > ${F_SEIS}eqs_afterselect.txt
+    #     cp ${F_SEIS}eqs_afterselect.txt ${F_SEIS}eqs.txt
+    # fi
 
     # Alternative method using the bounding box which really doesn't work with global extents
     # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
@@ -12137,14 +12178,14 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     ##############################################################################
     # Select seismicity that falls within a specified polygon.
 
-    if [[ $polygonselectflag -eq 1 ]]; then
-      info_msg "Selecting seismicity within specified AOI polygon ${POLYGONAOI}"
-      mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
-      gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-      # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-      # cleanup ${F_SEIS}eqs_preselect.txt
-    fi
-    info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
+    # if [[ $polygonselectflag -eq 1 ]]; then
+    #   info_msg "Selecting seismicity within specified AOI polygon ${POLYGONAOI}"
+    #   mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
+    #   gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+    #   # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+    #   # cleanup ${F_SEIS}eqs_preselect.txt
+    # fi
+    # info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
     ##############################################################################
     # Select seismicity on land
@@ -12201,6 +12242,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     [[ $cmtslab2_deep_filterflag -eq 1 ]] && zslab2_deep_filterflag=1
 
     if [[ $zslab2filterflag -eq 1 || $zslab2_shallow_filterflag -eq 1 || $zslab2_deep_filterflag -eq 1 ]]; then
+      echo number of slabs is $numslab2inregion
       if [[ ! $numslab2inregion -eq 0 ]]; then
 
         # For each slab in the region
@@ -12269,6 +12311,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         done
       fi
       [[ -s ${F_SEIS}seis_slabselect.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_preslab2.txt && cp ${F_SEIS}seis_slabselect.txt ${F_SEIS}eqs.txt
+      wc -l < ${F_SEIS}eqs.txt
     fi
 
 
@@ -14373,11 +14416,14 @@ for cptfile in ${cpts[@]} ; do
 	case $cptfile in
 
     tomography)
-      gmt makecpt -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
+      if [[ $tomoowncptflag -eq 1 ]]; then
+        cp $tomocpt ${F_CPTS}tomography.cpt
+      else
+        gmt makecpt -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
+      fi
     ;;
 
     eqtime)
-
       gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
         BEGIN {
           if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
@@ -14682,7 +14728,6 @@ for cptfile in ${cpts[@]} ; do
         # CPT_HAS_ZERO=${CPT_ZRANGE[2]}
 
         # If the input CPT is symmetric about 0 and has a 0 slice, then rescaling will by symmetric about 0
-        # If
 
 
         if [[ $rescaletopoflag -eq 1 ]]; then
@@ -15000,6 +15045,8 @@ for cptfile in ${cpts[@]} ; do
       # echo BATHYXINC=${BATHYXINC}
 
       cp ${F_CPTS}new_extended_2.cpt ${TOPO_CPT}
+
+      # gmt makecpt -Cgeo -G${MINZ}/${MAXZ} -T${MINZ}/${MAXZ} > ${TOPO_CPT}
     ;;
 
     seisdepth)
@@ -15390,55 +15437,64 @@ cat<<-EOF > mmi.contourdef
 EOF
 
       for THIS_MMI_EVENTID in ${MMI_EVENTID[@]}; do
+        echo ${THIS_MMI_EVENTID} is id
         info_msg "[-mmi]: Processing event ${THIS_MMI_EVENTID}"
 
-        curl -s "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventid=${THIS_MMI_EVENTID}&producttype=shakemap" > event.geojson
+        if [[ -s ${THIS_MMI_EVENTID} ]]; then
+          THISMMIFILE=${THIS_MMI_EVENTID}
+          cp ${THISMMIFILE} ./raster.zip
+          echo copying
+        else
 
-        if [[ -s event.geojson ]]; then
-          rm -f mmi_mean.nc mmi_filt.nc
-          rm -f raster.zip
+          curl -s "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventid=${THIS_MMI_EVENTID}&producttype=shakemap" > event.geojson
 
-          # Find the url that ends in raster.zip and has the latest epoch of update
-          raster_url=$(tr < event.geojson '{' '\n' | grep raster.zip | gawk -F\" '{ for(i=1; i<=NF; i++) { if ($(i)=="url") { print $(i+2) } } }' | grep "raster.zip$" | gawk -F/ 'BEGIN{max=0}{url[NR]=$0; if ($8>max) { max=$8; maxind=NR }} END { print url[maxind] }')
-
-          info_msg "[-mmi]: Trying to download raster.zip from ${raster_url}"
-          curl -s "${raster_url}" > raster.zip
-
-          if [[ -s raster.zip ]]; then
-            info_msg "[-mmi]: Downloaded a raster.zip file"
-            mkdir -p ./raster_zip_extract/
-            rm -f ./raster_zip_extract/*
-            unzip -qq raster.zip -d ./raster_zip_extract/
+          if [[ -s event.geojson ]]; then
+            rm -f mmi_mean.nc mmi_filt.nc
             rm -f raster.zip
 
-            if [[ -s ./raster_zip_extract/mi.fit ]]; then
-              info_msg "[-mmi]: Found a mi.fit file"
-              gdal_translate -q -of "NetCDF" ./raster_zip_extract/mi.fit mmi_mean.nc
-            elif [[ -s ./raster_zip_extract/mmi_mean.flt ]]; then
-              info_msg "[-mmi]: Found a mmi_mean.flt file"
-              gdal_translate -q -of "NetCDF" ./raster_zip_extract/mmi_mean.flt mmi_mean.nc
-            else
-              info_msg "[-mmi]: Didn't find a MMI file"
-            fi
+            # Find the url that ends in raster.zip and has the latest epoch of update
+            raster_url=$(tr < event.geojson '{' '\n' | grep raster.zip | gawk -F\" '{ for(i=1; i<=NF; i++) { if ($(i)=="url") { print $(i+2) } } }' | grep "raster.zip$" | gawk -F/ 'BEGIN{max=0}{url[NR]=$0; if ($8>max) { max=$8; maxind=NR }} END { print url[maxind] }')
 
-            # Plot and contour the MMI raster
-            if [[ -s mmi_mean.nc ]]; then
-              info_msg "[-mmi]: Processing mmi raster"
-              # Gaussian filter to smooth the data to avoid crazy contours
-              gmt grdfilter -Fg9 mmi_mean.nc -Gmmi_filt.nc -Dp
-              # Set anything less to MMI=3 to 0
-              MMI_GRIDNAME="mmi_filt.nc"
-              if [[ $MMI_CLIPGRID -eq 1 ]]; then
-                gmt grdclip mmi_filt.nc -Sb3.45/NaN -Gmmi_clip.nc
-                [[ -s mmi_clip.nc ]] && MMI_GRIDNAME="mmi_clip.nc"
-              fi
-              if [[ ${MMI_PLOTGRID} -eq 1 ]]; then
-                gmt grdimage ${MMI_GRIDNAME} -Cmmi.cpt -t80 -Q ${RJOK} >> map.ps
-              fi
-              gmt grdcontour ${MMI_GRIDNAME} -A+f12p,Helvetica,${MMI_LABELCOLOR} -Cmmi.contourdef -S3  -Q50k ${RJOK}  >> map.ps
-            fi
+            info_msg "[-mmi]: Trying to download raster.zip from ${raster_url}"
+            curl -s "${raster_url}" > raster.zip
+            THISMMIFILE="raster.zip"
           fi
         fi
+        if [[ -s raster.zip ]]; then
+          info_msg "[-mmi]: Downloaded a raster.zip file"
+          mkdir -p ./raster_zip_extract/
+          rm -f ./raster_zip_extract/*
+          unzip -qq raster.zip -d ./raster_zip_extract/
+          rm -f raster.zip
+
+          if [[ -s ./raster_zip_extract/mi.fit ]]; then
+            info_msg "[-mmi]: Found a mi.fit file"
+            gdal_translate -q -of "NetCDF" ./raster_zip_extract/mi.fit mmi_mean.nc
+          elif [[ -s ./raster_zip_extract/mmi_mean.flt ]]; then
+            info_msg "[-mmi]: Found a mmi_mean.flt file"
+            gdal_translate -q -of "NetCDF" ./raster_zip_extract/mmi_mean.flt mmi_mean.nc
+          else
+            info_msg "[-mmi]: Didn't find a MMI file"
+          fi
+
+          # Plot and contour the MMI raster
+          if [[ -s mmi_mean.nc ]]; then
+            info_msg "[-mmi]: Processing mmi raster"
+            # Gaussian filter to smooth the data to avoid crazy contours
+            gmt grdfilter -Fg9 mmi_mean.nc -Gmmi_filt.nc -Dp
+            # Set anything less to MMI=3 to 0
+            MMI_GRIDNAME="mmi_filt.nc"
+            if [[ $MMI_CLIPGRID -eq 1 ]]; then
+              gmt grdclip mmi_filt.nc -Sb3.45/NaN -Gmmi_clip.nc
+              [[ -s mmi_clip.nc ]] && MMI_GRIDNAME="mmi_clip.nc"
+            fi
+            if [[ ${MMI_PLOTGRID} -eq 1 ]]; then
+              gmt grdimage ${MMI_GRIDNAME} -Cmmi.cpt -t80 -Q ${RJOK} >> map.ps
+            fi
+            gmt grdcontour ${MMI_GRIDNAME} -A+f12p,Helvetica,${MMI_LABELCOLOR} -Cmmi.contourdef -S3  -Q50k ${RJOK}  >> map.ps
+          fi
+        fi
+
       done
       ;;
 
@@ -16814,6 +16870,12 @@ EOF
             echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
           fi
 
+          if [[ $profgridflag -eq 1 ]]; then
+            info_msg "Adding profgrid to sprof as gridded-xyz"
+            echo "I $profgridfile ${SPROFWIDTH} -1 ${profgridcpt}" >> sprof.control
+
+          fi
+
           if [[ -s tomography.txt ]]; then
             info_msg "Adding tomography to sprof as gridded-xyz"
             echo "I tomography.txt ${SPROFWIDTH} -1" >> sprof.control
@@ -16900,7 +16962,8 @@ EOF
 
             head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
             # info_msg "is it this"
-            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
+            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
+            # head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
             head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
             # info_msg "here"
           fi

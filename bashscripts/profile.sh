@@ -553,7 +553,13 @@ elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" || ${FIRSTWORD:0:1} =
     # We mark the seismic data that are subject to rescaling (or any data with a scalable fourth column...)
     [[ ${FIRSTWORD:0:1} == "E" ]] && xyzscaleeqsflag[$i]=1
     # We mark the data that we want to grid for display (tomography)
-    [[ ${FIRSTWORD:0:1} == "I" ]] && xyzgridflag[$i]=1
+    if [[ ${FIRSTWORD:0:1} == "I" ]]; then
+      xyzgridflag[$i]=1
+      if [[ "${myarr[4]}" == *.cpt ]]; then
+        xyzgridcptflag[$i]=1
+        xyzgridcptlist[$i]="${myarr[4]}"
+      fi
+    fi
 
     # echo "Found a dataset to load: ${xyzfilelist[$i]}"
     # echo "Scale factor for Z units is ${xyzunitlist[$i]}"
@@ -1661,16 +1667,30 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             MAXXRANGE=$(echo "${PROJRANGE[1]}+100" | bc -l)
             # Generate the tomographic image over the relevant XY range
             # Outer core is at 2200 km depth
-            gmt surface ${F_PROFILES}finaldist_${FNAME} -R0/${MAXXRANGE}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gtomography_${FNAME}.nc -i0,1,3 -I10 ${VERBOSE} >/dev/null 2>&1
+
+            # What is the resolution we want from gt surface? Calculate it from the profile data...
+
+            gridresolution=$(head -n 2 ${F_PROFILES}finaldist_${FNAME} | tr '\n' ' ' | gawk '{print sqrt(($1-$5)^2+($2-$6)^2)}')
+
+            gmt surface ${F_PROFILES}finaldist_${FNAME} -R0/${MAXXRANGE}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gxyzgrid_${FNAME}.nc -i0,1,3 -I${gridresolution}k ${VERBOSE} >/dev/null 2>&1
 
             # PLOT ON THE MAP PS
-            echo "gmt grdimage tomography_${FNAME}.nc -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> "${PSFILE}"" >> plot.sh
+
+            if [[ ${xyzgridcptflag[$i]} -eq 1 ]]; then
+              CPTSTRING="${xyzgridcptlist[$i]}"
+            else
+              CPTSTRING="${F_CPTS}tomography.cpt"
+            fi
+            # interp="-nl"
+            interp=""
+
+            echo "gmt grdimage xyzgrid_${FNAME}.nc ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> "${PSFILE}"" >> plot.sh
 
             # PLOT ON THE FLAT SECTION PS
-            echo "gmt grdimage tomography_${FNAME}.nc -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+            echo "gmt grdimage xyzgrid_${FNAME}.nc ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
             # PLOT ON THE OBLIQUE SECTION PS
-            [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage tomography_${FNAME}.nc -p -C${F_CPTS}tomography.cpt -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+            [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage xyzgrid_${FNAME}.nc -p ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
 
             # gmt grdimage tomography.nc -Cseis
         else

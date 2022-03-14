@@ -148,7 +148,7 @@ function tectoplot_legendbar_gpwv4() {
   case $1 in
     gpwv4)
       echo "G 0.2i" >> legendbars.txt
-      echo "B ${F_CPTS}gpwv4.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"Population density (people/km^2)\"" >> legendbars.txt
+      echo "B ${F_CPTS}gpwv4.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"Population density (people/km^2)\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

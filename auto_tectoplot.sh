@@ -82,7 +82,7 @@ fi
 
 i=0
 noframe=""
-cutframe="-cutframe"
+cutframe="-cutframe 6"
 
 while read p; do
 
