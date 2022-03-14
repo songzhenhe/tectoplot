@@ -1661,18 +1661,19 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
       else
 
         if [[ ${xyzgridflag[i]} -eq 1 && -s ${F_PROFILES}finaldist_${FNAME} ]]; then
-            info_msg "Plotting gridded XYZ data"
+            # echo "Plotting gridded XYZ data"
             # Discover the distance and depth ranges of the projected data
             PROJRANGE=($(xy_range ${F_PROFILES}finaldist_${FNAME}))
             MAXXRANGE=$(echo "${PROJRANGE[1]}+100" | bc -l)
             # Generate the tomographic image over the relevant XY range
             # Outer core is at 2200 km depth
 
-            # What is the resolution we want from gt surface? Calculate it from the profile data...
+            # What is the resolution we want from gt surface? Calculate it from the input data...
 
-            gridresolution=$(head -n 2 ${F_PROFILES}finaldist_${FNAME} | tr '\n' ' ' | gawk '{print sqrt(($1-$5)^2+($2-$6)^2)}')
+            gridresolutionX=$(cut -f 1 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
+            gridresolutionY=$(cut -f 2 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
 
-            gmt surface ${F_PROFILES}finaldist_${FNAME} -R0/${MAXXRANGE}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gxyzgrid_${FNAME}.nc -i0,1,3 -I${gridresolution}k ${VERBOSE} >/dev/null 2>&1
+            gmt surface ${F_PROFILES}finaldist_${FNAME} -R0/${MAXXRANGE}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gxyzgrid_${FNAME}.nc -i0,1,3 -I${gridresolutionX}k/${gridresolutionY}k ${VERBOSE} >/dev/null 2>&1
 
             # PLOT ON THE MAP PS
 
