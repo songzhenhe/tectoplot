@@ -250,9 +250,9 @@ function tectoplot_plot_srcmod() {
         gmt grdmath $VERBOSE temp2.nc $SLIPMINIMUM LE 1 NAN = mask.grd
         gmt grdmath $VERBOSE temp.nc mask.grd OR = slipfinal.grd
         if [[ $SRCMOD_NOGRID -eq 0 ]]; then
-          gmt grdimage slipfinal.grd -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -J -O -K $VERBOSE >> map.ps
+          gmt grdimage slipfinal.grd ${RJSTRING[@]} -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -O -K $VERBOSE >> map.ps
         fi
-        gmt grdcontour slipfinal.grd -A5 -S3 -C$SLIPCONTOURINTERVAL $RJOK $VERBOSE >> map.ps
+        gmt grdcontour slipfinal.grd -A5 -S3 -C$SLIPCONTOURINTERVAL ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
       done
 
       # Leftovers from the old 'fused' style
