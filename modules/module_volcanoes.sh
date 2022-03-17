@@ -117,24 +117,16 @@ function tectoplot_calculate_volcanoes()  {
     #   }
     # }' >> ${F_VOLC}volcanoes.dat
 
-    # Polygon select
+    # Map region select
+    select_in_gmt_map ${F_VOLC}volcanoes.dat ${RJSTRING[@]}
 
+    # Polygon select
     if [[ $polygonselectflag -eq 1 ]]; then
       info_msg "Selecting volcanoes within AOI polygon ${POLYGONAOI}"
       mv ${F_VOLC}volcanoes.dat ${F_VOLC}volcanoes_preselect.dat
       gmt select ${F_VOLC}volcanoes_preselect.dat -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_VOLC}volcanoes.dat
       cleanup ${F_SEIS}eqs_preselect.txt
     fi
-
-    # gmt select $JAPANVOLC -R$MINLON/$MAXLON/$MINLAT/$MAXLAT $VERBOSE  >> ${F_VOLC}volctmp.dat
-    # gawk < ${F_VOLC}volctmp.dat '{
-    #   printf "%s %s ", $2, $1
-    #   for (i=3; i<=NF; i++) {
-    #     printf "%s ", $(i)
-    #   }
-    #   printf("\n")
-    # }' > ${F_VOLC}volcanoes.dat
-    # cleanup ${F_VOLC}volctmp.dat
 }
 
 function tectoplot_plot_volcanoes() {
@@ -181,23 +173,6 @@ function tectoplot_post_volcanoes() {
         [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
 
         sample_grid_360 ${F_VOLC}volcanoes.dat $depthfile $strikefile $dipfile >>  ${F_VOLC}volcano_slab2.txt
-
-        #
-        #
-        # echo $depthfile $strikefile $dipfile
-        #
-        # gmt grdedit -L+n $depthfile
-        # gmt grdedit -L+n $strikefile
-        # gmt grdedit -L+n $dipfile
-        # # -N flag is needed in case events fall outside the domain
-        #
-        # gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2.txt
-        #
-        # gmt grdedit -L+p $depthfile
-        # gmt grdedit -L+p $strikefile
-        # gmt grdedit -L+p $dipfile
-        # # -N flag is needed in case events fall outside the domain
-        # gmt grdtrack -G$depthfile -G$strikefile -G$dipfile -N ${F_VOLC}volcanoes.dat ${VERBOSE} >> ${F_VOLC}volcano_slab2_v2.txt
       done
     fi
 }

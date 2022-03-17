@@ -25,9 +25,6 @@ function tectoplot_defaults_magnetics() {
   DEF_MAG_CPT="vik"
 
   MAGGRAD="-I+d"
-
-
-
 }
 
 function tectoplot_args_magnetics()  {
@@ -78,18 +75,7 @@ EOF
 
       # Signal to tectoplot that the current command was processed by this module
       tectoplot_module_caught=1
-
   	  ;;
-
-      # -magtile)
-      # shift
-      #
-      # CUSTOMGRIDFILE=${F_MAG}"mag.tif"
-      # plotcustomtopo=1
-      # USE_SHADED_RELIEF_TOPTILE=1
-      # tectoplot_module_caught=1
-
-      # ;;
 
   esac
 }

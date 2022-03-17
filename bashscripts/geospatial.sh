@@ -29,6 +29,74 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ################################################################################
+# Text processing functions using GMT
+
+# select_in_gmt_map()
+# Takes in a text file with first columns lon lat and a GMT region/projection.
+# Removes any rows for points that fall on the map.
+# Note: The original file is modified in place.
+
+# args: 1=input file 2,3=RJSTRING{@} (e.g. "-R0/1/0/1 -JX5i")
+function select_in_gmt_map {
+  gmt select ${@} -f0x,1y,s -i0,1,t -o0,1,t ${VERBOSE} | tr '\t' ' ' > a.tmp
+  mv a.tmp "${1}"
+}
+
+# select_in_gmt_map_by_columns()
+# Takes in a text file and removes rows for which the points indicated in
+# specified X,Y columns do not fall on the map.
+# Column numbers start with 1 not 0
+# Note: the original file is modified in place.
+# args: 1 = X coord column number, 2 = Y coord column number
+#       3 = file 4... = region (-R) or region and projection (-R -J)
+
+function select_in_gmt_map_by_columns() {
+    xcol=$(echo "$1" | bc)
+    ycol=$(echo "$2" | bc)
+    infile="${3}"
+    shift
+    shift
+    shift
+    # Switch columns xcol and ycol with columns 1 and 2
+    gawk < $infile -v xc=$xcol -v yc=$ycol '
+    {
+      for(i=1;i<=NF;i++) {
+        if (i==1) {
+          printf("%s ", $(xc))
+        } else if (i==2) {
+          printf("%s ", $(yc))
+        } else if (i==xc) {
+          printf("%s ", $1)
+        } else if (i==yc) {
+          printf("%s ", $2)
+        } else if (i==NF) {
+          printf("%s\n", $(i))
+        } else {
+          printf("%s ", $(i))
+        }
+      }
+    }' | gmt select ${@} -f0x,1y,s -i0,1,t -o0,1,t ${VERBOSE} | gawk -v xc=$xcol -v yc=$ycol '
+    {
+      for(i=1;i<=NF;i++) {
+        if (i==1) {
+          printf("%s ", $(xc))
+        } else if (i==2) {
+          printf("%s ", $(yc))
+        } else if (i==xc) {
+          printf("%s ", $1)
+        } else if (i==yc) {
+          printf("%s ", $2)
+        } else if (i==NF) {
+          printf("%s\n", $(i))
+        } else {
+          printf("%s ", $(i))
+        }
+      }
+    }' > a.tmp
+    mv a.tmp $infile
+}
+
+################################################################################
 # Grid (raster) file functions
 
 # Grid z range query function. Try to avoid querying the full grid when determining the range of Z values

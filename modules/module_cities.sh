@@ -150,10 +150,13 @@ function tectoplot_calculate_cities()  {
         print $1, $2, $3, $4
     }' > cities.dat
 
+  # Map region select
+  select_in_gmt_map cities.dat ${RJSTRING[@]}
+
   if [[ $polygonselectflag -eq 1 ]]; then
     # GMT accepts comma delimited but only splits first few fields...
     gmt select cities.dat -F${POLYGONAOI} ${VERBOSE} | tr '\t' ',' > selected_cities.dat
-    [[ -s selected_cities.dat ]] && cp selected_cities.dat cities.dat
+    mv selected_cities.dat cities.dat
   fi
 
 }

@@ -5340,12 +5340,20 @@ cutframeflag=1
   ;;
 
   -pgo)
+  GRIDLINE_COLOR=black
+  GRIDLINE_WIDTH=0.2p
+  GRIDLINE_TRANS=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pgo:          plot gridlines
-Usage: -pgo
+-pgo:      plot parallel and meridian lines as a map layer
+Usage: -pgo [[options]]
 
-  Plot parallel and meridian gridlines (overridden by -noframe).
+  Spacing is determined automatically by tectoplot or by setting -pgs [interval]
+
+  Options:
+  color [color]                  Gridline color
+  width [width]                  Gridline width
+  trans [transparency %]         Gridline transparency
 
 Example:
 tectoplot -a -pgo -o example_pgo
@@ -5354,7 +5362,32 @@ ExampleEnd
 EOF
 shift && continue
 fi
-    GRIDLINESON=1
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        color)
+          shift
+          GRIDLINE_COLOR=$2
+          shift
+        ;;
+        width)
+          shift
+          GRIDLINE_WIDTH=$2
+          shift
+        ;;
+        trans)
+          shift
+          GRIDLINE_TRANS=$2
+          shift
+        ;;
+        *)
+          echo "[-pgo]: Option $2 not recognized"
+          exit 1
+        ;;
+      esac
+    done
+
+    plots+=("graticule_grid")
     ;;
 
   -pgs) # args: number
@@ -10672,7 +10705,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   echo ${MINLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 
   # This section is needed to make the circular AOI for e.g. stereographic maps with a given horizon.
-  # Not yet implemented
 
   if [[ $recalcregionflag_circle -eq 1 ]]; then
     # For science, make a small circle that approximates the map edge
@@ -10852,12 +10884,79 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   else
     TITLE="+t\"${PLOTTITLE}\""
   fi
+
+  # We allow GMT to decide where to place the lon/lat labels, but we still
+  # need to set the number of decimal places manually based on the AOI.
+
+  # Number of desired ticks is ~6
+  GRIDSPX=$(echo "($MAXLON - $MINLON)/${TICK_NUMBER}" | bc -l)
+  # Number of desired ticks is ~6
+  GRIDSPY=$(echo "($MAXLAT - $MINLAT)/${TICK_NUMBER}" | bc -l)
+
+  # Take the lower of the two numbers
+  GRIDSP=$(echo $GRIDSPX $GRIDSPY | gawk '{print ($1<$2)?$1:$2}')
+
+  if [[ $overridegridlinespacing -eq 1 ]]; then
+    GRIDSP=$OVERRIDEGRID
+    info_msg "Override spacing of map grid is $GRIDSP"
+  fi
+
+  info_msg "Initial grid spacing = $GRIDSP"
+  MAP_FORMAT_FLOAT_OUT='%.0f'
+  if [[ $(echo "$GRIDSP > 30" | bc) -eq 1 ]]; then
+    GRIDSP=30
+    MAP_FORMAT_FLOAT_OUT='%.0f'
+  elif [[ $(echo "$GRIDSP > 10" | bc) -eq 1 ]]; then
+    GRIDSP=10
+    MAP_FORMAT_FLOAT_OUT='%.0f'
+  elif [[ $(echo "$GRIDSP > 5" | bc) -eq 1 ]]; then
+  	GRIDSP=5
+    MAP_FORMAT_FLOAT_OUT='%.0f'
+  elif [[ $(echo "$GRIDSP > 2" | bc) -eq 1 ]]; then
+  	GRIDSP=2
+    MAP_FORMAT_FLOAT_OUT='%.0f'
+  elif [[ $(echo "$GRIDSP > 1" | bc) -eq 1 ]]; then
+  	GRIDSP=1
+    MAP_FORMAT_FLOAT_OUT='%.0f'
+  elif [[ $(echo "$GRIDSP > 0.5" | bc) -eq 1 ]]; then
+  	GRIDSP=0.5
+    MAP_FORMAT_FLOAT_OUT='%.1f'
+  elif [[ $(echo "$GRIDSP > 0.2" | bc) -eq 1 ]]; then
+  	GRIDSP=0.2
+    MAP_FORMAT_FLOAT_OUT='%.1f'
+  elif [[ $(echo "$GRIDSP > 0.1" | bc) -eq 1 ]]; then
+  	GRIDSP=0.1
+    MAP_FORMAT_FLOAT_OUT='%.1f'
+  elif [[ $(echo "$GRIDSP > 0.05" | bc) -eq 1 ]]; then
+    GRIDSP=0.05
+    MAP_FORMAT_FLOAT_OUT='%.2f'
+  elif [[ $(echo "$GRIDSP > 0.02" | bc) -eq 1 ]]; then
+    GRIDSP=0.02
+    MAP_FORMAT_FLOAT_OUT='%.2f'
+  elif [[ $(echo "$GRIDSP > 0.01" | bc) -eq 1 ]]; then
+    GRIDSP=0.01
+    MAP_FORMAT_FLOAT_OUT='%.2f'
+  else
+  	GRIDSP=0.005
+    MAP_FORMAT_FLOAT_OUT='%.3f'
+  fi
+
+  # info_msg "Grid spacing is $GRIDSP and decimal place code is ${MAP_FORMAT_FLOAT_OUT}"
+
+  if [[ $overridegridlinespacing -eq 1 ]]; then
+    GRIDSP=$OVERRIDEGRID
+    info_msg "Override spacing of map grid is $GRIDSP"
+  else
+    GRIDSP="a"
+  fi
+
   if [[ $usecustombflag -eq 0 ]]; then
-    bcmds+=("-Bxa${GRIDSP}${GRIDSP_LINE}")
-    bcmds+=("-Bya${GRIDSP}${GRIDSP_LINE}")
+    bcmds+=("-Bx${GRIDSP}")
+    bcmds+=("-By${GRIDSP}")
     bcmds+=("-B${GRIDCALL}")
     # bcmds+=("-B${GRIDCALL}${TITLE}")
     BSTRING=("${bcmds[@]}")
+    # echo ${BSTRING[@]}
   fi
 
   if [[ $plottitleflag -eq 1 ]]; then
@@ -11122,67 +11221,12 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     info_msg "Reference point moved to $REFPTLON $REFPTLAT"
   fi
 
-  # Number of desired ticks is ~6
-  GRIDSP=$(echo "($MAXLON - $MINLON)/${TICK_NUMBER}" | bc -l)
-
-  info_msg "Initial grid spacing = $GRIDSP"
-  MAP_FORMAT_FLOAT_OUT='%.0f'
-
-  if [[ $(echo "$GRIDSP > 30" | bc) -eq 1 ]]; then
-    GRIDSP=30
-    MAP_FORMAT_FLOAT_OUT='%.0f'
-  elif [[ $(echo "$GRIDSP > 10" | bc) -eq 1 ]]; then
-    GRIDSP=10
-    MAP_FORMAT_FLOAT_OUT='%.0f'
-  elif [[ $(echo "$GRIDSP > 5" | bc) -eq 1 ]]; then
-  	GRIDSP=5
-    MAP_FORMAT_FLOAT_OUT='%.0f'
-  elif [[ $(echo "$GRIDSP > 2" | bc) -eq 1 ]]; then
-  	GRIDSP=2
-    MAP_FORMAT_FLOAT_OUT='%.0f'
-  elif [[ $(echo "$GRIDSP > 1" | bc) -eq 1 ]]; then
-  	GRIDSP=1
-    MAP_FORMAT_FLOAT_OUT='%.0f'
-  elif [[ $(echo "$GRIDSP > 0.5" | bc) -eq 1 ]]; then
-  	GRIDSP=0.5
-    MAP_FORMAT_FLOAT_OUT='%.1f'
-  elif [[ $(echo "$GRIDSP > 0.2" | bc) -eq 1 ]]; then
-  	GRIDSP=0.2
-    MAP_FORMAT_FLOAT_OUT='%.1f'
-  elif [[ $(echo "$GRIDSP > 0.1" | bc) -eq 1 ]]; then
-  	GRIDSP=0.1
-    MAP_FORMAT_FLOAT_OUT='%.1f'
-  elif [[ $(echo "$GRIDSP > 0.05" | bc) -eq 1 ]]; then
-    GRIDSP=0.05
-    MAP_FORMAT_FLOAT_OUT='%.2f'
-  elif [[ $(echo "$GRIDSP > 0.02" | bc) -eq 1 ]]; then
-    GRIDSP=0.02
-    MAP_FORMAT_FLOAT_OUT='%.2f'
-  elif [[ $(echo "$GRIDSP > 0.01" | bc) -eq 1 ]]; then
-    GRIDSP=0.01
-    MAP_FORMAT_FLOAT_OUT='%.2f'
-  else
-  	GRIDSP=0.005
-    MAP_FORMAT_FLOAT_OUT='%.3f'
-  fi
-
-  info_msg "Grid spacing is $GRIDSP and decimal place code is ${MAP_FORMAT_FLOAT_OUT}"
-
-  if [[ $overridegridlinespacing -eq 1 ]]; then
-    GRIDSP=$OVERRIDEGRID
-    info_msg "Override spacing of map grid is $GRIDSP"
-  fi
-
-  if [[ $GRIDLINESON -eq 1 ]]; then
-    GRIDSP_LINE="g${GRIDSP}"
-  else
-    GRIDSP_LINE=""
-  fi
 
   # If grid isn't explicitly turned on but is also not turned off, add it to plots
   for plot in ${plots[@]}; do
     [[ $plot == "graticule" ]] && gridisonflag=1
   done
+
   if [[ $dontplotgridflag -eq 0 && $gridisonflag -eq 0 ]]; then
     plots+=("graticule")
   fi
@@ -12066,10 +12110,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # Cull the combined catalogs by removing equivalent events based on a
       # specified space-time-magnitude window, keeping first-specified catalog
 
-  [[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
-  [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
+    [[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
+    [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
 
-  if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
+    if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
       info_msg "Culling multiple input seismic catalogs..."
 
       # Copy the extracted catalog to the precull catalog
@@ -12150,30 +12194,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       info_msg "Before culling: ${num_eqs_precull}.  After culling: ${num_after_cull}"
     fi
 
-    # Select combined seismicity using the actual AOI polygon which may differ from the lat/lon box.
-    # This command is somtimes screwing up some fields in the output file or messing up with global
-    # extents. Make sure we normalize longitudes to -180:180
-
-    # if [[ -s ${F_SEIS}eqs.txt ]]; then
-    #   gawk < ${F_SEIS}eqs.txt '{print $1, $2, NR}' > ${F_SEIS}eqs_selectid.txt
-    #   gmt select ${F_SEIS}eqs_selectid.txt -R -J -Vn | tr '\t' ' ' | gawk '
-    #     {
-    #       print $3
-    #     }' > ${F_SEIS}eqs_afterselect_ids.txt
-    #     gawk '
-    #       (NR==FNR) {
-    #         data[NR]=$0
-    #       }
-    #       (NR != FNR) {
-    #         print data[$1]
-    #       }' ${F_SEIS}eqs.txt ${F_SEIS}eqs_afterselect_ids.txt > ${F_SEIS}eqs_afterselect.txt
-    #     cp ${F_SEIS}eqs_afterselect.txt ${F_SEIS}eqs.txt
-    # fi
-
-    # Alternative method using the bounding box which really doesn't work with global extents
-    # gmt select ${F_SEIS}eqs_aoipreselect.txt -F${F_MAPELEMENTS}bounds.txt -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-    # cleanup ${F_SEIS}eqs_aoipreselect.txt
-    info_msg "AOI selection: $(wc -l < ${F_SEIS}eqs.txt)"
+    # Retain only the seismicity falling within the map region
+    select_in_gmt_map ${F_SEIS}eqs.txt "${RJSTRING[@]}"
 
     ##############################################################################
     # Select seismicity that falls within a specified polygon.
@@ -12222,7 +12244,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
 
     # Select seismicity from eqlist
-
     if [[ $eqlistselectflag -eq 1 ]]; then
       echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_SEIS}eqselectlist.txt
       gawk '
@@ -12314,8 +12335,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       wc -l < ${F_SEIS}eqs.txt
     fi
 
-
-
     #### Decluster seismicity using one of several available algorithms
 
     if [[ $seisdeclusterflag -eq 1 ]]; then
@@ -12386,9 +12405,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
   # Length of strike line
   SYMSIZE3=$(echo "${KINSCALE} * 3.5" | bc -l)
 
-  ##### FOCAL MECHANISMS
-
-
   if [[ $calccmtflag -eq 1 ]]; then
 
     [[ $CMTFORMAT =~ "GlobalCMT" ]]     && CMTLETTER="c"
@@ -12458,64 +12474,31 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       fi
     done
 
-  # A list of CMT-related files to cleanup
+    # Restrict events to those falling within the map region.
+    # This is useful when map borders do not coincide with meridians and parallels
+    # We could consider not running this unless an oblique projection is specified
+    case $CMTTYPE in
+      CENTROID)
+          select_in_gmt_map_by_columns 5 6 ${F_CMT}cmt_global_aoi.dat ${RJSTRING[@]}
+        ;;
+      ORIGIN)
+          select_in_gmt_map_by_columns 8 9 ${F_CMT}cmt_global_aoi.dat ${RJSTRING[@]}
+        ;;
+    esac
 
-  cleanup ${F_CMT}sub_extract.cat
-  cleanup ${F_CMT}cmt_global_aoi.dat
-  cleanup ${F_CMT}cmt_merged_ids.txt
-  cleanup ${F_CMT}cmt_presort.txt
-  cleanup ${F_CMT}cmt_typefilter.dat
-  cleanup ${F_CMT}equiv_presort.txt
+    # A list of various CMT-related files to cleanup
+    cleanup ${F_CMT}sub_extract.cat
+    cleanup ${F_CMT}cmt_global_aoi.dat
+    cleanup ${F_CMT}cmt_merged_ids.txt
+    cleanup ${F_CMT}cmt_presort.txt
+    cleanup ${F_CMT}cmt_typefilter.dat
+    cleanup ${F_CMT}equiv_presort.txt
 
     if [[ ${#CCAT_STRING} -gt 1 && ${CULL_CMT_CATALOGS} -eq 1 ]]; then
 
       info_msg "[-c]: Sorting, finding clashes, and prioritizing using order of CCAT_STRING=${CCAT_STRING}"
 
-
       before_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
-
-      # Column  Data              Units
-      # ------  ----              -----
-      # 1.      idcode            A source data letter (G=GCMT, I=ISC, Z=GFZ, etc) and a
-      #                           EQ type letter (N=Normal, T=Thrust, S=Strike slip)
-      # 2.      event_code	      Any event ID from the source catalog
-      # 3.      id	              YYYY-MM-DDTHH:MM:SS time string
-      # 4.      epoch             (seconds) since Jan 1, 1970
-      # 5.      lon_centroid	    (°)
-      # 6.      lat_centroid	    (°)
-      # 7.      depth_centroid	  (km)
-      # 8.      lon_origin	      (°)
-      # 9.      lat_origin	      (°)
-      # 10.     depth_origin	    (km)
-      # 11.     author_centroid	  string    (e.g. GCMT)
-      # 12.     author_origin	    string    (e.g. NEIC)
-      # 13.     MW	              number
-      # 14.     mantissa	        number
-      # 15.     exponent	        integer
-      # 16.     strike1	          (°)
-      # 17.     dip1	            (°)
-      # 18.     rake1	            (°)
-      # 19.     strike2	          (°)
-      # 20.     dip2	            (°)
-      # 21.     rake2	            (°)
-      # 22.     exponent	        same as field 15
-      # 23.     Tval	            number
-      # 24.     Taz	              (°) azimuth of T axis
-      # 25.     Tinc	            (°) plunge of T axis
-      # 26.     Nval	            number
-      # 27.     Naz	              (°)
-      # 28.     Ninc	            (°)
-      # 29.     Pval	            number
-      # 30.     Paz	              (°)
-      # 31.     Pinc	            (°)
-      # 32.     exponent	        same as 15
-      # 33.     Mrr	              number
-      # 34.     Mtt	              number
-      # 35.     Mpp	              number
-      # 36.     Mrt	              number
-      # 37.     Mrp	              number
-      # 38.     Mtp	              number
-      # 39.     centroid_dt       (seconds)   Time between origin and centroid
 
       sort ${F_CMT}cmt_global_aoi.dat -k3,3 | uniq -u > ${F_CMT}cmt_presort.txt
       gawk < ${F_CMT}cmt_presort.txt -v removedfile=${F_CMT}"cmt_removed_cull.cat" -v cent=$CENTROIDFLAG -v ccatstring=${CCAT_STRING} '
@@ -12638,6 +12621,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         print
       }
     }' > ${F_CMT}cmt_typefilter.dat
+
     CMTFILE=$(abs_path ${F_CMT}cmt_typefilter.dat)
 
     # Select focal mechanisms from the eqlist
@@ -12667,39 +12651,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     fi
 
 
-    # if [[ $globalextentflag -ne 1  ]]; then
-    #   info_msg "Selecting focal mechanisms within non-global map AOI using ${CMTTYPE} location"
-    #
-    #   case $CMTTYPE in
-    #     CENTROID)  # Lon=Column 5, Lat=Column 6
-    #       gawk < $CMTFILE '{
-    #         for (i=5; i<=NF; i++) {
-    #           printf "%s ", $(i) }
-    #           print $1, $2, $3, $4;
-    #         }' | gmt select -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
-    #         printf "%s %s %s %s", $(NF-3), $(NF-2), $(NF-1), $(NF);
-    #         for (i=1; i<=NF-4; i++) {
-    #           printf " %s", $(i)
-    #         }
-    #         printf "\n";
-    #       }' > ${F_CMT}cmt_aoipolygonselect.dat
-    #       ;;
-    #     ORIGIN)  # Lon=Column 8, Lat=Column 9
-    #       gawk < $CMTFILE '{
-    #         for (i=8; i<=NF; i++) {
-    #           printf "%s ", $(i) }
-    #           print $1, $2, $3, $4, $5, $6, $7;
-    #         }' > ${F_CMT}tmp.dat
-    #         gmt select ${F_CMT}tmp.dat -F${F_MAPELEMENTS}bounds.txt ${VERBOSE} | tr '\t' ' ' | gawk  '{
-    #         printf "%s %s %s %s %s %s %s", $(NF-6), $(NF-5), $(NF-4), $(NF-3), $(NF-2), $(NF-1), $(NF);
-    #         for (i=1; i<=NF-6; i++) {
-    #           printf " %s", $(i)
-    #         } printf "\n";
-    #       }' > ${F_CMT}cmt_aoipolygonselect.dat
-    #       ;;
-    #   esac
-    #   CMTFILE=$(abs_path ${F_CMT}cmt_aoipolygonselect.dat)
-    # fi
 
     # This abomination of a command is because I don't know how to use gmt select
     # to print the full record based only on the lon/lat in specified columns.
@@ -12737,13 +12688,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       esac
       CMTFILE=$(abs_path ${F_CMT}cmt_polygonselect.dat)
     fi
-
-    # 16.     strike1	          (°)
-    # 17.     dip1	            (°)
-    # 18.     rake1	            (°)
-    # 19.     strike2	          (°)
-    # 20.     dip2	            (°)
-    # 21.     rake2	            (°)
 
     ##### Select focal mechanisms using cfilter
     if [[ $cfilterflag -eq 1 ]]; then
@@ -12842,9 +12786,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     fi
 
     ##### Select focal mechanisms based on SLAB2 interface
-
-
-
 
     ##### Filter GMT format thrust CMTs based on proximity to Slab2 surface and
     #     consistency of at least one nodal plane with the fault surface
@@ -12981,144 +12922,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       fi
       [[ -s ${F_CMT}cmt_slabselected.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_slabselected.txt)
     fi
-
-  ##### Filter to select only earthquakes NOT above a Slab2 model
-  #
-  # if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
-  #   if [[ ! $numslab2inregion -eq 0 ]]; then
-  #
-  #     # Extract the lon, lat of all focal mechanisms based on CMTTYPE
-  #
-  #     gawk < $CMTFILE -v cmttype=$CMTTYPE '
-  #       {
-  #         if (cmttype=="CENTROID") {
-  #           lon=$5; lat=$6; depth=$7;
-  #         } else {
-  #           lon=$8; lat=$9; depth=$10;
-  #         }
-  #         print lon, lat
-  #       }' > ${F_CMT}cmt_lonlat.txt
-  #
-  #     # For each slab in the region
-  #
-  #     for i in $(seq 1 $numslab2inregion); do
-  #       info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
-  #       ss_depthfile+=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
-  #     done
-  #
-  #     sample_grid_360 ${F_CMT}cmt_lonlat.txt ${ss_depthfile[@]} >>  ${F_CMT}cmt_under_slab2_sample.txt
-  #
-  #       # -N flag is needed in case events fall outside the domain
-  #     # gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_under_slab2_sample.txt
-  #
-  #
-  #
-  #     paste ${CMTFILE} ${F_CMT}cmt_under_slab2_sample.txt > ${F_CMT}cmt_under_slab2_sample_pasted.txt
-  #
-  #     info_msg "Selecting focal mechanisms beneath or away from slab"
-  #     touch ${F_CMT}cmt_nodalplane.txt
-  #
-  #     # Fields 40+ are slab depth samples.
-  #     # If one of them is not NaN and is less than slab2depth, exclude the
-  #     gawk < ${F_CMT}cmt_under_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
-  #       {
-  #           if (cmttype=="ORIGIN") {
-  #             lon=$8; lat=$9; depth=$10
-  #           } else {
-  #             lon=$5; lat=$6; depth=$7
-  #           }
-  #           printme=1
-  #           for (i=40; i<= NF; i++) {
-  #             # If the focal mechanism is above the slab interface (0-$(i) is positive down)
-  #             if (depth < (0-$(i)) - buf ) {
-  #               printme=0
-  #             }
-  #             # Delete the field for eventual printing
-  #             $(i)=""
-  #           }
-  #
-  #           # If it is outside the slab2 region OR is beneath the slab
-  #           if (printme==1)
-  #           {
-  #             print $0
-  #           }
-  #       }' >> ${F_CMT}cmt_underslab.txt
-  #
-  #
-  #     # Problem: if there are multiple slabs, then all mechanisms will appear
-  #     # because of NaN... we really want to EXCLUDE strike slip events in the
-  #     # UPPER PLATE.
-  #
-  #   fi
-  #   [[ -s ${F_CMT}cmt_underslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_underslab.txt)
-  # fi
-
-  ##### Filter to select only earthquakes ABOVE a Slab2 model
-  #
-  # if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
-  #   if [[ ! $numslab2inregion -eq 0 ]]; then
-  #
-  #     # Extract the lon, lat of all focal mechanisms based on CMTTYPE
-  #
-  #     gawk < $CMTFILE -v cmttype=$CMTTYPE '
-  #       {
-  #         if (cmttype=="CENTROID") {
-  #           lon=$5; lat=$6; depth=$7;
-  #         } else {
-  #           lon=$8; lat=$9; depth=$10;
-  #         }
-  #         print lon, lat
-  #       }' > ${F_CMT}cmt_lonlat.txt
-  #
-  #     # For each slab in the region
-  #
-  #     for i in $(seq 1 $numslab2inregion); do
-  #       info_msg "Sampling earthquake events on ${slab2inregion[$i]}"
-  #       ss_depthfile+="-G"$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')" "
-  #     done
-  #
-  #       # -N flag is needed in case events fall outside the domain
-  #     gmt grdtrack ${ss_depthfile[@]} -Z -N ${F_CMT}cmt_lonlat.txt ${VERBOSE} > ${F_CMT}cmt_shallow_slab2_sample.txt
-  #
-  #     paste ${CMTFILE} ${F_CMT}cmt_shallow_slab2_sample.txt > ${F_CMT}cmt_shallow_slab2_sample_pasted.txt
-  #
-  #     info_msg "Selecting focal mechanisms beneath or away from slab"
-  #     touch ${F_CMT}cmt_nodalplane.txt
-  #
-  #     # Fields 40+ are slab depth samples.
-  #     # If one of them is not NaN and is less than slab2depth, exclude the
-  #     gawk < ${F_CMT}cmt_shallow_slab2_sample_pasted.txt -v cmttype=${CMTTYPE} -v buf=${SLAB2_BUFFER} '
-  #       {
-  #           if (cmttype=="ORIGIN") {
-  #             lon=$8; lat=$9; depth=$10
-  #           } else {
-  #             lon=$5; lat=$6; depth=$7
-  #           }
-  #           printme=0
-  #           for (i=40; i<= NF; i++) {
-  #             # Select if the focal mechanism is above a slab interface (0-$(i) is positive down)
-  #             if ($(i) != "NaN" && depth < (0-$(i)) - buf ) {
-  #               printme=1
-  #             }
-  #             # Delete the field for eventual printing
-  #             $(i)=""
-  #           }
-  #
-  #           # If it is outside the slab2 region OR is beneath the slab
-  #           if (printme==1)
-  #           {
-  #             print $0
-  #           }
-  #       }' >> ${F_CMT}cmt_aboveslab.txt
-  #
-  #
-  #     # Problem: if there are multiple slabs, then all mechanisms will appear
-  #     # because of NaN... we really want to EXCLUDE strike slip events in the
-  #     # UPPER PLATE.
-  #
-  #   fi
-  #   [[ -s ${F_CMT}cmt_aboveslab.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_aboveslab.txt)
-  # fi
 
   # Backtilt focal mechanisms based on Slab2 strike and dip.
 
@@ -16522,17 +16325,16 @@ EOF
           fi
         fi
       fi
+        ;;
 
-
-
+      graticule_grid)
+        gmt psbasemap -Bxg${GRIDSP} -Byg${GRIDSP} -t${GRIDLINE_TRANS} -Btlbr --MAP_GRID_PEN_PRIMARY=${GRIDLINE_WIDTH},${GRIDLINE_COLOR} --MAP_FRAME_PEN=0p $RJOK $VERBOSE >> map.ps
         ;;
 
       graticule)
         OLD_FORMAT_FLOAT_OUT=$(gmt gmtget FORMAT_FLOAT_OUT -Vn)
         gmt gmtset FORMAT_FLOAT_OUT ${MAP_FORMAT_FLOAT_OUT}
-
         gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
-
         gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
 
     #  gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
