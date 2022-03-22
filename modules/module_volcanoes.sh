@@ -48,6 +48,9 @@ EOF
     fi
     shift
 
+    # Create directories registered by modules
+    mkdir -p "${TMP}${F_VOLC}"
+
     if ! arg_is_flag $1 ; then
       V_FILL="${1}"
       shift

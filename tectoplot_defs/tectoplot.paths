@@ -41,8 +41,8 @@ DEFAULT_TMP="tempfiles_to_delete/"
 TMP=${DEFAULT_TMP}
 
 ###### Names of files storing data sources information
-SHORTSOURCES="short_datasources.txt"
-LONGSOURCES="datasources.txt"
+SHORTSOURCES_FILE="short_datasources.txt"
+LONGSOURCES_FILE="datasources.txt"
 
 ###### File where processing messages go if not to stdout
 INFO_MSG_NAME="info_messages.txt"

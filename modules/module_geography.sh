@@ -157,6 +157,10 @@ fi
         ((tectoplot_module_shift++))
         OSM_NOPLOTFLAG=1
       ;;
+      *)
+        echo "[-aosm]: option $2 not recognized"
+        exit 1
+      ;;
     esac
   done
 

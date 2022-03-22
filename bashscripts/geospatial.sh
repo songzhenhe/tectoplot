@@ -28,6 +28,126 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#########
+# geod / GMT functions
+
+# Find a point located a given distance and azimuth from an input point, using
+# the WGS84 ellipsoid. Note: path is not a rhumbline!!!
+# args: 1=lon 2=lat 3=azimuth (deg, CW from N), 4=distance 5=unit
+function project_point_dist_az() {
+  echo "$2 $1 $3 $4" | geod +ellps=WGS84 +units=${5} -f "%f" | gawk '{print $2, $1}'
+}
+
+# Use GMT to find location of a point projected eastward along a parallel
+# args: 1=lon 2=lat 3=distance 5=unit. Note: seems to be imprecise!!!
+
+function project_point_parallel_dist() {
+  local POLEPOS="0/-90"
+  if [[ $(echo "$2 >= 0" | bc -l) -ne 1 ]]; then
+    POLEPOS="0/90"
+  fi
+  local nounits=$(echo $3 | gawk '{print $1+0}')
+  # gmt project -C${p[0]}/${p[1]} -A${p[2]} -Q -G${WIDTHKM}k -L0/${WIDTHKM} | tail -n 1 | gawk  '{print $1, $2}'
+  # echo gmt project -C$1/$2 -T${POLEPOS} -G${3} -L0/5000 -Q
+  # gmt project -C$1/$2 -T${POLEPOS} -G${3} -L0/5000 -Q
+
+  # Somehow, lon=38 lat=32 FAILS but lon=38 lat=32.0001 doesn't (GMT 6.1.1) ?????
+  local lon=$1
+  local lat=$2
+
+  #
+  # local poleantilat=$(echo "0 - (${polelat}+0.0000001)" | bc -l)
+  # local poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
+
+  # Distance needs to be distance in km
+  # -G requires the angular distance from the north pole to the site
+  local poledist=$(echo "90 - ${lat}" | bc -l)
+  gmt project -T0/90 -C${lon}/${lat} -G${nounits}/${poledist} -L0/${nounits} -Q -Ve | gawk '{print $1, $2}' | tail -n 1
+}
+
+# Calculate the location of a point displaced eastward along a parallel from
+# a given point by a given number of kilometers
+
+# args: 1:lon 2:lat 3:dist (km)
+function project_point_parallel_wgs84() {
+  local LON=$1
+  local LAT=$2
+  # WGS84 parameters
+  local L1=6378137
+  local A1=297257223563
+  local A2=298257223563
+  local dist=$3 # km
+  local deltalon=$(gawk -v l1=$L1 -v a1=$A1 -v a2=$A2 -v lat=$LAT -v dist=${dist} '
+  function getpi()       { return atan2(0,-1)             }
+  function tan(x)        { return sin(x)/cos(x)           }
+  function atan(x)       { return atan2(x,1)              }
+  function deg2rad(deg)  { return (getpi() / 180) * deg   }
+  BEGIN {
+    # radius of the parallel circle
+    rlat=l1*cos(atan(a1/a2 * tan(deg2rad(lat))))
+    # change in longitude corresponding to a given along-arc distance in km
+    deltalon=(dist * 1000) / (2 * getpi() * rlat) * 360
+    printf("%f", deltalon)
+  }')
+  echo $(echo "$LON + $deltalon" | bc -l) $LAT
+}
+
+# Find the coordinates of a point on the map that correspond to an X and Y
+# offset in projected coordinates (points) from a specified lon/lat point.
+# expects RJSTRING to be correctly set
+# args: 1=lon 2=lat 3=xoffset 4=yoffset
+
+function point_map_offset() {
+  echo "$1 $2" | gmt mapproject ${RJSTRING[@]} | gawk -v xoffset=$3 -v yoffset=$4 '{print $1+xoffset/72, $2+yoffset/72}' |  gmt mapproject -I ${RJSTRING[@]}
+}
+
+# Same as before but rotate by theta degrees, clockwise
+function point_map_offset_rotate_m90() {
+  echo "$1 $2" | gmt mapproject ${RJSTRING[@]} | gawk -v xoffset=$3 -v yoffset=$4 -v theta=$5 '
+    @include "tectoplot_functions.awk"
+    {
+      xoff=xoffset*cos(deg2rad(0-theta+90))-yoffset*sin(deg2rad(0-theta+90))
+      yoff=xoffset*sin(deg2rad(0-theta+90))+yoffset*cos(deg2rad(0-theta+90))
+      print $1+xoff/72, $2+yoff/72
+    }' |  gmt mapproject -I ${RJSTRING[@]}
+}
+
+# args: 1=lon1 2=lat1 3=lon2 4=lat2
+function onmap_angle_between_points() {
+  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING[@]}))
+  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING[@]}))
+
+  echo ${mapcoords1[@]} ${mapcoords2[@]} | gawk '
+  @include "tectoplot_functions.awk"
+  {
+    print azimuth_from_en($3-$1, $4-$2)
+  }'
+}
+
+function azimuth_to_justcode() {
+  echo $1 | gawk '
+  {
+    if ($1>337.5 || $1<22.5) {
+      j="TC"
+    } else if ($1>292.5) {
+      j="TL"
+    } else if ($1>247.5) {
+      j="ML"
+    } else if ($1>202.5) {
+      j="BL"
+    } else if ($1>157.5) {
+      j="BC"
+    } else if ($1>112.5) {
+      j="BR"
+    } else if ($1>67.5) {
+      j="MR"
+    } else {
+      j="TR"
+    }
+    print j
+  }'
+}
+
 ################################################################################
 # Text processing functions using GMT
 

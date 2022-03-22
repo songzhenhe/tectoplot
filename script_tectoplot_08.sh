@@ -351,8 +351,6 @@ else
   esac
 fi
 
-# gmt gmtset GMT_AUTO_DOWNLOAD on
-
 if ! command -v ${OPENPROGRAM} &> /dev/null; then
     echo "PDF viewing command ${OPENPROGRAM} doesn't work. Setting default based on OS."
     case "$OSTYPE" in
@@ -376,38 +374,12 @@ if ! command -v ${OPENPROGRAM} &> /dev/null; then
 else
   openprogramflag=1
 fi
-#
-# if [[ "${OPENPROGRAM}" == "open -a Preview" ]]; then
-#   openprogramflag=1
-# else
-#
-#   if [[ ! -x ${OPENPROGRAM} ]]; then
-#     echo "PDF viewer ${OPENPROGRAM} cannot be called. Setting default based on OS..."
-#
-#
-#     if [[ ! -x ${OPENPROGRAM} ]]; then
-#       "Default PDF viewer ${OPENPROGRAM} cannot be called."
-#       openprogramflag=0
-#     else
-#       openprogramflag=1
-#     fi
-#
-#   else
-#     openprogramflag=1
-#   fi
-# fi
 
 GMTVERSION=$(gmt --version)
-# if [[ $(echo $GMTVERSION | gawk '{ if ($1 >= "6.2.0") { print 0 } else {print 1 }}') -eq 1 ]]; then
-#   echo "GMT greater than 6.2"
-#   GMTVERSION="6.2"
-#
-# fi
 
 GDAL_VERSION_GT_3_2=$(gdalinfo --version | gawk -F, '{split($1, a, " "); if (a[2] > "3.2.0") { print 1 } else { print 0 }}')
 
 if [[ ! -s ${OPTDIR}"tectoplot.dataroot" ]]; then
-  echo "Error: data directory not defined; using /dev/null as placeholder. Run tectoplot -setdatadir"
   echo "/dev/null/" > ${OPTDIR}"tectoplot.dataroot"
   DATAROOT="/dev/null/"
 else
@@ -421,10 +393,6 @@ fi
 CUSTOMREGIONSDIR=$OPTDIR"customregions/"
 CUSTOMREGIONS=$CUSTOMREGIONSDIR"tectoplot.customregions"
 [[ ! -d ${CUSTOMREGIONSDIR} ]] && mkdir -p ${CUSTOMREGIONSDIR}
-
-# if [[ ! -d ${DATAROOT} ]]; then
-#   echo "Warning: Data directory ${DATAROOT} does not exist. Set using tectoplot -setdatadir"
-# fi
 
 ################################################################################
 # Load CPT defaults, paths, and defaults
@@ -462,7 +430,6 @@ export AWKPATH=${AWKSCRIPTDIR}
 # Get rid of gmt.conf as it is likely to mess up our plots
 [[ -s ~/gmt.conf ]] && mv ~/gmt.conf ~/gmt.conf.tectoplot.saved
 
-
 ################################################################################
 ################################################################################
 ##### FUNCTION DEFINITIONS
@@ -477,27 +444,26 @@ source $SEISMICITY_SH
 source $INFO_SH
 source $GMT_WRAPPERS
 
-
 FULL_TMP=$(abs_path ${TMP})
 
 ##### Set up temporary directory to contain some files before moving to ${TMP}
 
 FILETMP=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')/
 
-touch ${FILETMP}${SHORTSOURCES}
-touch ${FILETMP}${LONGSOURCES}
+
 
 # Set up the source listing files that will be moved to ${TMP}
-SHORTSOURCES=${FILETMP}${SHORTSOURCES}
-LONGSOURCES=${FILETMP}${LONGSOURCES}
+SHORTSOURCES=${FILETMP}${SHORTSOURCES_FILE}
+LONGSOURCES=${FILETMP}${LONGSOURCES_FILE}
+
+touch ${SHORTSOURCES}
+touch ${LONGSOURCES}
 
 # Record the command
 echo $COMMAND > ${FILETMP}tectoplot.last
 
 INFO_MSG=${FILETMP}${INFO_MSG_NAME}
 touch ${INFO_MSG}
-
-
 
 ################################################################################
 # These variables are array indices used to plot multiple versions of the same
@@ -909,7 +875,7 @@ do
   USAGEFLAG=1
   ;;
 
-  -addpath)   # Add tectoplot source directory to ~/.profile and exit
+  -addpath) # Add tectoplot source directory to ~/.profile and exit
 
 
   if [[ ! $USAGEFLAG -eq 1 ]]; then
@@ -931,14 +897,14 @@ do
     fi
     ;;
 
-  -checkdep)
+  -checkdep) # report status of tectoplot dependencies
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       source ${BASHSCRIPTDIR}"test_dependencies.sh" verbose
       exit
     fi
     ;;
 
-  -compile)
+  -compile) # compile companion codes
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       echo "Compiling texture shading code in ${TEXTUREDIR}"
       ${TEXTURE_COMPILE_SCRIPT} ${TEXTUREDIR} ${CCOMPILER}
@@ -975,7 +941,7 @@ do
     fi
     ;;
 
-  -countryid)
+  -countryid) # report country ID codes
     if [[ ! $USAGEFLAG -eq 1 ]]; then
 
       if arg_is_flag $2; then
@@ -991,28 +957,28 @@ do
     fi
     ;;
 
-  -data)
+  -data) # report datasets
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       datamessage
       exit 1
     fi
     ;;
 
-  -defaults)
+  -defaults) # report defaults
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       defaultsmessage
       exit 1
     fi
     ;;
 
-  -formats)
+  -formats) # report data formats
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       formats
       exit 1
     fi
     ;;
 
-  -getdata)
+  -getdata) # download online datasets
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       narrateflag=1
       # info_msg "Checking and updating downloaded datasets: GEBCO1 GEBCO20 EMAG2 SRTM30 WGM Geonames GCDM Slab2.0 OC_AGE LITHO1.0"
@@ -1129,19 +1095,22 @@ do
       fi
     fi
     ;;
--h|--help|-help)
+
+  -h|--help|-help) # print usage information
     if [[ ! ${USAGEFLAG} -eq 1 ]]; then
       print_usage
     	exit 1
     fi
     ;;
-  -setup)
+
+  -setup) # print setup information
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       print_setup
       exit 1
     fi
     ;;
-  -variables)
+
+  -variables) # print information about variables
     if [[ ! $USAGEFLAG -eq 1 ]]; then
       print_help_header
       print_variables
@@ -1154,20 +1123,9 @@ done
 set -- "${saved_args[@]}"
 ##### End command line arguments that always end with exit
 
+# Create the temporary directory and subdirectory structure
+
 if [[ ! ${USAGEFLAG} -eq 1 ]]; then
-  # Create the temporary directory but don't change into it yet to avoid
-  # breaking arguments to files in current working directory
-
-  ################################################################################
-  #####          Create and change into the temporary directory              #####
-  ################################################################################
-
-  # Delete and remake the temporary directory where interim files will be stored
-  # Only delete the temporary directory if it is a subdirectory of the current
-  # directory to prevent accidents
-
-  # First copy the .ps base file, which can be in an already existing temporary
-  # folder that is doomed to be overwritten.
 
   OVERLAY=""
   if [[ $overplotflag -eq 1 ]]; then
@@ -1222,11 +1180,7 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
   mkdir -p "${TMP}rasters/"
   mkdir -p "${TMP}legend/"
 
-  # Create directories registered by modules
-  mkdir -p "${TMP}${F_VOLC}"
-
   LEGENDDIR=$(abs_path "${TMP}legend/")
-
 fi
 
 ##### Parse main command line arguments
@@ -1239,24 +1193,16 @@ do
 
 # Options from high priority suite above need to be skipped intelligently
 # The options from the above parsing just need to be skipped...?
-  -n)
+  -n) # High priority option parsed earlier.
+    # none
   ;;
 
-  -addpath)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--addpath:      add tectoplot script directory to path environment
-Usage: -addpath
+  -addpath) # High priority option parsed earlier.
+    # none
 
-  Assumes you are using bash (~/.profile)
-
---------------------------------------------------------------------------------
-EOF
-  shift && continue
-fi
   ;;
 
-  -whichutm)
+  -whichutm) # -whichutm: report UTM zone for specified longitude
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -whichutm:      report UTM zone for specified longitude
@@ -1265,7 +1211,7 @@ Usage: -whichutm [longitude]
 --------------------------------------------------------------------------------
 EOF
   shift && continue
-fi
+  fi
 
   if arg_is_float $2; then
     AVELONp180o6=$(echo "(($2) + 180)/6" | bc -l)
@@ -1275,7 +1221,7 @@ fi
   exit 0
   ;;
 
-  -checkdep)
+  -checkdep) # High priority option parsed earlier.
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -checkdep:     check program dependencies
@@ -1288,7 +1234,7 @@ EOF
 fi
   ;;
 
-  -colorblind)
+  -colorblind)  # -colorblind: use colorblind-friendlier CPTs from Colorcet or other sources
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -colorblind:   use colorblind-friendlier CPTs from Colorcet or other sources
@@ -1304,7 +1250,7 @@ fi
     SEIS_CPT_INV="-I"
   ;;
 
-  -compile)
+  -compile) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -compile:      compile accompanying codes
@@ -1324,7 +1270,7 @@ shift && continue
 fi
   ;;
 
-  -countryid)
+  -countryid) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -countryid:    print list of recognized country codes and exit
@@ -1341,7 +1287,7 @@ EOF
   fi
   ;;
 
-  -data)
+  -data) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -data:         list data source info
@@ -1353,7 +1299,7 @@ EOF
   fi
   ;;
 
-  -defaults)
+  -defaults) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -defaults:     print tectoplot defaults
@@ -1364,7 +1310,8 @@ EOF
 shift && continue
 fi
   ;;
-  -formats)
+
+  -formats) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -formats:      print information about file formats (input and output) and exit
@@ -1375,7 +1322,8 @@ EOF
   shift && continue
   fi
   ;;
-  -getdata)
+
+  -getdata) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -getdata:      download datasets and compile c / Fortran programs
@@ -1393,7 +1341,7 @@ shift && continue
   fi
   ;;
 
-  -ips)
+  -ips) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ips:          plot over an existing, non-closed ps file
@@ -1424,6 +1372,7 @@ EOF
 
 
   ;;
+
   -query)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -1436,9 +1385,9 @@ shift && continue
   while ! arg_is_flag $2; do
     shift
   done
-  ;;
+  ;; # High priority option parsed earlier
 
-  -setup)
+  -setup) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setup:        print setup information and exit
@@ -1449,7 +1398,7 @@ shift && continue
   fi
   ;;
 
-  -variables)
+  -variables) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -variables:    print information about tectoplot variables
@@ -1460,7 +1409,7 @@ shift && continue
   fi
   ;;
 
-  -usage)
+  -usage) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -usage:        basic description of tools
@@ -1547,7 +1496,7 @@ USAGEFLAG=1
 
   ;;
 
-  -tm) # Relative temporary directory placed into pwd
+  -tm) # High priority option parsed earlier
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tm:           define a custom temporary results directory
@@ -1560,27 +1509,7 @@ fi
   shift
   ;;
 
-#   -iscreport)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -iscreport:    plot earthquakes that occurred recently
-# -iscreport [[min_magnitude]]
-#
-#   Create an HTML document with links to ISC event reports for all earthquakes
-#   in the given AOI, above a minimum magnitude.
-#
-#   NOTE: Requires -z -zcat ISC
-#
-# Example: Plot last 1 month of earthquakes in USA
-#   tectoplot -r US.CA -z -zcat ISC -iscreport 7
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#   plots+=("iscreport")
-#   ;;
-
-  -recenteq) # args: none | days
+  -recenteq) # -recenteq: plot earthquakes that occurred recently
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -recenteq:     plot earthquakes that occurred recently
@@ -1780,8 +1709,6 @@ fi
     set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" ${EVENTMAP_MMI[@]} "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
     # echo $@
     ;;
-
-  # Normal commands
 
   -mmi) # args: eventID
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -2484,55 +2411,6 @@ fi
     connectalternatelocflag=1
     ;;
 
-#   -cf) # args: string
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -cf:           set gmt format of focal mechanism files and plotting method
-# -cf [[format=${CMTFORMAT}]]
-#   Plots a line connecting focal mechanism to a dot at the alternate location,
-#   on both map and cross section plots.
-#   format=GlobalCMT|c       is GCMT SDR format
-#   format=MomentTensor|m    is moment tensor (possibly derived)
-#   format=TNP|y             is best double couple principal axes
-#
-# Example: Plot CMT data with MomentTensor method, New Zealand
-#   tectoplot -r NZ -c -cf m -a
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     if arg_is_flag $2; then
-#       info_msg "[-cf]: CMT format not specified (GlobalCMT, MomentTensor, PrincipalAxes). Using default ${CMTFORMAT}"
-#     else
-#       CMTFORMAT="${2}"
-#       shift
-#       #CMTFORMAT="PrincipalAxes"        # Choose from GlobalCMT / MomentTensor/ PrincipalAxes
-#       case $CMTFORMAT in
-#       GlobalCMT|c)
-#         CMTFORMAT="GlobalCMT"
-#         CMTLETTER="c"
-#         CMTEXTRA=""
-#         ;;
-#       MomentTensor|m)
-#         CMTFORMAT="MomentTensor"
-#         CMTLETTER="m"
-#         CMTEXTRA="-Fz"
-#         ;;
-#
-#       TNP|y)
-#         CMTFORMAT="TNP"
-#         CMTLETTER="y"
-#         CMTEXTRA=""
-#         ;;
-#       *)
-#         info_msg "[-cf]: CMT format ${CMTFORMAT} not recognized. Using GlobalCMT"
-#         CMTFORMAT="GlobalCMT"
-#         CMTLETTER="c"
-#         ;;
-#       esac
-#     fi
-#     ;;
-
 # Filter focal mechanisms by various criteria
 # maxdip: at least one nodal plane dip is lower than this value
   -cfilter)
@@ -2645,22 +2523,6 @@ shift && continue
 fi
     clipdemflag=1
     ;;
-
-#   -clipgrav)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -clipgrav:     save clipped gravity file as grav.nc
-# -clipgrav
-#
-# Example: Clip a Bouguer gravity anomaly to the AOI of Albania
-#   tectoplot -r AL -v BG 0 -clipgrav
-#   gmt grdinfo tempfiles_to_delete/grav/grav.nc
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     clipgravflag=1
-    # ;;
 
   -clipon|-clipout)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -2849,7 +2711,7 @@ fi
     shift
     ;;
 
--cslab2)
+  -cslab2)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cslab2:       select thrust CMTs consistent with rupture of slab2.0 surface
@@ -2886,7 +2748,7 @@ fi
   cmtslab2filterflag=1
   ;;
 
--cunfold)
+  -cunfold)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cunfold:      back-rotate focal mechanisms based on slab2 strike and dip
@@ -2906,7 +2768,7 @@ fi
   slab2_unfold_focalsflag=1
   ;;
 
--cdeep)
+  -cdeep)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cdeep:        select focal mechanisms in lower plate below slab2 model
@@ -2931,7 +2793,7 @@ fi
   fi
   ;;
 
--cshallow)
+  -cshallow)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cshallow:     select focal mechanisms in upper plate above slab2 model
@@ -3338,7 +3200,7 @@ fi
   -pagegrid)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--pagegrid:     plot gps velocities from builtin catalog
+-pagegrid:     plot an inch- or cm-spaced grid around the map document
 Usage: -pagegrid [[unit=${PAGE_GRID_UNIT}]]
 
   Plot an inch- or cm-spaced grid around the map document
@@ -3401,8 +3263,6 @@ fi
             gpsoverride=1
             GPS_FILE=`echo $GPSDIR"/GPS_$GPSID.gmt"`
             shift
-            echo $GPS_SOURCESTRING >> ${LONGSOURCES}
-            echo $GPS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
           else
             echo "[-g]: ref requires a plate ID argument"
             exit 1
@@ -3444,6 +3304,8 @@ fi
     done
 
 		plots+=("gps")
+    echo $GPS_SOURCESTRING >> ${LONGSOURCES}
+    echo $GPS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
 		;;
 
   -gadd) # args: file
@@ -3519,7 +3381,7 @@ fi
     plots+=("extragps")
     ;;
 
--fixcpt)
+  -fixcpt)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -fixcpt:     fix a CPT file and print to stdout, then exit
@@ -3751,7 +3613,6 @@ fi
     addinsetplotflag=1
     ;;
 
-
   -keepopenps) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3768,7 +3629,7 @@ fi
     KEEPOPEN="-K"
     ;;
 
-	-kg|--kingeo) # args: none
+	-kg) # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kg:           plot strike and dip symbols for focal mechanism nodal planes
@@ -3793,7 +3654,7 @@ fi
 		plots+=("kingeo")
 		;;
 
-  -kl|--nodalplane) # args: string
+  -kl) # args: string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kl:           select nodal planes 1 or 2
@@ -3823,7 +3684,7 @@ fi
 		fi
 		;;
 
-  -km|--kinmag) # args: number number
+  -km) # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -km:           set magnitude range of cmt kinematics events
@@ -3838,7 +3699,6 @@ fi
     shift
     shift
     ;;
-
 
   -kml)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -3879,7 +3739,7 @@ fi
     kmlflag=1
     ;;
 
-	-ks|--kinscale)  # args: number
+	-ks)  # args: number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ks:           set the scale of kinematic objects
@@ -3900,7 +3760,7 @@ fi
     info_msg "[-ks]: CMT kinematics scale updated to $KINSCALE"
 	  ;;
 
-	-kt|--kintype) # args: string
+	-kt) # args: string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kt:           select focal mechanism kinematic data based on earthquake type
@@ -3934,7 +3794,7 @@ fi
 		fi
 		;;
 
- 	-kv|--kinsv)  # args: none
+ 	-kv)  # args: none
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -kv:           plot focal mechanism slip vectors
@@ -3957,7 +3817,6 @@ fi
  		svflag=1
 		plots+=("kinsv")
  		;;
-
 
   -legendonly) # args: none
   GVEL=100     # GPS velocity mm/yr
@@ -4545,8 +4404,7 @@ fi
     clipdemflag=1
     ;;
 
-
--profauto)
+  -profauto)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profauto:     allow auto adjust of profile depth but without violating min/max
@@ -4565,7 +4423,7 @@ fi
   shift
   ;;
 
--profdepth)
+  -profdepth)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profdepth:    set default depth range for profiles
@@ -4768,8 +4626,7 @@ fi
     done
     ;;
 
-
-    -colorinfo)
+  -colorinfo)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -colorinfo:       print info about GMT and colorcet CPTs, GMT color names
@@ -4986,7 +4843,7 @@ fi
 
   ;;
 
-  -ppole)
+  -printpole)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ppole:           print Euler pole of specified plate relative to reference plate
@@ -5187,7 +5044,7 @@ fi
 
     ;;
 
-  -ppf)
+  -ppf)  # -ppf: plot grid points
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ppf:          plot grid points
@@ -5201,7 +5058,7 @@ fi
     plots+=("gridpoints")
     ;;
 
-  -pg) # args: file
+  -pg)   # -pg: use polygon file to select data
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pg:           use polygon file to select data
@@ -5258,12 +5115,9 @@ fi
       shift
     done
 
-    # Now we have to fix the polygon file in case polygons cross the dateline.
-    # [[ -s ${POLYGONAOI} ]] && fixselectpolygonsflag=1
+    ;;
 
-    ;; # args: none
-
-  -noframe)
+  -noframe) # -noframe: do not plot coordinate grid or map frame
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -noframe:      do not plot coordinate grid or map frame
@@ -5306,12 +5160,12 @@ fi
     fi
     ;;
 
-  -cutframe)
+  -cutframe) # -cutframe: plot a frame element to facilitate cutting
   # Default cutframe distance is 2 inches
   CUTFRAME_DISTANCE=2
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cutframe:       plot a white (background color) frame to facilitate cutting
+-cutframe:       plot frame element to facilitate cutting
 Usage: -cutframe [[distance=${CUTFRAME_DISTANCE}]]
 
   Places an unadorned rectangular frame around the map beyond the label extent
@@ -5339,7 +5193,7 @@ cutframeflag=1
 
   ;;
 
-  -pgo)
+  -pgo) # -pgo: plot parallel and meridian lines as a map layer
   GRIDLINE_COLOR=black
   GRIDLINE_WIDTH=0.2p
   GRIDLINE_TRANS=0
@@ -5390,7 +5244,7 @@ fi
     plots+=("graticule_grid")
     ;;
 
-  -pgs) # args: number
+  -pgs) # -pgs: override automatic axis interals and gridline spacing
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pgs:          override automatic axis interals and gridline spacing
@@ -5410,7 +5264,7 @@ fi
     shift
     ;;
 
-  -pl) # args: none
+  -pl) # -pl: label plates with their id code
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pl:           label plates with their id code
@@ -5428,7 +5282,7 @@ fi
     plots+=("platelabel")
     ;;
 
-  -pos)
+  -pos) # -pos:  shift origin of plot before plotting
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pos:          shift origin of plot before plotting
@@ -5450,7 +5304,7 @@ fi
     shift
     ;;
 
-  -plist)
+  -plist) # -plist: print rotation poles relative to reference frame
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -plist:        print rotation poles relative to reference frame
@@ -5463,7 +5317,7 @@ fi
   plistflag=1
   ;;
 
-  -pr) # args: number
+  -pr) # -pr: plot plate rotation small circles with arrows
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pr:           plot plate rotation small circles with arrows
@@ -5517,7 +5371,7 @@ fi
     doplateedgesflag=1
     ;;
 
-  -ps)
+  -ps) # -ps:  print list of plates in selected plate model, then exit
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ps:           print list of plates in selected plate model, then exit
@@ -5532,7 +5386,7 @@ fi
     outputplatesflag=1
     ;;
 
-  -psel)
+  -psel) # -psel: specify profiles to plot
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -psel:         specify profiles to plot
@@ -5561,17 +5415,15 @@ fi
     # echo ${PSEL_LIST[0]}
     ;;
 
-  # This is a high priority argument that is processed in the previous loop.
-  # This command remains for -usage
-  -pss) # args: string
+  -pss) # -pss: set the width of the map area in inches
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pss:          specify width of map
 Usage: -pss {size; inches}
 
-  size does not have units and is in inches
-  Adjusts map frame width. This affects -gres and also the relative size of
-  symbols vs plotted grid data.
+size does not have units and is in inches
+Adjusts map frame width. This affects -gres and also the relative size of
+symbols vs plotted grid data.
 
 Example:
 tectoplot -r TW -a -pss 3 -pgs 1 -o example_pss
@@ -5580,10 +5432,10 @@ ExampleEnd
 EOF
 shift && continue
 fi
-    shift
-    ;;
+  shift
+  ;;
 
-  -pvl)
+  -pvl) # -pvl: plot plate edges colored by relative motion style
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pvl:           plot plate edges colored by relative motion style
@@ -5601,7 +5453,7 @@ fi
 
   ;;
 
-  -pv) # args: none
+  -pv) # -pv: plot plate differential velocity vectors
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pv:           plot plate differential velocity vectors
@@ -5635,7 +5487,7 @@ fi
     fi
     ;;
 
-  -pvg)
+  -pvg) # -pvg: plot plate velocity as a colored grid
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pvg:          plot plate velocity as a colored grid
@@ -5673,10 +5525,10 @@ fi
     fi
     ;;
 
-  -px) # args: number
+  -px) # -px: generate a regularly spaced lat/lon grid
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--px:           generate lat/lon grid
+-px:           generate a regularly spaced lat/lon grid
 Usage: -px [interval=${GRIDSTEP}]
 
   Grid points are at regularly spaced geographic coordinates.
@@ -5696,7 +5548,7 @@ fi
 		info_msg "[-px]: Plate model grid step is ${GRIDSTEP}"
 	  ;;
 
-  -pz) # args: number
+  -pz) # -pz: plot the angle between plate velocity and plate edge direction
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pz:           plot the angle between plate velocity and plate edge direction
@@ -5727,7 +5579,7 @@ fi
     plots+=("plateazdiff")
     ;;
 
-	-r) # args: number number number number
+	-r) # -r: specify the area of interest of the map
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6062,7 +5914,7 @@ fi
 
     ;;
 
-  -radd)
+  -radd) # -radd: add a custom region definition using final aoi/projection of map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -radd:         add a custom region definition using final aoi/projection of map
@@ -6087,7 +5939,7 @@ fi
     fi
     ;;
 
-  -rdel)
+  -rdel) # -rdel: delete a custom region definition
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -rdel:         delete a custom region definition
@@ -6121,7 +5973,7 @@ fi
     exit
     ;;
 
-  -rlist)
+  -rlist) # -rlist: list custom region definitions and exit
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -rlist:        list custom region definitions and exit
@@ -6135,7 +5987,7 @@ fi
     exit
     ;;
 
-  -rect)
+  -rect) # -rect: make rectangular map for non-rectangular projections
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -rect:         make rectangular map for non-rectangular projections
@@ -6157,22 +6009,7 @@ fi
     MAKERECTMAP=1
     ;;
 
-#   -rivers)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -rivers:       plot rivers if -a command is called
-# -rivers
-#
-# Example:
-#    tectoplot -r BR -a -rivers
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     RIVER_COMMAND="-I1/${RIVER_LINEWIDTH},${RIVER_LINECOLOR} -I2/${RIVER_LINEWIDTH},${RIVER_LINECOLOR}"
-#     ;;
-
-  -RJ) # args: { ... }
+  -RJ) # -RJ: set map projection
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6521,7 +6358,7 @@ fi
     # How?
     ;;
 
-  -setdatadir)
+  -setdatadir) # -setdatadir: define location of downloaded data directory
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setdatadir:   set location of downloaded data directory
@@ -6553,7 +6390,7 @@ fi
     exit
     ;;
 
-  -setopen)
+  -setopen) # -setopen: define the program that is used to open pdf files
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -setopen:      set the program that is used to open pdf files
@@ -6583,15 +6420,88 @@ fi
     exit
     ;;
 
-  -scale)
+  -scale) # -scale: plot a scale bar
+
+  SCALE_LENGTH="100k"  # Default
+  SCALE_MAPLENGTH="1.25" # inches or cm???
+  SCALE_JUST_CODE="TL"
+  SCALE_ONOFFCODE="j"
+  SCALE_BORDERON="no"
+  SCALE_NUMDIVS=5
+  SCALE_MARGIN=0  # inches
+  SCALE_BORDER_WIDTH="0.5p"
+  SCALE_BORDER_COLOR="black"
+  SCALE_FONTSIZE="6p"
+  SCALE_FONT="Helvetica"
+  SCALE_FONTCOLOR="black"
+  SCALE_WIDTH="2i"
+  SCALE_TICK_LENGTH="1p"
+  SCALE_FRAME_WIDTH="0.65p"
+  SCALE_FRAME_COLOR="black"
+  bigtickformat="-W0.4p,black"
+  smalltickformat="-W0.25p,black"
+  SCALEFILL=""
+  SCALE_TRANS=0
+  scalenolabelflag=0
+  scaleautorefptflag=1   # Use center of map by default
+
+  SCALE_FONTDEF=${SCALE_FONTSIZE},${SCALE_FONT},${SCALE_FONTCOLOR}
+  SCALE_BORDER="+p${SCALE_BORDER_WIDTH},${SCALE_BORDER_COLOR}"
+  SCALE_FRAME_PEN="${SCALE_FRAME_WIDTH},${SCALE_FRAME_COLOR}"
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -scale:        plot a scale bar
-Usage: -scale [length] [[lon]] [[lat]] [[white]]
-Usage: -scale [length] [[aprofcode]] [[white]]
+
+    Default is a 2 inch wide scale plotted at onmap TL justification
+
+Usage: -scale [[options]]
+
+  length has unit immediately following number (e.g. 100km)
+    Units (geod -lu)
+          mm 0.001                millimetre
+          cm 0.01                 centimetre
+           m 1                    metre
+          ft 0.3048               foot
+       us-ft 0.304800609601219    US survey foot
+        fath 1.8288               fathom
+         kmi 1852                 nautical mile
+       us-ch 20.1168402336805     US survey chain
+       us-mi 1609.34721869444     US survey mile
+          km 1000                 kilometre
+           k 1000                 synonym for km
+      ind-ft 0.30479841           Indian foot (1937)
+      ind-yd 0.91439523           Indian yard (1937)
+          mi 1609.344             Statute mile
+          yd 0.9144               yard
+          ch 20.1168              chain
+        link 0.201168             link
+          dm 0.01                 decimeter
+          in 0.0254               inch
+      ind-ch 20.11669506          Indian chain
+       us-in 0.025400050800101    US survey inch
+       us-yd 0.914401828803658    US survey yard
+
+  [[options]] . = implemented
+.  length [length]       Specify length of scale in projected units
+  maplength [length]    Specify width of scale in inches; requires refpt
+                        Produces an approximate scale with reasonable bounds
+  ortho                 Plot orthogonal scale bars (L shape)
+.  refpt [lon] [lat]     Reference location for scale
+.  refpt [aprofcode]     Reference location for scale
+.  marker                Plot marker indicating scale reference point on map
+.  atref                  Plot scale bar on the map, ll corner at refpt location
+.  onmap [just]          Justification of scale bar, on map
+.  offmap [just]         Justification of scale bar, off map
+.  divs [number]         Number of divisions of the scale bar
+.  nolabel               Do not label internal divisions
+.  box [color]           Plot a colored box behind scale
+.  trans [percent]       Transparency of fill boxes
+  inlegend               Add PS of scalebar to legend; do not plot on map
+                           (only works with onmap, offmap, maplength NOT atref)
 
   length has unit (e.g. 100k)
-  scale bar is centered on the reference point
+  The scale bar is centered on the reference point or aprofcode point
   aprofcode is an uppercase letter map location ID (plot using -aprofcodes)
 
 Example:
@@ -6603,88 +6513,190 @@ shift && continue
 fi
     # We just use this section to create the SCALECMD values
 
-    if arg_is_flag $2; then
-      info_msg "[-scale]: No scale length specified. Using 100km"
-      SCALELEN="100k"
-    else
-      SCALELEN="${2}"
-      shift
-    fi
     # Adjust position and buffering of scale bar using either letter combinations OR Lat/Lon location
 
-    if arg_is_float $2; then
-      SCALEREFLON="${2}"
-      shift
-      if arg_is_float $2; then
-        SCALEREFLAT="${2}"
-        SCALELENLAT="${2}"
+    # Look for positioning arguments
+
+    while ! arg_is_flag "${2}"; do
+      case "${2}" in
+        inlegend)
+          shift
+          scalebaronlegendflag=1
+        ;;
+        maplength)
+          shift
+          if arg_is_positive_float $2; then
+            SCALE_MAPLENGTH=$2
+            shift
+          fi
+          scalebarbywidthflag=1
+          scaleatrefflag=0
+        ;;
+        trans)
+          shift
+          if arg_is_positive_float $2; then
+            SCALE_TRANS=$2
+            shift
+          else
+            echo "[-scale]: option trans requires number argument"
+            exit 1
+          fi
+        ;;
+        atref)
+          shift
+          scaleatrefflag=1
+        ;;
+        skiplabel)
+          shift
+          if arg_is_positive_float $2; then
+            scaleskiplabelflag=1
+            scaleskiplabelinc=${2}
+            shift
+          fi
+        ;;
+        nolabel)
+          shift
+          scalenolabelflag=1
+        ;;
+        box)
+          shift
+          if ! arg_is_flag $2; then
+            SCALEFILL="-F+c2p+g${2}"
+            shift
+          fi
+        ;;
+        length)
+          shift
+          if arg_is_flag $2; then
+            info_msg "[-scale]: No scale length specified. Using default: 100km"
+            SCALE_LENGTH="100k"
+          else
+            SCALE_LENGTH="${2}"
+            shift
+          fi
+        ;;
+        marker)
+          shift
+          scalemarkerflag=1
+        ;;
+        divs)
+          shift
+          if arg_is_positive_float $2; then
+            SCALE_NUMDIVS=$2
+            shift
+          else
+            echo "[-scale]: divs option requires number argument"
+            exit 1
+          fi
+        ;;
+        border)
+          shift
+          SCALE_BORDERON="yes"
+        ;;
+        onmap|offmap)
+          # The first time we call this, reset the default
+          offmapflag=0
+          [[ ${2} == "offmap" ]] && offmapflag=1
+          shift
+          if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+            SCALE_JUST_CODE="${2:0:2}"
+            [[ $offmapflag -eq 1 ]] && SCALE_ONOFFCODE="J" || SCALE_ONOFFCODE="j"
+            shift
+          fi
+          ;;
+      width)
         shift
-      else
-        info_msg "[-scale]: Only longitude and not latitude specified. Using $MAXLAT"
-        SCALEREFLAT=$MINLAT
-        SCALELENLAT=$MINLAT
-      fi
-    fi
+        # LEGEND_WIDTH="${2}"
+        # shift
+        # # Very wide bars should be made slightly taller and the gap should be made wider
+        # LEGEND_BAR_HEIGHT=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", (w/40>0.1)?w/40:0.1)}'))
+        # LEGEND_BAR_GAP=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", 0.1+(w/20>=0.15)?w/20:0.1)}'))
+        # LEGEND_TICK_LENGTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/5)}'))
+        # LEGEND_FRAME_WIDTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/20)}'))
+        # LEGEND_FRAME_PEN="${LEGEND_FRAME_WIDTH},${LEGEND_FRAME_COLOR}"
+        ;;
+      refpt)
+        shift
 
-    if [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
-      info_msg "[-scale]: aprofcode ${2:0:1} found."
-      SCALEAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
-      BEGIN {
-          row[1]="AFKPU"
-          row[2]="BGLQV"
-          row[3]="CHMRW"
-          row[4]="DINSX"
-          row[5]="EJOTY"
-          difflat=maxlat-minlat
-          difflon=maxlon-minlon
+        if arg_is_float $2; then
+          SCALEREFLON="${2}"
+          shift
+          if arg_is_float $2; then
+            SCALEREFLAT="${2}"
+            shift
+          else
+            info_msg "[-scale]: Only longitude and not latitude specified. Using $MAXLAT"
+            SCALEREFLAT=$MINLAT
+          fi
+        elif [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+          scalejustflag=1
+          SCALE_JUST_CODE="${2:0:2}"
+          shift
+        elif [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
+          info_msg "[-scale]: aprofcode ${2:0:1} found."
+          SCALEAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
+          BEGIN {
+              row[1]="AFKPU"
+              row[2]="BGLQV"
+              row[3]="CHMRW"
+              row[4]="DINSX"
+              row[5]="EJOTY"
+              difflat=maxlat-minlat
+              difflon=maxlon-minlon
 
-          newdifflon=difflon*8/10
-          newminlon=minlon+difflon*1/10
-          newmaxlon=maxlon-difflon*1/10
+              newdifflon=difflon*8/10
+              newminlon=minlon+difflon*1/10
+              newmaxlon=maxlon-difflon*1/10
 
-          newdifflat=difflat*8/10
-          newminlat=minlat+difflat*1/10
-          newmaxlat=maxlat-difflat*1/10
+              newdifflat=difflat*8/10
+              newminlat=minlat+difflat*1/10
+              newmaxlat=maxlat-difflat*1/10
 
-          minlon=newminlon
-          maxlon=newmaxlon
-          minlat=newminlat
-          maxlat=newmaxlat
-          difflat=newdifflat
-          difflon=newdifflon
+              minlon=newminlon
+              maxlon=newmaxlon
+              minlat=newminlat
+              maxlat=newmaxlat
+              difflat=newdifflat
+              difflon=newdifflon
 
-          for(i=1;i<=5;i++) {
-            for(j=1; j<=5; j++) {
-              char=toupper(substr(row[i],j,1))
-              lats[char]=minlat+(i-1)/4*difflat
-              lons[char]=minlon+(j-1)/4*difflon
-              # print char, lons[char], lats[char]
-            }
+              for(i=1;i<=5;i++) {
+                for(j=1; j<=5; j++) {
+                  char=toupper(substr(row[i],j,1))
+                  lats[char]=minlat+(i-1)/4*difflat
+                  lons[char]=minlon+(j-1)/4*difflon
+                  # print char, lons[char], lats[char]
+                }
+              }
           }
-      }
-      {
-        for(i=1;i<=length($0);++i) {
-          char1=toupper(substr($0,i,1));
-          print lons[char1], lats[char1]
-        }
-      }'))
-      SCALEREFLON=${SCALEAPROF[0]}
-      SCALEREFLAT=${SCALEAPROF[1]}
-      SCALELENLAT=${SCALEAPROF[1]}
-      shift
-    fi
+          {
+            for(i=1;i<=length($0);++i) {
+              char1=toupper(substr($0,i,1));
+              print lons[char1], lats[char1]
+            }
+          }'))
+          SCALEREFLON=${SCALEAPROF[0]}
+          SCALEREFLAT=${SCALEAPROF[1]}
+          shift
+        else
+          echo "[-scale]: option refpt argument not recognized: ${2}"
+          exit 1
+        fi
 
-    if [[ $2 =~ "white" ]]; then
-      SCALEFILL="-F+gwhite"
-      shift
-    else
-      SCALEFILL=""
-    fi
+        scaleautorefptflag=0
+        ;;
+      *)
+        echo "[-scale]: Argument ${2} not recognized"
+        exit 1
+        ;;
+      esac
+    done
+
+
 
     plots+=("mapscale")
     ;;
 
-  -north)
+  -north) # -north: plot a north arrow
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -north:        plot a north arrow
@@ -6788,8 +6800,7 @@ fi
     plots+=("northarrow")
     ;;
 
-
-  -scrapedata) # args: none | gia
+  -scrapedata) # -scrapedata: download and manage online seismic data
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -scrapedata:   download and manage online seismic data
@@ -6859,7 +6870,7 @@ fi
     exit
     ;;
 
-  -seissum)
+  -seissum) # -seissum: compute a moment magnitude seismic release map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seissum:      compute a moment magnitude seismic release map
@@ -6901,10 +6912,10 @@ fi
     plots+=("seissum")
     ;;
 
-  -setvars) # args: { VAR1 val1 VAR2 val2 VAR3 val3 }
+  -setvars) # -setvars: set the value of an internal tectoplot variable
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--setvars:      set a tectoplot variable
+-setvars:      set the value of an internal tectoplot variable
 Usage: -setvars { Var1 Val1 [[Var2 Val2 ...]] }
 
   Sets the value of an internal tectoplot variable.
@@ -6930,7 +6941,7 @@ fi
     fi
     ;;
 
-  -showprof)
+  -showprof) # -showprof: plot a selected profile or stacked profile on map PDF
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -showprof:     plot a selected profile or stacked profile on map PS file
@@ -6958,7 +6969,7 @@ fi
 
   ;;
 
-  -profileaxes)
+  -profileaxes) # -profileaxes: set label strings for profile X, Y, Z axes
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profileaxes:  set label strings for profile X, Y, Z axes
@@ -6985,7 +6996,7 @@ fi
   PROFILE_CUSTOMAXES_FLAG=1
   ;;
 
-  -tomoslice)
+  -tomoslice) # -tomoslice: plot depth slice of Submachine tomography data
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tomoslice:    Plot depth slice of Submachine tomography data
@@ -7011,7 +7022,7 @@ fi
 
   ;;
 
-  -profgrid)
+  -profgrid) # -profgrid: Interpolate XYZV data for profile grid
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -profgrid:       Interpolate XYZ data for profile grid
@@ -7039,11 +7050,10 @@ fi
   done
   ;;
 
-
-  -tomo)
+  -tomo) # -tomo: plot submachine tomography slice on profiles
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tomo:         Load Submachine tomography profile data
+-tomo:         plot submachine tomography slice on profiles
 Usage: -tomo [file1] [[file2]] ... [[cptfile]]
 
   Notes: Data file needs to already have been downloaded from Submachine
@@ -7094,7 +7104,7 @@ fi
   fi
   ;;
 
-  -sprof) # args lon1 lat1 lon2 lat2 width res
+  -sprof) # -sprof: create an automatic profile between two geographic points
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -sprof:        create an automatic profile between two geographic points
@@ -7134,7 +7144,7 @@ fi
     clipdemflag=1
     ;;
 
-  -sun)
+  -sun) # -sun: set the solar position for hillshading
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -sun:          set the solar position for hillshading
@@ -7158,7 +7168,7 @@ fi
     fi
     ;;
 
-  -sv|--slipvector) # args: filename
+  -sv) # -sv: plot slip vector azimuths specified in a file
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -sv:           plot slip vector azimuths specified in a file
@@ -7195,7 +7205,7 @@ fi
     fi
     ;;
 
-  -t) # args: ID | filename { args }
+  -t) # -t: visualize topography
   TMIN=-8000
   TMAX=8000
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -7367,7 +7377,7 @@ fi
 
     ;;
 
-    -tfillnan)
+  -tfillnan) # -tfillnan: fill NaN values in topography dataset
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tfillnan:     Fill NaN values in topography dataset
@@ -7398,30 +7408,11 @@ fi
       FILLGRIDNANS_CLOSEST=1
     fi
     ;;
-  #
-  # -tc|--cpt) # args: filename
-  #   customgridcptflag=1
-  #   CPTNAME="${2}"
-  #   CUSTOMCPT=$(abs_path $2)
-  #   shift
-  #   if ! [[ -e $CUSTOMCPT ]]; then
-  #     info_msg "CPT $CUSTOMCPT does not exist... looking for $CPTNAME in $CPTDIR"
-  #     if [[ -e $CPTDIR/$CPTNAME ]]; then
-  #       CUSTOMCPT=$CPTDIR/$CPTNAME
-  #       info_msg "Found CPT $CPTDIR/$CPTNAME"
-  #     else
-  #       info_msg "No CPT could be assigned. Using $TOPO_CPT"
-  #       CUSTOMCPT=$TOPO_CPT
-  #     fi
-  #   fi
-  #   ;;
 
-# Plot text from a file
-# lon lat font 0 justification labeltext
-    -text)
+  -text) # -text: plot simple text strings at points
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--text:         Plot simple text strings at points
+-text:         plot simple text strings at points
 Usage: -text [file] [[options...]]
 
   Plots text strings in white boxes at specified locations.
@@ -7493,7 +7484,7 @@ fi
     plots+=("text")
     ;;
 
-    -tflat)
+  -tflat) # -tflat: flatten bathymetry with elevation less than zero to zero
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tflat:        flatten bathymetry with elevation less than zero to zero
@@ -7510,7 +7501,7 @@ fi
       tflatflag=1
     ;;
 
-  -ti)
+  -ti) # -ti: adjust illumination for GMT style topography
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ti:           adjust illumination for gmt style topography
@@ -7534,7 +7525,7 @@ fi
     fi
     ;;
 
-  -timeme)
+  -timeme) # -timeme: print script total run time on completion
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -timeme:       print script total run time on completion
@@ -7548,7 +7539,7 @@ fi
     scripttimeflag=1
     ;;
 
-  -time)
+  -time) # -time: select seismic data from a continuous time range
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -time:         select seismic data from a continuous epoch
@@ -7671,9 +7662,7 @@ fi
     info_msg "Time constraints: $STARTTIME to $ENDTIME"
     ;;
 
-    # Set GMT variables to fit a certain theme
-    # The default GMT themes will only work with more recent GMT6 versions; classic will work for anything?
-  -theme)
+  -theme) # -theme: activate a predefined map theme
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -theme:        select a predefined map theme
@@ -7698,8 +7687,7 @@ fi
     fi
     ;;
 
-
-  -title) # args: string
+  -title) # -title: set and display a plot title
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -title:        set and display plot title
@@ -7723,7 +7711,7 @@ fi
     plots+=("maptitle")
     ;;
 
-  -tn)
+  -tn) # -tn: plot topographic contours
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tn:           plot topographic contours
@@ -7874,7 +7862,7 @@ fi
     plots+=("contours")
     ;;
 
-  -tr)
+  -tr) # -tr: rescale topography color stretch to data range
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tr:           rescale topography color stretch to data range
@@ -7918,10 +7906,10 @@ fi
     rescaletopoflag=1
     ;;
 
-    -trp)
+  -trp) # -trp: rescale cpt by two different factors, above and below 0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--trp:           rescale cpt by two factors, above and below 0
+-trp:           rescale cpt by two different factors, above and below 0
 Usage: -trp [below] [above]
 
   Stretch the CPT color scheme by multiplying values > 0 by [above] and
@@ -7956,7 +7944,8 @@ fi
       multiplyrescaletopoflag=1
       ;;
 
-  -ts)
+  -ts) # -ts: do topo calculations but don't plot the final topography image
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ts:           do topo calculations but don't plot the final topography image
@@ -7969,7 +7958,7 @@ fi
     dontplottopoflag=1
     ;;
 
-  -tt)
+  -tt) # -tt: set the transparency of shaded relief
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tt:           set the transparency of shaded relief
@@ -7986,10 +7975,10 @@ fi
     shift
     ;;
 
-  -tx) #                                                  don't color topography (plot intensity directly)
+  -tx) # -tx: don't color topography (plot grayscale intensity only)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tx:           don"t color the topography - plot intensity only
+-tx:           don"t color the topography - plot grayscale intensity only
 Usage: -tx
 
   Only works with non-GMT visualization schemes (-tmult etc)
@@ -8004,9 +7993,7 @@ fi
     dontcolortopoflag=1
     ;;
 
-  # Popular recipes for topo visualization
-
-  -t0)  #  Slope/50% Multiple hillshade 45°/50% Gamma=1.4
+  -t0) # -t0: recipe for slopeshade terrain visualization
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t0:           slopeshade terrain visualization
@@ -8029,7 +8016,7 @@ fi
     HS_ALT=45
     ;;
 
-  -tzero) # Subtract 0.1 meters from any topo cells with elevation=0
+  -tzero) # -tzero: subtract 0.1 meters from any topo cells with elevation=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tzero:        fix 0 elevation to -0.1 meters before plotting topo
@@ -8047,7 +8034,7 @@ fi
   fi
   ;;
 
-  -tdenoise) # Subtract 0.1 meters from any topo cells with elevation=0
+  -tdenoise) # -tdenoise: Use Xianfang Sun's mdenoise to smooth the DEM
   DENOISE_THRESHOLD=0.9
   DENOISE_ITERS=5
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -8080,13 +8067,7 @@ fi
   fi
   ;;
 
-
-#Build your own topo visualization using these commands in sequence.
-#  [[fact]] is the blending factor (0-1) used to combine each layer with existing intensity map
-
-
-
-  -tshad) #         [[sun_az]] [[sun_el]]   [[fact]]    add cast shadows to intensity (fact=opacity)
+  -tshad) # tshad: add cast shadows to intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tshad:        add cast shadows to terrain intensity
@@ -8123,10 +8104,10 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -ttext) #           [[frac]]   [[stretch]]  [[fact]]    add texture shade to intensity
+  -ttext) # ttext: add Leland Brown's texture mapping to intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--ttext:        add texture map to terrain intensity
+-ttext:        add Leland Brown's texture mapping to intensity
 Usage: -ttext [[frac=${TS_FRAC}]] [[stretch=${TS_STRETCH}]] [[fact=${TS_FACT}]]
 
   The texture map visualization by Leland Brown uses a DCT calculation to
@@ -8160,7 +8141,7 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -tmultcolor)
+  -tmultcolor) # -tmultcolor:   make a vibrant multiple direction hillshade
   TMULT_COLOR_ALT=35
   TMULT_COLOR_AZ=315
   TMULT_COLOR_TRANS=0
@@ -8183,7 +8164,8 @@ fi
   plots+=("tmultcolor")
    ;;
 
-  -tmult) #           [[sun_el]]              [[fact]]    add multiple hillshade to intensity
+  -tmult) # -tmult: add multiple direction hillshade (grayscale) to terrain intensity
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tmult:        add multiple direction hillshade (grayscale) to terrain intensity
@@ -8213,7 +8195,7 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -tuni) #            [[sun_az]] [[sun_el]]   [[fact]]    add unidirectional hillshade to intensity
+  -tuni) # -tuni: add unidirectional hillshade to intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tuni:         add unidirectional hillshade to terrain intensity
@@ -8247,7 +8229,8 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -cptrescale)
+  -cptrescale) # -cptrescale: rescale an input cpt
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cptrescale:    rescale cpt
@@ -8268,10 +8251,10 @@ fi
     exit
     ;;
 
-  -tcpt)
+  -tcpt) # -tcpt: specify the CPT file defining topography color stretch
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tcpt:         specify the color scheme for topography
+-tcpt:         specify the CPT file defining topography color stretch
 Usage: -tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
 
   cpt = CPT file or builtin CPT name
@@ -8306,7 +8289,8 @@ fi
   fi
   ;;
 
-  -tpct) # percent cut
+  -tpct) # -tpct: contrast enhancement by percent cut (lo/hi) of terrain intensity
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tpct:         contrast enhancement by percent cut (lo/hi) of terrain intensity
@@ -8337,7 +8321,7 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -tsea)
+  -tsea) # -tsea: recolor sentinel satellite imagery in ocean areas
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsea:         recolor sentinel satellite imagery in ocean areas
@@ -8363,7 +8347,8 @@ fi
     sentinelrecolorseaflag=1
     ;;
 
-  -tblue)
+  -tblue) # -tblue: NASA blue marble imagery
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tblue:        nasa blue marble imagery
@@ -8400,7 +8385,7 @@ fi
     set -- "blank" "$@" "-timg" "sentinel.tif" "${SENTINEL_FACT}"
     ;;
 
-  -tsave)
+  -tsave) # -tsave: archive terrain visualization for a named region
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsave:        archive terrain data for a named region
@@ -8416,7 +8401,7 @@ fi
     tsaveflag=1
     ;;
 
-  -tload)
+  -tload) # -tload: load archived terrain data for a named region
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tload:        load archived terrain data for a named region
@@ -8436,7 +8421,7 @@ fi
     tloadflag=1
     ;;
 
-  -tdelete)
+  -tdelete) # -tdelete: delete archived terrain data for a named region
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tdelete:      delete archived terrain data for a named region
@@ -8452,8 +8437,7 @@ fi
     tdeleteflag=1
     ;;
 
-
-  -tsent)
+  -tsent) # -tsent: color terrain using downloaded sentinel cloud-free image
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsent:        color terrain using downloaded sentinel cloud-free image
@@ -8502,7 +8486,7 @@ fi
     set -- "blank" "$@" "-timg" "img" "sentinel.tif" "${SENTINEL_FACT}"
     ;;
 
-  -tsky) #            [[num_angles]]          [[fact]]    add sky view factor to intensity
+  -tsky) # -tsky: add sky view factor to intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsky:         add sky view factor to terrain intensity
@@ -8531,8 +8515,8 @@ fi
     useowntopoctrlflag=1
     ;;
 
+  -makeply) # -makeply: make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
 
-  -makeply)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -makeply:      make a 3D Sketchfab model including topo, FMS, seismicity, Slab2.0
@@ -8835,7 +8819,7 @@ fi
   done
   ;;
 
-  -addobj)
+  -addobj) # -addobj: add existing OBJ file and material file to 3D model
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -addobj:       add existing OBJ file and material file to 3D model
@@ -8868,7 +8852,7 @@ fi
   fi
   ;;
 
-  -tsl)
+  -tsl) # -tsl: add slope to terrain intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsl:          add slope to terrain intensity
@@ -8892,7 +8876,7 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -ttri)
+  -ttri) # -ttri: add terrain ruggedness index to terrain intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ttri:         add terrain ruggedness index to terrain intensity
@@ -8910,10 +8894,10 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -timg)
+  -timg) # -timg: color terrain intensity using one or more georeferenced images
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--timg:         color terrain intensity using a georeferenced image
+-timg:         color terrain intensity one or more georeferenced images
 -timg [[options]] [img filename1] [[fact1]] [[img filename2]] [[fact2]] ...
 
   Blends georeferenced RGB images to form an overlay that is then
@@ -8991,10 +8975,10 @@ fi
     useowntopoctrlflag=1
     ;;
 
-  -tclip) # Shouldn't I just clip the DEM here? Why have it as part of processing when that can mess things up?
+  -tclip) # -tclip: cut DEM to specified lon/lat aoi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tclip:        restrict topo DEM to specified lon/lat aoi
+-tclip:        cut DEM to specified lon/lat aoi
 Usage: -tclip [MinLon] [MaxLon] [MinLat] [MaxLat]
 
   Only the clipped DEM region will be extracted by -t, etc.
@@ -9045,7 +9029,7 @@ fi
     # topoctrlstring="w"${topoctrlstring}   # Clip before other actions
     ;;
 
-  -tposwhite)
+  -tposwhite) # -tposwhite: set color of areas above sea level to white in DEM stretch
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tposwhite:  set color of areas above sea level to white in DEM stretch
@@ -9058,7 +9042,7 @@ fi
     tposwhiteflag=1
     ;;
 
-  -tunsetflat)
+  -tunsetflat) # -tunsetflat: set regions with elevation = 0 to white in terrain intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tunsetflat:   set regions with elevation = 0 to white in terrain intensity
@@ -9075,7 +9059,7 @@ fi
     topoctrlstring=${topoctrlstring}"u"
     ;;
 
-  -tquant)
+  -tquant) # -tquant: terrain intensity from height above local quantile elevation
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tquant:       terrain intensity from height above local quantile elevation
@@ -9110,10 +9094,10 @@ fi
     fi
     ;;
 
-    -tsmooth)
+  -tsmooth) # -tsmooth: smooth input DEM before processing
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tsmooth:       smooth input DEM before plotting
+-tsmooth:       smooth input DEM before processing
 Usage: -tquant [[radius=${DEM_SMOOTH_RAD}]]
 
   Gaussian smoothing, radius is in pixels
@@ -9133,7 +9117,7 @@ fi
     DEM_SMOOTH_FLAG=1
     ;;
 
-  -tca)
+  -tca) # -tca: set alpha value for DEM color stretch
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tca:          set alpha value for DEM color stretch
@@ -9157,7 +9141,7 @@ fi
   fi
   ;;
 
-  -tgam) #            [gamma]                           add gamma correction to intensity
+  -tgam) # -tgam: apply gamma correction to terrain intensity image
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tgam:         apply gamma correction to terrain intensity image
@@ -9185,7 +9169,7 @@ fi
     useowntopoctrlflag=1
     ;;
 
-	-v) # args: string number
+	-v) # -v: plot global gravity data
   GMIN=-500
   GMAX=500
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9278,7 +9262,7 @@ fi
 
 	  ;;
 
-  -vcurv)
+  -vcurv) # -vcurv: plot curvature of sandwell 2019 global gravity data
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -vcurv:        plot curvature of sandwell 2019 global gravity data
@@ -9298,7 +9282,7 @@ fi
 
   ;;
 
-  -vars) # argument: filename
+  -vars) # -vars: define variables from a bash format file by sourcing it
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -vars:         define variables from a bash format file by sourcing it
@@ -9315,11 +9299,10 @@ fi
     cp ${VARFILE} ${TMP}input_vars.txt
     ;;
 
-  # A high priority option processed in the prior loop
-  -verbose) # args: none
+  -verbose) # -verbose: turn on gmt verbose option to get LOTS of feedback
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--verbose:      turn on gmt verbose option to get lots of feedback
+-verbose:      turn on gmt verbose option to get LOTS of feedback
 Usage: -verbose
 
 --------------------------------------------------------------------------------
@@ -9328,7 +9311,7 @@ shift && continue
 fi
     ;;
 
-  -w|--euler) # args: number number number
+  -w) # -w: plot velocity field from a specified euler pole on grid points
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -w:            plot velocity field from a specified euler pole on grid points
@@ -9376,7 +9359,7 @@ fi
     plots+=("euler")
     ;;
 
-  -wg) # args: number
+  -wg) # -wg: plot euler pole velocity field at gps sites instead of grid
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -wg:           plot euler pole velocity field at gps sites instead of grid
@@ -9403,35 +9386,33 @@ fi
 		fi
     ;;
 
-# -wp is currently broken:
-# cp: gridswap.txt: No such file or directory
-#
+  -wp) # args: string string
+  # -wp is currently broken:
+  # cp: gridswap.txt: No such file or directory
 
-#   -wp) # args: string string
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -wp:           plot euler pole velocity of one plate relative to another at grid/gps sites
-# Usage: -wp [PlateID1] [PlateID2]
-#
-#   Requires -p option to load plate data and -x/-g options to set site locations
-#
-# Example: GPS velocity of Arabia relative to Europe, with MORVEL Euler poles
-# tectoplot -r SA -a -g eu -w 36 32 1 -wp ar eu -i 2 -o example_wp
-# ExampleEnd
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-wp:           plot euler pole velocity of one plate relative to another at grid/gps sites
+Usage: -wp [PlateID1] [PlateID2]
+
+  Requires -p option to load plate data and -x/-g options to set site locations
+
+Example: GPS velocity of Arabia relative to Europe, with MORVEL Euler poles
+tectoplot -r SA -a -g eu -w 36 32 1 -wp ar eu -i 2 -o example_wp
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
 #     twoeulerflag=1
 #     plotplates=1
 #     eulerplate1="${2}"
 #     eulerplate2="${3}"
 #     plots+=("euler")
 #     shift
-#     shift
-#     ;;
+  ;;
 
-  -ztext)
+  -ztext) # -ztext: plot magnitude text over earthquakes
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ztext:            plot magnitude text over earthquakes
@@ -9452,10 +9433,10 @@ fi
   plots+=("ztext")
   ;;
 
-	-z) # args: number
+	-z) # -z: plot seismicity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--z:            plot seismicity catalog data
+-z:            plot seismicity
 Usage: -z [[scale=${SEISSCALE}]] [[trans=${SEISTRANS}]]
 
 Example:
@@ -9486,7 +9467,7 @@ fi
 
     ;;
 
-  -zmodifymags)
+  -zmodifymags) # -zmodifymags: convert magnitudes to GCMT Mw equivalent when possible
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zmodifymags:    Convert magnitudes to GCMT Mw equivalent when possible
@@ -9503,7 +9484,7 @@ fi
   modifymagnitudes=1
   ;;
 
-  -zcnoscale)
+  -zcnoscale) # -zcnoscale: do not adjust scaling of earthquake/focal mechanism symbols
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcnoscale:    do not adjust scaling of earthquake/focal mechanism symbols
@@ -9526,7 +9507,7 @@ fi
     zcnoscaleflag=1
     ;;
 
-    -zcfixsize)
+  -zcfixsize) # -zcfixsize: earthquake/focal mechanisms have only one specified size
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcfixsize:    earthquake/focal mechanisms have only one specified size
@@ -9552,7 +9533,7 @@ fi
       zcnoscaleflag=1
       ;;
 
-  -zcrescale)
+  -zcrescale) # -zcrescale: adjust size of seismicity/focal mechanisms by a multiplied factor
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcrescale:    adjust size of seismicity/focal mechanisms by a multiplied factor
@@ -9593,7 +9574,7 @@ fi
     fi
   ;;
 
-  -seistimeline_c)
+  -seistimeline_c) # -seistimeline_c: create a seismicity vs time plot to the right of the map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seistimeline_c:  create a seismicity vs time plot to the right of the map
@@ -9649,7 +9630,7 @@ done
 plotseistimeline_c=1
   ;;
 
-  -seistimeline)
+  -seistimeline) # -seistimeline: create a seismicity vs time plot to the right of the map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seistimeline:  create a seismicity vs time plot to the right of the map
@@ -9688,7 +9669,7 @@ fi
   plotseistimeline=1
   ;;
 
-  -seisproj)
+  -seisproj) # -seisproj: create a seismicity (X) vs depth (Y) projected panel below or to right of map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seisproj:     create a seismicity (X) vs depth (Y) projected panel below or to right of map
@@ -9732,7 +9713,7 @@ fi
   plotseisprojflag=1
   ;;
 
--zccluster)
+  -zccluster) # -zccluster: decluster seismicity and color by cluster ID rather than depth
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zccluster:    decluster seismicity and color by cluster ID rather than depth
@@ -9791,7 +9772,7 @@ fi
   plots+=("eqcluster")
   ;;
 
-  -zconland)
+  -zconland) # -zconland: select FMS/seismicity with origin epicenter beneath land
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zconland:     select FMS/seismicity with origin epicenter beneath land
@@ -9808,7 +9789,7 @@ EOF
   zc_land_or_sea=1
   ;;
 
-  -zconsea)
+  -zconsea) # -zconsea: select FMS/seismicity with origin epicenter beneath the sea
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zconsea:      select FMS/seismicity with origin epicenter beneath the sea
@@ -9826,7 +9807,7 @@ fi
 
   ;;
 
-  -zctime)
+  -zctime) # -zctime: color seismicity by time rather than depth
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zctime:       color seismicity by time rather than depth
@@ -9885,10 +9866,10 @@ fi
     plots+=("eqtime")
   ;;
 
-  -zdep)
+  -zdep) # -zdep: filter seismicity by depth
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zdep:         set depth range of selected seismicity
+-zdep:         filter seismicity by depth
 Usage: -zdep [min_depth] [max_depth]
 
   Both depths are in km without k unit.
@@ -9912,7 +9893,7 @@ fi
     info_msg "[-zdep]: Plotting seismic data between ${EQCUTMINDEPTH} km and ${EQCUTMAXDEPTH} km"
   ;;
 
-  -zfill)
+  -zfill) # -zfill: color seismicity with a constant fill color
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zfill:        color seismicity with a constant fill color
@@ -9937,7 +9918,7 @@ fi
     fi
     ;;
 
-  -ccat) #
+  -ccat) # -ccat: select focal mechanism catalog(s)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -ccat:         select focal mechanism catalog(s) and add custom focal mechanism files
@@ -10062,8 +10043,7 @@ fi
     info_msg "[-ccat]: CMT Catalogs are ${CMT_CATALOG_TYPE[@]}"
     ;;
 
-
-  -zcat) #            [ANSS or ISC OR custom seismicity files]
+  -zcat) # -zcat: select seismicity catalog(s) and add custom seismicity files
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcat:         select seismicity catalog(s) and add custom seismicity files
@@ -10142,10 +10122,10 @@ fi
     fi
     ;;
 
-  -zccpt)
+  -zccpt) # -zccpt: select CPT for seismicity and focal mechanisms
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zcccpt:       select CPT for seismicity and focal mechanisms
+-zccpt:       select CPT for seismicity and focal mechanisms
 Usage: -zccpt [cpt_name] [[inv]]
 
   cpt_name is a builtin CPT (GMT, tectoplot) or a CPT file.
@@ -10176,7 +10156,7 @@ fi
 
   ;;
 
-  -zcolor)
+  -zcolor) # -zcolor: select depth range for color cpt for seismicity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcolor:       select depth range for color cpt for seismicity
@@ -10206,10 +10186,10 @@ fi
     fi
     ;;
 
-  -zmag)
+  -zmag) # -zmag: filter seismicity data by magnitude
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zmag:         select magnitude range for seismicity
+-zmag:         filter seismicity data by magnitude
 Usage: -zmag [[minmag=${EQ_MINMAG}]] [[maxmag=${EQ_MAXMAG}]]
 
 Example: Plot large magnitude seismicity
@@ -10234,7 +10214,7 @@ fi
     eqmagflag=1
     ;;
 
-  -cline)
+  -cline) # -cline: set width of focal mechanism symbol outline and nodal plane lines
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cline:        set width of focal mechanism symbol outline and nodal plane lines
@@ -10262,7 +10242,7 @@ fi
     fi
     ;;
 
-  -zline)
+  -zline) # -zline: set width of seismicity symbol outline line
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zline:        set width of seismicity symbol outline line
@@ -10290,10 +10270,10 @@ fi
     fi
     ;;
 
-  -znoplot)
+  -znoplot) # -znoplot: process seismicity but don't plot to map
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--znoplot:      download and process seismicity but don't plot to map
+-znoplot:      process seismicity but don't plot to map
 Usage: -znoplot
 
 --------------------------------------------------------------------------------
@@ -10303,10 +10283,10 @@ fi
     dontplotseisflag=1
     ;;
 
-  -zcsort)
+  -zcsort) # -zcsort: sort seismicity and focal mechanisms
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--zcsort:       sort seismicity and focal mechanisms by a specified dimension
+-zcsort:       sort seismicity and focal mechanisms
 Usage: -zcsort [[dimension]] [[direction]]
 
   dimension: depth | time | mag    (magnitude)
@@ -10374,7 +10354,6 @@ done
 #### END OF ARGUMENT PROCESSING SECTION
 
 [[ $USAGEFLAG -eq 1 ]] && exit
-
 
 BOOKKEEPINGFLAG=1
 
@@ -10827,13 +10806,15 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   # Move the data source files into the temporary directory
 
-  [[ -e ${LONGSOURCES} ]] && mv ${LONGSOURCES} ${TMP}
-  [[ -e ${SHORTSOURCES} ]] && mv ${SHORTSOURCES} ${TMP}
+  [[ -e ${LONGSOURCES} ]] && mv ${LONGSOURCES} ${TMP} && LONGSOURCES=${TMP}${LONGSOURCES_FILE}
+  [[ -e ${SHORTSOURCES} ]] && mv ${SHORTSOURCES} ${TMP} && SHORTSOURCES=${TMP}${SHORTSOURCES_FILE}
 
   if [[ $overplotflag -eq 1 ]]; then
      info_msg "[-ips]: Moving copy basemap postscript file into temporary directory"
      mv "${THISDIR}"/tmpmap.ps "${TMP}map.ps"
   fi
+
+  #### Change into our temporary directory for the rest of the script
 
   cd "${TMP}"
 
@@ -16447,9 +16428,330 @@ EOF
 
 
       mapscale)
-        # The values of SCALECMD will be set by the scale) section
-        SCALECMD="-Lg${SCALEREFLON}/${SCALEREFLAT}+c${SCALELENLAT}+w${SCALELEN}+l+at+f $SCALEFILL"
-        gmt psbasemap ${SCALECMD} $RJOK $VERBOSE >> map.ps
+
+        # The center of the map is the reference lon/lat point by default
+        if [[ $scaleautorefptflag -eq 1 ]]; then
+          SCALEREFLON=${CENTERLON}
+          SCALEREFLAT=${CENTERLAT}
+        fi
+
+        if [[ $scalebarbywidthflag -eq 1 ]]; then
+        # Plot a scale bar with a given width in inches, place on map as PS file.
+
+          MAPXY=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING[@]}))
+          # echo "MapXY is ${MAPXY[@]}"
+          # inches to CM
+          MAPXY_END[0]=$(echo "${MAPXY[0]} + $SCALE_MAPLENGTH*2.54" | bc -l)
+          MAPXY_END[1]=${MAPXY[1]}
+          SCALE_END=($(echo "${MAPXY_END[@]}" | gmt mapproject -I ${RJSTRING[@]}))
+          # echo mapxyend is ${MAPXY_END[@]} at ${SCALE_END[@]}
+          # echo ${SCALE_END[@]} | gmt psxy -Sc0.05i -Gred ${RJOK} >> map.ps
+          SCALE_LENGTH=$(echo ${SCALE_END[@]} | gmt mapproject -G${SCALEREFLON}/${SCALEREFLAT} ${RJSTRINGp[@]} | gawk -v nd=${SCALE_NUMDIVS} '
+            @include "tectoplot_functions.awk"
+            {
+              rdres=rd($3/1000, nd)
+              rures=ru($3/1000, nd)
+
+              print ((rures-$3/1000)>($3/1000-rdres))?rdres:rures "k"
+            }')
+        fi
+
+
+        if [[ $scaleatrefflag -eq 1 ]]; then
+          SCALEPSFILE="map.ps"
+        else
+          gmt psxy -T -R -J -K > scale.ps
+          SCALEPSFILE="scale.ps"
+        fi
+
+        scalenot=$(echo $SCALE_LENGTH | gawk '{print ($1+0)}')
+        scalehalf=$(echo $SCALE_LENGTH | gawk '{print ($1+0)/2}')
+        scaletenth=$(echo $SCALE_LENGTH | gawk '{print ($1+0)/10}')
+        scaleunit=$(echo $SCALE_LENGTH | sed 's/[^A-Za-z]*//g')
+
+        # echo scalenot is ${scalenot} and scaleunit is ${scaleunit}
+        if [[ $scaleunit == "" || $scaleunit == "k" ]]; then
+          scaleunit="km"
+        fi
+
+        Origpoint[0]=${SCALEREFLON}
+        Origpoint[1]=${SCALEREFLAT}
+        # XYpoint=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING[@]}))
+
+        # American unit names (meter vs metre)
+        geodunit=$(geod -lu | gawk -v unit=${scaleunit} '($1==unit) {
+            for(i=3;i<NF;i++) {
+              printf("%s ", $(i))
+            }
+            printf("%s", $(NF))
+          }' | sed 's/metre/meter/g')
+
+        #        2  C
+        #
+        #      p2h
+        #        D  B                A
+        #        O         p1h       1
+        #
+        #
+        # Point1=($(project_point_dist_az ${SCALEREFLON} ${SCALEREFLAT} 90 ${scalenot} ${scaleunit}))
+        Point1=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalenot} ${scaleunit}))
+
+        # ANGLE=$(onmap_angle_between_points ${Origpoint[@]} ${Point1[@]})
+        # echo ANGLE is ${ANGLE}
+        # Meridian distance projection not yet implemented!
+        Point2=($(project_point_dist_az ${SCALEREFLON} ${SCALEREFLAT} 0 ${scalenot} ${scaleunit}))
+
+        Point1Half=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalehalf} ${scaleunit}))
+
+        SCALEBAR_WIDTH_P=20
+        SCALEBAR_HALFWIDTH_P=$(echo "$SCALEBAR_WIDTH_P / 2" | bc -l)
+        SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 6" | bc -l)
+        TWICE_SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 3" | bc -l)
+
+        SCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.75"  | bc -l)
+        INSIDESCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.6"  | bc -l)
+
+        scalebarorthogonalflag=0
+        # Code to plot the north-south scale can be written. But it's a LOT of work...
+
+
+
+        # Plot a scale bar with a given length and increment, either on the map
+        # or as a PS file that can be placed.
+
+        DIVEND=$(echo "$SCALE_NUMDIVS - 1" | bc)
+        iseven=1
+        evencolor="white"
+        oddcolor="lightgray"
+        thiscolor=$evencolor
+
+        for subindex in $(seq 0 $DIVEND); do
+          DIVPREV=$(echo "$scalenot * ($subindex - 1) / ${SCALE_NUMDIVS}" | bc -l)
+
+          DIVLOW=$(echo "$scalenot * $subindex / ${SCALE_NUMDIVS}" | bc -l)
+          DIVHIGH=$(echo "$scalenot * ($subindex + 1) / ${SCALE_NUMDIVS}" | bc -l)
+          DIVPAST=$(echo "$scalenot * ($subindex + 2) / ${SCALE_NUMDIVS}" | bc -l)
+
+          PointPrev=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVPREV} ${scaleunit}))
+          PointU=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVLOW} ${scaleunit}))
+          PointV=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVHIGH} ${scaleunit}))
+          PointPast=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVPAST} ${scaleunit}))
+
+          # Calculate azimuth from PointU to PointV
+          ANGLE1=$(onmap_angle_between_points ${PointU[@]} ${PointV[@]})
+          ANGLE2=$(onmap_angle_between_points ${PointV[@]} ${PointPast[@]})
+
+          if [[ $subindex -eq 0 ]]; then
+            # The upper left corner of the horizontal scale bar
+            # ANGLE=$ANGLE1
+            NorthPt[1]=${Origpoint[1]}
+            NorthPt[0]=$(echo "${Origpoint[0]}+0.1" | bc -l)
+            ANGLE=$(onmap_angle_between_points ${Origpoint[@]} ${NorthPt[@]})
+            STARTANGLE=$ANGLE
+            OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+
+            PointA=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+            PointB=($(point_map_offset_rotate_m90 ${Origpoint[@]} ${SCALEBAR_WIDTH_P} ${SCALEBAR_WIDTH_P}  ${ANGLE}))
+            PointC=($(point_map_offset_rotate_m90 ${Point2[@]} ${SCALEBAR_WIDTH_P} 0  ${ANGLE}))
+            PointD=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P}  ${ANGLE}))
+
+            OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
+            OrigpointHalfPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} ${SCALEBAR_HALFWIDTH_P} 0  ${ANGLE}))
+            OrigpointHalfPlusHY=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
+
+            Point1PlusH=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
+            Point1HalfPlus=($(point_map_offset_rotate_m90 ${Point1Half[@]} 0 ${SCALEBAR_WIDTH_P}  ${ANGLE}))
+            Point2PlusH=($(point_map_offset_rotate_m90 ${Point2[@]} ${SCALEBAR_HALFWIDTH_P} 0  ${ANGLE}))
+
+            TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
+            PointW=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+            echo "${Origpoint[@]}T${TickV[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+            echo "${PointW[@]}T${TickW[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+          fi
+          ANGLEPAST=$ANGLE
+
+          ANGLE=$(echo $ANGLE1 $ANGLE2 | gawk '
+            function rad2deg(rad)  { return (180 / getpi()) * rad   }
+            function deg2rad(deg)  { return (getpi() / 180) * deg   }
+            function getpi()       { return atan2(0,-1)             }
+            function ave_dir(d1, d2) {
+              sumcos=cos(deg2rad(d1))+cos(deg2rad(d2))
+              sumsin=sin(deg2rad(d1))+sin(deg2rad(d2))
+              val=rad2deg(atan2(sumsin, sumcos))
+              return val
+            }
+            {
+              print (ave_dir($1, $2) + 360) % 360
+            }')
+
+          PointW=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+          PointX=($(point_map_offset_rotate_m90 ${PointU[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLEPAST}))
+          PointVHalf=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+
+          if [[ $scaleskiplabelflag -eq 1 && $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
+            TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
+            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
+            echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> bigticks.txt
+            echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> bigticks.txt
+          else
+            TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
+            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+            echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> smallticks.txt
+            echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> smallticks.txt
+          fi
+
+          if [[ $thiscolor == $oddcolor ]]; then
+            echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> oddcolor.txt
+          else
+            echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> evencolor.txt
+          fi
+
+          if [[ $subindex -eq 0 ]]; then
+            therestring=${PointV[@]}"T"${Origpoint[@]}
+            herestring=${Origpoint[@]}"T"${PointX[@]}"T"${PointW[@]}
+          else
+            therestring=${PointV[@]}"T"${therestring}
+            herestring=${herestring}"T"${PointW[@]}
+          fi
+
+          PointVHalfPlus=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+
+          DIV2DP=$(printf "%.2f" $DIVHIGH)
+          if [[ "${DIV2DP}" == *.* ]]; then
+            DIVLABELTEXT=$(echo ${DIV2DP} | sed 's/[0]*$//g' | sed 's/[.]*$//g')
+          else
+            DIVLABELTEXT=${DIV2DP}
+          fi
+
+          TEXTANGLE=$(echo "90-$ANGLE" | bc -l)
+
+          if [[ $subindex -ne $DIVEND ]]; then
+            if [[ $scaleskiplabelflag -eq 1 ]]; then
+              if [[ $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
+                echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+              fi
+            else
+              echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+            fi
+          fi
+
+          if [[ $iseven -eq 1 ]]; then
+            iseven=0
+            thiscolor=$oddcolor
+          else
+            iseven=1
+            thiscolor=$evencolor
+          fi
+        done
+
+        # Plot the frame
+        echo ${herestring}"T"${therestring} | tr 'T' '\n' | gmt psxy -W${SCALE_FRAME_PEN} -A --PS_LINE_CAP=round ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+        [[ -s oddcolor.txt ]] && gmt psxy oddcolor.txt -t${SCALE_TRANS} -G${oddcolor} -A ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s evencolor.txt ]] && gmt psxy evencolor.txt -t${SCALE_TRANS} -G${evencolor} -A ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s bigticks.txt ]] && gmt psxy bigticks.txt $bigtickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s smallticks.txt ]] && gmt psxy smallticks.txt $smalltickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s scaletext.txt ]] && gmt pstext scaletext.txt -D-0.1p/0p -F+A+f${INSIDESCALEBARFONTSIZE}p,Helvetica-bold,black+jCM  -C0.2p/0.2p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+        # Labels
+        STARTJUST=$(azimuth_to_justcode $STARTANGLE)
+        echo "${OrigpointPlusH[@]} 0" | gmt pstext -Dj2p -F+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${STARTJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        ENDANGLE=$(echo $ANGLE | gawk '{print ($1 + 180) % 360}')
+        ENDJUST=$(azimuth_to_justcode $ENDANGLE)
+        echo "${Point1PlusH[@]} ${scalenot} ${scaleunit}" | gmt pstext -Dj2p -F+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${ENDJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+
+        # If we are using the onmap or offmap option, place on the map.
+        if [[ $scaleatrefflag -ne 1 ]]; then
+          [[ $scalemarkerflag -eq 1 ]] && echo "${OrigpointHalfPlusHY[@]}" | gmt psxy -Xa-0.2i -Skcrosshair/0.15i -W0.1p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+          gmt psxy -T -R -J -O ${VERBOSE} >> scale.ps
+          PS_DIM=$(gmt psconvert scale.ps -Te -A+m0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          SCALE_PS_WIDTH="$(echo $PS_DIM | gawk '{print $1/2.54}')"
+          SCALE_PS_HEIGHT="$(echo $PS_DIM | gawk '{print $2/2.54}')"
+
+          if [[ $scalebaronlegendflag -eq 1 ]]; then
+            LEGEND_ITEM_PATHS+=("scale.eps")
+            LEGEND_ITEM_WIDTHS+=(${SCALE_PS_WIDTH})
+            LEGEND_ITEM_HEIGHTS+=(${SCALE_PS_HEIGHT})
+          fi
+
+
+          [[ $scalemarkerflag -eq 1 ]] && echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt psxy -Skcrosshair/0.15i -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          # [[ $scalemarkerflag -eq 1 ]] && echo "${PointV[@]}" | gmt psxy -Skcrosshair/0.15i -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+
+
+          # PS_DIM=$(gmt psconvert ${LEGENDDIR}${1}.ps -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          # LEGEND_ITEM_PATHS+=("${LEGENDDIR}${1}.eps")
+          # LEGEND_ITEM_WIDTHS+=("$(echo $PS_DIM | gawk '{print $1/2.54}')")
+          # LEGEND_ITEM_HEIGHTS+=("$(echo $PS_DIM | gawk '{print $2/2.54}')")
+
+
+          # SCALE_ONOFFCODE="j"
+          # SCALE_JUST="TR"
+          # SCALE_BORDERON="yes"
+
+          thisJ=""
+          if [[ ${SCALE_ONOFFCODE} == "J" ]]; then
+            # Place outside the map frame
+            case ${SCALE_JUST_CODE} in
+              TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
+              TM) SCALE_JUST="TC"; shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
+              TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
+              BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
+              BM) SCALE_JUST_CODE="BC"; shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
+              BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
+              RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
+              RM) SCALE_JUST_CODE="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
+              RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
+              LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
+              LM) SCALE_JUST_CODE="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
+              LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
+              *)
+                echo "Outside justification ${SCALE_JUST_CODE} not recognized. Using TL."
+                SCALE_JUST_CODE="TL"
+                shifth=0;   shiftv=30;   thisJ="+jBL"  # top edge, left side
+              ;;
+            esac
+          else
+            # Place inside the map frame
+            case ${SCALE_JUST_CODE} in
+              TR|RT) shifth=10; shiftv=10 ;;
+              CR|RC) shifth=10;  shiftv=0  ;;
+              BR|RB) shifth=10;  shiftv=10  ;;
+              TC|CT) shifth=0;  shiftv=10  ;;
+              CM|MC) shifth=0; shiftv=0 ;;
+              BC|CB) shifth=0;  shiftv=10  ;;
+              TL|LT) shifth=10;  shiftv=10  ;;
+              CL|LC) shifth=10;  shiftv=0  ;;
+              BL|LB) shifth=10;  shiftv=10  ;;
+              *)
+              echo "Outside justification ${SCALE_JUST_CODE} not recognized. Using BL"
+                SCALE_JUST_CODE="BL"; shifth=10;  shiftv=10
+              ;;
+            esac
+          fi
+
+          if [[ ${SCALE_BORDERON} == "yes" ]]; then
+            SCALE_BORDER_CALL=${SCALE_BORDER}
+          else
+            SCALE_BORDER_CALL=""
+          fi
+
+          if [[ $SCALE_BORDERCALL != "" && $SCALEFILL="" ]]; then
+            SCALE_BORDERCALLnew="-F${SCALE_BORDERCALL}"
+            SCALE_BORDERCALL=${SCALE_BORDERCALLnew}
+          fi
+
+          if [[ $scalebaronlegendflag -ne 1 ]]; then
+            gmt psimage -D${SCALE_ONOFFCODE}${SCALE_JUST_CODE}+o${shifth}p/${shiftv}p+w${SCALE_PS_WIDTH}i/0${thisJ} ${SCALEFILL}${SCALE_BORDER_CALL} scale.eps $RJOK ${VERBOSE} >> map.ps
+          fi
+        fi
+        # gmt psimage -Dg${SCALEREFLON}/${SCALEREFLAT}+w${SCALE_PS_WIDTH}i+jBL scale.eps -F+gwhite ${RJOK} ${VERBOSE} >> map.ps
+        # gmt psimage -DjTL+w${SCALE_PS_WIDTH}i+o10p/-40p+jBL scale.eps -F+gwhite ${RJOK} ${VERBOSE} >> map.ps
+
+        # gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}all_profiles.eps $RJOK ${VERBOSE} >> map.ps
         ;;
 
       northarrow)
@@ -18909,8 +19211,9 @@ if [[ $makelegendflag -eq 1 ]]; then
     info_msg "Legend: printing data sources"
     # gmt pstext tectoplot.shortplot -F+f6p,Helvetica,black $KEEPOPEN $VERBOSE >> map.ps
     # x y fontinfo angle justify linespace parwidth parjust
-    echo "> 0 0 9p Helvetica,black 0 l 0.1i ${INCH}i l" > datasourceslegend.txt
-    [[ -s ${SHORTSOURCES} ]] && uniq ${SHORTSOURCES} | gawk  'BEGIN {printf "T Data sources: "} {print}'  | tr '\n' ' ' >> datasourceslegend.txt
+    LEGEND_SOURCES_WIDTH=$(gawk -v lw=${LEGEND_WIDTH} 'BEGIN{print (lw+0) - 0.7}' )
+    echo "> ${CENTERLON} ${CENTERLAT} 0.1i ${LEGEND_SOURCES_WIDTH}i l" > datasourceslegend.txt
+    [[ -s ${SHORTSOURCES} ]] && uniq ${SHORTSOURCES} | tr '\n' ' ' >> datasourceslegend.txt
   else
     touch datasourceslegend.txt
   fi
@@ -18945,8 +19248,8 @@ function close_legend_item() {
 
 
   if [[ $nolegendbarsflag -ne 1 ]]; then
-    # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
 
+    # Split the color bars apart so they can be added horizontally
     if [[ $colorbarshorizontalflag -eq 1 ]]; then
       xoffset=0
       while read p; do
@@ -18969,6 +19272,7 @@ function close_legend_item() {
   # Initialize the non-colorbar legend
   gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
 
+
   if [[ $legendbarsonlyflag -ne 1 ]]; then
 
     info_msg "Plotting non-colorbar legend items: ${plots[@]}"
@@ -18979,9 +19283,11 @@ function close_legend_item() {
           info_msg "Legend: cmt"
           init_legend_item "cmt"
 
-          MEXP_V_N=7
-          MEXP_V_S=7
-          MEXP_V_T=7
+          CMAXMAG=$(echo ${CMT_MAXMAG} 7 | gawk '{print ($2<$1)?$2:$1}')
+
+          MEXP_V_N=${CMAXMAG}
+          MEXP_V_S=${CMAXMAG}
+          MEXP_V_T=${CMAXMAG}
 
           MEXP_N=($(stretched_m0_from_mw $MEXP_V_N))
           MEXP_S=($(stretched_m0_from_mw $MEXP_V_S))
@@ -18994,7 +19300,7 @@ function close_legend_item() {
           psvelostroke="-W0p"
           CMT_AXESSCALE_LEGEND=0.007
 
-          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 $RJOK -X0.27i ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT 10 -2.960 0.874 2.090 -0.215 -0.075 -0.842 ${MEXP_N[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_NORMALCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}0.1i/0 $RJOK -X0.27i ${VERBOSE} >> ${LEGFILE}
           if [[ $axescmtnormalflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -44.5503 -22.6995 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 44.5503 22.6995 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
@@ -19010,7 +19316,7 @@ function close_legend_item() {
           fi
           echo "$CENTERLON $CENTERLAT Normal" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya0.15i -O -K >> ${LEGFILE}
 
-          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT 10 -0.378 -0.968 1.350 -2.330 0.082 4.790 ${MEXP_S[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_SSCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}0.1i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
           if [[ $axescmtssflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 36.6146 -31.8286 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT -36.6146 31.8286 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
@@ -19029,7 +19335,7 @@ function close_legend_item() {
 
           # Plot thrust event in legend
 
-          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT 15 5.260 -0.843 -4.410 3.950 -2.910 2.100 ${MEXP_T[1]}" | gmt_psmeca_wrapper $SEISDEPTH_CPT -E"${CMT_THRUSTCOLOR}" -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}0.1i/0 -X0.5i ${RJOK} ${VERBOSE} >> ${LEGFILE}
 
           if [[ $axescmtthrustflag -eq 1 ]]; then
             [[ $axestflag -eq 1 ]] && echo "$CENTERLON $CENTERLAT 7.57264 19.7274 0 0 0" | gmt psvelo ${psvelostroke} -G${T_AXIS_COLOR} -A${ARROWFMT} -Se${CMT_AXESSCALE_LEGEND}/${GPS_ELLIPSE}/0 $RJOK $VERBOSE >> ${LEGFILE}
@@ -19157,7 +19463,13 @@ function close_legend_item() {
           echo "$CENTERLON $CENTERLAT magnitude" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> ${LEGFILE}
           gmt psxy -T -X0.07i ${RJOK} >> ${LEGFILE}
 
-          for thismag in $(seq 2 9); do
+          EQ_LEG_MAX=9
+
+          if [[ $(echo "(${EQ_MAXMAG} == ${EQ_MAXMAG_DEF})" | bc) -eq 1 ]]; then
+            EQ_LEG_MAX=8
+          fi
+
+          for thismag in $(seq 2 $EQ_LEG_MAX); do
             if [[ $(echo "$thismag <= $EQ_MAXMAG && $thismag >= $EQ_MINMAG" | bc) -eq 1 ]]; then
               # stretched_mag is the diameter of the earthquake symbol in points
               stretched_mag=$(stretched_mw_from_mw $thismag)
@@ -19194,6 +19506,13 @@ function close_legend_item() {
         ;;
       esac
     done
+
+#-Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i
+    init_legend_item "datasources"
+    echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+    gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+    close_legend_item "datasources"
+
 
     gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
     LEG2_X=0
@@ -19239,7 +19558,6 @@ function close_legend_item() {
       fi
     fi
     gmt psxy -T -R -J -O $VERBOSE >> ${NONCOLORBARLEGEND}
-
   fi
 
 
@@ -19272,10 +19590,20 @@ function close_legend_item() {
     PS_DIM=$(gmt psconvert ${NONCOLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
     LEG_NONCOLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
     LEG_NONCOLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+
+    # Calculate the shift needed to center the colorbar and non-colorbar
+    if [[ $(echo "(${LEG_COLOR_WIDTH_IN} > ${LEG_NONCOLOR_WIDTH_IN}) == 1" | bc ) -eq 1 ]]; then
+      SHIFT_LEG_NONCOLOR=$(echo "(${LEG_COLOR_WIDTH_IN} - ${LEG_NONCOLOR_WIDTH_IN}) / 2" | bc -l)
+      SHIFT_LEG_COLOR=0
+    else
+      SHIFT_LEG_COLOR=$(echo "(${LEG_NONCOLOR_WIDTH_IN} - ${LEG_COLOR_WIDTH_IN}) / 2" | bc -l)
+      SHIFT_LEG_NONCOLOR=0
+    fi
+
     gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
 
-    gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
-    gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i ${LEGENDDIR}noncolorbars.eps -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+    gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i -Xa${SHIFT_LEG_COLOR}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+    gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i -Xa${SHIFT_LEG_NONCOLOR}i ${LEGENDDIR}noncolorbars.eps -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
     LEGENDITEMS+=("${LEGENDDIR}maplegend.ps")
   else
     # Otherwise, convert the PS to EPS for placement on the map
