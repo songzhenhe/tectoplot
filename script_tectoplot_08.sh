@@ -6423,6 +6423,7 @@ fi
   -scale) # -scale: plot a scale bar
 
   SCALE_LENGTH="100k"  # Default
+  SCALEBAR_WIDTH_P=30
   SCALE_MAPLENGTH="1.25" # inches or cm???
   SCALE_JUST_CODE="TL"
   SCALE_ONOFFCODE="j"
@@ -6444,6 +6445,7 @@ fi
   SCALE_TRANS=0
   scalenolabelflag=0
   scaleautorefptflag=1   # Use center of map by default
+  scaleplotNflag=0
 
   SCALE_FONTDEF=${SCALE_FONTSIZE},${SCALE_FONT},${SCALE_FONTCOLOR}
   SCALE_BORDER="+p${SCALE_BORDER_WIDTH},${SCALE_BORDER_COLOR}"
@@ -6457,48 +6459,25 @@ cat <<-EOF
 
 Usage: -scale [[options]]
 
-  length has unit immediately following number (e.g. 100km)
-    Units (geod -lu)
-          mm 0.001                millimetre
-          cm 0.01                 centimetre
-           m 1                    metre
-          ft 0.3048               foot
-       us-ft 0.304800609601219    US survey foot
-        fath 1.8288               fathom
-         kmi 1852                 nautical mile
-       us-ch 20.1168402336805     US survey chain
-       us-mi 1609.34721869444     US survey mile
-          km 1000                 kilometre
-           k 1000                 synonym for km
-      ind-ft 0.30479841           Indian foot (1937)
-      ind-yd 0.91439523           Indian yard (1937)
-          mi 1609.344             Statute mile
-          yd 0.9144               yard
-          ch 20.1168              chain
-        link 0.201168             link
-          dm 0.01                 decimeter
-          in 0.0254               inch
-      ind-ch 20.11669506          Indian chain
-       us-in 0.025400050800101    US survey inch
-       us-yd 0.914401828803658    US survey yard
-
-  [[options]] . = implemented
-.  length [length]       Specify length of scale in projected units
+  [[options]]
+  length [length]       Specify length of scale in projected units
+  height [points]       Specify height of scale box; fonts scale also
   maplength [length]    Specify width of scale in inches; requires refpt
                         Produces an approximate scale with reasonable bounds
-  ortho                 Plot orthogonal scale bars (L shape)
-.  refpt [lon] [lat]     Reference location for scale
-.  refpt [aprofcode]     Reference location for scale
-.  marker                Plot marker indicating scale reference point on map
-.  atref                  Plot scale bar on the map, ll corner at refpt location
-.  onmap [just]          Justification of scale bar, on map
-.  offmap [just]         Justification of scale bar, off map
-.  divs [number]         Number of divisions of the scale bar
-.  nolabel               Do not label internal divisions
-.  box [color]           Plot a colored box behind scale
-.  trans [percent]       Transparency of fill boxes
+*  ortho                 Plot orthogonal scale bars (L shape)
+  refpt [lon] [lat]     Reference location for scale
+  refpt [aprofcode]     Reference location for scale
+  marker                Plot marker indicating scale reference point on map
+  atref                  Plot scale bar on the map, ll corner at refpt location
+  onmap [just]          Justification of scale bar, on map
+  offmap [just]         Justification of scale bar, off map
+  divs [number]         Number of divisions of the scale bar
+  nolabel               Do not label internal divisions
+  box [color]           Plot a colored box behind scale
+  trans [percent]       Transparency of fill boxes
   inlegend               Add PS of scalebar to legend; do not plot on map
                            (only works with onmap, offmap, maplength NOT atref)
+  north                 Plots a north arrow and N at start of scale
 
   length has unit (e.g. 100k)
   The scale bar is centered on the reference point or aprofcode point
@@ -6519,6 +6498,20 @@ fi
 
     while ! arg_is_flag "${2}"; do
       case "${2}" in
+        height)
+          shift
+          if arg_is_positive_float $2; then
+            SCALEBAR_WIDTH_P=$2
+            shift
+          else
+            echo "[-scale]: height option requires number argument [number]p (eg 6p)"
+            exit 1
+          fi
+        ;;
+        north)
+          shift
+          scaleplotNflag=1
+        ;;
         inlegend)
           shift
           scalebaronlegendflag=1
@@ -6634,54 +6627,13 @@ fi
           shift
         elif [[ "${2}" =~ [A-Z] ]]; then  # This is an aprofcode location
           info_msg "[-scale]: aprofcode ${2:0:1} found."
-          SCALEAPROF=($(echo $2 | gawk -v minlon=$MINLON -v maxlon=$MAXLON -v minlat=$MINLAT -v maxlat=$MAXLAT '
-          BEGIN {
-              row[1]="AFKPU"
-              row[2]="BGLQV"
-              row[3]="CHMRW"
-              row[4]="DINSX"
-              row[5]="EJOTY"
-              difflat=maxlat-minlat
-              difflon=maxlon-minlon
-
-              newdifflon=difflon*8/10
-              newminlon=minlon+difflon*1/10
-              newmaxlon=maxlon-difflon*1/10
-
-              newdifflat=difflat*8/10
-              newminlat=minlat+difflat*1/10
-              newmaxlat=maxlat-difflat*1/10
-
-              minlon=newminlon
-              maxlon=newmaxlon
-              minlat=newminlat
-              maxlat=newmaxlat
-              difflat=newdifflat
-              difflon=newdifflon
-
-              for(i=1;i<=5;i++) {
-                for(j=1; j<=5; j++) {
-                  char=toupper(substr(row[i],j,1))
-                  lats[char]=minlat+(i-1)/4*difflat
-                  lons[char]=minlon+(j-1)/4*difflon
-                  # print char, lons[char], lats[char]
-                }
-              }
-          }
-          {
-            for(i=1;i<=length($0);++i) {
-              char1=toupper(substr($0,i,1));
-              print lons[char1], lats[char1]
-            }
-          }'))
-          SCALEREFLON=${SCALEAPROF[0]}
-          SCALEREFLAT=${SCALEAPROF[1]}
+          SCALE_APROFCODE="${2:0:1}"
+          scaleaprofflag=1
           shift
         else
           echo "[-scale]: option refpt argument not recognized: ${2}"
           exit 1
         fi
-
         scaleautorefptflag=0
         ;;
       *)
@@ -7129,18 +7081,32 @@ fi
     # Needs some argument checking logic as too few arguments will mess things up spectacularly
     sprofflag=1
     ((sprofnumber++))
-    SPROFLON1[${sprofnumber}]="${2}"
-    SPROFLAT1[${sprofnumber}]="${3}"
-    SPROFLON2[${sprofnumber}]="${4}"
-    SPROFLAT2[${sprofnumber}]="${5}"
-    SPROFWIDTH="${6}"
-    SPROF_RES="${7}"
-    shift
-    shift
-    shift
-    shift
-    shift
-    shift
+
+    while arg_is_float $2; do
+      if arg_is_float $2 && arg_is_float $3; then
+        SPROFPTS[${sprofnumber}]="${SPROFPTS[${sprofnumber}]}$2 $3 "
+      else
+        echo "[-sprof]: profile points require lon lat pairs"
+        exit 1
+      fi
+      shift
+      shift
+    done
+
+    if ! arg_is_flag $2; then
+      SPROFWIDTH="${2}"
+      shift
+    else
+      echo "[-sprof]: width argument required (e.g. 20k)"
+      exit 1
+    fi
+    if ! arg_is_flag $2; then
+      SPROF_RES="${2}"
+      shift
+    else
+      echo "[-sprof]: sample spacing argument required (e.g. 1k)"
+      exit 1
+    fi
     clipdemflag=1
     ;;
 
@@ -16435,6 +16401,12 @@ EOF
           SCALEREFLAT=${CENTERLAT}
         fi
 
+        if [[ $scaleaprofflag -eq 1 ]]; then
+          p1=($(grep "[${SCALE_APROFCODE}]" ${F_MAPELEMENTS}aprof_database.txt))
+          SCALEREFLON=${p1[0]}
+          SCALEREFLAT=${p1[1]}
+        fi
+
         if [[ $scalebarbywidthflag -eq 1 ]]; then
         # Plot a scale bar with a given width in inches, place on map as PS file.
 
@@ -16503,7 +16475,6 @@ EOF
 
         Point1Half=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalehalf} ${scaleunit}))
 
-        SCALEBAR_WIDTH_P=20
         SCALEBAR_HALFWIDTH_P=$(echo "$SCALEBAR_WIDTH_P / 2" | bc -l)
         SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 6" | bc -l)
         TWICE_SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 3" | bc -l)
@@ -16566,8 +16537,19 @@ EOF
             TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
             PointW=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
             TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+
             echo "${Origpoint[@]}T${TickV[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
             echo "${PointW[@]}T${TickW[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+            # Plot the north arrow and letter N
+            if [[ $scaleplotNflag -eq 1 ]]; then
+              TickW2=($(point_map_offset_rotate_m90 ${PointW[@]} 0 $(echo "5*${SCALEBAR_TICKLEN_P}" | bc -l) ${ANGLE}))
+              echo "${Origpoint[@]}T${TickW2[@]}" | tr 'T' '\n' | gmt psxy -W0.35p,black+ve0.075i+l+h0+p0.35p,black+gwhite ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+              rotang=$(echo "90 - $ANGLE" | bc -l)
+              rotfont=$(echo "${INSIDESCALEBARFONTSIZE}*0.8" | bc -l)
+              echo "${TickW[@]} $rotang N" | gmt pstext -F+f${rotfont}p,Helvetica,black+A+jBL -D1p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+
+            fi
           fi
           ANGLEPAST=$ANGLE
 
@@ -16656,10 +16638,10 @@ EOF
 
         # Labels
         STARTJUST=$(azimuth_to_justcode $STARTANGLE)
-        echo "${OrigpointPlusH[@]} 0" | gmt pstext -Dj2p -F+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${STARTJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        echo "${OrigpointPlusH[@]} 0" | gmt pstext -Dj2p -F+A$(echo "90-${STARTANGLE}" | bc -l)+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${STARTJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
         ENDANGLE=$(echo $ANGLE | gawk '{print ($1 + 180) % 360}')
         ENDJUST=$(azimuth_to_justcode $ENDANGLE)
-        echo "${Point1PlusH[@]} ${scalenot} ${scaleunit}" | gmt pstext -Dj2p -F+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${ENDJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        echo "${Point1PlusH[@]} ${scalenot} ${scaleunit}" | gmt pstext -Dj2p -F+A$(echo "90-${ENDANGLE}" | bc -l)+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${ENDJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
 
 
         # If we are using the onmap or offmap option, place on the map.
@@ -17028,7 +17010,8 @@ EOF
           if [[ $sprofflag -eq 1 ]]; then
 
             for thissprof in $(seq 1 $sprofnumber); do
-              echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
+              # echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
+              echo "P P${thissprof} black N N ${SPROFPTS[${sprofnumber}]}" >> sprof.control
             done
           fi
           if [[ $cprofflag -eq 1 ]]; then

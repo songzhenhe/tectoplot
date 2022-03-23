@@ -306,6 +306,15 @@ for i in $(seq 1 $k); do
   FIRSTWORD=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $1}')
 
   if [[ ${FIRSTWORD:0:1} == "P" ]]; then
+
+    # line_buffer.txt is simply a GMT format line file
+    # >
+    # lon1 lat1
+    # lon2 lat2
+    # ...
+
+    # It contains the track of the current profile line we are processing
+
     echo ">" >> ${F_PROFILES}line_buffer.txt
     head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 >> ${F_PROFILES}line_buffer.txt
   fi
@@ -356,25 +365,28 @@ MAXWIDTH_KM=$(gawk < ${F_PROFILES}widthlist.txt 'BEGIN {maxw=0; } {
 
 WIDTH_DEG=$(echo $WIDTH_DEG_DATA | gawk '{ print ($1<10/110/2) ? 10/110/2 : $1}')
 
-# Make the OGR_GMT format file
-echo "# @VGMT1.0 @GLINESTRING @Nname" > ${F_PROFILES}linebuffer.gmt
-echo "# @Jp\"+proj=longlat +ellps=WGS84 \"" >> ${F_PROFILES}linebuffer.gmt
-echo "# FEATURE_DATA" >> ${F_PROFILES}linebuffer.gmt
 
-gawk < ${F_PROFILES}line_buffer.txt 'BEGIN{num=1} {
-  if ($1 == ">") {
-    print "> -W0.25p";
-    printf "# @D\"%s\"\n", num++;
-  }
-  else {
-    if ($1 > 180) {
-      print $1, $2
-    } else {
-      print $1, $2
-    }
-  }
-}' >> ${F_PROFILES}linebuffer.gmt
+# linebuffer.gmt is no longer used. It was once used to make a buffer using
+# Spatialite
 
+# # Make the OGR_GMT format file
+# echo "# @VGMT1.0 @GLINESTRING @Nname" > ${F_PROFILES}linebuffer.gmt
+# echo "# @Jp\"+proj=longlat +ellps=WGS84 \"" >> ${F_PROFILES}linebuffer.gmt
+# echo "# FEATURE_DATA" >> ${F_PROFILES}linebuffer.gmt
+#
+# gawk < ${F_PROFILES}line_buffer.txt 'BEGIN{num=1} {
+#   if ($1 == ">") {
+#     print "> -W0.25p";
+#     printf "# @D\"%s\"\n", num++;
+#   }
+#   else {
+#     if ($1 > 180) {
+#       print $1, $2
+#     } else {
+#       print $1, $2
+#     }
+#   }
+# }' >> ${F_PROFILES}linebuffer.gmt
 
 xyzfilelist=()
 xyzcommandlist=()
@@ -1726,7 +1738,14 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
       # CMTWIDTH is e.g. 150k so in gawk we do +0
 
+      # Calculate distance from data points to the track, using only first two columns
+
+      # Project the thrust focal mechanisms using their XY location onto the profile line in line_buffer.txt
+
       gawk < ${F_CMT}cmt_thrust.txt '{print $1, $2}' | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -L${F_PROFILES}line_buffer.txt+p -fg -Vn | gawk '{print $4, $3}' > ${F_PROFILES}tmpbuf.txt
+
+      # Determine the along-profile distance using either the use_closest method
+
       paste ${F_PROFILES}tmpbuf.txt ${F_CMT}cmt_thrust.txt | gawk -v lineid=$PROFILE_INUM -v maxdist=$CMTWIDTH -v use_closest=${PROFILE_USE_CLOSEST} '{
         if (($1==lineid || use_closest==0) && $2/1000 < (maxdist+0)) {
           for (i=3;i<=NF;++i) {
@@ -1948,6 +1967,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           gawk <  ${F_PROFILES}${LINEID}_cmt_strikeslip_profile_data.txt '{print $1, $2, $2, $2, $2, $2}' >> ${F_PROFILES}${LINEID}_all_data.txt
           mv $pscoupefile $pscoupefile.ss.saved
           rm -f $pscoupefile
+          rm -f Aa*
         done
 
         if [[ ! $segind -eq $numsegs ]]; then

@@ -35,7 +35,7 @@ function tectoplot_args_srcmod()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-    -s|--srcmod) # args: none
+    -s) # args: none
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -s:            plot earthquake slip data from SRCMOD
@@ -69,6 +69,27 @@ EOF
           allsrcmod=1
           shift
           ((tectoplot_module_shift++))
+          ;;
+        vec)
+          srcmodrakeflag=1
+          shift
+          ((tectoplot_module_shift++))
+          if ! arg_is_float $1; then
+            echo "[-s]: option vec requires strike/dip values to interpret rake data. This will apply to all selected earthquakes!"
+            exit 1
+          else
+            SRCMOD_STRIKE=$1
+            shift
+            ((tectoplot_module_shift++))
+            if ! arg_is_float $1; then
+              echo "[-s]: option vec requires strike/dip values to interpret rake data. This will apply to all selected earthquakes!"
+              exit 1
+            else
+              SRCMOD_DIP=$1
+              shift
+              ((tectoplot_module_shift++))
+            fi
+          fi
           ;;
         nogrid)
           shift
@@ -241,9 +262,28 @@ function tectoplot_plot_srcmod() {
         fi
       fi
 
-      # echo "array is ${responsearr[@]}"
+      # Process each earthquake selected datafile
       for thiseq in ${responsearr[@]}; do
+        cp "$SRCMODFSPFOLDER"${v[$thiseq]} srcmod${v[$thiseq]}.dat
         grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk  '{print $2, $1, $6}' > temp1.xyz
+
+        if [[ $srcmodrakeflag -eq 1 ]]; then
+          grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk -v strike=${SRCMOD_STRIKE} -v dip=${SRCMOD_DIP} '
+            @include "tectoplot_functions.awk"
+            {
+              rake=$7
+              RHRrake=180-rake
+              tanR=tan(deg2rad(RHRrake))
+              cosD=cos(deg2rad(dip))
+              beta=abs(rad2deg(atan(tanR*cosD)))
+              traw=180+((RHRrake>90)?strike+180-beta:strike+beta)
+              while(traw>360) {
+                traw=traw-360
+              }
+              print $2, $1, traw, $6/100
+            }' > temp1sliprake.xyz
+        fi
+
         gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
         gmt triangulate temp.xyz -I"$LONKM"k -Gtemp2.nc -R $VERBOSE
         gmt surface temp.xyz -I"$LONKM"k -Ll0 -Gtemp.nc -R $VERBOSE
@@ -253,6 +293,9 @@ function tectoplot_plot_srcmod() {
           gmt grdimage slipfinal.grd ${RJSTRING[@]} -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -O -K $VERBOSE >> map.ps
         fi
         gmt grdcontour slipfinal.grd -A5 -S3 -C$SLIPCONTOURINTERVAL ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+        if [[ $srcmodrakeflag -eq 1 ]]; then
+          gmt psxy temp1sliprake.xyz -Gblack -SV0.05i+jb+e -W0.5p,black ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+        fi
       done
 
       # Leftovers from the old 'fused' style
