@@ -4029,6 +4029,9 @@ fi
             LEGEND_JUST_CODES+=("${2:0:2}")
             [[ $offmapflag -eq 1 ]] && LEGEND_ONOFFCODES+=("J") || LEGEND_ONOFFCODES+=("j")
             shift
+          else
+            LEGEND_JUST_CODES+=("TL")
+            [[ $offmapflag -eq 1 ]] && LEGEND_ONOFFCODES+=("J") || LEGEND_ONOFFCODES+=("j")
           fi
           if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
             LEGEND_JUST_CODES+=("${2:0:2}")
@@ -6598,9 +6601,9 @@ fi
           shift
           if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
             SCALE_JUST_CODE="${2:0:2}"
-            [[ $offmapflag -eq 1 ]] && SCALE_ONOFFCODE="J" || SCALE_ONOFFCODE="j"
             shift
           fi
+          [[ $offmapflag -eq 1 ]] && SCALE_ONOFFCODE="J" || SCALE_ONOFFCODE="j"
           ;;
       width)
         shift
@@ -19162,9 +19165,14 @@ if [[ $makelegendflag -eq 1 ]]; then
 # Requires CPT and BATHYINC
       topo)
         topotranslevel=$(echo "$DEM_ALPHA * 100" | bc -l)
-        gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
-        echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-        echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+        if [[ $fasttopoflag -eq 0 ]]; then
+          gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+        else
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${TOPO_CPT} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+        fi
         barplotcount=$barplotcount+1
         ;;
 
