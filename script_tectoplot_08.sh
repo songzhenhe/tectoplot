@@ -3896,8 +3896,8 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
   nonbars = non-colorbar legend itemst
 
   Options:
-  barsonly                          Don't plot anything except color bars
-  nobars                            Don't plot the color bars
+  barsonly                          Only plot colorbars
+  nonbarsonly                       Do not plot colorbars
   horiz  [[bars | nonbars]]         Plot legend horizontally (both | bars | nonbars)
   border [none | bars | nonbars]    Set legend border off or on only for bars/nonbars
   font [${LEGEND_FONT}]             Set font [size | size,font | size,font,color]
@@ -3947,6 +3947,9 @@ fi
     makelegendflag=1
     legendovermapflag=0
 
+    makecolorbarsflag=1
+    makenoncolorbarsflag=1
+
     while ! arg_is_flag "${2}"; do
       case "${2}" in
         horiz)
@@ -3963,11 +3966,13 @@ fi
         ;;
         barsonly)
           shift
-          legendbarsonlyflag=1
+          makecolorbarsflag=1
+          makenoncolorbarsflag=0
         ;;
-        nobars)
+        nonbarsonly)
           shift
-          nolegendbarsflag=1
+          makecolorbarsflag=0
+          makenoncolorbarsflag=1
         ;;
         border)
           shift
@@ -19230,8 +19235,7 @@ function close_legend_item() {
 # }
 
 
-  if [[ $nolegendbarsflag -ne 1 ]]; then
-
+  if [[ $makecolorbarsflag -eq 1 ]]; then
     # Split the color bars apart so they can be added horizontally
     if [[ $colorbarshorizontalflag -eq 1 ]]; then
       xoffset=0
@@ -19249,14 +19253,14 @@ function close_legend_item() {
   fi
 
 
-  # Offset origin to above the legend bar plots and offset X so left side of box
-  # is around the start of the rectangular bar plot
-  NONCOLORBARLEGEND=${LEGENDDIR}noncolorbars.ps
-  # Initialize the non-colorbar legend
-  gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
 
+  if [[ $makenoncolorbarsflag -eq 1 ]]; then
 
-  if [[ $legendbarsonlyflag -ne 1 ]]; then
+    NONCOLORBARLEGEND=${LEGENDDIR}noncolorbars.ps
+    # Offset origin to above the legend bar plots and offset X so left side of box
+    # is around the start of the rectangular bar plot
+    # Initialize the non-colorbar legend
+    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
 
     info_msg "Plotting non-colorbar legend items: ${plots[@]}"
 
@@ -19490,12 +19494,10 @@ function close_legend_item() {
       esac
     done
 
-#-Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i
     init_legend_item "datasources"
     echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
     gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
     close_legend_item "datasources"
-
 
     gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
     LEG2_X=0
@@ -19544,54 +19546,46 @@ function close_legend_item() {
   fi
 
 
-  # gmt gmtset FONT_ANNOT_PRIMARY 8p,Helvetica-bold,black
+  # If necessary, combine the non-colorbar legend into a single legend file.
+  # This happens if we have only 1 justification code
 
-  # NUMLEGBAR=$(wc -l < ${LEGENDDIR}legendbars.txt)
-  # if [[ $NUMLEGBAR -eq 1 ]]; then
-  #   gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN_minus}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O $KEEPOPEN ${VERBOSE} >> ${NONCOLORBARLEGEND}
-  # else
-  #
-  # if [[ $plottitleflag -eq 1 ]]; then
-  #   # MAP_PS_HEIGHT_IN=$(echo "${MAP_PS_HEIGHT_IN} + 1" | bc -l)
-  #   MAP_PS_HEIGHT_IN_plus=$(echo "${MAP_PS_HEIGHT_IN} + 1" | bc -l)
-  # else
-  #   MAP_PS_HEIGHT_IN_plus=${MAP_PS_HEIGHT_IN}
-  # fi
-
-  # gmt pslegend datasourceslegend.txt -Dx0.0i/${MAP_PS_HEIGHT_IN}i+w${LEGEND_WIDTH}+w${INCH}i+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
-  # gmt pslegend ${LEGENDDIR}legendbars.txt -Dx0i/${MAP_PS_HEIGHT_IN_plus}i+w${LEGEND_WIDTH}+jBL -C0.05i/0.05i -J -R -O -K ${VERBOSE} --FONT_ANNOT_PRIMARY=${LEGEND_FONTDEF} >> ${NONCOLORBARLEGEND}
-  # fi
-
-  # Close the non-colorbar legend PS
-  # gmt psxy -T -R -J -O ${VERBOSE} >> ${NONCOLORBARLEGEND}
-
-  # If necessary, combine the non-colorbar legend into a single legend file
   if [[ $(echo "${#LEGEND_JUST_CODES[@]} == 1" | bc) -eq 1 ]]; then
-    PS_DIM=$(gmt psconvert ${COLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    LEG_COLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    LEG_COLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
-    PS_DIM=$(gmt psconvert ${NONCOLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-    LEG_NONCOLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
-    LEG_NONCOLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
 
-    # Calculate the shift needed to center the colorbar and non-colorbar
-    if [[ $(echo "(${LEG_COLOR_WIDTH_IN} > ${LEG_NONCOLOR_WIDTH_IN}) == 1" | bc ) -eq 1 ]]; then
-      SHIFT_LEG_NONCOLOR=$(echo "(${LEG_COLOR_WIDTH_IN} - ${LEG_NONCOLOR_WIDTH_IN}) / 2" | bc -l)
-      SHIFT_LEG_COLOR=0
-    else
-      SHIFT_LEG_COLOR=$(echo "(${LEG_NONCOLOR_WIDTH_IN} - ${LEG_COLOR_WIDTH_IN}) / 2" | bc -l)
-      SHIFT_LEG_NONCOLOR=0
+    # If we have both, then combine them
+    if [[ $makecolorbarsflag -eq 1 && $makenoncolorbarsflag -eq 1 ]]; then
+
+      PS_DIM=$(gmt psconvert ${COLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      LEG_COLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      LEG_COLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+
+      PS_DIM=$(gmt psconvert ${NONCOLORBARLEGEND} -Te -A+m0.05i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+      LEG_NONCOLOR_WIDTH_IN=$(echo $PS_DIM | gawk  '{print $1/2.54}')
+      LEG_NONCOLOR_HEIGHT_IN=$(echo $PS_DIM | gawk  '{print $2/2.54}')
+
+      # Calculate the shift needed to center the colorbar and non-colorbar
+      if [[ $(echo "(${LEG_COLOR_WIDTH_IN} > ${LEG_NONCOLOR_WIDTH_IN}) == 1" | bc ) -eq 1 ]]; then
+        SHIFT_LEG_NONCOLOR=$(echo "(${LEG_COLOR_WIDTH_IN} - ${LEG_NONCOLOR_WIDTH_IN}) / 2" | bc -l)
+        SHIFT_LEG_COLOR=0
+      else
+        SHIFT_LEG_COLOR=$(echo "(${LEG_NONCOLOR_WIDTH_IN} - ${LEG_COLOR_WIDTH_IN}) / 2" | bc -l)
+        SHIFT_LEG_NONCOLOR=0
+      fi
+
+      gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
+      [[ -s ${LEGENDDIR}colorbars.eps ]] && gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i -Xa${SHIFT_LEG_COLOR}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+      [[ -s ${LEGENDDIR}noncolorbars.eps ]] && gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i -Xa${SHIFT_LEG_NONCOLOR}i ${LEGENDDIR}noncolorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+      gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
+    elif [[ $makecolorbarsflag -eq 1 ]]; then
+      cp ${COLORBARLEGEND} ${LEGENDDIR}maplegend.ps
+    elif [[ $makenoncolorbarsflag -eq 1 ]]; then
+      cp ${NONCOLORBARLEGEND} ${LEGENDDIR}maplegend.ps
     fi
 
-    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
-
-    gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i -Xa${SHIFT_LEG_COLOR}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
-    gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i -Xa${SHIFT_LEG_NONCOLOR}i ${LEGENDDIR}noncolorbars.eps -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
     LEGENDITEMS+=("${LEGENDDIR}maplegend.ps")
   else
     # Otherwise, convert the PS to EPS for placement on the map
-    LEGENDITEMS+=("${COLORBARLEGEND}")
-    LEGENDITEMS+=("${NONCOLORBARLEGEND}")
+    [[ -s ${COLORBARLEGEND} ]] && LEGENDITEMS+=("${COLORBARLEGEND}")
+    [[ -s ${NONCOLORBARLEGEND} ]] && LEGENDITEMS+=("${NONCOLORBARLEGEND}")
   fi
 
   if [[ $legendonlyflag -eq 1 && $cutframeflag -eq 1 ]]; then
