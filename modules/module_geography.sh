@@ -402,13 +402,13 @@ EOF
   fi
 
     shift
-    if arg_is_positive_float $2; then
-      COUNTRIES_TRANS="${2}"
+    if arg_is_positive_float $1; then
+      COUNTRIES_TRANS="${1}"
       shift
       ((tectoplot_module_shift++))
     fi
-    if ! arg_is_flag $2; then
-      COUNTRIESCPT="${2}"
+    if ! arg_is_flag $1; then
+      COUNTRIESCPT="${1}"
       shift
       ((tectoplot_module_shift++))
     fi

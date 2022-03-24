@@ -2774,7 +2774,7 @@ cat <<-EOF
 -cdeep:        select focal mechanisms in lower plate below slab2 model
 Usage: -cdeep [[buffer_distance=${CMTSLAB2VERT}]]
 
-  Buffer distance shifts the Slab2 model down (negative) or up (positive) [km]
+  Buffer distance shifts the Slab2 model up (negative) or down (positive) [km]
   For this option only, buffer_distance also applies to Earth's surface so
   buffer_distance=-30 will select only regional events (not below Slab2 model)
   below depths of 30 km.
@@ -3571,6 +3571,20 @@ fi
     ;;
 
   -inset)
+  INSET_ONOFFCODE="j"
+  INSET_JUST_CODE="BR"
+  INSET_LINE_COLOR="black"
+  INSET_LINE_WIDTH="2p"
+  insetplacedflag=0
+  INSET_FILL=""
+  INSET_TRANS=0
+  INSET_SIZE="1.5i"
+  INSET_BOX_COLOR="white"
+  INSET_BOX_TRANS=0
+  insetfillflag=0
+  INSET_XOFF=0
+  INSET_YOFF=0
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -inset:        place an inset globe showing map aoi
@@ -3579,6 +3593,17 @@ Usage: -inset [[size=${INSET_SIZE}]] [[degree_width=${INSET_DEGREE}]] [[x_shift=
   Plot an inset globe. Default location is lower left of map; can be modified
   with x_shift and y_shift values.
 
+  [[options]]
+  onmap  [[just]]      place within map area
+  offmap [[just]]      place outside of map area
+  size                 size of inset in inches
+  degw [number]        radius of inset area in degrees
+  xoff [number]        shift in X direction by number of inches
+  yoff [number]        shift in Y direction by number of inches
+  line [color] [width] symbology of box outlining map region
+  args [args]          quoted string with tectoplot arguments for inset map
+  proj [args]          quoted string with -r and -RJ tectoplot arguments for inset
+
 Example:
 tectoplot -a -inset 2i 30 5.5i 5.5i -o example_inset
 ExampleEnd
@@ -3586,31 +3611,112 @@ ExampleEnd
 EOF
 shift && continue
 fi
-    if arg_is_flag $2; then
-      info_msg "[-inset]: No inset size specified. Using ${INSET_SIZE}".
-    else
-      INSET_SIZE="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-inset]: No horizon degree width specified. Using ${INSET_DEGREE}".
-    else
-      INSET_DEGWIDTH="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-inset]: No x shift relative to bottom left corner specified. Using ${INSET_XOFF}".
-    else
-      INSET_XOFF="${2}"
-      shift
-    fi
-    if arg_is_flag $2; then
-      info_msg "[-inset]: No y shift relative to bottom left corner specified. Using ${INSET_YOFF}".
-    else
-      INSET_YOFF="${2}"
-      shift
-    fi
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        onmap|offmap)
+          insetplacedflag=1
+          offmapflag=0
+          [[ ${2} == "offmap" ]] && offmapflag=1
+          shift
+          if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+            INSET_JUST_CODE="${2:0:2}"
+            shift
+          fi
+          [[ $offmapflag -eq 1 ]] && INSET_ONOFFCODE="J" || INSET_ONOFFCODE="j"
+        ;;
+        size)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_SIZE="${2}"
+            shift
+          else
+            echo "[-inset]: option size requires argument (e.g. 2i)"
+            exit 1
+          fi
+        ;;
+        box)
+          shift
+          insetfillflag=1
+        ;;
+        trans)
+          shift
+          if ! arg_is_positive_float $2; then
+            echo "[-inset]: trans option requires number argument"
+            exit 1
+          else
+            INSET_TRANS=$2
+            shift
+          fi
+        ;;
+        args)
+          shift
+          INSET_ARGS="${2}"
+          shift
+        ;;
+        proj)
+          shift
+          INSET_PROJ="${2}"
+          insetprojflag=1
+          shift
+        ;;
+        degw)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_DEGWIDTH="${2}"
+            shift
+          else
+            echo "[-inset]: option degwidth requires argument (e.g. 20)"
+            exit 1
+          fi
+        ;;
+        line)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_LINE_COLOR="${2}"
+            shift
+          else
+            echo "[-inset]: option line requires color argument (e.g. black)"
+            exit 1
+          fi
+          if ! arg_is_flag $2; then
+            INSET_LINE_WIDTH="${2}"
+            shift
+          else
+            echo "[-inset]: option line requires width argument (e.g. 2p)"
+            exit 1
+          fi
+        ;;
+        xoff)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_XOFF="${2}"
+            shift
+          else
+            echo "[-inset]: option xoff requires argument (e.g. 2i)"
+            exit 1
+          fi
+        ;;
+        yoff)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_YOFF="${2}"
+            shift
+            else
+            echo "[-inset]: option yoff requires argument (e.g. 2i)"
+            exit 1
+          fi
+        ;;
+        *)
+          echo "[-inset]: option $2 not recognized."
+          exit 1
+        ;;
+      esac
+    done
+
     addinsetplotflag=1
+    [[ $insetfillflag -eq 1 ]] && INSET_FILL="-F+c2p+gwhite@${INSET_TRANS}" || INSET_FILL=""
+
     ;;
 
   -keepopenps) # args: none
@@ -10674,7 +10780,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
     gotrange=0
     # Calculate the distance in degrees from the center point to the north pole
-    if [[ $(echo "$CENTRALLATITUDE >= 0") -eq 1 ]]; then
+    if [[ $(echo "$CENTRALLATITUDE >= 0" | bc) -eq 1 ]]; then
       if [[ $(echo "$CENTRALLATITUDE + $DEGRANGE > 90" | bc) -eq 1 ]]; then
         MINLON=-180
         MAXLON=180
@@ -16335,16 +16441,78 @@ EOF
 
 
       inset)
-          # echo "$MINLON $MINLAT" > aoi_box.txt
-          # echo "$MINLON $MAXLAT" >> aoi_box.txt
-          # echo "$MAXLON $MAXLAT" >> aoi_box.txt
-          # echo "$MAXLON $MINLAT" >> aoi_box.txt
-          # echo "$MINLON $MINLAT" >> aoi_box.txt
 
-          gmt_init_tmpdir
-          gmt pscoast -Rg -JG${CENTERLON}/${CENTERLAT}/${INSET_DEGWIDTH}/${INSET_SIZE} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -Bg -Df -A5000 -Ggray -Swhite -O -K ${VERBOSE} >> map.ps
-          gmt psxy ${F_MAPELEMENTS}"bounds.txt" -W${INSET_AOI_LINEWIDTH},${INSET_AOI_LINECOLOR} -Xa${INSET_XOFF} -Ya${INSET_YOFF} ${VERBOSE} $RJOK >> map.ps
-          gmt_remove_tmpdir
+          if [[ $insetprojflag -ne 1 ]]; then
+            INSET_PROJSTRING="-RJ G ${CENTERLON} ${CENTERLAT} ${INSET_DEGWIDTH}"
+          else
+            INSET_PROJSTRING="${INSET_PROJ}"
+          fi
+
+          if [[ $INSET_ARGS == "" ]]; then
+            INSET_ARGS="-t 10m -a -pgo -pss $(echo ${INSET_SIZE} | gawk '{print $1+0}')"
+          fi
+
+          tectoplot ${INSET_PROJSTRING} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
+          echo tectoplot ${INSET_PROJSTRING} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
+
+          gmt psxy -T -O >> insetmap/map.ps
+
+          # tectoplot -RJ S ${CENTERLON} ${CENTERLAT} ${INSET_DEGWIDTH} -a -li mapelements/bounds.txt red 2p -pss $(echo ${INSET_SIZE} | gawk '{print $1+0}') -pgo -tm insetmap
+          #
+          # gmt_init_tmpdir
+          # gmt pscoast -Rg -JG${CENTERLON}/${CENTERLAT}/${INSET_DEGWIDTH}/${INSET_SIZE}  -Bg -Df -A5000 -Ggray -Swhite -K ${VERBOSE} > inset.ps
+          # gmt psxy ${F_MAPELEMENTS}"bounds.txt" -W${INSET_AOI_LINEWIDTH},${INSET_AOI_LINECOLOR} ${VERBOSE} -R -J -O >> inset.ps
+          # gmt_remove_tmpdir
+
+          PS_DIM=$(gmt psconvert insetmap/map.ps -TG -E700 -Finset -A+m0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          INSET_PS_WIDTH="$(echo $PS_DIM | gawk '{print $1/2.54}')"
+          INSET_PS_HEIGHT="$(echo $PS_DIM | gawk '{print $2/2.54}')"
+
+          if [[ $insetplacedflag -eq 1 ]]; then
+            thisJ=""
+            if [[ ${INSET_ONOFFCODE} == "J" ]]; then
+              # Place outside the map frame
+              case ${INSET_JUST_CODE} in
+                TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
+                TM) INSET_JUST="TC"; shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
+                TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
+                BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
+                BM) INSET_JUST_CODE="BC"; shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
+                BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
+                RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
+                RM) INSET_JUST_CODE="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
+                RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
+                LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
+                LM) INSET_JUST_CODE="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
+                LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
+                *)
+                  echo "Outside justification ${INSET_JUST_CODE} not recognized. Using TL."
+                  INSET_JUST_CODE="TL"
+                  shifth=0;   shiftv=30;   thisJ="+jBL"  # top edge, left side
+                ;;
+              esac
+            else
+              # Place inside the map frame
+              case ${INSET_JUST_CODE} in
+                TR|RT) shifth=10; shiftv=10 ;;
+                CR|RC) shifth=10;  shiftv=0  ;;
+                BR|RB) shifth=10;  shiftv=10  ;;
+                TC|CT) shifth=0;  shiftv=10  ;;
+                CM|MC) shifth=0; shiftv=0 ;;
+                BC|CB) shifth=0;  shiftv=10  ;;
+                TL|LT) shifth=10;  shiftv=10  ;;
+                CL|LC) shifth=10;  shiftv=0  ;;
+                BL|LB) shifth=10;  shiftv=10  ;;
+                *)
+                echo "Outside justification ${INSET_JUST_CODE} not recognized. Using BL"
+                  INSET_JUST_CODE="BL"; shifth=10;  shiftv=10
+                ;;
+              esac
+            fi
+
+            gmt psimage -D${INSET_ONOFFCODE}${INSET_JUST_CODE}+o${shifth}p/${shiftv}p+w${INSET_SIZE}i/0${thisJ} inset.png ${INSET_FILL} ${RJSTRING[@]} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -O -K ${VERBOSE} >> map.ps
+          fi
+
           ;;
 
       kinsv)
