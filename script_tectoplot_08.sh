@@ -10865,6 +10865,9 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   if [[ $recalcregionflag_circle -eq 1 ]]; then
     # For science, make a small circle that approximates the map edge
+
+    echo going in ${RJSTRING[@]}
+
     polelat=${CENTRALLATITUDE}
     polelon=${CENTRALMERIDIAN}
     poledeg=${DEGRANGE}
@@ -10896,15 +10899,25 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       fi
     fi
 
-    # The circle does not overlap a pole
+    echo $CENTRALMERIDIAN plus ${DEGRANGE}
+
+    # The circle does not overlap a pole, so just take the min and max longitudes
+    # and latitudes from the mapedge
     if [[ $gotrange -eq 0 ]]; then
-      MINLON=$(echo "$CENTRALMERIDIAN - $DEGRANGE" | bc -l)
-      MAXLON=$(echo "$CENTRALMERIDIAN + $DEGRANGE" | bc -l)
-      MINLAT=$(echo "$CENTRALLATITUDE - $DEGRANGE" | bc -l)
-      MAXLAT=$(echo "$CENTRALLATITUDE + $DEGRANGE" | bc -l)
+      MAPEDGERANGE=($(xy_range ${TMP}${F_MAPELEMENTS}mapedge_smallcircle.txt))
+      MINLON=${MAPEDGERANGE[0]}
+      MAXLON=${MAPEDGERANGE[1]}
+      MINLAT=${MAPEDGERANGE[2]}
+      MAXLAT=${MAPEDGERANGE[3]}
     fi
     rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-    RJSTRING="${rj[@]}"
+    unset RJSTRING
+
+    RJSTRING+=("${rj[0]}")
+    RJSTRING+=("${rj[1]}")
+
+
+    echo recalced to ${RJSTRING[@]}
   fi
 
   # If we read the RJ string from the custom regions file, set it here before we
