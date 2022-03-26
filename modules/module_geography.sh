@@ -35,8 +35,8 @@ BORDER_LINEWIDTH="0.5p"
 BORDER_LINECOLOR="red"
 
 COUNTRY_LABEL_FONTSIZE="8p"
-COUNTRY_LABEL_FONT="Helvetica"
-COUNTRY_LABEL_FONTCOLOR="red"
+COUNTRY_LABEL_FONT="Helvetica-bold"
+COUNTRY_LABEL_FONTCOLOR="black"
 
 BORDER_STATE_QUALITY="-Da"
 BORDER_STATE_LINEWIDTH="0.3p"
@@ -307,10 +307,11 @@ fi
     ;;
 
     -acl)
+countrylabeluselistflag=0
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--acl:          label countries
--acl [labelcolor]
+-acl:          label all or only selected countries
+-acl [[countryID1 ...]]
 Example: Outline and label the countries of Africa
   tectoplot -r =AF -a l -acb red 0.2p a -acl
 --------------------------------------------------------------------------------
@@ -318,12 +319,13 @@ EOF
   fi
 
     shift
-    if arg_is_flag $1; then
-      info_msg "[-acl]: No font color specified. Using $COUNTRY_LABEL_FONTCOLOR"
-    else
-      COUNTRY_LABEL_FONTCOLOR="${1}"
+
+    while ! arg_is_flag $1; do
+      countrylabeluselistflag=1
+      COUNTRY_LABEL_LIST+=("${1}")
       shift
-    fi
+      ((tectoplot_module_shift++))
+    done
 
     echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
@@ -505,7 +507,8 @@ function tectoplot_plot_geography() {
   case $1 in
 
   coasts)
-    gmt pscoast $COAST_QUALITY ${RIVER_COMMAND} -W1/$COAST_LINEWIDTH,$COAST_LINECOLOR -W2/$LAKE_LINEWIDTH,$LAKE_LINECOLOR $FILLCOASTS -A$COAST_KM2 $RJOK $VERBOSE >> map.ps
+  # -W2/$LAKE_LINEWIDTH,$LAKE_LINECOLOR
+    gmt pscoast $COAST_QUALITY ${RIVER_COMMAND} -W1/$COAST_LINEWIDTH,$COAST_LINECOLOR  $FILLCOASTS -A$COAST_KM2 $RJOK $VERBOSE >> map.ps
     tectoplot_plot_caught=1
     ;;
 
@@ -517,10 +520,20 @@ function tectoplot_plot_geography() {
   countries)
     gmt pscoast -Df -E+l -Vn | gawk -F'\t' '{print $1}' > ${F_MAPELEMENTS}countries.txt
     NUMCOUNTRIES=$(wc -l < ${F_MAPELEMENTS}countries.txt | gawk '{print $1+0}')
-    gmt makecpt -N -T0/${NUMCOUNTRIES}/1 -C${COUNTRIESCPT} -Vn  | gawk '{print $2}' | sort -R > ${F_MAPELEMENTS}country_colors.txt
-    paste ${F_MAPELEMENTS}countries.txt ${F_MAPELEMENTS}country_colors.txt | gawk '{printf("-E%s+g%s ", $1, $2)}' > ${F_MAPELEMENTS}combined.txt
+    gmt makecpt -N -T0/${NUMCOUNTRIES}/1 -C${COUNTRIESCPT} -Vn  | gawk '{print $2}' > ${F_MAPELEMENTS}country_colors.txt
+
+    RANDOM=2  # Confirmed to produce unique numbers for at least 300 calls
+    unset a
+    while IFS= read -r line; do a+=("$line"); done < ${F_MAPELEMENTS}countries.txt
+    for i in ${!a[@]}; do a[$((RANDOM+${#a[@]}))]="${a[$i]}"; unset a[$i]; done
+    for i in ${!a[@]}; do
+      echo ${a[${i}]} >> ${F_MAPELEMENTS}countries_shuffled.txt
+    done
+
+    paste ${F_MAPELEMENTS}countries_shuffled.txt ${F_MAPELEMENTS}country_colors.txt | gawk '{printf("-E%s+g%s ", $1, $2)}' > ${F_MAPELEMENTS}combined.txt
     string=($(cat ${F_MAPELEMENTS}combined.txt))
-    gmt pscoast -Df ${string[@]} ${RJOK} ${VERBOSE} -t${COUNTRIES_TRANS} -Slightblue >> map.ps
+    gmt pscoast -Df ${string[@]} ${RJOK} ${VERBOSE} -t${COUNTRIES_TRANS}  >> map.ps
+    # -Slightblue
     tectoplot_plot_caught=1
     ;;
 
@@ -535,7 +548,27 @@ function tectoplot_plot_geography() {
     ;;
 
   countrylabels)
-    gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}+jLM $RJOK ${VERBOSE} >> map.ps
+    if [[ $countrylabeluselistflag -eq 1 ]]; then
+      echo ${COUNTRY_LABEL_LIST[@]} | tr ' ' ',' > ${F_MAPELEMENTS}selected_country_ids.txt
+      gawk -F, '
+        BEGIN {
+          ind=0
+        }
+        (NR==FNR) {
+          # mark each input ID in the associative array
+          for(i=1;i<=NF;i++) {
+            inputs[$(i)]=1
+          }
+        }
+        (NR!=FNR) {
+          if (inputs[$1]==1) {
+            print $3, $2, $4
+          }
+        }
+      ' ${F_MAPELEMENTS}selected_country_ids.txt $COUNTRY_CODES | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
+    else
+      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
+    fi
     tectoplot_plot_caught=1
     ;;
 

@@ -171,6 +171,11 @@ function interval_and_subinterval_from_minmax_and_number () {
 
 ######## Start of script #######################################################
 
+PROFILE_WIDTH_MAX_IN=${PROFILE_WIDTH_IN}
+PROFILE_AXIS_FONT=10p,Helvetica,black
+PROFILE_TITLE_FONT=10p,Helvetica,black
+PROFILE_NUMBERS_FONT=10p,Helvetica,black
+
 cat <<-EOF > ./plot_oblique_profiles.sh
 #!/bin/bash
 PERSPECTIVE_AZ=\${1}
@@ -593,8 +598,15 @@ elif [[ ${FIRSTWORD:0:1} == "X" || ${FIRSTWORD:0:1} == "E" || ${FIRSTWORD:0:1} =
   fi
 done
 
-# Process the profile tracks one by one, in the order that they appear in the control file.
-# Keep track of which profile we are working on. (first=0)
+
+################################################################################
+################################################################################
+# Profile plotting
+
+
+# Process the profile tracks one by one, in the order that they appear in the
+# control file. Keep track of which profile we are working on. (first=0)
+
 PROFILE_INUM=0
 
 for i in $(seq 1 $k); do
@@ -606,6 +618,7 @@ for i in $(seq 1 $k); do
     COLOR=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $3}')
     XOFFSET=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $4}')
     ZOFFSET=$(head -n ${i} $TRACKFILE | tail -n 1 | gawk '{print $5}')
+
 
     # Initialize the profile plot script
     echo "#!/bin/bash" > ${F_PROFILES}${LINEID}_profile_plot.sh
@@ -637,6 +650,40 @@ for i in $(seq 1 $k); do
     }')
 
     head -n ${i} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 > ${F_PROFILES}${LINEID}_trackfile.txt
+
+
+    if [[ $profilematchmaplengthflag -eq 1 ]]; then
+      # Project the trackfile into document coordinates
+      gmt mapproject ${F_PROFILES}${LINEID}_trackfile.txt ${RJSTRING[@]} > ${F_PROFILES}${LINEID}_projected_trackfile.txt
+
+      # Calculate the incremental length along profile between points
+      PROFILE_LEN_IN=$(gawk < ${F_PROFILES}${LINEID}_projected_trackfile.txt '
+        BEGIN {
+          val=0
+          getline
+          prevx=$1
+          prevy=$2
+        }
+        {
+          dinc=sqrt(($1-prevx)^2+($2-prevy)^2)/2.54
+          prevx=$1
+          prevy=$2
+          val=val+dinc
+        }
+        END {
+          print val
+        }')
+
+      PROFILE_WIDTH_MAX=$(echo $PROFILE_WIDTH_MAX $PROFILE_LEN_IN | gawk '{print ($1>$2)?$1:$2}')
+      PROFILE_WIDTH_MAX_IN=${PROFILE_WIDTH_MAX}"i"
+
+      # TEST: set to the length of the profile in map units
+      PROFILE_WIDTH_IN=${PROFILE_LEN_IN}"i"
+    fi
+
+
+
+
 
     # Calculate the incremental length along profile between points
     gmt mapproject ${F_PROFILES}${LINEID}_trackfile.txt -G+uk+i | gawk '{print $3}' > ${F_PROFILES}${LINEID}_dist_km.txt
@@ -2086,7 +2133,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         # Now treat the labels.
         # Label files are in the format:
         # lon lat depth mag timecode ID epoch font justification
-        # -70.3007 -33.2867 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 10p,Helvetica,black TL
+        # -70.3007 -33.2867 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 ${PROFILE_NUMBERS_FONT} TL
 
         for i in ${!labelfilelist[@]}; do
           FNAME=$(echo -n "${LINEID}_"$i"projdist.txt")
@@ -2216,7 +2263,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             }
           }' > ${F_PROFILES}finaldist_${FNAME}
 
-          # 297.8 108.72 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 10p,Helvetica,black TL
+          # 297.8 108.72 108.72 4.1 2021-02-19T11:49:05 us6000diw5 1613706545 ${PROFILE_NUMBERS_FONT} TL
 
 # echo "before:"
 # head -n 1 ${F_PROFILES}finaldist_${FNAME}
@@ -2234,7 +2281,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 # echo "after:"
 # head -n 1 ${F_PROFILES}labels_${FNAME}
 # 7.41567	-80	0.138888888889	0	Helvetica,black	1998(4.1)
-# should be: 100.274	5.1732	10p,Helvetica,black	0	TL	1995(4)
+# should be: 100.274	5.1732	${PROFILE_NUMBERS_FONT}	0	TL	1995(4)
 
           # Recalculate the justification of each label based on its position on the profile
 
@@ -2294,7 +2341,6 @@ EOF
     # ON THE OBLIQUE PLOTS
     echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')" >> ${LINEID}_plot.sh
     echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)" >> ${LINEID}_plot.sh
-
 
     [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z}' | gmt psxy -p -J -R -K -O -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
     [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
@@ -2422,7 +2468,7 @@ EOF
       echo "fi" >> ${LINEID}_plot_start.sh
 
       echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_plot_start.sh
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_ANNOT_PRIMARY=\"10p,Helvetica,black\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh
@@ -2533,7 +2579,7 @@ EOF
     echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
     cleanup ${LINEID}_temp_plot.sh
-    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
     echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile_plot.sh
 
     echo "./${LINEID}_profile_plot.sh ${line_min_z} ${line_max_z}" >> ./plot_flat_profiles.sh
@@ -2583,12 +2629,14 @@ fi
 
 PROFILE_HEIGHT_IN_TMP=${PROFILE_HEIGHT_IN}
 
+# Set the scaling for the combined profiles
+
 # Set minz/maxz to ensure that H=W
 if [[ $profileonetooneflag -eq 1 ]]; then
   if [[ ${OTO_METHOD} =~ "change_z" ]]; then
     info_msg "All profiles: Setting vertical aspect ratio to H=W by changing Z range"
     diffx=$(echo "$max_x - $min_x" | bc -l)
-    hwratio=$(gawk -v h=${PROFILE_HEIGHT_IN_TMP} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (h+0)/(w+0) }')
+    hwratio=$(gawk -v h=${PROFILE_HEIGHT_IN_TMP} -v w=${PROFILE_WIDTH_MAX_IN} 'BEGIN { print (h+0)/(w+0) }')
     diffz=$(echo "$hwratio * $diffx" | bc -l)
     min_z=$(echo "$max_z - $diffz" | bc -l)
     info_msg "new min_z is $min_z"
@@ -2599,7 +2647,7 @@ if [[ $profileonetooneflag -eq 1 ]]; then
     # calculate Z range
     line_diffz=$(echo "$max_z - $min_z" | bc -l)
     # calculate new PROFILE_HEIGHT_IN
-    PROFILE_HEIGHT_IN_TMP=$(gawk -v dx=${line_diffx} -v dz=${line_diffz} -v w=${PROFILE_WIDTH_IN} 'BEGIN { print (w+0)*(dz+0)/(dx+0) }')"i"
+    PROFILE_HEIGHT_IN_TMP=$(gawk -v dx=${line_diffx} -v dz=${line_diffz} -v w=${PROFILE_WIDTH_MAX_IN} 'BEGIN { print (w+0)*(dz+0)/(dx+0) }')"i"
     info_msg "All profiles: New profile height for ${LINEID} is $PROFILE_HEIGHT_IN_TMP"
   fi
 fi
@@ -2640,15 +2688,17 @@ echo "line_min_x=${min_x}" >> plot_combined_profiles.sh
 echo "line_max_x=${max_x}" >> plot_combined_profiles.sh
 echo "line_min_z=${min_z}" >> plot_combined_profiles.sh
 echo "line_max_z=${max_z}" >> plot_combined_profiles.sh
-echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> plot_combined_profiles.sh
+echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_MAX_IN}" >> plot_combined_profiles.sh
 echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> plot_combined_profiles.sh
 PROFILE_Y_C=$(echo ${PROFILE_HEIGHT_IN} ${PROFILE_WIDTH_IN} | gawk '{print ($1+0)+($2+0)  "i"}')
 echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')"  >> plot_combined_profiles.sh
 echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)"  >> plot_combined_profiles.sh
 echo "PROFILE_Y_C=\$(echo \${PROFILE_HEIGHT_IN} \${PROFILE_WIDTH_IN} | gawk '{print (\$1+0)+(\$2+0)  \"i\"}')"  >> plot_combined_profiles.sh
-echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
+# Update March 25 2022: we just plot in the center of the area as we will cut with psconvert -A+m later
+# echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -X${PROFILE_X} -Y\${PROFILE_Y_C} -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
+echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Xc -Yc -Bltrb -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z --MAP_FRAME_PEN=thinner,black -K >> ${PSFILE}" >> plot_combined_profiles.sh
 cat plot.sh >> plot_combined_profiles.sh
-echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"10p,Helvetica,black\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
+echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psxy -T -R -J -O -Vn >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps >/dev/null 2>&1" >> plot_combined_profiles.sh
 
@@ -2683,7 +2733,7 @@ fi
 # cp buf_poly.txt /var/tmp/tectoplot
 # [[ $zeropointflag -eq 1 && $doxflag -eq 1 ]] && cp all_intersect.txt /var/tmp/tectoplot/all_intersect.txt
 
-# gmt psbasemap -Vn -BtESW+t"${LINETEXT}" -Baf -Bx+l"Distance (km)" --FONT_TITLE="10p,Helvetica,black" --MAP_FRAME_PEN=0.5p,black $RJOK >> "${PSFILE}"
+# gmt psbasemap -Vn -BtESW+t"${LINETEXT}" -Baf -Bx+l"Distance (km)" --FONT_TITLE="${PROFILE_NUMBERS_FONT}" --MAP_FRAME_PEN=0.5p,black $RJOK >> "${PSFILE}"
 
 
 # The idea here is to return to the correct X,Y position to allow further

@@ -291,6 +291,33 @@ function flatten_sea() {
   gdal_calc.py --overwrite --type=Float32 --quiet -A "${1}" --calc="((A>0)*A + (A<=0)*${setval})" --outfile="${2}"
 }
 
+function smooth_rgb_tiff() {
+  # Gaussian smoothing of RGB image using gdal VRT tools
+  gdalbuildvrt smooth.vrt ${1}
+
+  sed < smooth.vrt | sed -e 's/SimpleSource/KernelFilteredSource/g' -e 's/SimpleSource/KernelFilteredSource/g' | gawk '
+  {
+    print
+    if (substr($1,1,5)=="<DstR") {
+      print "    <Kernel normalized=\"1\">"
+      print "      <Size>5</Size>"
+      print "      <Coefs>"
+      print "        0.0036630037 0.0146520147 0.0256410256 0.0146520147 0.0036630037"
+      print "        0.0146520147 0.0586080586 0.0952380952 0.0586080586 0.0146520147"
+      print "        0.0256410256 0.0952380952 0.1501831502 0.0952380952 0.0256410256"
+      print "        0.0146520147 0.0586080586 0.0952380952 0.0586080586 0.0146520147"
+      print "        0.0036630037 0.0146520147 0.0256410256 0.0146520147 0.0036630037"
+      print "      </Coefs>"
+      print "    </Kernel>"
+    }
+  }' > smooth2.vrt
+
+  gdal_translate smooth2.vrt $2
+  rm -f smooth2.vrt smooth.vrt
+
+}
+
+
 # Takes a RGB tiff ${1} and a DEM ${2} and sets R=${3} G=${4} B=${5} for cells where DEM<=0, output to ${6}
 
 function recolor_sea() {

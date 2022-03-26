@@ -3572,10 +3572,10 @@ fi
 
   -inset)
   INSET_ONOFFCODE="j"
-  INSET_JUST_CODE="BR"
+  INSET_JUST_CODE="TR"
   INSET_LINE_COLOR="black"
   INSET_LINE_WIDTH="2p"
-  insetplacedflag=0
+  insetplacedflag=1
   INSET_FILL=""
   INSET_TRANS=0
   INSET_SIZE="1.5i"
@@ -4518,6 +4518,18 @@ fi
     clipdemflag=1
     ;;
 
+  -profmatch)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profmatch:   set profile width in inches to match total length on map
+Usage: -profmatch
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  profilematchmaplengthflag=1
+  ;;
+
   -profauto)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -5230,6 +5242,30 @@ fi
     done
 
     ;;
+
+  -whiteframe)
+  WHITEFRAME_WIDTH=10p
+  whiteframeflag=0
+
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-whiteframe:     plot a thick white map frame before any other layers
+Usage: -whiteframe [[width=${WHITEFRAME_WIDTH}]]
+
+Example:
+tectoplot -r GR -a -noframe -o example_noframe
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if ! arg_is_flag $2; then
+    WHITEFRAME_WIDTH=$2
+    shift
+  fi
+  whiteframeflag=1
+  ;;
 
   -noframe) # -noframe: do not plot coordinate grid or map frame
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -7020,6 +7056,11 @@ EOF
 shift && continue
 fi
 
+  if [[ $2 == "right" ]]; then
+    showprofrightflag=1
+    shift
+  fi
+
   if [[ $2 =~ "all" ]]; then
     SHOWPROFLIST+=(0)
     shift
@@ -8427,6 +8468,45 @@ fi
     sentinelrecolorseaflag=1
     ;;
 
+  -imblue)
+  IMBLUE_TRANS=0
+  IMBLUE_RES=10m
+  imbluedontplotimageflag=0
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-imblue:        nasa blue marble imagery
+Usage: -imblue [[resolution=${IMBLUE_RES}]] [[trans=${IMBLUE_TRANS}]]
+
+  Plot dynamically downloaded NASA Blue Marble imagery.
+  The image is automatically saved in an archive based on extent and resolution
+
+  Creates earthday.tif in ${TMP}
+
+Example: Blue Marble
+tectoplot -t -r YE -t0 -imblue -o example_imblue
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    if [[ $2 == "noplot" ]]; then
+      imbluedontplotimageflag=1
+      shift
+    fi
+    if ! arg_is_flag $2; then
+      info_msg "[-imblue]: Blue Marble image resolution set to $2"
+      IMBLUE_RES=${2}
+      shift
+    fi
+    if arg_is_positive_float $2; then
+      info_msg "[-imblue]: Blue Marble image transparency set to $2"
+      IMBLUE_TRANS=${2}
+      shift
+    fi
+
+    plots+=("bluemarble")
+  ;;
+
   -tblue) # -tblue: NASA blue marble imagery
 
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -8462,7 +8542,7 @@ fi
     touch ./sentinel.tif
     sentineldownloadflag=1
     shift
-    set -- "blank" "$@" "-timg" "sentinel.tif" "${SENTINEL_FACT}"
+    set -- "blank" "$@" "-timg" "img" "sentinel.tif" "${SENTINEL_FACT}"
     ;;
 
   -tsave) # -tsave: archive terrain visualization for a named region
@@ -8988,7 +9068,7 @@ cat <<-EOF
   be overlay combined with the first grid before fusing with terrain.
 
   fact [0-1]     blending factor with terrain intensity image
-                  0 or 1 is fully opaque; 0.9 is highly transparent
+                 0 or 1 is fully opaque; 0.9 is highly transparent
 
   Options:
   noterrain      override terrain blending; just use the fused images
@@ -9341,6 +9421,24 @@ fi
     clipgravflag=1
 
 	  ;;
+
+#   -rotate)
+#   ROTATE_ANGLE=-90
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -rotate:         rotate the map by the given angle
+# Usage: -rotate [[rotangle=${ROTATE_ANGLE}]]
+#
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#   rotatemapflag=1
+#   if arg_is_float $2; then
+#     ROTATE_ANGLE=$2
+#     shift
+#   fi
+#   ;;
 
   -vcurv) # -vcurv: plot curvature of sandwell 2019 global gravity data
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -11318,7 +11416,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
   fi
 
   ################################################################################
-  #####         Download Sentinel image                                      #####
+  #####         Download imagery from tiles.maps.eox.at                      #####
   ################################################################################
 
 
@@ -11365,10 +11463,14 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel.jgw
       echo "$MINLON" >> sentinel.jgw
       echo "$MAXLAT" >> sentinel.jgw
+
+      cat sentinel.jgw
+
       echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
       gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
       cp sentinel.tif ${SENT_DIR}${SENT_FNAME}
     fi
+
 
     echo $SENTINEL_SOURCESTRING >> ${LONGSOURCES}
     echo $SENTINEL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -15096,6 +15198,10 @@ done
 
   gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
 
+  if [[ $whiteframeflag -eq 1 ]]; then
+    gmt psbasemap "${BSTRING[@]}+gwhite" --MAP_FRAME_PEN=${WHITEFRAME_WIDTH},white $RJOK $VERBOSE >> map.ps
+  fi
+
   # We can just use cp instead of running GMT so many times...
 
   gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
@@ -16453,7 +16559,6 @@ EOF
           fi
 
           tectoplot ${INSET_PROJSTRING} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
-          echo tectoplot ${INSET_PROJSTRING} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
 
           gmt psxy -T -O >> insetmap/map.ps
 
@@ -17201,6 +17306,10 @@ EOF
           fi
         fi
 
+        # I can calculate the map coordinates of the start and end points for
+        # each profile and then set PROFILE_WIDTH/PROFILE_HEIGHT accordingly?
+
+
         info_msg "Drawing profile(s)"
 
         MAP_PSFILE=$(abs_path map.ps)
@@ -17247,7 +17356,6 @@ EOF
             gmt psxy $track_file -Sc0.003i -Gblack $RJOK $VERBOSE >> map.ps
           done
         fi
-
 
         # Plot the buffers around the polylines, for debugging
         # if [[ -e buf_poly.txt ]]; then
@@ -17373,7 +17481,7 @@ EOF
               # Find size of ${F_PROFILES}all_profiles.ps
               PS_DIM=$(gmt psconvert ${F_PROFILES}all_profiles.ps -F${F_PROFILES}all_profiles -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
               PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
-              PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${PROFILE_WIDTH_IN} '{print ($1/2.54-(p_orig+0))/2}')
+              PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
               PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
               gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}all_profiles.eps $RJOK ${VERBOSE} >> map.ps
             else
@@ -17382,7 +17490,7 @@ EOF
                 info_msg "Plotting line ${profile_number} from file $SLURP_PROFID.ps"
                 PS_DIM=$(gmt psconvert ${F_PROFILES}${SLURP_PROFID}.ps -F${F_PROFILES}${SLURP_PROFID} -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
                 PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
-                PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${PROFILE_WIDTH_IN} '{print ($1/2.54-(p_orig+0))/2}')
+                PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
                 PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
                 gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${SLURP_PROFID}.eps $RJOK ${VERBOSE} >> map.ps
               fi
@@ -17910,6 +18018,40 @@ EOF
         fi
       ;;
 
+      bluemarble)
+
+          gmt_init_tmpdir
+
+          gmt grdmath -Rd -I${IMBLUE_RES} -r $(gmt solar -C -o0:1 -I+d2000-06-22T24:00+z-10) 2 DAYNIGHT = w.grd
+          gmt grdcut @earth_day_${IMBLUE_RES} -Gearthday_pct.tif ${RJSTRING[@]} ${VERBOSE}
+          gmt grdcut @earth_night_${IMBLUE_RES} -Gearthnight_pct.tif ${RJSTRING[@]} ${VERBOSE}
+
+          gmt grdcut w.grd -Rearthnight_pct.tif -Gwout.grd
+
+
+          pct2rgb.py earthday_pct.tif earthday_prescale.tif >/dev/null 2>&1 && rm -f earthday_pct.tif
+          pct2rgb.py earthnight_pct.tif earthnight.tif >/dev/null 2>&1 && rm -f earthnight_pct.tif
+          gdal_translate -scale 20 180 0 255 -ot Byte earthday_prescale.tif earthday.tif
+          # gdalwarp -r cubic -ot Byte earthday_prescale.tif earthday.tif
+
+          smooth_rgb_tiff earthday.tif earthdaysmooth.tif
+          # gmt grdfilter earthday.tif -Dp -Fg3 -Gearthdaysmooth.tif
+          gmt grdmix earthdaysmooth.tif earthnight.tif -Wwout.grd -Gearthcombo.tif
+
+
+          # pct2rgb.py earthday_pct.tif earthday_prescale.tif >/dev/null 2>&1 && rm -f earthday_pct.tif
+          # gdal_translate -of GTiff -ot Byte -scale 20 210 0 255 earthday_prescale.tif earthday.tif
+        gmt_remove_tmpdir
+
+        if [[ $imbluedontplotimageflag -ne 1 ]]; then
+          gmt grdimage earthcombo.tif ${RJOK} ${VERBOSE} >> map.ps
+        fi
+
+
+      ;;
+
+
+
       topo)
 
      # Somehow, we need to handle the case where no topo is plotted but Sentinel
@@ -18280,15 +18422,22 @@ EOF
                 # Change to 8 bit unsigned format
                 gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadowed.tif -q
 
+                gdal_fillnodata.py -md 10000 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
+                # gdal_calc.py --overwrite --type=Byte --format=GTiff --quiet -A ${F_TOPO}shadowed.tif --calc="((A==127)*254 + (A!=127)*A)" --outfile=${F_TOPO}shadowed_fixed.tif
+
+                # gdalbuildvrt -srcnodata 255 -vrtnodata 0 /vsistdout/ ${F_TOPO}shadowed.tif | gdal_translate -a_nodata 1 /vsistdin/ ${F_TOPO}shadowed_fixed.tif
+
+
+
                 # echo "SHADOW"
                 # gdalinfo ${F_TOPO}shadow.tif
                 smoothshadowsflag=1
                 if [[ $smoothshadowsflag -eq 1 ]]; then
                   info_msg Smoothing shadow map
-                  gmt grdfilter -Fg5 ${F_TOPO}shadowed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -Dp
+                  gmt grdfilter -Fg5 ${F_TOPO}shadowed_fixed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -Dp
                   shadowtoplot=${F_TOPO}shadow_smoothed.tif
                 else
-                  shadowtoplot=${F_TOPO}shadowed.tif
+                  shadowtoplot=${F_TOPO}shadowed_fixed.tif
                 fi
 
                 # Smooth the shadows using cubic interpolation
@@ -18909,9 +19058,6 @@ EOF
 
   fi
 
-
-
-
   ##### -seisproj
 
   ### Plot seismicty vs depth in a projected (X) frame below the map frame
@@ -19128,7 +19274,6 @@ EOF
         gmt_remove_tmpdir
       fi
   fi
-
 
 
   # This is likely not compatible with the above section
@@ -19873,7 +20018,22 @@ done
 
 # Close the PS if we need to
 # if [[ $legendonlyflag -ne 1 ]]; then
-   gmt psxy -T -R -J -O $KEEPOPEN $VERBOSE >> map.ps
+  gmt psxy -T -R -J -O $KEEPOPEN $VERBOSE >> map.ps
+
+
+# # rotate the map?
+#
+#   if [[ $rotatemapflag -eq 1 ]]; then
+#     mv map.ps prerotate.ps
+#     PS_DIM=$(gmt psconvert prerotate.ps -TG -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+#     PS_WIDTH="$(echo $PS_DIM | gawk '{print $1/2.54}')"
+#     PS_HEIGHT="$(echo $PS_DIM | gawk '{print $2/2.54}')"
+#     echo w is ${PS_WIDTH}
+#
+# # -D${LEGEND_ONOFFCODES[$i]}${LEGEND_JUST}+o${shifth}p/${shiftv}p+w${LEG_WIDTH_IN}i${thisJ}
+#     gmt psimage prerotate.png -Dx0/0+w${PS_WIDTH}i ${RJSTRING[@]} -p${ROTATE_ANGLE} > map.ps
+#   fi
+
 
   echo "${COMMAND}" > "$MAPOUT.history"
   echo "${COMMAND}" >> $OPTDIR"tectoplot.history"

@@ -205,10 +205,20 @@ Example: None
 EOF
 fi
     shift
-
-    IMAGENAME=$(abs_path $1)
-    shift
-    ((tectoplot_module_shift++))
+    echo $@
+    if [[ $1 == "sentinel.tif" ]]; then
+      IMAGENAME=$1
+    else
+      if [[ -s $2 ]]; then
+        IMAGENAME=$(abs_path $1)
+        shift
+        ((tectoplot_module_shift++))
+      else
+        IMAGENAME=${1}
+        shift
+        ((tectoplot_module_shift++))
+      fi
+    fi
 
     # Args come in the form $ { -t50 -cX.cpt }
     if [[ ${1:0:1} == [{] ]]; then
@@ -645,6 +655,7 @@ function tectoplot_plot_gis() {
   ;;
 
   gis_image)
+  echo gmt grdimage ${IMAGENAME} -Q $RJOK $VERBOSE
     gmt grdimage ${IMAGENAME} -Q $RJOK $VERBOSE >> map.ps
     tectoplot_plot_caught=1
   ;;
