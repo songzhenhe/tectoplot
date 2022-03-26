@@ -285,7 +285,62 @@ function xy_range() {
     }'
 }
 
+# function that takes in file of lon lat polyline/polygons and removes large
+# jumps in longitude across the dateline
 
+function fix_dateline_poly() {
+  gawk < $1 '
+  function abs(x) { return (x>0)?x:-x }
+  function addf(u,v, a, b) {
+    split(u,a,".")
+    split(v,b,".")
+    return sprintf("%d.%d", a[1]+b[1], a[2]+b[2])
+  }
+
+  BEGIN {
+    getmore=1
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      print
+    }
+    modifier=0
+  }
+
+  ($1+0!=$1) {
+    getmore=1
+    print
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1
+        oldlat=$2
+        getmore=0
+      }
+      print
+      modifier=0
+    }
+  }
+  ($1+0==$1) {
+    lon=$1
+    lat=$2
+    # Check to see if we crossed the dateline
+    if (abs(lon-oldlon)>350) {
+      if (oldlon > lon) {
+        modifier=modifier+360.0
+      } else {
+        modifier=modifier-360.0
+      }
+    }
+    oldlon=lon
+    oldlat=lat
+    print addf(lon,modifier), lat
+  }'
+}
 
 
 # gawk code inspired by lat_lon_parser.py by Christopher Barker
