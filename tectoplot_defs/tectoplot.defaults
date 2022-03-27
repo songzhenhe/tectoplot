@@ -338,8 +338,8 @@ MAXLAT=-4.5                  # default region, Solomon Islands
 MAXLON=162                   # default region, Solomon Islands
 MINLAT=-12                   # default region, Solomon Islands
 MINLON=154                   # default region, Solomon Islands
-REFPTLAT=-6                  # reference point latitude
-REFPTLON=160                 # reference point longitude
+#REFPTLAT=-6                  # reference point latitude
+#REFPTLON=160                 # reference point longitude
 
 ################################################################################
 ##### Slab2 options

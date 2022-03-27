@@ -3069,11 +3069,15 @@ EOF
 shift && continue
 fi
 		refptflag=1
-		REFPTLON="${2}"
-		REFPTLAT="${3}"
-		shift
-		shift
-		info_msg "[-f]: Reference point is ${REFPTLON}/${REFPTLAT}"
+    if arg_is_float $2; then
+      REFPTLON="${2}"
+      shift
+    fi
+    if arg_is_float $2; then
+		  REFPTLAT="${2}"
+      shift
+      info_msg "[-f]: Reference point is ${REFPTLON}/${REFPTLAT}"
+    fi
     plots+=("refpoint")
 	   ;;
 
@@ -3588,7 +3592,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -inset:        place an inset globe showing map aoi
-Usage: -inset [[size=${INSET_SIZE}]] [[degree_width=${INSET_DEGREE}]] [[x_shift=${INSET_XOFF}]] [[y_shift=${INSET_YOFF}]]
+Usage: -inset [formula] [[options]
+Usage: -inset [[options]]
+
+  formulas:
+  country              inset map or colored countries and white sea
+                       Useful options: onmap, -pgs, degw
+
+  topo                 inset map of GMT shaded relief, high saturation
 
   Plot an inset globe. Default location is lower left of map; can be modified
   with x_shift and y_shift values.
@@ -3611,6 +3622,20 @@ ExampleEnd
 EOF
 shift && continue
 fi
+
+    if [[ $2 == "country" ]]; then
+      shift
+      shift
+      set -- "blank" "size" "2i" "args" "-pgo -countries -a -whiteframe 0p -pss 3" "$@"
+    elif [[ $2 == "topo" ]]; then
+      shift
+      shift
+      set -- "blank" "size" "2i" "args" "-t 10m -whiteframe 10p -pss 3" "$@"
+    elif [[ $2 == "plates" ]]; then
+      shift
+      shift
+      set -- "blank" "size" "2i" "args" "\"-setvars { PLATEVEC_COLOR white } -t 10m -t0 -tx -tpct 2 90 -p MORVEL -a -pc random 60 -pf 1000 -pa notext -pvl -whiteframe 10p -pss 3\"" "$@"
+    fi
 
     while ! arg_is_flag $2; do
       case $2 in
@@ -3650,8 +3675,40 @@ fi
           fi
         ;;
         args)
+
+          # We have to account for situations where the tectoplot command looks
+          # like args "arg1 arg2" args "a b c" where "a is an argument, b is
+          # and argument, and c" is an argument. This is due to auto_tectoplot.sh
+          # passing quoted strings to tectoplot
+
           shift
-          INSET_ARGS="${2}"
+          if [[ "${2:0:1}" != "\"" ]]; then
+            if [[ $INSET_ARGS == "" ]]; then
+              INSET_ARGS="${2}"
+            else
+              INSET_ARGS="${INSET_ARGS} ${2}"
+            fi
+          elif [[ "${2:0:1}" == "\"" && "${2: -1}" == "\"" ]]; then
+            if [[ $INSET_ARGS == "" ]]; then
+              INSET_ARGS="${2:1:${#2}-2}"
+            else
+              INSET_ARGS="${INSET_ARGS} ${2:1:${#2}-2}"
+            fi
+          elif [[ "${2:0:1}" == "\"" && "${2: -1}" != "\"" ]]; then
+            this_arg=$2
+            shift
+            while [[ "${2: -1}" != "\"" && $2 != "" ]]; do
+              this_arg="${this_arg} ${2}"
+              shift
+            done
+            this_arg="${this_arg} ${2}"
+            cut_arg=${this_arg:1:${#this_arg}-2}
+            if [[ $INSET_ARGS == "" ]]; then
+              INSET_ARGS="${cut_arg}"
+            else
+              INSET_ARGS="${INSET_ARGS} ${cut_arg}"
+            fi
+          fi
           shift
         ;;
         proj)
@@ -6591,11 +6648,15 @@ fi
   SCALE_FRAME_COLOR="black"
   bigtickformat="-W0.4p,black"
   smalltickformat="-W0.25p,black"
+
   SCALEFILL=""
   SCALE_TRANS=0
-  scalenolabelflag=0
+  scalenolabelflag=0     # Don't plot interior text
   scaleautorefptflag=1   # Use center of map by default
-  scaleplotNflag=0
+  scaleplotNflag=0       # Plot north arrow at start of scale
+  scalehorzflag=0        # Enforce horizontality of scale
+  scalebarorthogonalflag=0  # not implemented
+
 
   SCALE_FONTDEF=${SCALE_FONTSIZE},${SCALE_FONT},${SCALE_FONTCOLOR}
   SCALE_BORDER="+p${SCALE_BORDER_WIDTH},${SCALE_BORDER_COLOR}"
@@ -6610,6 +6671,7 @@ cat <<-EOF
 Usage: -scale [[options]]
 
   [[options]]
+  horz                  Force the scale bar to be horizontal
   length [length]       Specify length of scale in projected units
   height [points]       Specify height of scale box; fonts scale also
   maplength [length]    Specify width of scale in inches; requires refpt
@@ -6648,6 +6710,10 @@ fi
 
     while ! arg_is_flag "${2}"; do
       case "${2}" in
+        horz)
+          shift
+          scalehorzflag=1
+        ;;
         height)
           shift
           if arg_is_positive_float $2; then
@@ -11383,11 +11449,15 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   ################################################################################
   ##### Check if the reference point is within the data frame
 
+  if [[ $REFPTLAT == "" || $REFPTLON == "" ]]; then
+    info_msg "Reference point $REFPTLON $REFPTLAT undefined. Moving to center of frame."
+  	REFPTLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
+  	REFPTLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+  fi
   if [[ $(echo "$REFPTLAT > $MINLAT && $REFPTLAT < $MAXLAT && $REFPTLON < $MAXLON && $REFPTLON > $MINLON" | bc -l) -eq 0 ]]; then
     info_msg "Reference point $REFPTLON $REFPTLAT falls outside the frame. Moving to center of frame."
   	REFPTLAT=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
   	REFPTLON=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
-    info_msg "Reference point moved to $REFPTLON $REFPTLAT"
   fi
 
 
@@ -16568,7 +16638,7 @@ EOF
             INSET_ARGS="-t 10m -a -pgo -pss $(echo ${INSET_SIZE} | gawk '{print $1+0}')"
           fi
 
-          tectoplot ${INSET_PROJSTRING} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
+          tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
 
           gmt psxy -T -O >> insetmap/map.ps
 
@@ -16686,6 +16756,13 @@ EOF
 
       mapscale)
 
+        # If we are plotting a horizontal scalebar, then we have to turn off the
+        # scaleatrefflag and the north arrow plotting.
+        if [[ $scalehorzflag -eq 1 ]]; then
+          # scaleatrefflag=0
+          scaleplotNflag=0
+        fi
+
         # The center of the map is the reference lon/lat point by default
         if [[ $scaleautorefptflag -eq 1 ]]; then
           SCALEREFLON=${CENTERLON}
@@ -16698,6 +16775,11 @@ EOF
           SCALEREFLAT=${p1[1]}
         fi
 
+        if [[ ${SCALEREFLON} == "" || ${SCALEREFLAT} == "" ]]; then
+          SCALEREFLON=${CENTERLON}
+          SCALEREFLAT=${CENTERLAT}
+        fi
+
         if [[ $scalebarbywidthflag -eq 1 ]]; then
         # Plot a scale bar with a given width in inches, place on map as PS file.
 
@@ -16707,8 +16789,8 @@ EOF
           MAPXY_END[0]=$(echo "${MAPXY[0]} + $SCALE_MAPLENGTH*2.54" | bc -l)
           MAPXY_END[1]=${MAPXY[1]}
           SCALE_END=($(echo "${MAPXY_END[@]}" | gmt mapproject -I ${RJSTRING[@]}))
-          # echo mapxyend is ${MAPXY_END[@]} at ${SCALE_END[@]}
-          # echo ${SCALE_END[@]} | gmt psxy -Sc0.05i -Gred ${RJOK} >> map.ps
+
+          # Calculate the new scale length that is rounded for nice internal divisions
           SCALE_LENGTH=$(echo ${SCALE_END[@]} | gmt mapproject -G${SCALEREFLON}/${SCALEREFLAT} ${RJSTRINGp[@]} | gawk -v nd=${SCALE_NUMDIVS} '
             @include "tectoplot_functions.awk"
             {
@@ -16719,35 +16801,42 @@ EOF
             }')
         fi
 
-
+        # If we are plotting a geographic scale directly onto the map
         if [[ $scaleatrefflag -eq 1 ]]; then
-          SCALEPSFILE="map.ps"
+          SCALEPSFILE=map.ps
         else
+          # If we are plotting onto the legend or off of the map
           gmt psxy -T -R -J -K > scale.ps
-          SCALEPSFILE="scale.ps"
+          SCALEPSFILE=scale.ps
         fi
 
+        # Length without unit
         scalenot=$(echo $SCALE_LENGTH | gawk '{print ($1+0)}')
+        # Half length without unit
         scalehalf=$(echo $SCALE_LENGTH | gawk '{print ($1+0)/2}')
+        # Tenth length without unit
         scaletenth=$(echo $SCALE_LENGTH | gawk '{print ($1+0)/10}')
+        # The scale unit - only km currently works but could use info from
+        # geod to convert units to km
         scaleunit=$(echo $SCALE_LENGTH | sed 's/[^A-Za-z]*//g')
 
-        # echo scalenot is ${scalenot} and scaleunit is ${scaleunit}
+        # Allow k unit as synonym of km
         if [[ $scaleunit == "" || $scaleunit == "k" ]]; then
           scaleunit="km"
         fi
 
+        # Origpoint is the lon lat coords of the reference point
         Origpoint[0]=${SCALEREFLON}
         Origpoint[1]=${SCALEREFLAT}
         # XYpoint=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING[@]}))
 
-        # American unit names (meter vs metre)
-        geodunit=$(geod -lu | gawk -v unit=${scaleunit} '($1==unit) {
-            for(i=3;i<NF;i++) {
-              printf("%s ", $(i))
-            }
-            printf("%s", $(NF))
-          }' | sed 's/metre/meter/g')
+        # # American unit names (meter vs metre)
+        # geodunit=$(geod -lu | gawk -v unit=${scaleunit} '($1==unit) {
+        #     for(i=3;i<NF;i++) {
+        #       printf("%s ", $(i))
+        #     }
+        #     printf("%s", $(NF))
+        #   }' | sed 's/metre/meter/g')
 
         #        2  C
         #
@@ -16756,14 +16845,19 @@ EOF
         #        O         p1h       1
         #
         #
-        # Point1=($(project_point_dist_az ${SCALEREFLON} ${SCALEREFLAT} 90 ${scalenot} ${scaleunit}))
+
+        # Point 1 is the eastward projection from the starting point by the given
+        # distance. The path connecting Origpoint and Point1 might curve, so
+        # a Cartesian distance calculation isn't actually correct.
+
+
+
         Point1=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalenot} ${scaleunit}))
 
-        # ANGLE=$(onmap_angle_between_points ${Origpoint[@]} ${Point1[@]})
-        # echo ANGLE is ${ANGLE}
         # Meridian distance projection not yet implemented!
-        Point2=($(project_point_dist_az ${SCALEREFLON} ${SCALEREFLAT} 0 ${scalenot} ${scaleunit}))
+        # Point2=($(project_point_dist_az ${SCALEREFLON} ${SCALEREFLAT} 0 ${scalenot} ${scaleunit}))
 
+        # Point1Half is halfway between Origpoint and Point1
         Point1Half=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalehalf} ${scaleunit}))
 
         SCALEBAR_HALFWIDTH_P=$(echo "$SCALEBAR_WIDTH_P / 2" | bc -l)
@@ -16773,150 +16867,192 @@ EOF
         SCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.75"  | bc -l)
         INSIDESCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.6"  | bc -l)
 
-        scalebarorthogonalflag=0
-        # Code to plot the north-south scale can be written. But it's a LOT of work...
-
-
-
-        # Plot a scale bar with a given length and increment, either on the map
-        # or as a PS file that can be placed.
-
         DIVEND=$(echo "$SCALE_NUMDIVS - 1" | bc)
+
+        # We plot alternating color rectangles behind the scale
         iseven=1
         evencolor="white"
         oddcolor="lightgray"
         thiscolor=$evencolor
 
-        for subindex in $(seq 0 $DIVEND); do
-          DIVPREV=$(echo "$scalenot * ($subindex - 1) / ${SCALE_NUMDIVS}" | bc -l)
+        # For horizontal scales, start map distance at 0
+        TOTALMAPDIST=0
 
-          DIVLOW=$(echo "$scalenot * $subindex / ${SCALE_NUMDIVS}" | bc -l)
-          DIVHIGH=$(echo "$scalenot * ($subindex + 1) / ${SCALE_NUMDIVS}" | bc -l)
-          DIVPAST=$(echo "$scalenot * ($subindex + 2) / ${SCALE_NUMDIVS}" | bc -l)
+        # Horizontal scale bar section
+        if [[ $scalehorzflag -eq 100 ]]; then
 
-          PointPrev=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVPREV} ${scaleunit}))
-          PointU=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVLOW} ${scaleunit}))
-          PointV=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVHIGH} ${scaleunit}))
-          PointPast=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVPAST} ${scaleunit}))
+          # Calculate the length in map space of the Origpoint-Point 1 curve, using
+          # the specified number of segments
+          for subindex in $(seq 0 $DIVEND); do
+            DIVLOW=$(echo "$scalenot * $subindex / ${SCALE_NUMDIVS}" | bc -l)
+            DIVHIGH=$(echo "$scalenot * ($subindex + 1) / ${SCALE_NUMDIVS}" | bc -l)
+            PointU=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVLOW} ${scaleunit}))
+            PointV=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVHIGH} ${scaleunit}))
 
-          # Calculate azimuth from PointU to PointV
-          ANGLE1=$(onmap_angle_between_points ${PointU[@]} ${PointV[@]})
-          ANGLE2=$(onmap_angle_between_points ${PointV[@]} ${PointPast[@]})
+            # Find the distance on the map for this increment of the scale
+            DIVMAPDIST=$(onmap_distance_between_points ${PointU[@]} ${PointV[@]})
+          done
+          exit 1
 
-          if [[ $subindex -eq 0 ]]; then
-            # The upper left corner of the horizontal scale bar
-            # ANGLE=$ANGLE1
-            NorthPt[1]=${Origpoint[1]}
-            NorthPt[0]=$(echo "${Origpoint[0]}+0.1" | bc -l)
-            ANGLE=$(onmap_angle_between_points ${Origpoint[@]} ${NorthPt[@]})
-            STARTANGLE=$ANGLE
-            OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+        else
+          # Non-horizontal scale bar section
+          for subindex in $(seq 0 $DIVEND); do
+            DIVLOW=$(echo "$scalenot * $subindex / ${SCALE_NUMDIVS}" | bc -l)
+            DIVHIGH=$(echo "$scalenot * ($subindex + 1) / ${SCALE_NUMDIVS}" | bc -l)
+            DIVPAST=$(echo "$scalenot * ($subindex + 2) / ${SCALE_NUMDIVS}" | bc -l)
 
-            PointA=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
-            PointB=($(point_map_offset_rotate_m90 ${Origpoint[@]} ${SCALEBAR_WIDTH_P} ${SCALEBAR_WIDTH_P}  ${ANGLE}))
-            PointC=($(point_map_offset_rotate_m90 ${Point2[@]} ${SCALEBAR_WIDTH_P} 0  ${ANGLE}))
-            PointD=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P}  ${ANGLE}))
+            PointU=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVLOW} ${scaleunit}))
+            PointV=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVHIGH} ${scaleunit}))
+            PointPast=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${DIVPAST} ${scaleunit}))
 
-            OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
-            OrigpointHalfPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} ${SCALEBAR_HALFWIDTH_P} 0  ${ANGLE}))
-            OrigpointHalfPlusHY=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
+            # Calculate on-map azimuth and distance between PointU to PointV
+            # Angles are only useful for fully geographic scales
+            ANGLE1=$(onmap_angle_between_points ${PointU[@]} ${PointV[@]})
+            ANGLE2=$(onmap_angle_between_points ${PointV[@]} ${PointPast[@]})
 
-            Point1PlusH=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
-            Point1HalfPlus=($(point_map_offset_rotate_m90 ${Point1Half[@]} 0 ${SCALEBAR_WIDTH_P}  ${ANGLE}))
-            Point2PlusH=($(point_map_offset_rotate_m90 ${Point2[@]} ${SCALEBAR_HALFWIDTH_P} 0  ${ANGLE}))
+            # IF we are plotting a horizontal scale, we need to set ANGLE1=ANGLE2=90
 
-            TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
-            PointW=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
-            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+            if [[ $scalehorzflag -eq 1 ]]; then
+              # PointPast is not relevant as the angle is 90 anyway
+              ANGLE1=90
+              ANGLE2=90
 
-            echo "${Origpoint[@]}T${TickV[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-            echo "${PointW[@]}T${TickW[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+              DIVMAPDIST=$(onmap_distance_between_points ${PointU[@]} ${PointV[@]})
+              TOTALMAPDISTPREV=${TOTALMAPDIST}
+              TOTALMAPDIST=$(echo "${TOTALMAPDIST} + ${DIVMAPDIST}*72" | bc -l)
+              TOTALMAPDISTPAST=$(echo "${TOTALMAPDIST} + 2*${DIVMAPDIST}*72" | bc -l)  # inches
 
-            # Plot the north arrow and letter N
-            if [[ $scaleplotNflag -eq 1 ]]; then
-              TickW2=($(point_map_offset_rotate_m90 ${PointW[@]} 0 $(echo "5*${SCALEBAR_TICKLEN_P}" | bc -l) ${ANGLE}))
-              echo "${Origpoint[@]}T${TickW2[@]}" | tr 'T' '\n' | gmt psxy -W0.35p,black+ve0.075i+l+h0+p0.35p,black+gwhite ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-              rotang=$(echo "90 - $ANGLE" | bc -l)
-              rotfont=$(echo "${INSIDESCALEBARFONTSIZE}*0.8" | bc -l)
-              echo "${TickW[@]} $rotang N" | gmt pstext -F+f${rotfont}p,Helvetica,black+A+jBL -D1p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+              # echo DIVMAPDIST is ${DIVMAPDIST} totalmap ${TOTALMAPDIST}
 
+              # Now we need to set Point U/V to be the point exactly to the right of OriginPoint
+              PointU=($(point_map_offset ${Origpoint[@]} ${TOTALMAPDISTPREV} 0))
+              PointV=($(point_map_offset ${Origpoint[@]} ${TOTALMAPDIST} 0))
             fi
-          fi
-          ANGLEPAST=$ANGLE
 
-          ANGLE=$(echo $ANGLE1 $ANGLE2 | gawk '
-            function rad2deg(rad)  { return (180 / getpi()) * rad   }
-            function deg2rad(deg)  { return (getpi() / 180) * deg   }
-            function getpi()       { return atan2(0,-1)             }
-            function ave_dir(d1, d2) {
-              sumcos=cos(deg2rad(d1))+cos(deg2rad(d2))
-              sumsin=sin(deg2rad(d1))+sin(deg2rad(d2))
-              val=rad2deg(atan2(sumsin, sumcos))
-              return val
-            }
-            {
-              print (ave_dir($1, $2) + 360) % 360
-            }')
 
-          PointW=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
-          PointX=($(point_map_offset_rotate_m90 ${PointU[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLEPAST}))
-          PointVHalf=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+            if [[ $subindex -eq 0 ]]; then
+              # The upper left corner of the horizontal scale bar
+              # ANGLE=$ANGLE1
+              NorthPt[1]=${Origpoint[1]}
+              NorthPt[0]=$(echo "${Origpoint[0]}+0.1" | bc -l)
+              ANGLE=$(onmap_angle_between_points ${Origpoint[@]} ${NorthPt[@]})
 
-          if [[ $scaleskiplabelflag -eq 1 && $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
-            TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
-            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
-            echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> bigticks.txt
-            echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> bigticks.txt
-          else
-            TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
-            TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
-            echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> smallticks.txt
-            echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> smallticks.txt
-          fi
+              # For horizontal flags, we fix the angle to 0
+              if [[ $scalehorzflag -eq 1 ]]; then
+                ANGLE=90
+              fi
 
-          if [[ $thiscolor == $oddcolor ]]; then
-            echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> oddcolor.txt
-          else
-            echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> evencolor.txt
-          fi
+              STARTANGLE=$ANGLE
+              OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
 
-          if [[ $subindex -eq 0 ]]; then
-            therestring=${PointV[@]}"T"${Origpoint[@]}
-            herestring=${Origpoint[@]}"T"${PointX[@]}"T"${PointW[@]}
-          else
-            therestring=${PointV[@]}"T"${therestring}
-            herestring=${herestring}"T"${PointW[@]}
-          fi
+              OrigpointPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
+              OrigpointHalfPlusH=($(point_map_offset_rotate_m90 ${Origpoint[@]} ${SCALEBAR_HALFWIDTH_P} 0  ${ANGLE}))
+              OrigpointHalfPlusHY=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
 
-          PointVHalfPlus=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+              Point1PlusH=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
 
-          DIV2DP=$(printf "%.2f" $DIVHIGH)
-          if [[ "${DIV2DP}" == *.* ]]; then
-            DIVLABELTEXT=$(echo ${DIV2DP} | sed 's/[0]*$//g' | sed 's/[.]*$//g')
-          else
-            DIVLABELTEXT=${DIV2DP}
-          fi
+              TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              PointW=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
 
-          TEXTANGLE=$(echo "90-$ANGLE" | bc -l)
+              echo "${Origpoint[@]}T${TickV[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+              echo "${PointW[@]}T${TickW[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
 
-          if [[ $subindex -ne $DIVEND ]]; then
-            if [[ $scaleskiplabelflag -eq 1 ]]; then
-              if [[ $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
+              # Plot the north arrow and letter N
+              if [[ $scaleplotNflag -eq 1 ]]; then
+                TickW2=($(point_map_offset_rotate_m90 ${PointW[@]} 0 $(echo "5*${SCALEBAR_TICKLEN_P}" | bc -l) ${ANGLE}))
+                echo "${Origpoint[@]}T${TickW2[@]}" | tr 'T' '\n' | gmt psxy -W0.35p,black+ve0.075i+l+h0+p0.35p,black+gwhite ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+                rotang=$(echo "90 - $ANGLE" | bc -l)
+                rotfont=$(echo "${INSIDESCALEBARFONTSIZE}*0.8" | bc -l)
+                echo "${TickW[@]} $rotang N" | gmt pstext -F+f${rotfont}p,Helvetica,black+A+jBL -D1p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+              fi
+            fi
+
+            ANGLEPAST=$ANGLE
+
+            ANGLE=$(echo $ANGLE1 $ANGLE2 | gawk '
+              function rad2deg(rad)  { return (180 / getpi()) * rad   }
+              function deg2rad(deg)  { return (getpi() / 180) * deg   }
+              function getpi()       { return atan2(0,-1)             }
+              function ave_dir(d1, d2) {
+                sumcos=cos(deg2rad(d1))+cos(deg2rad(d2))
+                sumsin=sin(deg2rad(d1))+sin(deg2rad(d2))
+                val=rad2deg(atan2(sumsin, sumcos))
+                return val
+              }
+              {
+                print (ave_dir($1, $2) + 360) % 360
+              }')
+
+            PointW=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
+            PointX=($(point_map_offset_rotate_m90 ${PointU[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLEPAST}))
+            PointVHalf=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+
+            if [[ $scaleskiplabelflag -eq 1 && $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
+              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
+              echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> bigticks.txt
+              echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> bigticks.txt
+            else
+              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> smallticks.txt
+              echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> smallticks.txt
+            fi
+
+            if [[ $thiscolor == $oddcolor ]]; then
+              echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> oddcolor.txt
+            else
+              echo ">T${PointU[@]}T${PointV[@]}T${PointW[@]}T${PointX[@]}T${PointU[@]}" | tr 'T' '\n' >> evencolor.txt
+            fi
+
+            # Build up the boundary polygon
+            if [[ $subindex -eq 0 ]]; then
+              therestring=${PointV[@]}"T"${Origpoint[@]}
+              herestring=${Origpoint[@]}"T"${PointX[@]}"T"${PointW[@]}
+            else
+              therestring=${PointV[@]}"T"${therestring}
+              herestring=${herestring}"T"${PointW[@]}
+            fi
+
+            PointVHalfPlus=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
+
+            DIV2DP=$(printf "%.2f" $DIVHIGH)
+            if [[ "${DIV2DP}" == *.* ]]; then
+              DIVLABELTEXT=$(echo ${DIV2DP} | sed 's/[0]*$//g' | sed 's/[.]*$//g')
+            else
+              DIVLABELTEXT=${DIV2DP}
+            fi
+
+            TEXTANGLE=$(echo "90-$ANGLE" | bc -l)
+
+            if [[ $subindex -ne $DIVEND ]]; then
+              if [[ $scaleskiplabelflag -eq 1 ]]; then
+                if [[ $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
+                  echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                fi
+              else
                 echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
               fi
-            else
-              echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
             fi
-          fi
 
-          if [[ $iseven -eq 1 ]]; then
-            iseven=0
-            thiscolor=$oddcolor
-          else
-            iseven=1
-            thiscolor=$evencolor
-          fi
-        done
+            if [[ $iseven -eq 1 ]]; then
+              iseven=0
+              thiscolor=$oddcolor
+            else
+              iseven=1
+              thiscolor=$evencolor
+            fi
+          done
+        fi  # End non-horizontal scale bar section
+
+        # At this point, we need these files:
+        # oddcolor.txt/evencolor.txt are polygons in >Tlon latT... format
+        # bigticks/smallticks.txt are lines
+        # scaletext.txt are text locations and strings
+
+        # If the scale bar is done in geographic coordinates, plotting is in ${RJSTRING[@]} space
+        # If the scale bar is done in Cartesian coordinates, ploggins is in -R -JX space
 
         # Plot the frame
         echo ${herestring}"T"${therestring} | tr 'T' '\n' | gmt psxy -W${SCALE_FRAME_PEN} -A --PS_LINE_CAP=round ${RJOK} ${VERBOSE} >> $SCALEPSFILE
@@ -16925,9 +17061,16 @@ EOF
         [[ -s evencolor.txt ]] && gmt psxy evencolor.txt -t${SCALE_TRANS} -G${evencolor} -A ${RJOK} ${VERBOSE} >> $SCALEPSFILE
         [[ -s bigticks.txt ]] && gmt psxy bigticks.txt $bigtickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
         [[ -s smallticks.txt ]] && gmt psxy smallticks.txt $smalltickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-        [[ -s scaletext.txt ]] && gmt pstext scaletext.txt -D-0.1p/0p -F+A+f${INSIDESCALEBARFONTSIZE}p,Helvetica-bold,black+jCM  -C0.2p/0.2p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s scaletext.txt && $scalenolabelflag -ne 1 ]] && gmt pstext scaletext.txt -D-0.1p/0p -F+A+f${INSIDESCALEBARFONTSIZE}p,Helvetica-bold,black+jCM  -C0.2p/0.2p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
 
-        # Labels
+        # If horizontal scale, we need to recalculate Point1 using the summed on-map distances
+        if [[ $scalehorzflag -eq 1 ]]; then
+          Point1=($(point_map_offset ${Origpoint[@]} ${TOTALMAPDIST} 0))
+          Point1PlusH=($(point_map_offset ${Point1[@]} 0 ${SCALEBAR_HALFWIDTH_P}))
+        fi
+
+
+        # Labels need to be properly justified and also be parallel to the scale (it can curve)
         STARTJUST=$(azimuth_to_justcode $STARTANGLE)
         echo "${OrigpointPlusH[@]} 0" | gmt pstext -Dj2p -F+A$(echo "90-${STARTANGLE}" | bc -l)+f${SCALEBARFONTSIZE}p,Helvetica-bold,black+j${STARTJUST} ${RJOK} ${VERBOSE} >> $SCALEPSFILE
         ENDANGLE=$(echo $ANGLE | gawk '{print ($1 + 180) % 360}')
@@ -17724,7 +17867,8 @@ EOF
       platepolycolor_all)
           plate_files=($(ls ${F_PLATES}*.pldat 2>/dev/null))
           if [[ ${#plate_files} -gt 0 ]]; then
-            gmt makecpt -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor.dat
+            gmt makecpt -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor_pre.dat
+            randomize_lines 2 ${F_PLATES}platecolor_pre.dat ${F_PLATES}platecolor.dat
             P_COLORLIST=($(cat ${F_PLATES}platecolor.dat))
             this_index=0
             for p_example in ${plate_files[@]}; do
@@ -17738,6 +17882,7 @@ EOF
         ;;
 
       platepolycolor_list)
+        declare -p P_POLYLIST
         numplatepoly=$(echo "${#P_POLYLIST[@]}-1" | bc)
         for p_index in $(seq 0 $numplatepoly); do
           plate_files=($(ls ${F_PLATES}${P_POLYLIST[$p_index]}_*.pldat 2>/dev/null))
@@ -17854,6 +17999,11 @@ EOF
 
       refpoint)
         info_msg "Plotting reference point"
+
+        if [[ $REFPTLON == "" || $REFPTLAT == "" ]]; then
+          REFPTLON=${CENTERLON}
+          REFPTLAT=${CENTERLAT}
+        fi
 
         if [[ $refptflag -eq 1 ]]; then
         # Plot the reference point as a circle around a triangle

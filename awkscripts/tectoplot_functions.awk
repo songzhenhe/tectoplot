@@ -41,11 +41,12 @@ function getpi()       { return atan2(0,-1)             }
 function abs(v)        { return v < 0 ? -v : v          }
 function tan(x)        { return sin(x)/cos(x)           }
 function atan(x)       { return atan2(x,1)              }
-function asin(x)       { return atan2(x, sqrt(1-x*x))   }
-function acos(x)       { return atan2(sqrt(1-x*x), x)   }
+function asin(x)       { return atan2(x, ssqrt(1-x*x))  }
+function acos(x)       { return atan2(ssqrt(1-x*x), x)  }
 function rad2deg(rad)  { return (180 / getpi()) * rad   }
 function deg2rad(deg)  { return (getpi() / 180) * deg   }
-function hypot(x,y)    { return sqrt(x*x+y*y)           }
+function hypot(x,y)    { return ssqrt(x*x+y*y)          }
+function ssqrt(x)      { return (x<0)?0:sqrt(x)         }
 function ddiff(u)      { return u > 180 ? 360 - u : u   }
 function ceil(x)       { return int(x)+(x>int(x))       }
 function sinsq(x)      { return sin(x)*sin(x)           }
@@ -77,7 +78,7 @@ function v_cross(u1,u2,u3,v1,v2,v3) {
   w_cross_1 = u2*v3 - u3*v2
   w_cross_2 = u3*v1 - u1*v3
   w_cross_3 = u1*v2 - u2*v1
-  v_cross_l = sqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3)
+  v_cross_l = ssqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3)
   w_cross_1 = w_cross_1 / v_cross_l
   w_cross_2 = w_cross_2 / v_cross_l
   w_cross_3 = w_cross_3 / v_cross_l
@@ -199,12 +200,12 @@ function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz) {
           {
             theta = 0.5 * h / A[p][q];
             if (theta < 0.0) {
-              t = -1.0 / (sqrt(1.0 + theta*theta) - theta);
+              t = -1.0 / (ssqrt(1.0 + theta*theta) - theta);
             } else {
-              t = 1.0 / (sqrt(1.0 + theta*theta) + theta);
+              t = 1.0 / (ssqrt(1.0 + theta*theta) + theta);
             }
           }
-          c = 1.0/sqrt(1.0 + t*t);
+          c = 1.0/ssqrt(1.0 + t*t);
           s = t * c;
           z = t * A[p][q];
 
@@ -589,13 +590,13 @@ function sdr_to_tnp(strike_d, dip_d, rake_d, TNP,      n,N,T,P,l) {
   n[2]=-sin(strike)*sin(dip)
   n[3]=cos(dip)
 
-  P[1]=1/sqrt(2)*(n[1]-l[1])
-  P[2]=1/sqrt(2)*(n[2]-l[2])
-  P[3]=1/sqrt(2)*(n[3]-l[3])
+  P[1]=1/ssqrt(2)*(n[1]-l[1])
+  P[2]=1/ssqrt(2)*(n[2]-l[2])
+  P[3]=1/ssqrt(2)*(n[3]-l[3])
 
-  T[1]=1/sqrt(2)*(n[1]+l[1])
-  T[2]=1/sqrt(2)*(n[2]+l[2])
-  T[3]=1/sqrt(2)*(n[3]+l[3])
+  T[1]=1/ssqrt(2)*(n[1]+l[1])
+  T[2]=1/ssqrt(2)*(n[2]+l[2])
+  T[3]=1/ssqrt(2)*(n[3]+l[3])
 
   Paz = rad2deg(atan2(P[1],P[2]))
   Pinc = rad2deg(asin(P[3]))
@@ -999,5 +1000,5 @@ function haversine_m(lon1, lat1, lon2, lat2) {
   hav_lon2_r=deg2rad(lon2)
   hav_lat2_r=deg2rad(lat2)
 
-  return 2*6371000*asin(sqrt( sqr(sin((hav_lat2_r-hav_lat1_r)/2)) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
+  return 2*6371000*asin(ssqrt( sqr(sin((hav_lat2_r-hav_lat1_r)/2)) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
 }

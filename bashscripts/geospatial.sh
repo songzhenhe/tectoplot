@@ -112,6 +112,7 @@ function point_map_offset_rotate_m90() {
     }' |  gmt mapproject -I ${RJSTRING[@]}
 }
 
+# return the azimuth on the map (projected units) between two geographic points
 # args: 1=lon1 2=lat1 3=lon2 4=lat2
 function onmap_angle_between_points() {
   mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING[@]}))
@@ -121,6 +122,18 @@ function onmap_angle_between_points() {
   @include "tectoplot_functions.awk"
   {
     print azimuth_from_en($3-$1, $4-$2)
+  }'
+}
+
+# args: 1=lon1 2=lat1 3=lon2 4=lat2
+function onmap_distance_between_points() {
+  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING[@]}))
+  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING[@]}))
+
+  echo ${mapcoords1[@]} ${mapcoords2[@]} | gawk '
+  @include "tectoplot_functions.awk"
+  {
+    print sqrt(($3-$1)^2 + ($4-$2)^2)
   }'
 }
 
@@ -283,6 +296,20 @@ function xy_range() {
     END {
       print minlon, maxlon, minlat, maxlat
     }'
+}
+
+# Randomize the lines in a text file with a given random seed
+# args 1:seed 2:infile 3:outfile
+function randomize_lines() {
+  RANDOM=$1  # Confirmed to produce unique numbers for at least 300 calls
+  rm -f "${3}"
+  local a
+  while IFS= read -r line; do a+=("$line"); done < $2
+  for i in ${!a[@]}; do a[$((RANDOM+${#a[@]}))]="${a[$i]}"; unset a[$i]; done
+  for i in ${!a[@]}; do
+    echo ${a[${i}]} >> "${3}"
+  done
+
 }
 
 # function that takes in file of lon lat polyline/polygons and removes large
