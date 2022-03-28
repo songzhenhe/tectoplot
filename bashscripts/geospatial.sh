@@ -171,7 +171,7 @@ function azimuth_to_justcode() {
 
 # args: 1=input file 2,3=RJSTRING{@} (e.g. "-R0/1/0/1 -JX5i")
 function select_in_gmt_map {
-  gmt select ${@} -f0x,1y,s -i0,1,t -o0,1,t ${VERBOSE} | tr '\t' ' ' > a.tmp
+  gmt select ${@} -f0x,1y,2s -i0,1,t -o0,1,t ${VERBOSE} | tr '\t' ' ' > a.tmp
   mv a.tmp "${1}"
 }
 
