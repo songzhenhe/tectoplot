@@ -29,10 +29,22 @@ function tectoplot_defaults_gis() {
   GRIDCONTOURCOLOUR="black"
   GRIDCONTOURSMOOTH=100
   GRIDCONTOURLABELS="on"
+  gridcontourusecptflag=0
+
+  GRIDCONTOURMAJORSPACE=5
+  GRIDCONTOURSPACE=""
+
+  GRIDCONTOURMINORWIDTH=0.1
+  GRIDCONTOURMAJORWIDTH=0.25
+  GRIDCONTOURMINORCOLOR="black"
+  GRIDCONTOURMAJORCOLOR="black"
+
+
 
   current_userlinefilenumber=1
   current_userpointfilenumber=1
   current_usergridnumber=1
+  current_usergridcontournumber=1
   current_smallcirclenumber=1
 
   usergridfilenumber=0
@@ -61,11 +73,20 @@ function tectoplot_args_gis()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -cn|--contour)
+  -cn)
+  GRIDCONTOURINT=100
+  GRIDCONTOURSMOOTH=3
+  usergridcontournumber=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cn:           plot contours of a grid
--cn [gridfile] [[ { GMT GRID COMMANDS } ]]
+-cn [gridfile] [[options]] [[ { GMT GRID COMMANDS } ]]
+
+  Options:
+
+  int [number]          Contour interval
+  cpt [cptID]           CPT to color contours
+  inv                   Invert the sign of the data (positive <> negative)
 
   Contour a grid using GMT format options
 
@@ -75,36 +96,60 @@ Example:
 EOF
 fi
     shift
+
+    usergridcontournumber=$(echo "${usergridcontournumber} + 1" | bc )
     if arg_is_flag $1; then
       info_msg "[-cn]: Grid file not specified"
+      exit 1
     else
-      CONTOURGRID=$(abs_path $1)
+      CONTOURGRID[$usergridcontournumber]=$(abs_path $1)
       shift
       ((tectoplot_module_shift++))
-      if arg_is_flag $1; then
-        info_msg "[-cn]: Contour interval not specified. Calculating automatically from Z range using $CONTOURNUMDEF contours"
-        gridcontourcalcflag=1
-      else
-        CONTOURINTGRID="${1}"
-        shift
-        ((tectoplot_module_shift++))
-      fi
     fi
-    if [[ ${1:0:1} == [{] ]]; then
-      info_msg "[-cn]: GMT argument string detected"
-      shift
-      ((tectoplot_module_shift++))
-      while : ; do
-          [[ ${1:0:1} != [}] ]] || break
-          gridvars+=("${1}")
+
+    while ! arg_is_flag $1; do
+      case $1 in
+        inv)
           shift
           ((tectoplot_module_shift++))
-      done
-      shift
-      ((tectoplot_module_shift++))
-      CONTOURGRIDVARS="${gridvars[@]}"
-    fi
-    info_msg "[-cn]: Custom GMT grid contour commands: ${CONTOURGRIDVARS[@]}"
+          gridcontourinvertflag[$usergridcontournumber]=1
+          ;;
+        int)
+          shift
+          ((tectoplot_module_shift++))
+          GRIDCONTOURINT[$usergridcontournumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        ;;
+        cpt)
+          shift
+          ((tectoplot_module_shift++))
+          GRIDCONTOURCPT[$usergridcontournumber]=$1
+          gridcontourusecptflag[$usergridcontournumber]=1
+          shift
+          ((tectoplot_module_shift++))
+        ;;
+        *)
+          echo "[-cn]: argument ${1} not recognized"
+          exit 1
+        ;;
+      esac
+    done
+    # if [[ ${1:0:1} == [{] ]]; then
+    #   info_msg "[-cn]: GMT argument string detected"
+    #   shift
+    #   ((tectoplot_module_shift++))
+    #   while : ; do
+    #       [[ ${1:0:1} != [}] ]] || break
+    #       gridvars+=("${1}")
+    #       shift
+    #       ((tectoplot_module_shift++))
+    #   done
+    #   shift
+    #   ((tectoplot_module_shift++))
+    #   CONTOURGRIDVARS="${gridvars[@]}"
+    # fi
+    # info_msg "[-cn]: Custom GMT grid contour commands: ${CONTOURGRIDVARS[@]}"
     plots+=("gis_grid_contour")
 
     tectoplot_module_caught=1
@@ -615,23 +660,86 @@ function tectoplot_plot_gis() {
 
   gis_grid_contour)
     # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
-    AFLAG=-A$CONTOURINTGRID
-    CFLAG=-C$CONTOURINTGRID
-    SFLAG=-S$GRIDCONTOURSMOOTH
 
-    for i in ${CONTOURGRIDVARS[@]}; do
-      if [[ ${i:0:2} =~ "-A" ]]; then
-        AFLAG=""
-      fi
-      if [[ ${i:0:2} =~ "-C" ]]; then
-        CFLAG=""
-      fi
-      if [[ ${i:0:2} =~ "-S" ]]; then
-        SFLAG=""
-      fi
-    done
+    info_msg "Plotting grid contour $current_usergridcontournumber: ${CONTOURGRID[$current_usergridcontournumber]}"
 
-    gmt grdcontour $CONTOURGRID $AFLAG $CFLAG $SFLAG -W$GRIDCONTOURWIDTH,$GRIDCONTOURCOLOUR ${CONTOURGRIDVARS[@]} $RJOK ${VERBOSE} >> map.ps
+    AFLAG=-A${GRIDCONTOURINT[${current_usergridcontournumber}]}
+    CFLAG=-C${GRIDCONTOURINT[$current_usergridcontournumber]}
+    SFLAG=-S${GRIDCONTOURSMOOTH[$current_usergridcontournumber]}
+
+    # for i in ${CONTOURGRIDVARS[@]}; do
+    #   if [[ ${i:0:2} =~ "-A" ]]; then
+    #     AFLAG=""
+    #   fi
+    #   if [[ ${i:0:2} =~ "-C" ]]; then
+    #     CFLAG=""
+    #   fi
+    #   if [[ ${i:0:2} =~ "-S" ]]; then
+    #     SFLAG=""
+    #   fi
+    # done
+
+        # Contour interval for grid if not specified using -tn
+        zrange=($(grid_zrange ${CONTOURGRID[$current_usergridcontournumber]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -fg))
+        gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=${GRIDCONTOURINT[$current_usergridcontournumber]} -v majorspace=${GRIDCONTOURMAJORSPACE} -v minwidth=${GRIDCONTOURMINORWIDTH} -v maxwidth=${GRIDCONTOURMAJORWIDTH} -v mincolor=${GRIDCONTOURMINORCOLOR} -v maxcolor=${GRIDCONTOURMAJORCOLOR} '
+          BEGIN {
+            # If the range straddles 0, ensure 0 is a major contour
+            if (minz<0 && maxz>0) {
+              ismaj=0
+
+              print 0, "A", maxwidth "p," maxcolor
+              for(i=0-cint; i>=minz; i-=cint) {
+                if (++ismaj == majorspace) {
+                  print i, "A", maxwidth "p," maxcolor
+                  ismaj=0
+                } else {
+                  print i, "c", minwidth "p," mincolor
+                }
+              }
+              ismaj=0
+              for(i=cint; i<=maxz; i+=cint) {
+                if (++ismaj == majorspace) {
+                  print i, "A", maxwidth "p," maxcolor
+                  ismaj=0
+                } else {
+                  print i, "c", minwidth "p," mincolor
+                }
+              }
+            } else {
+            # If the range does not straddle 0, just make contours
+              ismaj=1
+              minz=minz-minz%cint
+              for(i=minz; i<maxz; i+=cint) {
+                if (++ismaj == majorspace) {
+                  print i, "A", maxwidth "p," maxcolor
+                  ismaj=0
+                } else {
+                  print i, "c", minwidth "p," mincolor
+                }
+              }
+            }
+          }' > grid.contourdef
+
+    gawk < grid.contourdef '{print $1}' | tr '\n' ',' | gawk '{print substr($0, 1, length($0)-1)}' > grid_clevels.txt
+
+    gmt grdcontour ${CONTOURGRID[$current_usergridcontournumber]} $AFLAG $SFLAG -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
+
+    gawk < grid_contours.txt -v inv=${gridcontourinvertflag[$current_usergridcontournumber]} '{
+      if (substr($4,1,2) == "-Z") {
+        thisnum=substr($4,3,length($4)-2)
+        if (inv==1) {
+          $4=sprintf("-Z%s", 0-thisnum)
+        }
+        print $1, $4
+      } else {
+        print
+      }
+    }' > grid_replaced.txt
+
+    gmt psxy grid_replaced.txt -W+z -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
+    # gmt grdcontour $CONTOURGRID $AFLAG $CFLAG $SFLAG -W$GRIDCONTOURWIDTH,$GRIDCONTOURCOLOUR ${CONTOURGRIDVARS[@]} $RJOK ${VERBOSE} >> map.ps
+
+    current_usergridcontournumber=$(echo "$current_usergridcontournumber + 1" | bc -l)
 
     tectoplot_plot_caught=1
   ;;

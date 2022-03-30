@@ -3052,6 +3052,58 @@ fi
     eqlistselectflag=1;
     ;;
 
+  -faultgrid)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-faultgrid:     specify files containing gridded fault surfaces
+Usage: -faultgrid [file1 [[res1]] [[int1]]] ...
+
+  Any argument that is a file which exists is interpreted as a file, any
+  subsequent argument that is not a file is considered a resolution, and any
+  argument after that which is not a file is a contour interval.
+
+  res is the sample spacing for -mprof, e.g. 5k for Slab2
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  faultgridnum=0
+  cncommand="-cn"
+  while [[ -s $2 ]]; do
+    plotfaultgridflag=1
+    ((faultgridnum++))
+    FAULTGRIDFILES[$faultgridnum]=$(abs_path $2)
+    shift
+    if [[ ! -s $2 ]]; then
+      FAULTGRIDFILERES[$faultgridnum]=$2
+      shift
+    else
+      FAULTGRIDFILERES[$faultgridnum]="1k"
+    fi
+    if [[ ! -s $2 ]]; then
+      FAULTGRIDFILECONTOUR[$faultgridnum]=$2
+      shift
+    else
+      FAULTGRIDFILECONTOUR[$faultgridnum]=1
+    fi
+    cncommand="${cncommand} ${FAULTGRIDFILES[$faultgridnum]} inv int ${FAULTGRIDFILECONTOUR[$faultgridnum]} cpt cpts/seisdepth.cpt"
+  done
+  #
+  #
+  # if [[ $plotfaultgridflag -eq 1 ]]; then
+  #           for thisfault in $(seq 1 $faultgridnum); do
+  #             echo "T ${FAULTGRIDFILES[$i]} -1 ${FAULTGRIDFILERES[$i]} -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+  #           done
+  #         fi
+  cpts+=("seisdepth")
+  shift
+
+  # Add the command to plot the grid contour lines
+  set -- "blank" ${cncommand} "$@"
+
+  ;;
+
 	-f)   # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3630,7 +3682,11 @@ fi
     elif [[ $2 == "topo" ]]; then
       shift
       shift
-      set -- "blank" "size" "2i" "args" "-t 10m -whiteframe 10p -pss 3" "$@"
+      set -- "blank" "size" "2i" "args" "-t 05m -whiteframe 10p -pss 3" "$@"
+    elif [[ $2 == "topot0" ]]; then
+      shift
+      shift
+      set -- "blank" "size" "2i" "args" "-t 05m -t0 -whiteframe 10p -pss 3" "$@"
     elif [[ $2 == "plates" ]]; then
       shift
       shift
@@ -4028,6 +4084,7 @@ fi
   -legend) # args: none
   LEGEND_JUST_CODES+=("BL")
   LEGEND_ONOFFCODES+=("j")
+  legendovermapflag=1
   LEGEND_BORDERON+=("yes")
   LEGEND_BORDERON+=("yes")
   LEGEND_MARGIN=0.1  # inches
@@ -4082,7 +4139,7 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
       | BL  BM  BR |
       --------------
 
-   offmap [[just=${LEGEND_JUST_CODES[0]}]]: Place legend outside of the map area
+   offmap [[just=${LEGEND_JUST_CODES[0]}]] [[just2]]: Place legend outside of the map area
     justification codes are to capital letters
 
       TL    TM    TR
@@ -4096,7 +4153,7 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
       BL    BM    BR
 
     Color bars can be placed on/off the map separately from the non-colorbar by
-    calling onmap [just1] offmap [just2].
+    calling onmap [just1] offmap [just2] or vice versa.
 
 Example:
 tectoplot -t -g -pp -ppl 100000 -vc -c -legend offmap BM onmap TR horiz bars border nonbars width 2.5 font 8p
@@ -4108,7 +4165,7 @@ shift && continue
 fi
 
     makelegendflag=1
-    legendovermapflag=0
+    # legendovermapflag=0
 
     makecolorbarsflag=1
     makenoncolorbarsflag=1
@@ -6629,25 +6686,34 @@ fi
 
   -scale) # -scale: plot a scale bar
 
-  SCALE_LENGTH="100k"  # Default
+  # Default is a 2 inch wide scale bar with 5 intervals
+
+  SCALE_WIDTH="2i"
+  SCALE_NUMDIVS=16
+  scalebarbywidthflag=1
+  scaleskiplabelflag=1
+  scaleskiplabelinc=4
+  scaletextoverbarflag=0  # should we plot text above the bar instead of in?
+
+  SCALE_LENGTH=""  # Default
   SCALEBAR_WIDTH_P=30
   SCALE_MAPLENGTH="1.25" # inches or cm???
+  SCALE_MAPLENGTH_DIVISIBLE=0   # Increment that we round to; 0 by default
   SCALE_JUST_CODE="TL"
   SCALE_ONOFFCODE="j"
   SCALE_BORDERON="no"
-  SCALE_NUMDIVS=5
   SCALE_MARGIN=0  # inches
-  SCALE_BORDER_WIDTH="0.5p"
+  SCALE_BORDER_WIDTH="0.75p"
   SCALE_BORDER_COLOR="black"
   SCALE_FONTSIZE="6p"
   SCALE_FONT="Helvetica"
   SCALE_FONTCOLOR="black"
-  SCALE_WIDTH="2i"
-  SCALE_TICK_LENGTH="1p"
-  SCALE_FRAME_WIDTH="0.65p"
+  SCALE_MAJOR_TICK_LENGTH="7"    # Length in points
+  SCALE_MINOR_TICK_LENGTH="4"    # Length in points
+  SCALE_FRAME_WIDTH="1.5p"
   SCALE_FRAME_COLOR="black"
-  bigtickformat="-W0.4p,black"
-  smalltickformat="-W0.25p,black"
+  bigtickformat="0.5p,black"
+  smalltickformat="0.3p,black"
 
   SCALEFILL=""
   SCALE_TRANS=0
@@ -6676,20 +6742,23 @@ Usage: -scale [[options]]
   height [points]       Specify height of scale box; fonts scale also
   maplength [length]    Specify width of scale in inches; requires refpt
                         Produces an approximate scale with reasonable bounds
-*  ortho                 Plot orthogonal scale bars (L shape)
   refpt [lon] [lat]     Reference location for scale
   refpt [aprofcode]     Reference location for scale
   marker                Plot marker indicating scale reference point on map
-  atref                  Plot scale bar on the map, ll corner at refpt location
+  atref                 Plot scale bar on the map, ll corner at refpt location
   onmap [just]          Justification of scale bar, on map
   offmap [just]         Justification of scale bar, off map
   divs [number]         Number of divisions of the scale bar
+  skiplabel [number]    Set major tick interval and skip intermediate labels
+  noskip                Do not skip any intervals and to not have major ticks
   nolabel               Do not label internal divisions
   box [color]           Plot a colored box behind scale
+  border                Plot a border around the box
   trans [percent]       Transparency of fill boxes
-  inlegend               Add PS of scalebar to legend; do not plot on map
+  inlegend              Add PS of scalebar to legend; do not plot on map
                            (only works with onmap, offmap, maplength NOT atref)
   north                 Plots a north arrow and N at start of scale
+  simple                Plot a simple line with ticks
 
   length has unit (e.g. 100k)
   The scale bar is centered on the reference point or aprofcode point
@@ -6710,6 +6779,12 @@ fi
 
     while ! arg_is_flag "${2}"; do
       case "${2}" in
+        simple)
+          shift
+          SCALEBAR_WIDTH_P=0
+          SCALE_FRAME_PEN=${bigtickformat}
+          scaletextoverbarflag=1
+        ;;
         horz)
           shift
           scalehorzflag=1
@@ -6738,6 +6813,10 @@ fi
             SCALE_MAPLENGTH=$2
             shift
           fi
+          if arg_is_positive_float $2; then
+            SCALE_MAPLENGTH_DIVISIBLE=$2
+            shift
+          fi
           scalebarbywidthflag=1
           scaleatrefflag=0
         ;;
@@ -6763,6 +6842,10 @@ fi
             shift
           fi
         ;;
+        noskip)
+          shift
+          scaleskiplabelflag=0
+        ;;
         nolabel)
           shift
           scalenolabelflag=1
@@ -6777,10 +6860,12 @@ fi
         length)
           shift
           if arg_is_flag $2; then
-            info_msg "[-scale]: No scale length specified. Using default: 100km"
-            SCALE_LENGTH="100k"
+            info_msg "[-scale]: length option requires distance argument (e.g. 100k)"
+            exit 1
           else
             SCALE_LENGTH="${2}"
+            # turn off maplength behavior
+            scalebarbywidthflag=0
             shift
           fi
         ;;
@@ -6813,17 +6898,6 @@ fi
           fi
           [[ $offmapflag -eq 1 ]] && SCALE_ONOFFCODE="J" || SCALE_ONOFFCODE="j"
           ;;
-      width)
-        shift
-        # LEGEND_WIDTH="${2}"
-        # shift
-        # # Very wide bars should be made slightly taller and the gap should be made wider
-        # LEGEND_BAR_HEIGHT=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", (w/40>0.1)?w/40:0.1)}'))
-        # LEGEND_BAR_GAP=($(echo ${LEGEND_WIDTH} | gawk '{w=$1+0; printf("%si", 0.1+(w/20>=0.15)?w/20:0.1)}'))
-        # LEGEND_TICK_LENGTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/5)}'))
-        # LEGEND_FRAME_WIDTH=($(echo ${LEGEND_BAR_HEIGHT} | gawk '{w=$1+0; printf("%sp", 72*w/20)}'))
-        # LEGEND_FRAME_PEN="${LEGEND_FRAME_WIDTH},${LEGEND_FRAME_COLOR}"
-        ;;
       refpt)
         shift
 
@@ -6858,8 +6932,6 @@ fi
         ;;
       esac
     done
-
-
 
     plots+=("mapscale")
     ;;
@@ -15732,7 +15804,7 @@ EOF
 
         # We want to plot contours intelligently and nicely including major-minor contour thickness and labeling only of major contours, without double plotting of contours.
 
-        # Contour interval for grid if not specified using -cn
+        # Contour interval for grid if not specified using -tn
         zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
         if [[ $topocontourcalcflag -eq 1 ]]; then
           TOPOCONTOURINT=$(echo "(${zrange[1]} - ${zrange[0]}) / $TOPOCONTOURNUMDEF" | bc -l)
@@ -16791,11 +16863,13 @@ EOF
           SCALE_END=($(echo "${MAPXY_END[@]}" | gmt mapproject -I ${RJSTRING[@]}))
 
           # Calculate the new scale length that is rounded for nice internal divisions
-          SCALE_LENGTH=$(echo ${SCALE_END[@]} | gmt mapproject -G${SCALEREFLON}/${SCALEREFLAT} ${RJSTRINGp[@]} | gawk -v nd=${SCALE_NUMDIVS} '
+          SCALE_LENGTH=$(echo ${SCALE_END[@]} | gmt mapproject -G${SCALEREFLON}/${SCALEREFLAT} ${RJSTRINGp[@]} | gawk -v nd=${SCALE_NUMDIVS} -v ni=${SCALE_MAPLENGTH_DIVISIBLE} '
             @include "tectoplot_functions.awk"
             {
-              rdres=rd($3/1000, nd)
-              rures=ru($3/1000, nd)
+              roundval=(ni==0)?nd:ni
+              # Round up and down by the
+              rdres=rd($3/1000, roundval)
+              rures=ru($3/1000, roundval)
 
               print ((rures-$3/1000)>($3/1000-rdres))?rdres:rures "k"
             }')
@@ -16861,11 +16935,19 @@ EOF
         Point1Half=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalehalf} ${scaleunit}))
 
         SCALEBAR_HALFWIDTH_P=$(echo "$SCALEBAR_WIDTH_P / 2" | bc -l)
-        SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 6" | bc -l)
-        TWICE_SCALEBAR_TICKLEN_P=$(echo "$SCALEBAR_WIDTH_P / 3" | bc -l)
 
-        SCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.75"  | bc -l)
-        INSIDESCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.6"  | bc -l)
+
+        # SCALE_MINOR_TICK_LENGTH=$(echo "$SCALEBAR_WIDTH_P / 6" | bc -l)
+        # SCALE_MAJOR_TICK_LENGTH=$(echo "$SCALEBAR_WIDTH_P / 3" | bc -l)
+
+        if [[ $scaletextoverbarflag -eq 1 ]]; then
+          SCALEBARFONTSIZE=8
+          INSIDESCALEBARFONTSIZE=6
+        else
+          SCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.75"  | bc -l)
+          INSIDESCALEBARFONTSIZE=$(echo "$SCALEBAR_HALFWIDTH_P * 0.6"  | bc -l)
+        fi
+
 
         DIVEND=$(echo "$SCALE_NUMDIVS - 1" | bc)
 
@@ -16951,16 +17033,16 @@ EOF
 
               Point1PlusH=($(point_map_offset_rotate_m90 ${Point1[@]} 0 ${SCALEBAR_HALFWIDTH_P}  ${ANGLE}))
 
-              TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickV=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 -${SCALE_MINOR_TICK_LENGTH} ${ANGLE}))
               PointW=($(point_map_offset_rotate_m90 ${Origpoint[@]} 0 ${SCALEBAR_WIDTH_P} ${ANGLE}))
-              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALE_MINOR_TICK_LENGTH} ${ANGLE}))
 
               echo "${Origpoint[@]}T${TickV[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
               echo "${PointW[@]}T${TickW[@]}" | tr 'T' '\n' | gmt psxy -W0.25p,black ${RJOK} ${VERBOSE} >> $SCALEPSFILE
 
               # Plot the north arrow and letter N
               if [[ $scaleplotNflag -eq 1 ]]; then
-                TickW2=($(point_map_offset_rotate_m90 ${PointW[@]} 0 $(echo "5*${SCALEBAR_TICKLEN_P}" | bc -l) ${ANGLE}))
+                TickW2=($(point_map_offset_rotate_m90 ${PointW[@]} 0 $(echo "${SCALE_MINOR_TICK_LENGTH}" | bc -l) ${ANGLE}))
                 echo "${Origpoint[@]}T${TickW2[@]}" | tr 'T' '\n' | gmt psxy -W0.35p,black+ve0.075i+l+h0+p0.35p,black+gwhite ${RJOK} ${VERBOSE} >> $SCALEPSFILE
                 rotang=$(echo "90 - $ANGLE" | bc -l)
                 rotfont=$(echo "${INSIDESCALEBARFONTSIZE}*0.8" | bc -l)
@@ -16989,13 +17071,13 @@ EOF
             PointVHalf=($(point_map_offset_rotate_m90 ${PointV[@]} 0 ${SCALEBAR_HALFWIDTH_P} ${ANGLE}))
 
             if [[ $scaleskiplabelflag -eq 1 && $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
-              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
-              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${TWICE_SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALE_MAJOR_TICK_LENGTH} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALE_MAJOR_TICK_LENGTH} ${ANGLE}))
               echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> bigticks.txt
               echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> bigticks.txt
             else
-              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALEBAR_TICKLEN_P} ${ANGLE}))
-              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALEBAR_TICKLEN_P} ${ANGLE}))
+              TickV=($(point_map_offset_rotate_m90 ${PointV[@]} 0 -${SCALE_MINOR_TICK_LENGTH} ${ANGLE}))
+              TickW=($(point_map_offset_rotate_m90 ${PointW[@]} 0 ${SCALE_MINOR_TICK_LENGTH} ${ANGLE}))
               echo ">T${PointV[@]}T${TickV[@]}" | tr 'T' '\n' >> smallticks.txt
               echo ">T${PointW[@]}T${TickW[@]}" | tr 'T' '\n' >> smallticks.txt
             fi
@@ -17029,10 +17111,18 @@ EOF
             if [[ $subindex -ne $DIVEND ]]; then
               if [[ $scaleskiplabelflag -eq 1 ]]; then
                 if [[ $(echo "($subindex + 1) % $scaleskiplabelinc == 0" | bc) -eq 1 ]]; then
-                  echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                  if [[ $scaletextoverbarflag -eq 1 ]]; then
+                    echo "${TickW[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                  else
+                    echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                  fi
                 fi
               else
-                echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                if [[ $scaletextoverbarflag -eq 1 ]]; then
+                  echo "${TickW[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                else
+                  echo "${PointVHalf[@]} ${TEXTANGLE} ${DIVLABELTEXT}" >> scaletext.txt
+                fi
               fi
             fi
 
@@ -17059,10 +17149,19 @@ EOF
 
         [[ -s oddcolor.txt ]] && gmt psxy oddcolor.txt -t${SCALE_TRANS} -G${oddcolor} -A ${RJOK} ${VERBOSE} >> $SCALEPSFILE
         [[ -s evencolor.txt ]] && gmt psxy evencolor.txt -t${SCALE_TRANS} -G${evencolor} -A ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-        [[ -s bigticks.txt ]] && gmt psxy bigticks.txt $bigtickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-        [[ -s smallticks.txt ]] && gmt psxy smallticks.txt $smalltickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
-        [[ -s scaletext.txt && $scalenolabelflag -ne 1 ]] && gmt pstext scaletext.txt -D-0.1p/0p -F+A+f${INSIDESCALEBARFONTSIZE}p,Helvetica-bold,black+jCM  -C0.2p/0.2p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s bigticks.txt ]] && gmt psxy bigticks.txt -W$bigtickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        [[ -s smallticks.txt ]] && gmt psxy smallticks.txt -W$smalltickformat ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        if [[ -s scaletext.txt && $scalenolabelflag -ne 1 ]]; then
+          if [[ $scaletextoverbarflag -eq 1 ]]; then
+            SCALEBARTEXTJUST=CB
+            SCALEBARTEXTYOFF=2p
+          else
+            SCALEBARTEXTJUST=CM
+            SCALEBARTEXTYOFF=0p
+          fi
 
+          gmt pstext scaletext.txt -D-0.1p/${SCALEBARTEXTYOFF} -F+A+f${INSIDESCALEBARFONTSIZE}p,Helvetica-bold,black+j${SCALEBARTEXTJUST} -C0.2p/0.2p ${RJOK} ${VERBOSE} >> $SCALEPSFILE
+        fi
         # If horizontal scale, we need to recalculate Point1 using the summed on-map distances
         if [[ $scalehorzflag -eq 1 ]]; then
           Point1=($(point_map_offset ${Origpoint[@]} ${TOTALMAPDIST} 0))
@@ -17430,6 +17529,12 @@ EOF
           if [[ -e ${F_PROFILES}profile_labels.dat ]]; then
             info_msg "Adding profile labels to sprof as xyz [lon/lat/km]"
             echo "B ${F_PROFILES}profile_labels.dat ${SPROFWIDTH} 1 ${FONTSTR}"  >> sprof.control
+          fi
+
+          if [[ $plotfaultgridflag -eq 1 ]]; then
+            for thisfault in $(seq 1 $faultgridnum); do
+              echo "T ${FAULTGRIDFILES[$thisfault]} -1 ${FAULTGRIDFILERES[$thisfault]} -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+            done
           fi
 
           if [[ $plotslab2 -eq 1 ]]; then

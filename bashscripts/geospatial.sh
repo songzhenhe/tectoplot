@@ -236,7 +236,7 @@ function select_in_gmt_map_by_columns() {
 
 # A new function
 function grid_zrange() {
-  gdalinfo $1 -stats | grep "Minimum=" | tr '=' ' ' | tr ',' ' ' | gawk '{print $2, $4}'
+  gdalinfo $1 -stats 2>/dev/null | grep "Minimum=" | tr '=' ' ' | tr ',' ' ' | gawk '{print $2, $4}'
 }
 
 function grid_pixelsize() {

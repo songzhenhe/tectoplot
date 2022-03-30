@@ -58,6 +58,7 @@ OSMCOAST_POLYFILL="lightbrown"
 OSMCOAST_TRANS=0
 
 osmcoast_extract=0
+aosmnoplotflag=0
 
 OSMCOAST_SHORT_SOURCESTRING="OpenStreetMap"
 OSMCOAST_SOURCESTRING="Coastlines are from OpenStreetMap (www.openstreetmap.org/copyright) via FOSSGIS (https://osmdata.openstreetmap.de/data/land-polygons.html)"
@@ -79,6 +80,7 @@ cat <<-EOF
 Usage: -aosm [[options]]
 
 Options:
+simplify [001]                     Select coastlines simplified to given degree
 width [width=${OSMCOAST_LINEWIDTH}]              Width of coastline (e.g. 0.5p)
 color [color=${OSMCOAST_LINECOLOR}]             Color of coastline
 fill [[color=${OSMCOAST_POLYFILL}]]          Fill color of land polygons
@@ -98,6 +100,26 @@ fi
 
   while ! arg_is_flag $1; do
     case $1 in
+      noplot)
+        shift
+        ((tectoplot_module_shift++))
+        aosmnoplotflag=1
+      ;;
+      simplify)
+        shift
+        ((tectoplot_module_shift++))
+        case $1 in
+          01|001)
+            OSMCOASTBF2FILE=${OSMCOASTDIR}"land_polygons_simplified_$1.bf2"
+            shift
+            ((tectoplot_module_shift++))
+          ;;
+          *)
+            echo "[-aosm]: option simplify does not recognize argument $2"
+            exit 1
+          ;;
+        esac
+      ;;
       width)
         shift
         ((tectoplot_module_shift++))
@@ -513,7 +535,7 @@ function tectoplot_plot_geography() {
     ;;
 
   osmcoasts)
-    [[ -s osmcoasts.bf2 ]] && gmt psxy osmcoasts.bf2 -bi2f -t${OSMCOAST_TRANS} ${OSMCOAST_PLOTFILLCMD} -W${OSMCOAST_LINEWIDTH},${OSMCOAST_LINECOLOR}  ${RJOK} ${VERBOSE} >> map.ps
+    [[ -s osmcoasts.bf2 && $aosmnoplotflag -eq 0 ]] && gmt psxy osmcoasts.bf2 -bi2f -t${OSMCOAST_TRANS} ${OSMCOAST_PLOTFILLCMD} -W${OSMCOAST_LINEWIDTH},${OSMCOAST_LINECOLOR}  ${RJOK} ${VERBOSE} >> map.ps
     tectoplot_plot_caught=1
     ;;
 
