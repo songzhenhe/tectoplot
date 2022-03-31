@@ -27,8 +27,10 @@ function tectoplot_defaults_gis() {
   CONTOURNUMDEF=20             # Number of contours to plot
   GRIDCONTOURWIDTH=0.1p
   GRIDCONTOURCOLOUR="black"
+  GRIDCONTOURFONT="5p,Helvetica,black"
   GRIDCONTOURSMOOTH=100
   GRIDCONTOURLABELS="on"
+  GRIDCONTOURLABELSSKIPINT=1   # Plot only every nth label
   gridcontourusecptflag=0
 
   GRIDCONTOURMAJORSPACE=5
@@ -109,6 +111,13 @@ fi
 
     while ! arg_is_flag $1; do
       case $1 in
+        skip)
+          shift
+          ((tectoplot_module_shift++))
+          GRIDCONTOURLABELSSKIPINT=$1
+          shift
+          ((tectoplot_module_shift++))
+        ;;
         inv)
           shift
           ((tectoplot_module_shift++))
@@ -679,56 +688,70 @@ function tectoplot_plot_gis() {
     #   fi
     # done
 
-        # Contour interval for grid if not specified using -tn
-        zrange=($(grid_zrange ${CONTOURGRID[$current_usergridcontournumber]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -fg))
-        gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=${GRIDCONTOURINT[$current_usergridcontournumber]} -v majorspace=${GRIDCONTOURMAJORSPACE} -v minwidth=${GRIDCONTOURMINORWIDTH} -v maxwidth=${GRIDCONTOURMAJORWIDTH} -v mincolor=${GRIDCONTOURMINORCOLOR} -v maxcolor=${GRIDCONTOURMAJORCOLOR} '
-          BEGIN {
-            # If the range straddles 0, ensure 0 is a major contour
-            if (minz<0 && maxz>0) {
-              ismaj=0
+    # Currently we run this strange program but only use the contour intervals that
+    # come out. This could be further modified to plot major/minor contours.
 
-              print 0, "A", maxwidth "p," maxcolor
-              for(i=0-cint; i>=minz; i-=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
+    zrange=($(grid_zrange ${CONTOURGRID[$current_usergridcontournumber]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -fg))
+
+    gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=${GRIDCONTOURINT[$current_usergridcontournumber]} -v majorspace=${GRIDCONTOURMAJORSPACE} -v minwidth=${GRIDCONTOURMINORWIDTH} -v maxwidth=${GRIDCONTOURMAJORWIDTH} -v mincolor=${GRIDCONTOURMINORCOLOR} -v maxcolor=${GRIDCONTOURMAJORCOLOR} '
+      BEGIN {
+        # If the range straddles 0, ensure 0 is a major contour
+        if (minz<0 && maxz>0) {
+          ismaj=0
+
+          print 0, "A", maxwidth "p," maxcolor
+          for(i=0-cint; i>=minz; i-=cint) {
+            if (++ismaj == majorspace) {
+              print i, "A", maxwidth "p," maxcolor
               ismaj=0
-              for(i=cint; i<=maxz; i+=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
             } else {
-            # If the range does not straddle 0, just make contours
-              ismaj=1
-              minz=minz-minz%cint
-              for(i=minz; i<maxz; i+=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
+              print i, "c", minwidth "p," mincolor
             }
-          }' > grid.contourdef
+          }
+          ismaj=0
+          for(i=cint; i<=maxz; i+=cint) {
+            if (++ismaj == majorspace) {
+              print i, "A", maxwidth "p," maxcolor
+              ismaj=0
+            } else {
+              print i, "c", minwidth "p," mincolor
+            }
+          }
+        } else {
+        # If the range does not straddle 0, just make contours
+          ismaj=1
+          minz=minz-minz%cint
+          for(i=minz; i<maxz; i+=cint) {
+            if (++ismaj == majorspace) {
+              print i, "A", maxwidth "p," maxcolor
+              ismaj=0
+            } else {
+              print i, "c", minwidth "p," mincolor
+            }
+          }
+        }
+      }' > grid.contourdef
 
     gawk < grid.contourdef '{print $1}' | tr '\n' ',' | gawk '{print substr($0, 1, length($0)-1)}' > grid_clevels.txt
 
     gmt grdcontour ${CONTOURGRID[$current_usergridcontournumber]} $AFLAG $SFLAG -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
 
-    gawk < grid_contours.txt -v inv=${gridcontourinvertflag[$current_usergridcontournumber]} '{
+    gawk < grid_contours.txt -v skipint=${GRIDCONTOURLABELSSKIPINT} -v inv=${gridcontourinvertflag[$current_usergridcontournumber]} '
+    BEGIN {
+      gotline=0
+      thisskip=1
+    }
+    {
       if (substr($4,1,2) == "-Z") {
         thisnum=substr($4,3,length($4)-2)
-        if (inv==1) {
-          $4=sprintf("-Z%s", 0-thisnum)
+        if (thisnum % skipint == 0) {
+          if (inv==1) {
+            $4=sprintf("-L%s -Z%s", 0-thisnum, 0-thisnum)
+          } else {
+            $4=sprintf("-L%s -Z%s", thisnum, thisnum)
+          }
+        } else {
+          $4=""
         }
         print $1, $4
       } else {
@@ -736,7 +759,9 @@ function tectoplot_plot_gis() {
       }
     }' > grid_replaced.txt
 
+    gmt psxy grid_replaced.txt -Sqn1:+f${GRIDCONTOURFONT}+Lh+i+e --FONT_ANNOT_PRIMARY="4p,Helvetica,black" -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
     gmt psxy grid_replaced.txt -W+z -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
+    gmt psclip -C ${RJOK} >> map.ps
     # gmt grdcontour $CONTOURGRID $AFLAG $CFLAG $SFLAG -W$GRIDCONTOURWIDTH,$GRIDCONTOURCOLOUR ${CONTOURGRIDVARS[@]} $RJOK ${VERBOSE} >> map.ps
 
     current_usergridcontournumber=$(echo "$current_usergridcontournumber + 1" | bc -l)

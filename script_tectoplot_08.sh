@@ -3058,9 +3058,11 @@ cat <<-EOF
 -faultgrid:     specify files containing gridded fault surfaces
 Usage: -faultgrid [file1 [[res1]] [[int1]]] ...
 
-  Any argument that is a file which exists is interpreted as a file, any
-  subsequent argument that is not a file is considered a resolution, and any
-  argument after that which is not a file is a contour interval.
+  Any argument that is a file which exists is interpreted as a file.
+  THEN any non-file argument is a resolution (default 1k)
+  THEN any non-file argument is a contour interval (default 1)
+  THEN any non-file argument is a contour label control (default 1)
+      (only contours a multiple of the control number are labeled)
 
   res is the sample spacing for -mprof, e.g. 5k for Slab2
 --------------------------------------------------------------------------------
@@ -3068,8 +3070,12 @@ EOF
 shift && continue
 fi
 
-  faultgridnum=0
-  cncommand="-cn"
+  if [[ $faultgridfirst -ne 1 ]]; then
+    faultgridnum=0
+    faultgridfirst=1
+    cncommand="-cn"
+  fi
+
   while [[ -s $2 ]]; do
     plotfaultgridflag=1
     ((faultgridnum++))
@@ -3087,21 +3093,20 @@ fi
     else
       FAULTGRIDFILECONTOUR[$faultgridnum]=1
     fi
-    cncommand="${cncommand} ${FAULTGRIDFILES[$faultgridnum]} inv int ${FAULTGRIDFILECONTOUR[$faultgridnum]} cpt cpts/seisdepth.cpt"
+    if [[ ! -s $2 ]]; then
+      FAULTGRIDFILECONTOURSKIP[$faultgridnum]=$2
+      shift
+    else
+      FAULTGRIDFILECONTOURSKIP[$faultgridnum]=1
+    fi
+    cncommand="${cncommand} ${FAULTGRIDFILES[$faultgridnum]} inv int ${FAULTGRIDFILECONTOUR[$faultgridnum]} skip ${FAULTGRIDFILECONTOURSKIP[$faultgridnum]} cpt cpts/seisdepth.cpt"
   done
-  #
-  #
-  # if [[ $plotfaultgridflag -eq 1 ]]; then
-  #           for thisfault in $(seq 1 $faultgridnum); do
-  #             echo "T ${FAULTGRIDFILES[$i]} -1 ${FAULTGRIDFILERES[$i]} -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
-  #           done
-  #         fi
+
   cpts+=("seisdepth")
   shift
 
   # Add the command to plot the grid contour lines
   set -- "blank" ${cncommand} "$@"
-
   ;;
 
 	-f)   # args: number number
