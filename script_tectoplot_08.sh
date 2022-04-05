@@ -6279,6 +6279,20 @@ fi
     MAKERECTMAP=1
     ;;
 
+  -frameall)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-frameall:         plot grid labels at all grid-frame intersection points
+Usage: -frameall
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  gmt gmtset MAP_ANNOT_OBLIQUE anywhere,lon_horizontal
+  ;;
+
   -RJ) # -RJ: set map projection
 
 if [[ $USAGEFLAG -eq 1 ]]; then
