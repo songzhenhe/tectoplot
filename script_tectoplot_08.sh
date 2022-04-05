@@ -6465,7 +6465,7 @@ fi
         fi
       ;;
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
-      ObMercA|OA)
+      ObMercA|OA|OAv)
         # Set up default values
         CENTRALLON=0
         CENTRALLAT=0
@@ -6495,8 +6495,13 @@ fi
           fi
         fi
 
+        if [[ $ARG1 == "OAv" ]]; then
+          OAvert="+v"
+        else
+          OAvert=""
+        fi
         rj+=("-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk")
-        rj+=("-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i")
+        rj+=("-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i${OAvert}")
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1
