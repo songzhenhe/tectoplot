@@ -570,3 +570,36 @@ function sample_grid_360() {
   cat collated.tmp
   rm -f collated.tmp output.tmp collated_new.tmp
 }
+
+# CPT-related functions
+
+# CPT is a four column CPT with R/G/B or H-S-V or colorname colors
+# Prints minimum, maximum values indicated in CPT and also checks for a 0 slice
+function cptinfo {
+ gawk < $1 '
+  BEGIN {
+    haszero=0
+    breakout=0
+    while (breakout==0) {
+      getline
+      if ($1+0==$1) {
+        minz=($1<$3)?$1:$3
+        maxz=($1>$3)?$1:$3
+        breakout=1
+      }
+    }
+  }
+  ($1+0==$1){
+    minz=($1<minz)?$1:minz
+    minz=($3<minz)?$3:minz
+
+    maxz=($1>maxz)?$1:maxz
+    maxz=($3>maxz)?$3:maxz
+  }
+  ($1==0) {
+    haszero=1
+  }
+  END {
+    print minz, maxz, haszero
+  }'
+}

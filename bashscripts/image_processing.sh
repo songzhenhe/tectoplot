@@ -291,6 +291,11 @@ function flatten_sea() {
   gdal_calc.py --overwrite --type=Float32 --quiet -A "${1}" --calc="((A>0)*A + (A<=0)*${setval})" --outfile="${2}"
 }
 
+function quickreport() {
+  echo "Image report: $1"
+  gdalinfo $1 | tail
+}
+
 function smooth_rgb_tiff() {
   # Gaussian smoothing of RGB image using gdal VRT tools
   gdalbuildvrt smooth.vrt ${1}
@@ -335,7 +340,8 @@ function is_gmtcpt() {
   gawk -v key=$1 < ${GMTCPTS} '($1==key) { found=1; exit } END { exit (found==1)?0:1 }'
 }
 
-# Returns the absolute path to a CPT file from several possible locations
+# Sets global variable CPT_PATH to the absolute path to a CPT file from
+# several possible locations
 function get_cpt_path() {
   local cptarg="${1}"
   if [[ -s ${cptarg} ]]; then

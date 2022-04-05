@@ -537,6 +537,8 @@ function moment_tensor_rotate(Mxx,Myy,Mzz,Mxy,Mxz,Myz, r_trend, r_plunge, r_alph
 # Mf[1]-Mf[6]: Mrr, Mtt, Mpp, Mrt, Mrp, Mtp
 # ------------------------------------------------------------------------------
 
+# We want NED coordinates
+
 function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, mantissa, exponent, Mf)
 {
   strike=deg2rad(strike_d)
@@ -545,6 +547,9 @@ function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, ma
 
   M0=mantissa*(10^exponent)
 
+  # print "M0:", M0 > "/dev/stderr"
+
+# Mrr Mtt Mpp Mrt Mrp Mtp
   M[1]=M0*sin(2*dip)*sin(rake)
   M[2]=-M0*(sin(dip)*cos(rake)*sin(2*strike)+sin(2*dip)*sin(rake)*sin(strike)*sin(strike))
   M[3]=M0*(sin(dip)*cos(rake)*sin(2*strike)-sin(2*dip)*sin(rake)*cos(strike)*cos(strike))
@@ -559,12 +564,19 @@ function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, ma
     maxscale=scale>maxscale?scale:maxscale
   }
 
+# Testing some different approaches to making good files here
   Mf[1]=M[1]/10^maxscale
   Mf[2]=M[2]/10^maxscale
   Mf[3]=M[3]/10^maxscale
   Mf[4]=M[4]/10^maxscale
   Mf[5]=M[5]/10^maxscale
   Mf[6]=M[6]/10^maxscale
+  #Mf[1]=sprintf("%0.3f", (M[1]==0)?0.001:M[1]/10^maxscale)
+  #Mf[2]=sprintf("%0.3f", (M[2]==0)?0.001:M[2]/10^maxscale)
+  #Mf[3]=sprintf("%0.3f", (M[3]==0)?0.001:M[3]/10^maxscale)
+  #Mf[4]=sprintf("%0.3f", (M[4]==0)?0.001:M[4]/10^maxscale)
+  #Mf[5]=sprintf("%0.3f", (M[5]==0)?0.001:M[5]/10^maxscale)
+  #Mf[6]=sprintf("%0.3f", (M[6]==0)?0.001:M[6]/10^maxscale)
 }
 
 # sdr_to_tnp()

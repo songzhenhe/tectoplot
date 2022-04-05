@@ -492,7 +492,7 @@ declare -a on_exit_move_items
 
 # DEFINE FLAGS
   calccmtflag=0
-  customgridcptflag=0
+  cptdirectflag=0
   defnodeflag=0
   defaultrefflag=0
   doplateedgesflag=0
@@ -4285,6 +4285,7 @@ fi
         ;;
       esac
     done
+
     ;;
 
   -litho1)
@@ -7470,8 +7471,8 @@ fi
     ;;
 
   -t) # -t: visualize topography
-  TMIN=-8000
-  TMAX=8000
+  TMIN=-11000 # Challenger Deep
+  TMAX=9000 # Everest summit
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography
@@ -7979,12 +7980,16 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tn:           plot topographic contours
-Usage: -tn [contour_interval] [[options]]
+Usage: -tn [[options]]
 
   Plot contours of -t topography.
 
   Options:
 
+  int [number]
+      Contour interval
+  list [level1,level2,...]
+      Use the comma-specified list, plot all as major contours
   minsize [arg]
       Suppresses plotting of small closed contours
       specify minimum numbner of points (e.g. 500) or length (e.g. 10k)
@@ -7996,8 +8001,10 @@ Usage: -tn [contour_interval] [[options]]
       Set appearance of minor contours
   trans [percent]
       Set transparency of all contours
-  space [degrees]
-      Set spacing between contour labels (degrees)
+  space [distance]
+      Set spacing between contour labels (inches, e.g. 0.5i)
+
+
 
 Example:
 tectoplot -t -tn 1000 -o example_tn
@@ -8013,29 +8020,47 @@ fi
 
     CONTOURMAJORSPACE=5
     TOPOCONTOURSPACE=""
+    TOPOCONTOURLABELSEP="0.5i"
 
     TOPOCONTOURMINORWIDTH=0.1
     TOPOCONTOURMAJORWIDTH=0.25
     TOPOCONTOURMINORCOLOR="black"
     TOPOCONTOURMAJORCOLOR="black"
 
-    if arg_is_flag $2; then
-      info_msg "[-tn]: Contour interval not specified. Calculating automatically from Z range using $TOPOCONTOURNUMDEF contours, setting major to every fifth minor"
-      topocontourcalcflag=1
-    else
-      TOPOCONTOURINT="${2}"
-      shift
-    fi
-
     while ! arg_is_flag $2; do
       case $2 in
+        int)
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURINT="${2}"
+            shift
+          else
+            echo "[-tn]: int option requires positive number argument"
+            exit 1
+          fi
+        ;;
+        list)
+          shift
+          if [[ $2 == "" ]]; then
+            echo "[-tn]: list option requires comma-separated list argument"
+            exit 1
+          else
+            if [[ $2 == *,* ]]; then
+              TOPOCONTOURLIST="${2}"
+            else
+              TOPOCONTOURLIST="${2},"
+            fi
+            topocontourlistflag=1
+            shift
+          fi
+          ;;
         number)
           shift
           if arg_is_positive_integer $2; then
             TOPOCONTOURNUMDEF=$2
             shift
           else
-            echo "[-tn]: number requires positive integer argument"
+            echo "[-tn]: number option requires positive integer argument"
             exit 1
           fi
           ;;
@@ -8099,44 +8124,42 @@ fi
         ;;
         space) # [degrees]
           shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURSPACE="-G${2}d"
+          if ! arg_is_flag $2; then
+            TOPOCONTOURLABELSEP="$2"
             shift
           else
             echo "[-tn]: space requires positive float width argument"
             exit 1
           fi
-        shift
+        ;;
+        *)
+          echo "[-tn]: option $2 not recognized"
+          exit 1
         ;;
       esac
     done
 
-    # if [[ ${2:0:1} == [{] ]]; then
-    #   info_msg "[-tn]: GMT argument string detected"
-    #   shift
-    #   while : ; do
-    #       [[ ${2:0:1} != [}] ]] || break
-    #       TOPOCONTOURVARS+=("${2}")
-    #       shift
-    #   done
-    #   shift
-    #   CONTOURGRIDVARS="${topocvars[@]}"
-    # fi
-    # info_msg "[-tn]: Custom GMT topo contour commands: ${TOPOCONTOURVARS[@]}"
     plots+=("contours")
     ;;
+
+
 
   -tr) # -tr: rescale topography color stretch to data range
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tr:           rescale topography color stretch to data range
-Usage: -tr  [min] [[max]] [[spacing]]
+Usage: -tr [[options]]
 
   Stretch the CPT color scheme across the topographic range in the DEM (default),
   or between given values. Spacing dictates width of CPT z-slices.
 
   Default behavior is to respect a hinge at elevation 0 to avoid mixing sea and
   land colors.
+
+  Options:
+  minmax [min] [max]           set range of rescaled topography
+  nohinge                      turn of hinge behavior in the rescaled cpt
+  shiftzero [value]            shift CPT slices by constant value after rescale
 
 Example:
 tectoplot -t -tr -o example_tr
@@ -8146,28 +8169,53 @@ EOF
 shift && continue
 fi
 
-    if arg_is_float "${2}"; then
-      RESCALE_CPT_MIN="${2}"
-      TMIN="${2}"
-      shift
-    else
-      RESCALE_CPT_MIN="none"
-    fi
-    if arg_is_float "${2}"; then
-      RESCALE_CPT_MAX="${2}"
-      TMAX="${2}"
-      shift
-    else
-      RESCALE_CPT_MAX="none"
-    fi
-    if arg_is_positive_float "${2}"; then
-      RESCALE_CPT_SPACING="${2}"
-      shift
-    else
-      RESCALE_CPT_SPACING="none"
-    fi
+    while ! arg_is_flag $2; do
+      case $2 in
+        minmax)
+          if arg_is_float "${2}"; then
+            RESCALE_TMIN="${2}"
+            rescaletopominflag=1
+            shift
+          else
+            echo "[-tr]: option minmax requires minimum number argument"
+            exit 1
+          fi
 
-    rescaletopoflag=1
+          if arg_is_float "${2}"; then
+            RESCALE_TMAX="${2}"
+            rescaletopomaxflag=1
+            shift
+          else
+            echo "[-tr]: option minmax requires maximum number argument"
+            exit 1
+          fi
+        ;;
+        nohinge)
+          shift
+          cptnohingeflag=1
+        ;;
+        nostretch)
+          shift
+          cptnostretchflag=1
+        ;;
+        shiftzero)
+          shift
+          cptshiftzeroflag=1
+          if arg_is_float $2; then
+            CPT_SHIFTZERO=$2
+            shift
+          else
+            echo "[-tr]: option shiftzero requires number argument"
+            exit 1
+          fi
+        ;;
+        *)
+          echo "[-tr]: option $2 not recognized"
+          exit 1
+        ;;
+      esac
+    done
+    [[ $cptnostretchflag -ne 1 ]] && rescaletopoflag=1
     ;;
 
   -trp) # -trp: rescale cpt by two different factors, above and below 0
@@ -8519,11 +8567,13 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tcpt:         specify the CPT file defining topography color stretch
-Usage: -tcpt [[cpt=${TOPO_CPT_DEF}]] [[type="${TOPO_CPT_TYPE}"]]
+Usage: -tcpt [cpt=${TOPO_CPT_DEF}] [[direct]]
 
-  cpt = CPT file or builtin CPT name
+  cpt = path to CPT file or builtin CPT name
 
-  Use -tr to rescale a default CPT to the topographic elevation range
+  If the "direct" option is given, CPT is used without any modification
+
+  Note: Use -tr to rescale a default CPT to the topographic elevation range
 
 Example:
 tectoplot -t -tcpt turbo -tr -o example_tcpt
@@ -8550,6 +8600,17 @@ fi
       exit 1
     fi
     shift
+  fi
+
+  if [[ $2 == "direct" ]]; then
+    cptdirectflag=1
+    shift
+    if [[ -s ${CPT_PATH} ]]; then
+      CUSTOM_TOPO_CPT=${CPT_PATH}
+    else
+      echo "[-tcpt]: direct option requires ${CPT_PATH} to be an existing file"
+      exit 1
+    fi
   fi
   ;;
 
@@ -11971,8 +12032,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             # gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             # gmt grdconvert cutfirst.tif ${F_TOPO}dem.tif=gd:GTiff
 
-            gmt grdconvert ${GRIDFILE} ${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-            # gmt grdcut ${F_TOPO}dem_convert.tif -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+            # gmt grdconvert ${GRIDFILE} ${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+
+
+            gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             # Just convert the whole grid to tiff?
             # gdal_translate -q -of "GTiff" -r bilinear -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
             # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
@@ -12112,8 +12175,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
     ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_DN.asc
     # using -te and -ts seems to fix errors with GMT -R and -I not matching
-    gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}ddd.tif
-    [[ -s ${F_TOPO}ddd.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}ddd.tif
+    gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
+    [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
   fi
 
 
@@ -14769,383 +14832,103 @@ for cptfile in ${cpts[@]} ; do
 
       touch $TOPO_CPT
       TOPO_CPT=$(abs_path $TOPO_CPT)
-      if [[ $customgridcptflag -eq 1 ]]; then
+      if [[ $cptdirectflag -eq 1 ]]; then
         info_msg "Copying custom CPT file $CUSTOMCPT to temporary directory"
-        cp $CUSTOMCPT $TOPO_CPT
-      else
-        # info_msg "Building default TOPO CPT file from $TOPO_CPT_DEF"
-        # gmt makecpt -Fr -C${TOPO_CPT_DEF} -T${TOPO_CPT_DEF_MIN}/${TOPO_CPT_DEF_MAX}/${TOPO_CPT_DEF_STEP}  $VERBOSE > $TOPO_CPT
-
-      # Now we need to generate a reasonable CPT file
-      # Requirements:
-      # 1. Respect hinge at Z=0 (ensure Z=0 is a slice)
-      # 2. Not exceed the vertical range zmin, zmax of the dataset except for rounding
-      # 3. Either stretch or not stretch the CPT range as required by -tr
-      # 4. Not bug out when the grid range exceeds the input CPT range (-9234 m vs -8000 m)
-      # 5. The annotation interval is known and reasonable
-
-      # Strategy:
-
-      # 1. Determine the range of the DEM if it exists and TMIN is not set
-
-      # This is where TMIN and TMAX default / specified variable
-      # come into play for the topo CPT
-
-      if [[ -s ${TOPOGRAPHY_DATA} ]]; then
-        zrange=$(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT)
-        TMIN=$(echo $zrange | gawk  '{printf "%d\n", $1}')
-        TMAX=$(echo $zrange | gawk  '{printf "%d\n", $2}')
-      fi
-
-      MINZ=${TMIN}
-      MAXZ=${TMAX}
-
-      # 2. Determine the (rounded) z-range of the CPT file
-
-      gmt makecpt -C${TOPO_CPT_DEF} > ${F_CPTS}first.cpt
-
-      if [[ $usedirectcptflag -eq 1 ]]; then
-        mv ${F_CPTS}first.cpt ${F_CPTS}new_extended_2.cpt
+        cp $CUSTOM_TOPO_CPT $TOPO_CPT
       else
 
-        # 1.1. Use a 1 meter step spacing to avoid losing contrast
 
-        SPACING_D=1
-        # $(echo ${MINZ} ${MAXZ} | gawk '
-        #   {
-        #     if ($2-$1 > 5000) {
-        #       print 1
-        #     } else if ($2-$1 > 2500) {
-        #       print 5000
-        #     } else if ($2-$1 > 1250) {
-        #       print 250
-        #     } else if ($2-$1 > 500) {
-        #       print 100
-        #     } else {
-        #       print 10
-        #     }
-        #   }')
+# Criteria for generating a topography CPT file from a standard OR custom CPT
+# 1. Respect hinge at Z=0
+# 2. Exceed the range [zmin, zmax] of the dataset only through rounding
+# 3. Either stretch or not stretch the CPT range as required by -tr
+# 4. Not bug out when the grid range exceeds the input CPT range (-9234 m vs -8000 m defaults)
+# 5. Have a reasonable annotation interval in the map legend
 
-        CPT_ZRANGE=($(gawk <  ${F_CPTS}first.cpt '
+        # Determine the range of data if it exists
+
+        if [[ -s ${TOPOGRAPHY_DATA} ]]; then
+          zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}))
+          TMIN=${zrange[0]}
+          TMAX=${zrange[1]}
+        fi
+
+
+        # Check and see if the CPT has a zero slice
+        CPT_HAS_ZERO=$(gmt makecpt -C${TOPO_CPT_DEF} | gawk '
           BEGIN {
-            getline
-            haszero=0
-            minz=($1<$3)?$1:$3
-            maxz=($1>$3)?$1:$3
+            endval=0
           }
-          ($1+0==$1){
-            minz=($1<minz)?$1:minz
-            minz=($3<minz)?$3:minz
-
-            maxz=($1>maxz)?$1:maxz
-            maxz=($3>maxz)?$3:maxz
-          }
-          ($1==0) {
-            haszero=1
+          ($1+0==0) {
+            endval=1
+            exit
           }
           END {
-            print minz, maxz, haszero
-          }'))
+            print endval
+          }')
 
+        [[ $CPT_HAS_ZERO -eq 1 && $cptnohingeflag -ne 1 ]] && echo "# HARD_HINGE" > ${F_CPTS}topo_prep.cpt
 
-        # CPT_HAS_ZERO=${CPT_ZRANGE[2]}
+        if [[ $rescaletopoflag -ne 1 ]]; then
 
-        # If the input CPT is symmetric about 0 and has a 0 slice, then rescaling will by symmetric about 0
+          gmt makecpt -C${TOPO_CPT_DEF} -T-11000/9000 -Frgb >> ${F_CPTS}topo_prep.cpt
 
-
-        if [[ $rescaletopoflag -eq 1 ]]; then
-
-          # Stretch the CPT to fit the requested range
-          if [[ ${RESCALE_CPT_MIN} == "none" ]]; then
-            RESCALE_CPT_MIN=${MINZ}
-          fi
-          if [[ ${RESCALE_CPT_MAX} == "none" ]]; then
-            RESCALE_CPT_MAX=${MAXZ}
-          fi
-          if [[ ${RESCALE_CPT_SPACING} == "none" ]]; then
-            RESCALE_CPT_SPACING=${SPACING_D}
-          fi
-          gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${RESCALE_CPT_MIN}/${RESCALE_CPT_MAX}/${RESCALE_CPT_SPACING} -Fr > ${F_CPTS}respaced.cpt
+          # Make the new CPT by truncating the prep CPT to the data range
+          gmt makecpt -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z > ${F_CPTS}topo_temp.cpt
         else
-          gmt makecpt ${TOPO_CPT_TYPE} -C${TOPO_CPT_DEF} -T${CPT_ZRANGE[0]}/${CPT_ZRANGE[1]}/${SPACING_D} -Fr > ${F_CPTS}respaced.cpt
+          [[ $rescaletopominflag -eq 1 ]] && TMIN=${RESCALE_TMIN}
+          [[ $rescaletopomaxflag -eq 1 ]] && TMAX=${RESCALE_TMAX}
+
+          # If we ARE rescaling the CPT, make a hard hinge CPT from -1 to 1
+          gmt makecpt -C${TOPO_CPT_DEF} -T-1/1 -Frgb >> ${F_CPTS}topo_prep.cpt
+
+          # Then resample it to rescale
+          gmt makecpt -C${F_CPTS}topo_prep.cpt -T${TMIN}/${TMAX} -Frgb > ${F_CPTS}topo_temp.cpt
+
         fi
-
-        if [[ $multiplyrescaletopoflag -eq 1 ]]; then
-          multiply_scale_cpt ${F_CPTS}respaced.cpt ${MULT_CPT_BELOW} ${MULT_CPT_ABOVE} > ${F_CPTS}mult_scaled.cpt
-          cp ${F_CPTS}mult_scaled.cpt ${F_CPTS}respaced.cpt
-        fi
-
-        replace_gmt_colornames_rgb  ${F_CPTS}respaced.cpt >  ${F_CPTS}respaced_rgb1.cpt
-
-        # Check whether a z-slice line starts with 0.
-
-        # CPT_HAS_ZERO=($(gawk <  ${F_CPTS}respaced_rgb1.cpt '
-        #   BEGIN {
-        #     haszero=0
-        #   }
-        #   ($1==0) {
-        #     haszero=1
-        #   }
-        #   END {
-        #     print haszero
-        #   }'))
-
-        # Detect whether the CPT file crosses 0 but does not have a 0 z slice
-
-
-        CPT_ZRANGE=($(gawk <  ${F_CPTS}respaced_rgb1.cpt '
-          BEGIN {
-            getline
-            haszero=0
-            minz=($1<$3)?$1:$3
-            maxz=($1>$3)?$1:$3
-          }
-          ($1+0==$1){
-            minz=($1<minz)?$1:minz
-            minz=($3<minz)?$3:minz
-
-            maxz=($1>maxz)?$1:maxz
-            maxz=($3>maxz)?$3:maxz
-          }
-          ($1==0) {
-            haszero=1
-          }
-          END {
-            print minz, maxz, haszero
-          }'))
-
-          CPT_HAS_ZERO=${CPT_ZRANGE[2]}
-
-        if [[ $(echo "${CPT_ZRANGE[1]} > 0 && ${CPT_ZRANGE[0]} < 0" | bc) -eq 1 ]]; then
-          if [[ $CPT_HAS_ZERO -eq 0 ]]; then
-            echo "CPT needs to have a 0 slice added"
-            gawk <  ${F_CPTS}respaced_rgb1.cpt '
-              BEGIN {
-                getline
-                last_c1=$2
-                last_c2=$4
-                printed_zero=0
-                print
-              }
-              ($1+0==$1) {
-                if ($1>0 && printed_zero==0) {
-                  print 0, last_c2, $1, last_c2
-                  printed_zero=1
-                }
-                print
-                last_c1=$2
-                last_c2=$4
-              }
-              ($1+0!=$1) {
-                print
-              }' >  ${F_CPTS}new_0slice.cpt
-            cp  ${F_CPTS}new_0slice.cpt  ${F_CPTS}respaced_rgb.cpt
-            CPT_HAS_ZERO=1
-          else
-            cp ${F_CPTS}respaced_rgb1.cpt ${F_CPTS}respaced_rgb.cpt
-          fi
-        else
-            if [[ -s ${F_CPTS}respaced_rgb1.cpt ]]; then
-              cp ${F_CPTS}respaced_rgb1.cpt  ${F_CPTS}respaced_rgb.cpt
-            fi
-        fi
-
-
-        # echo "Need to extend range of CPT file to cover data: $MINZ $MAXZ ${CPT_ZRANGE[0]} ${CPT_ZRANGE[1]}?"
-
-        # If our data range crosses 0, minZ<=0 and maxz>=0
-          EXTEND_D=($(echo ${MINZ} ${MAXZ} | gawk '
-            {
-              if ($1<0 && $2<0) {
-                endv=0-$1
-              } else if ($1<0 && $2>0) {
-                if ((0-$1) > $2) {
-                  endv=0-$1
-                } else {  # ($1>0 and $2 > 0)
-                  endv=$2
-                }
-              } else if ($1>= 0 && $2 >= 0) {
-                endv=$2
-              }
-              # print "range", $2-$1 > "/dev/stderr"
-              if ($2-$1 > 5000) {
-                x=10**(length(int(endv))-1);
-                print x*int((endv/x)+0.5)+1000, 2000
-              } else if ($2-$1 > 2500) {
-                x=10**(length(int(endv))-1);
-                print x*int((endv/x)+0.5)+1000, 1000
-              } else if ($2-$1 > 1250) {
-                x=10**(length(int(endv))-1);
-                print x*int((endv/x)+0.5)+1000, 500
-              } else if ($2-$1 > 500) {
-                x=10**(length(int(endv))-1);
-                print x*int((endv/x)+0.5)+1000, 200
-              } else {
-                x=10**(length(int(endv))-1);
-                print x*int((endv/x)+0.5)+1000, 20
-              }
-            }'))
-
-          extend_val=${EXTEND_D[0]}
-          extend_int=${EXTEND_D[1]}
-
-          # echo "minz=${MINZ} maxz=${MAXZ} extend val is ${extend_val} range is ${extend_int}"
-
-          gawk < ${F_CPTS}respaced_rgb.cpt -v extv=${extend_val} '
-            BEGIN {
-              getline
-              if ($1 > 0-extv) {
-                print 0-extv, $2, $1, $2
-              }
-              print $1, $2, $3, $4
-              last1=$1
-              last2=$2
-              last3=$3
-              last4=$4
-            }
-            ($1=="B") {
-              # if (last3 != extv) {
-                # Ensure we do not have a zslice with dz=0
-              print last3, last4, extv, last4
-              # }
-              print
-            }
-            ($1+0==$1) {
-
-              if ($1+0 <= extv) {
-                print $1, $2, $3, $4
-                last1=$1
-                last2=$2
-                last3=$3
-                last4=$4
-              }
-
-              # if ($1+0 < extv) {
-              #   print $1, $2, $3, $4
-
-              # } else {
-              #   print "Did not qualify", $0
-              # }
-
-            }
-            ($1+0!=$1 && $1 != "B") {
-              print
-            }' >  ${F_CPTS}new_extended.cpt
-
-            # If the maximum between-slice interval of the CPT is larger than extend_int, we can't proceed.
-
-            # cat ${F_CPTS}new_extended.cpt
-
-            # gawk < ${F_CPTS}new_extended.cpt '
-            #   BEGIN {
-            #     getline
-            #     last_z=$1
-            #     min_dz=0
-            #   }
-            #   ($1+0==$1) {
-            #     # print "examining", $1, "last is", last_z > "/dev/stderr"
-            #     if ($1-last_z > min_dz) {
-            #       min_dz=$1-last_z
-            #       # print "Grew to " $1 " - " last_z " = " min_dz
-            #     }
-            #     last_z=$1
-            #   }
-            #   # ($1+0 != $1) {
-            #   #   print "Not:"
-            #   #   print
-            #   # }
-            #   END {
-            #     print "min_dz is", min_dz
-            #   }'
-
-
-            # echo gmt makecpt -C${F_CPTS}new_extended.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr
-            # gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended.cpt -G-${extend_val}/${extend_val} -T-${extend_val}/${extend_val}/${extend_int} -Fr >  ${F_CPTS}new_resampled.cpt
-            gawk <  ${F_CPTS}new_extended.cpt -v minz=${MINZ} -v maxz=${MAXZ} '
-              ($1+0==$1) {
-                if ($3 > minz && $1 < maxz) {
-                  if ($3 > maxz) {
-                    $3=maxz
-                  }
-                  if ($1 < minz) {
-                    $1=minz
-                  }
-                  print
-                }
-              }
-              ($1+0!=$1) {
-                print
-              }' > ${F_CPTS}new_extended_2.cpt
-
-              gmt makecpt ${TOPO_CPT_TYPE} -C${F_CPTS}new_extended_2.cpt -T-${extend_val}/${extend_val}/${extend_int} -Fr > ${F_CPTS}new_resampled.cpt
-
-
-        # gmt makecpt
-        # 	-T Make evenly spaced color boundaries from <min> to <max> in steps of <inc>.
-        # 	-F Select the color model for output (R for r/g/b or grayscale or colorname,
-  	    #      r for r/g/b only, h for h-s-v, c for c/m/y/k) [Default uses the input model]
-        #	  -G Truncate incoming CPT to be limited to the z-range <zlo>/<zhi>.
-  	    #      To accept one of the incoming limits, set that limit to NaN.
-        #   -D Set back- and foreground color to match the bottom/top limits
-  	    #      in the output CPT [Default uses color table]. Append i to match the
-  	    #      bottom/top values in the input CPT.
-
-        # COMEBACK
-
-        # if [[ $rescaletopoflag -eq 1 ]]; then
-        #   info_msg "Rescaling topo $BATHY with CPT to $MINZ/$MAXZ with hinge at 0"
-        #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-        #
-        # else
-        #   info_msg "Resampling topo $BATHY  CPT to within existing $MINZ/$MAXZ"
-        #   # gmt makecpt -Fr -C$TOPO_CPT_DEF -G$MINZ/$MAXZ -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-        #   gmt makecpt -Fr -C$TOPO_CPT_DEF -T$MINZ/$MAXZ/${TOPO_CPT_DEF_STEP}  ${VERBOSE} > topotmp.cpt
-        # fi
-        #
-        # mv topotmp.cpt $TOPO_CPT
-        # GDIFFZ=$(echo "($MAXZ - $MINZ) > 4000" | bc)  # Scale range is greater than 4 km
-        # # Set the interval value for the legend scale based on the range of the data
-        # if [[ $GDIFFZ -eq 1 ]]; then
-        #   BATHYXINC=2
-        # else
-        #   BATHYXINC=$(echo "($MAXZ - $MINZ) / 6 / 1000" | bc -l | gawk  '{ print int($1/0.1)*0.1}')
-        # fi
-        # GDIFFZ=$(echo "($MAXZ - $MINZ) < 1000" | bc) # Scale range is lower than 1 km
-        # # Set the interval value for the legend scale based on the range of the data
-        # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
-        #   BATHYXINC=0.1
-        # fi
-        # GDIFFZ=$(echo "($MAXZ - $MINZ) < 100" | bc) # Scale range is lower than 1 km
-        # # Set the interval value for the legend scale based on the range of the data
-        # if [[ $GDIFFZ -eq 1 ]]; then # Just use 100 meters for now
-        #   BATHYXINC=0.01
-        # fi
+        cleanup ${F_CPTS}topo_prep.cpt
       fi
-    fi
 
-    CPT_ZRANGE_2=($(gawk <  ${F_CPTS}new_extended_2.cpt '
-      BEGIN {
-        getline
-        minz=($1<$3)?$1:$3
-        maxz=($1>$3)?$1:$3
-        haszero=0
-      }
-      ($1+0==$1){
-        minz=($1<minz)?$1:minz
-        minz=($3<minz)?$3:minz
+      # Shift the CPT if requires
 
-        maxz=($1>maxz)?$1:maxz
-        maxz=($3>maxz)?$3:maxz
-      }
-      ($1==0) {
-        haszero=1
-      }
-      END {
-        print minz, maxz
-      }'))
+      if [[ $cptshiftzeroflag -eq 1 ]]; then
 
-      # echo here ${CPT_ZRANGE_2[@]} $(echo "${CPT_ZRANGE_2[1]} - ${CPT_ZRANGE_2[0]}" | bc -l )
+        gawk < ${F_CPTS}topo_temp.cpt -v shft=${CPT_SHIFTZERO} '
+        {
+          if ($1+0==$1) {
+            $1=$1+shft
+            $3=$3+shft
+          }
+          print
+        }' > ${F_CPTS}topo_temp2.cpt
+        mv ${F_CPTS}topo_temp2.cpt ${F_CPTS}topo_temp.cpt
+      fi
 
+
+
+      # Determine the range of the CPT directly
+      CPT_ZRANGE_2=($(gawk < ${F_CPTS}topo_temp.cpt '
+        BEGIN {
+          getline
+          minz=($1<$3)?$1:$3
+          maxz=($1>$3)?$1:$3
+          haszero=0
+        }
+        ($1+0==$1){
+          minz=($1<minz)?$1:minz
+          minz=($3<minz)?$3:minz
+
+          maxz=($1>maxz)?$1:maxz
+          maxz=($3>maxz)?$3:maxz
+        }
+        ($1==0) {
+          haszero=1
+        }
+        END {
+          print minz, maxz
+        }'))
+
+      # Determine the label interval for the CPT
       BATHYXINC=$(echo ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} | gawk '
         {
           if ($2-$1 > 8000) {
@@ -15165,11 +14948,9 @@ for cptfile in ${cpts[@]} ; do
           }
         }')
 
-      # echo BATHYXINC=${BATHYXINC}
-
-      cp ${F_CPTS}new_extended_2.cpt ${TOPO_CPT}
-
-      # gmt makecpt -Cgeo -G${MINZ}/${MAXZ} -T${MINZ}/${MAXZ} > ${TOPO_CPT}
+      # Finalize the CPT
+      cp ${F_CPTS}topo_temp.cpt ${TOPO_CPT}
+      cleanup ${F_CPTS}topo_temp.cpt
     ;;
 
     seisdepth)
@@ -15794,14 +15575,16 @@ EOF
         fi
 
   #-Ft -Fa0.05i
+  echo
         if [[ $cmtthrustflag -eq 1 ]]; then
-          gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
+          gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
+          # gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
         fi
         if [[ $cmtnormalflag -eq 1 ]]; then
-          gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
+          gmt psmeca -Z${SEIS_CPT} -E"${CMT_NORMALCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_NORMALPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
         fi
         if [[ $cmtssflag -eq 1 ]]; then
-          gmt_psmeca_wrapper $SEIS_CPT -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} ${CMT_INPUTORDER} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
+          gmt psmeca -Z${SEIS_CPT} -E"${CMT_SSCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_STRIKESLIPPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
         fi
         ;;
 
@@ -15809,62 +15592,149 @@ EOF
 
         # We want to plot contours intelligently and nicely including major-minor contour thickness and labeling only of major contours, without double plotting of contours.
 
-        # Contour interval for grid if not specified using -tn
-        zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
-        if [[ $topocontourcalcflag -eq 1 ]]; then
-          TOPOCONTOURINT=$(echo "(${zrange[1]} - ${zrange[0]}) / $TOPOCONTOURNUMDEF" | bc -l)
-          if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
-            TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
+
+
+        if [[ $topocontourlistflag -eq 1 ]]; then
+          gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${TOPOCONTOURLIST} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} -D > majorcontourlines.dat
+        else
+          # Contour interval for grid if not specified using -tn
+          zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
+          if [[ $topocontourcalcflag -eq 1 ]]; then
+            TOPOCONTOURINT=$(echo "(${zrange[1]} - ${zrange[0]}) / $TOPOCONTOURNUMDEF" | bc -l)
+            if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
+              TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
+            fi
+          fi
+
+          gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=$TOPOCONTOURINT -v majorspace=${CONTOURMAJORSPACE} -v minwidth=${TOPOCONTOURMINORWIDTH} -v maxwidth=${TOPOCONTOURMAJORWIDTH} -v mincolor=${TOPOCONTOURMINORCOLOR} -v maxcolor=${TOPOCONTOURMAJORCOLOR} -v annotate=0 '
+            BEGIN {
+              if (annotate==1) {
+                annotateflag="A"
+              } else {
+                annotateflag="c"
+              }
+              # If the range straddles 0, ensure 0 is a major contour
+              if (minz<0 && maxz>0) {
+                ismaj=0
+
+                print 0, annotateflag, maxwidth "p," maxcolor
+                for(i=0-cint; i>=minz; i-=cint) {
+                  if (++ismaj == majorspace) {
+                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+                    ismaj=0
+                  } else {
+                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
+                  }
+                }
+                ismaj=0
+                for(i=cint; i<=maxz; i+=cint) {
+                  if (++ismaj == majorspace) {
+                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+                    ismaj=0
+                  } else {
+                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
+                  }
+                }
+              } else {
+              # If the range does not straddle 0, just make contours
+                ismaj=1
+                minz=minz-minz%cint
+                for(i=minz; i<maxz; i+=cint) {
+                  if (++ismaj == majorspace) {
+                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+                    ismaj=0
+                  } else {
+                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
+                  }
+                }
+              }
+            }'
+
+          # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
+          info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
+
+          if [[ -s topo.major.contourdef ]]; then
+             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} > majorcontourlines.dat
+          fi
+
+
+          if [[ -s topo.minor.contourdef ]]; then
+             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} > minorcontourlines.dat
           fi
         fi
 
-        gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=$TOPOCONTOURINT -v majorspace=${CONTOURMAJORSPACE} -v minwidth=${TOPOCONTOURMINORWIDTH} -v maxwidth=${TOPOCONTOURMAJORWIDTH} -v mincolor=${TOPOCONTOURMINORCOLOR} -v maxcolor=${TOPOCONTOURMAJORCOLOR} '
-          BEGIN {
-            # If the range straddles 0, ensure 0 is a major contour
-            if (minz<0 && maxz>0) {
-              ismaj=0
+        if [[ -s majorcontourlines.dat ]]; then
+           # Adobe Illustrator only draws the first 32,000 points in a path for SOME STUPID REASON
+           gawk < majorcontourlines.dat -v maxpts=2000 '
+           BEGIN {
+             curcount=0
+             linecount=0
+           }
+           ($1+0!=$1) {
+             header=$0
+             curcount=0
+             linecount++
+           }
+           ($1+0==$1) {
 
-              print 0, "A", maxwidth "p," maxcolor
-              for(i=0-cint; i>=minz; i-=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
-              ismaj=0
-              for(i=cint; i<=maxz; i+=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
-            } else {
-            # If the range does not straddle 0, just make contours
-              ismaj=1
-              minz=minz-minz%cint
-              for(i=minz; i<maxz; i+=cint) {
-                if (++ismaj == majorspace) {
-                  print i, "A", maxwidth "p," maxcolor
-                  ismaj=0
-                } else {
-                  print i, "c", minwidth "p," mincolor
-                }
-              }
-            }
-          }' > topo.contourdef
+             curcount++
+             if (curcount==maxpts) {
+               print header
+               print lastline
+               curcount=0
+             }
+             lastline=$0
+           }
+           {
+             print
+           }' > splitmajorcontourlines.dat
 
-        # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
-        info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
+           gmt psxy splitmajorcontourlines.dat -Sqn1+r${TOPOCONTOURLABELSEP}:+f2p,Helvetica,black+Lh+i+e ${RJOK} >> map.ps
+           gmt psxy splitmajorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
+           gmt psclip -C ${RJOK} >> map.ps
+           # gmt psxy majorcontourlines.dat -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
+        fi
 
-        # echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} map.ps
-        gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -Ctopo.contourdef ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} >> map.ps
-        # gmt grdcontour $BATHY -A+f2p,Helvetica,black -Ctopo.contourdef $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]} -t${TOPOCONTOURTRANS} $RJOK ${VERBOSE} >> map.ps
-        # gmt grdcontour $BATHY $AFLAG $CFLAG $SFLAG $QFLAG -W$TOPOCONTOURWIDTH,$TOPOCONTOURCOLOUR ${TOPOCONTOURVARS[@]}  $RJOK ${VERBOSE} >> map.ps
+        if [[ -s minorcontourlines.dat ]]; then
+             gawk < minorcontourlines.dat -v maxpts=2000 '
+             BEGIN {
+               curcount=0
+               linecount=0
+             }
+             ($1+0!=$1) {
+               header=$0
+               curcount=0
+               linecount++
+             }
+             ($1+0==$1) {
 
+               curcount++
+               if (curcount==maxpts) {
+                 print header
+                 print lastline
+                 curcount=0
+               }
+               lastline=$0
+             }
+             {
+               print
+             }' > splitminorcontourlines.dat
+             # gmt psxy splitminorcontourlines.dat -Sqn1:+f2p,Helvetica,black+Lh+i+e ${RJOK} >> map.ps
+             gmt psxy splitminorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMINORWIDTH},${TOPOCONTOURMINORCOLOR} ${RJOK} >> map.ps
+             # gmt psclip -C ${RJOK} >> map.ps
+             # gmt psxy minorcontourlines.dat -W${TOPOCONTOURMINORWIDTH},${TOPOCONTOURMINORCOLOR} ${RJOK} >> map.ps
+         fi
+
+
+
+          # split -l 10 topo.contourdef toposplit
+          #
+          # for thissplit in toposplit*; do
+          #   echo "Contouring $thissplit"
+          #   echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${thissplit} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE}
+          #   gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${thissplit} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} >> map.ps
+          #   rm -f $thissplit
+          # done
 
   # TOPOCONTOURSPACE="-G${2}d"
         ;;
@@ -18496,6 +18366,12 @@ EOF
 
               c)
                 info_msg "Creating and blending color stretch from ${TOPOGRAPHY_DATA} (alpha=$DEM_ALPHA)."
+
+                # GMT can be used to make the color stretch but gdaldem seems better?
+                # gmt_init_tmpdir
+                # gmt grdimage ${TOPOGRAPHY_DATA} -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JX5i ${VERBOSE} -A${F_TOPO}colordem_gmt.tif=gd:GTiff+cCOMPRESS=NONE
+                # gdal_edit.py -colorinterp_1 red -colorinterp_2 green -colorinterp_3 blue ${F_TOPO}colordem_gmt.tif
+                # gmt_remove_tmpdir
                 gdaldem color-relief ${TOPOGRAPHY_DATA} ${F_CPTS}topocolor.dat ${F_TOPO}colordem.tif -q
                 if [[ $tposwhiteflag -eq 1 ]]; then
                   # If raster $2 has value above $3, outval=$4, else outval=raster $1, put into $5
@@ -18692,7 +18568,7 @@ EOF
                 # Change to 8 bit unsigned format
                 gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadowed.tif -q
 
-                gdal_fillnodata.py -md 10000 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
+                gdal_fillnodata.py -q -md 10000 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
                 # gdal_calc.py --overwrite --type=Byte --format=GTiff --quiet -A ${F_TOPO}shadowed.tif --calc="((A==127)*254 + (A!=127)*A)" --outfile=${F_TOPO}shadowed_fixed.tif
 
                 # gdalbuildvrt -srcnodata 255 -vrtnodata 0 /vsistdout/ ${F_TOPO}shadowed.tif | gdal_translate -a_nodata 1 /vsistdin/ ${F_TOPO}shadowed_fixed.tif
@@ -18701,7 +18577,7 @@ EOF
 
                 # echo "SHADOW"
                 # gdalinfo ${F_TOPO}shadow.tif
-                smoothshadowsflag=1
+                smoothshadowsflag=0
                 if [[ $smoothshadowsflag -eq 1 ]]; then
                   info_msg Smoothing shadow map
                   gmt grdfilter -Fg5 ${F_TOPO}shadowed_fixed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -Dp
@@ -18761,12 +18637,16 @@ EOF
                   this_image=${TIMG_IMAGES[$this_image_ind]}
                   this_fact=${TIMG_FACTS[$this_image_ind]}
 
+                  # Detect an alpha channel and remove it if necessary
+                  gdal_translate -b 1 -b 2 -b 3 ${this_image} temp_image.tif
+                  this_image=temp_image.tif
+
                   info_msg "Rendering georeferenced RGB image ${this_image} as colored texture."
 
                   if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
                     info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
                     rm -f ${F_TOPO}image_alpha.tif
-                    alpha_value ${this_image} ${this_fact} ${F_TOPO}image_alpha.tif
+                    alpha_value temp_image.tif ${this_fact} ${F_TOPO}image_alpha.tif
                     gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
                     this_image=${F_TOPO}image_alpha.tif
                     cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
@@ -18776,6 +18656,9 @@ EOF
                   gdalwarp -overwrite -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${this_image} ${F_TOPO}image_pre.tif
                   gdal_edit.py -colorinterp_1 red -colorinterp_2 green -colorinterp_3 blue ${F_TOPO}image_pre.tif
 
+                  quickreport ${F_TOPO}image_pre.tif
+
+
                   # Either copy (first) or overlay (subsequent) the rescaled image
                   if [[ ! -s ${F_TOPO}image.tif ]]; then
                     cp ${F_TOPO}image_pre.tif ${F_TOPO}image.tif
@@ -18784,6 +18667,8 @@ EOF
                     white_pixels_combine ${F_TOPO}image_pre.tif ${F_TOPO}image.tif ${F_TOPO}image_out.tif
                     cp ${F_TOPO}image_out.tif ${F_TOPO}image.tif
                   fi
+
+
 
       # This is the problematic command that overly brightens the image sometimes
       #              histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
@@ -18806,6 +18691,7 @@ EOF
                 INTENSITY_RELIEF=${F_TOPO}colored_intensity.tif
             fi
 
+
             # If we have a color stretch but NOT an image overlay
             if [[ ${topoctrlstring} =~ .*c.* && ! ${topoctrlstring} =~ .*p.* ]]; then
               multiply_combine ${F_TOPO}colordem_alpha.tif $INTENSITY_RELIEF ${F_TOPO}colored_intensity.tif
@@ -18821,7 +18707,10 @@ EOF
         # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated
         if [[ $fasttopoflag -eq 0 ]]; then
           if [[ $dontplottopoflag -eq 0 ]]; then
-            gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+            echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES ${RJSTRING[@]} \> test.ps
+            gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES $RJOK ${VERBOSE} >> map.ps
+
+            # gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
           fi
         else
         # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
@@ -18832,7 +18721,7 @@ EOF
 
           if [[ $dontplottopoflag -eq 0 ]]; then
             # echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJSTRING[@]} \> test.ps
-            gmt grdimage ${COLORED_RELIEF}  -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+            gmt grdimage ${COLORED_RELIEF}  ${RJOK} ${VERBOSE} >> map.ps
             # GRID_PRINT_RES
           fi
         fi

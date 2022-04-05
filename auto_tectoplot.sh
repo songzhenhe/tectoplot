@@ -78,14 +78,20 @@ else
   done
 fi
 
-# cat ${MYTMP}control.txt
+gawk < ${MYTMP}control.txt '
+  {
+    if (substr($1,0,1) != "#") {
+      print
+    }
+  }' > ${MYTMP}control2.txt
+
+mv ${MYTMP}control2.txt ${MYTMP}control.txt
 
 i=0
 noframe=""
 cutframe="-cutframe 6"
 
 while read p; do
-
   if [[ $i -eq 0 ]]; then
     shared_args="${p}"
     # shared_args="${p} -noopen"
@@ -109,8 +115,8 @@ while read p; do
       fi
       # ((i++))
       pslayers+=("${layername}/map.ps")
+      noframe="-noframe"
     fi
-    noframe="-noframe"
   fi
   ((i++))
 done < ${MYTMP}control.txt

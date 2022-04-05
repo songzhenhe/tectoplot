@@ -5,6 +5,7 @@ tectoplot.sources
 tectoplot_defs/tectoplot.gmtcpts
 .DS_Store
 cscripts/access_litho
+cscripts/access_litho.o
 reasenberg/reasenberg
 cscripts/texture_shader/shadow
 cscripts/texture_shader/svf

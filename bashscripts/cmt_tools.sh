@@ -1168,16 +1168,22 @@ BEGIN {
       }
 
       if (calc_moment_tensor_from_sdr1==1) {
-        # printf "%s-", "calc_moment_tensor_from_sdr1"
 
         sdr_mantissa_exponent_to_full_moment_tensor(strike1, dip1, rake1, mantissa, exponent, MT2)
-
         Mrr=MT2[1]
         Mtt=MT2[2]
         Mpp=MT2[3]
         Mrt=MT2[4]
         Mrp=MT2[5]
         Mtp=MT2[6]
+        # print "---" > "/dev/stderr"
+        # print "SDR1=", strike1, dip1, rake1 > "/dev/stderr"
+        # print "MT=", Mrr, Mtt, Mpp, Mrt, Mrp, Mtp > "/dev/stderr"
+
+        moment_tensor_diagonalize_ntp(Mrr,Mtt,Mpp,Mrt,Mrp,Mtp)
+        # print "NTP=", d_AZ0, d_PL0, d_AZ1, d_PL1, d_AZ2, d_PL2 > "/dev/stderr"
+        ntp_to_sdr(d_AZ1, d_PL1, d_AZ2, d_PL2, SDR)
+        # print "SDRout=", SDR[1], SDR[2], SDR[3], "|", SDR[4], SDR[5], SDR[6] > "/dev/stderr"
       }
 
       # Principal axes returned this way have TPN eigenvalues of 1, 0, -1
