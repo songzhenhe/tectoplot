@@ -16545,6 +16545,7 @@ EOF
         ;;
 
       graticule)
+        gmt gmtget MAP_ANNOT_OBLIQUE
         OLD_FORMAT_FLOAT_OUT=$(gmt gmtget FORMAT_FLOAT_OUT -Vn)
         gmt gmtset FORMAT_FLOAT_OUT ${MAP_FORMAT_FLOAT_OUT}
         gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
