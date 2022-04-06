@@ -6289,8 +6289,8 @@ Usage: -frameall
 EOF
 shift && continue
 fi
-
-  gmt gmtset MAP_ANNOT_OBLIQUE anywhere,lon_horizontal
+    setobliqueframeflag=1
+    OBFRAMECMD="--MAP_ANNOT_OBLIQUE=anywhere,lon_horizontal"
   ;;
 
   -RJ) # -RJ: set map projection
@@ -8005,8 +8005,10 @@ Usage: -tn [[options]]
 
   Options:
 
-  int [number]
+  int [number | auto]
       Contour interval
+  index [number]
+      Set specified contour to be a major contour
   list [level1,level2,...]
       Use the comma-specified list, plot all as major contours
   minsize [arg]
@@ -8036,7 +8038,10 @@ fi
     TOPOCONTOURSPACE=""
     TOPOCONTOURMINSIZE=""
     TOPOCONTOURSMOOTH=""
+    TOPOCONTOURINDEX=0       # Value of an index contour
+    TOPOCONTOURINT=100       # Default contour interval
 
+    topocontourindexflag=0
     CONTOURMAJORSPACE=5
     TOPOCONTOURSPACE=""
     TOPOCONTOURLABELSEP="0.5i"
@@ -8053,8 +8058,22 @@ fi
           if arg_is_positive_float $2; then
             TOPOCONTOURINT="${2}"
             shift
+          elif [[ $2 == "auto" ]]; then
+            topocontourcalcflag=1
+            shift
           else
             echo "[-tn]: int option requires positive number argument"
+            exit 1
+          fi
+        ;;
+        index)
+          shift
+          if arg_is_float $2; then
+            topocontourindexflag=1
+            TOPOCONTOURINDEX="${2}"
+            shift
+          else
+            echo "[-tn]: index option requires number argument"
             exit 1
           fi
         ;;
@@ -12194,7 +12213,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     gdalwarp -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of AAIGrid ${TOPOGRAPHY_DATA} ${F_TOPO}dem_denoise.asc -q
     ${MDENOISE} -i ${F_TOPO}dem_denoise.asc -t ${DENOISE_THRESHOLD} -n ${DENOISE_ITERS} -o ${F_TOPO}dem_denoise_DN.asc
     # using -te and -ts seems to fix errors with GMT -R and -I not matching
-    gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised.tif
+    gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised_ddd.tif
     [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
   fi
 
@@ -15617,57 +15636,72 @@ EOF
           gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${TOPOCONTOURLIST} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} -D > majorcontourlines.dat
         else
           # Contour interval for grid if not specified using -tn
-          zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R$DEM_MINLON/$DEM_MAXLON/$DEM_MINLAT/$DEM_MAXLAT))
+          zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}))
           if [[ $topocontourcalcflag -eq 1 ]]; then
             TOPOCONTOURINT=$(echo "(${zrange[1]} - ${zrange[0]}) / $TOPOCONTOURNUMDEF" | bc -l)
+            # If the contour interval is greater than 1, use an integer interval
             if [[ $(echo "$TOPOCONTOURINT > 1" | bc -l) -eq 1 ]]; then
               TOPOCONTOURINT=$(echo "$TOPOCONTOURINT / 1" | bc)
             fi
           fi
 
-          gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=$TOPOCONTOURINT -v majorspace=${CONTOURMAJORSPACE} -v minwidth=${TOPOCONTOURMINORWIDTH} -v maxwidth=${TOPOCONTOURMAJORWIDTH} -v mincolor=${TOPOCONTOURMINORCOLOR} -v maxcolor=${TOPOCONTOURMAJORCOLOR} -v annotate=0 '
+          gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=$TOPOCONTOURINT -v majorspace=${CONTOURMAJORSPACE} \
+               -v minwidth=${TOPOCONTOURMINORWIDTH} -v maxwidth=${TOPOCONTOURMAJORWIDTH} -v mincolor=${TOPOCONTOURMINORCOLOR} \
+               -v maxcolor=${TOPOCONTOURMAJORCOLOR} -v annotate=0 -v indexflag=${topocontourindexflag} -v indexval=${TOPOCONTOURINDEX} '
             BEGIN {
               if (annotate==1) {
                 annotateflag="A"
               } else {
                 annotateflag="c"
               }
-              # If the range straddles 0, ensure 0 is a major contour
-              if (minz<0 && maxz>0) {
-                ismaj=0
 
-                print 0, annotateflag, maxwidth "p," maxcolor
-                for(i=0-cint; i>=minz; i-=cint) {
-                  if (++ismaj == majorspace) {
-                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
-                    ismaj=0
-                  } else {
-                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
-                  }
-                }
-                ismaj=0
-                for(i=cint; i<=maxz; i+=cint) {
-                  if (++ismaj == majorspace) {
-                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
-                    ismaj=0
-                  } else {
-                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
-                  }
-                }
-              } else {
-              # If the range does not straddle 0, just make contours
-                ismaj=1
-                minz=minz-minz%cint
-                for(i=minz; i<maxz; i+=cint) {
-                  if (++ismaj == majorspace) {
-                    print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
-                    ismaj=0
-                  } else {
-                    print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
-                  }
+              while (indexval <= maxz) {
+                indexval+=cint
+              }
+              while (indexval >= minz) {
+                indexval-=cint
+              }
+
+            # Ensure indexval is a major contour
+              ismaj=0
+
+              print indexval, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+              for(i=indexval-cint; i>=minz; i-=cint) {
+                print i
+                if (++ismaj == majorspace) {
+                  print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+                  ismaj=0
+                } else {
+                  print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
                 }
               }
-            }'
+              ismaj=0
+              for(i=indexval+cint; i<=maxz; i+=cint) {
+                print "j", i
+                if (++ismaj == majorspace) {
+                  print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+                  ismaj=0
+                } else {
+                  print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
+                }
+              }
+            }
+            '
+            # else {
+            #   # If the range does not straddle 0, just make contours
+            #     ismaj=1
+            #     minz=minz-minz%cint
+            #     for(i=minz; i<maxz; i+=cint) {
+            #       if (++ismaj == majorspace) {
+            #         print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
+            #         ismaj=0
+            #       } else {
+            #         print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
+            #       }
+            #     }
+            #   }
+            # }
+
 
           # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
           info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
@@ -15708,9 +15742,9 @@ EOF
              print
            }' > splitmajorcontourlines.dat
 
-           gmt psxy splitmajorcontourlines.dat -Sqn1+r${TOPOCONTOURLABELSEP}:+f2p,Helvetica,black+Lh+i+e ${RJOK} >> map.ps
-           gmt psxy splitmajorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
-           gmt psclip -C ${RJOK} >> map.ps
+           gmt psxy splitmajorcontourlines.dat -Sqn1+r${TOPOCONTOURLABELSEP}:+f2p,Helvetica,black+Lh+e -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${TOPOCONTOURTRANS} ${RJOK} >> map.ps
+           # gmt psxy splitmajorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
+           # gmt psclip -C ${RJOK} >> map.ps
            # gmt psxy majorcontourlines.dat -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
         fi
 
@@ -16545,10 +16579,9 @@ EOF
         ;;
 
       graticule)
-        gmt gmtget MAP_ANNOT_OBLIQUE
         OLD_FORMAT_FLOAT_OUT=$(gmt gmtget FORMAT_FLOAT_OUT -Vn)
         gmt gmtset FORMAT_FLOAT_OUT ${MAP_FORMAT_FLOAT_OUT}
-        gmt psbasemap "${BSTRING[@]}" $RJOK $VERBOSE >> map.ps
+        gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} $RJOK $VERBOSE >> map.ps
         gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
 
     #  gmt psbasemap "${BSTRING[@]}" ${SCALECMD} $RJOK $VERBOSE >> map.ps
