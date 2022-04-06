@@ -18760,21 +18760,20 @@ EOF
         # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated
         if [[ $fasttopoflag -eq 0 ]]; then
           if [[ $dontplottopoflag -eq 0 ]]; then
-            echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES ${RJSTRING[@]} \> test.ps
-            gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES $RJOK ${VERBOSE} >> map.ps
+            gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES $RJOK -t$TOPOTRANS ${VERBOSE} >> map.ps
 
             # gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
           fi
         else
         # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
           gmt_init_tmpdir
-            gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+            gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
             COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
           gmt_remove_tmpdir
 
           if [[ $dontplottopoflag -eq 0 ]]; then
             # echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJSTRING[@]} \> test.ps
-            gmt grdimage ${COLORED_RELIEF}  ${RJOK} ${VERBOSE} >> map.ps
+            gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
             # GRID_PRINT_RES
           fi
         fi
