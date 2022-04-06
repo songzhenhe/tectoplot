@@ -10137,14 +10137,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zccluster:    decluster seismicity and color by cluster ID rather than depth
-Usage: -zccluster [[remove]] [[method=${DECLUSTER_METHOD}]] [[minsize=${DECLUSTER_MINSIZE}]]
+Usage: -zccluster [[options]] [[method=${DECLUSTER_METHOD}]] [[minsize=${DECLUSTER_MINSIZE}]]
 
   Seismic catalog declustering separates independent events from those that can
   be labelled as aftershocks or foreshocks (dependent events). This option
   implements window-based declustering methods:
 
-  remove = remove non-mainshock events from the seismicity catalog.
+  Options:
+  remove             remove non-mainshock events from the seismicity catalog.
+  lines              plot colored lines connecting mainshocks to dependent events
 
+  Methods:
   gk = Gardner and Knopoff, 1974
   urhammer = Urhammer, 1976
   gruenthal = Gruenthal, personal communication, to somebody at some point (?)
@@ -10162,10 +10165,19 @@ EOF
 shift && continue
 fi
 
-  if [[ $2 =~ "remove" ]]; then
-    DECLUSTER_REMOVE=1
-    shift
-  fi
+  while [[ $2 == "remove" || $2 == "lines" ]]; do
+    case $2 in
+      remove)
+        DECLUSTER_REMOVE=1
+        shift
+      ;;
+      lines)
+        zcclusterplotlinesflag=1
+        shift
+      ;;
+    esac
+  done
+
   if [[ $2 =~ "urhammer" || $2 =~ "gk" || $2 =~ "gruenthal" || $2 =~ "rb" ]]; then
     DECLUSTER_METHOD="${2}"
     shift
@@ -12783,6 +12795,26 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         cat ./catalog_declustered.txt ./catalog_clustered.txt > ${F_SEIS}eqs.txt
       fi
       mv ./catalog_declustered.txt ./catalog_clustered.txt ${F_SEIS}
+
+      # Create a file of lines connecting dependent to independent events
+      gawk '
+      # First, we load the independent events (mainshocks) that have clusterID > 1.
+      (NR==FNR && $8 > 1) {
+        clustered[$8]=$0
+        found[$8]=1
+        lon[$8]=$1
+        lat[$8]=$2
+      }
+      # For each dependent event (aftershocks/foreshocks), make the line
+      (NR!=FNR && $8 > 1) {
+        # If there is an independent event with the same ID
+        if (found[$8]==1) {
+          print "> -Z" $8
+          print lon[$8], lat[$8]
+          print $1, $2
+        }
+      }' ${F_SEIS}catalog_declustered.txt ${F_SEIS}catalog_clustered.txt  > ${F_SEIS}cluster_lines.txt
+
     fi
 
     ##############################################################################
@@ -18046,6 +18078,7 @@ EOF
         ;;
 
       seis)
+
         if [[ $dontplotseisflag -eq 0 ]]; then
 
           info_msg "Plotting seismicity; should include options for CPT/fill color"
@@ -18058,11 +18091,6 @@ EOF
           else
             EQWCOM="-W${EQLINEWIDTH},${EQLINECOLOR}"
           fi
-
-          # This section is a hack to get time coloring to work... needs to be
-          # moved and replaced with a more comprehensive coloring scheme.
-
-          # Potential problems include coloring on profiles, sorting, etc.
 
           if [[ $SCALEEQS -eq 1 ]]; then
 
@@ -18092,6 +18120,9 @@ EOF
             fi
           fi
 
+          if [[ $zcclusterplotlinesflag -eq 1 && -s ${F_SEIS}cluster_lines.txt ]]; then
+            gmt psxy ${F_SEIS}cluster_lines.txt -C$SEIS_CPT -W0.1p+z ${RJOK} ${VERBOSE} >> map.ps
+          fi
 
           if [[ $SCALEEQS -eq 1 ]]; then
 
@@ -18104,6 +18135,8 @@ EOF
             gmt psxy ${F_SEIS}eqs.txt -C$SEIS_CPT ${EQWCOM} -S${SEISSYMBOL}${SEISSCALE} ${SEIS_INPUTORDER} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
           fi
           gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
+
+
         fi
   			;;
 
