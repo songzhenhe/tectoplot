@@ -78,7 +78,7 @@ function tectoplot_args_gis()  {
   -cn)
   GRIDCONTOURINT=100
   GRIDCONTOURSMOOTH=3
-  usergridcontournumber=0
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cn:           plot contours of a grid
@@ -90,7 +90,9 @@ cat <<-EOF
   cpt [cptID]           CPT to color contours
   inv                   Invert the sign of the data (positive <> negative)
 
-  Contour a grid using GMT format options
+  Contour a grid using GMT format options.
+
+  Can be called multiple times.
 
 Example:
    None yet
@@ -99,11 +101,17 @@ EOF
 fi
     shift
 
-    usergridcontournumber=$(echo "${usergridcontournumber} + 1" | bc )
+    if [[ $cnfirst -ne 1 ]]; then
+      usergridcontournumber=0
+      cnfirst=1
+    fi
+
     if arg_is_flag $1; then
       info_msg "[-cn]: Grid file not specified"
       exit 1
     else
+      usergridcontournumber=$(echo "${usergridcontournumber} + 1" | bc)
+
       CONTOURGRID[$usergridcontournumber]=$(abs_path $1)
       shift
       ((tectoplot_module_shift++))
@@ -670,8 +678,6 @@ function tectoplot_plot_gis() {
   gis_grid_contour)
     # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
 
-    info_msg "Plotting grid contour $current_usergridcontournumber: ${CONTOURGRID[$current_usergridcontournumber]}"
-
     AFLAG=-A${GRIDCONTOURINT[${current_usergridcontournumber}]}
     CFLAG=-C${GRIDCONTOURINT[$current_usergridcontournumber]}
     SFLAG=-S${GRIDCONTOURSMOOTH[$current_usergridcontournumber]}
@@ -744,21 +750,28 @@ function tectoplot_plot_gis() {
     {
       if (substr($4,1,2) == "-Z") {
         thisnum=substr($4,3,length($4)-2)
-        if (thisnum % skipint == 0) {
+        if (skipint == 0) {
+          if (thisnum % skipint == 0) {
+            if (inv==1) {
+              $4=sprintf("-L%s -Z%s", 0-thisnum, 0-thisnum)
+            } else {
+              $4=sprintf("-L%s -Z%s", thisnum, thisnum)
+            }
+          } else {
+            $4=""
+          }
+        } else {
           if (inv==1) {
             $4=sprintf("-L%s -Z%s", 0-thisnum, 0-thisnum)
           } else {
             $4=sprintf("-L%s -Z%s", thisnum, thisnum)
           }
-        } else {
-          $4=""
         }
         print $1, $4
       } else {
         print
       }
     }' > grid_replaced.txt
-
     gmt psxy grid_replaced.txt -Sqn1:+f${GRIDCONTOURFONT}+Lh+i+e --FONT_ANNOT_PRIMARY="4p,Helvetica,black" -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
     gmt psxy grid_replaced.txt -W+z -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
     gmt psclip -C ${RJOK} >> map.ps

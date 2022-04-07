@@ -3073,10 +3073,11 @@ fi
   if [[ $faultgridfirst -ne 1 ]]; then
     faultgridnum=0
     faultgridfirst=1
-    cncommand="-cn"
   fi
 
-  while [[ -s $2 ]]; do
+  cncommand="-cn"
+
+  if [[ -s $2 ]]; then
     plotfaultgridflag=1
     ((faultgridnum++))
     FAULTGRIDFILES[$faultgridnum]=$(abs_path $2)
@@ -3100,7 +3101,7 @@ fi
       FAULTGRIDFILECONTOURSKIP[$faultgridnum]=1
     fi
     cncommand="${cncommand} ${FAULTGRIDFILES[$faultgridnum]} inv int ${FAULTGRIDFILECONTOUR[$faultgridnum]} skip ${FAULTGRIDFILECONTOURSKIP[$faultgridnum]} cpt cpts/seisdepth.cpt"
-  done
+  fi
 
   cpts+=("seisdepth")
   shift
@@ -6278,6 +6279,20 @@ shift && continue
 fi
     MAKERECTMAP=1
     ;;
+
+
+  -frameproj)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-frameproj:         plot a map frame in projected coordinates
+Usage: -frameproj
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plots+=("frameproj")
+  ;;
 
   -frameall)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -15360,7 +15375,12 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
+      frameproj)
+        gmt_init_tmpdir
+          gmt psbasemap -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}i -B5g5+u"@:8:000m@::" ${VERBOSE} -O -K >> map.ps
+        gmt_remove_tmpdir
 
+      ;;
       cutframe)
         MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
         MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
@@ -15644,8 +15664,6 @@ EOF
           SEIS_CPT=$SEISDEPTH_CPT
         fi
 
-  #-Ft -Fa0.05i
-  echo
         if [[ $cmtthrustflag -eq 1 ]]; then
           gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
           # gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
