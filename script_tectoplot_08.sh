@@ -1002,7 +1002,7 @@ do
       # # Download GSFML seafloor data
       # check_and_download_dataset "GSFML" $GSFML_SOURCEURL "yes" $GSFMLDIR $GSFML_CHECK $GSFMLDIR"gsfml.tbz" $GSFML_CHECK_BYTES $GSFML_ZIP_BYTES
 
-      if [[ "${2}" == "dropbox" ]]; then
+      if [[ "${2}" == "dropbox" || "${2}" == "Dropbox" ]]; then
         shift
         echo "Looking up index of ZIP files..."
         if curl "https://dl.dropboxusercontent.com/s/d08iy67u8avs2xg/ziplinks.txt" -o ziplinks.txt; then
@@ -3056,15 +3056,18 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -faultgrid:     specify files containing gridded fault surfaces
-Usage: -faultgrid [file1 [[res1]] [[int1]]] ...
+Usage: -faultgrid gridfile [[options]]
 
-  Any argument that is a file which exists is interpreted as a file.
-  THEN any non-file argument is a resolution (default 1k)
-  THEN any non-file argument is a contour interval (default 1)
-  THEN any non-file argument is a contour label control (default 1)
-      (only contours a multiple of the control number are labeled)
+  Plots a gridded fault dataset as colored contours (using the seismicity CPT)
+  and adds the faults to any profiles.
 
-  res is the sample spacing for -mprof, e.g. 5k for Slab2
+  Options:
+  res [resolution]             sample spacing for -mprof, e.g. 5k for Slab2
+  int [number]                 contour interval
+  skip [number]                only label contours a multiple of this number
+
+  -faultgrid can be called multiple times
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -3075,39 +3078,59 @@ fi
     faultgridfirst=1
   fi
 
-  cncommand="-cn"
-
   if [[ -s $2 ]]; then
     plotfaultgridflag=1
     ((faultgridnum++))
     FAULTGRIDFILES[$faultgridnum]=$(abs_path $2)
     shift
-    if [[ ! -s $2 ]]; then
-      FAULTGRIDFILERES[$faultgridnum]=$2
-      shift
-    else
-      FAULTGRIDFILERES[$faultgridnum]="1k"
-    fi
-    if [[ ! -s $2 ]]; then
-      FAULTGRIDFILECONTOUR[$faultgridnum]=$2
-      shift
-    else
-      FAULTGRIDFILECONTOUR[$faultgridnum]=1
-    fi
-    if [[ ! -s $2 ]]; then
-      FAULTGRIDFILECONTOURSKIP[$faultgridnum]=$2
-      shift
-    else
-      FAULTGRIDFILECONTOURSKIP[$faultgridnum]=1
-    fi
-    cncommand="${cncommand} ${FAULTGRIDFILES[$faultgridnum]} inv int ${FAULTGRIDFILECONTOUR[$faultgridnum]} skip ${FAULTGRIDFILECONTOURSKIP[$faultgridnum]} cpt cpts/seisdepth.cpt"
+  else
+    echo "[-faultgrid]: grid file $2 does not exist or is empty"
+    exit 1
   fi
+  FAULTGRIDFILERES[$faultgridnum]="1k"
+  FAULTGRIDFILECONTOUR[$faultgridnum]=1
+  FAULTGRIDFILECONTOURSKIP[$faultgridnum]=1
+
+  while ! arg_is_flag $2; do
+    case $2 in
+    int)
+      shift
+      if arg_is_positive_float $2; then
+        FAULTGRIDFILECONTOUR[$faultgridnum]=$2
+        shift
+      else
+        echo "[-faultgrid]: int option requires positive float argument"
+        exit 1
+      fi
+    ;;
+    skip)
+      shift
+      if arg_is_positive_float $2; then
+        FAULTGRIDFILECONTOURSKIP[$faultgridnum]=$2
+        shift
+      else
+        echo "[-faultgrid]: int option requires positive float argument"
+        exit 1
+      fi
+      ;;
+    res)
+      shift
+      if ! arg_is_flag $2; then
+        FAULTGRIDFILERES[$faultgridnum]=$2
+        shift
+      else
+        echo "[-faultgrid]: res option requires resolution argument (eg 1k)"
+        exit 1
+      fi
+    ;;
+    esac
+  done
 
   cpts+=("seisdepth")
   shift
 
   # Add the command to plot the grid contour lines
-  set -- "blank" ${cncommand} "$@"
+  set -- "blank" "-cn" "${FAULTGRIDFILES[$faultgridnum]}" "inv" "int" "${FAULTGRIDFILECONTOUR[$faultgridnum]}" "skip" "${FAULTGRIDFILECONTOURSKIP[$faultgridnum]}" "cpt" "cpts/seisdepth.cpt" "$@"
   ;;
 
 	-f)   # args: number number
@@ -6281,17 +6304,76 @@ fi
     ;;
 
 
-  -frameproj)
+  -utmgrid)
+  utmgridplotlines=""
+  utmgridplotlabels=1
+  UTMGRIDFONTSIZE="4p"
+  UTMGRIDINTERVAL=50000   # UTM grid interval, meters
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--frameproj:         plot a map frame in projected coordinates
-Usage: -frameproj
+-utmgrid:         plot a UTM grid for a specified or inferred zone
+Usage: -utmgrid [[zone]] ... [[options]]
+
+  If zone is not specified, determine from map centerpoint.
 
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-  plots+=("frameproj")
+
+  if arg_is_positive_float $2; then
+    UTMGRIDZONES+=("$2")
+    shift
+  else
+    calcutmgridzonelaterflag=1
+  fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      int)
+        shift
+        if arg_is_positive_float $2; then
+          UTMGRIDINTERVAL=$2
+          shift
+        else
+          echo "[-utmgrid]: option int requires positive number argument"
+          exit 1
+        fi
+      ;;
+      noline)
+        utmgridplotlines="+i"
+        shift
+      ;;
+      nolabel)
+        utmgridplotlabels=0
+        shift
+      ;;
+      nogeo)
+        utmgridnogeoflag=1
+        shift
+      ;;
+      fontsize)
+        shift
+        if arg_is_flag $2; then
+          echo "[-utmgrid]: option fontsize requires an argument (eg 2p)"
+          exit 1
+        else
+          UTMGRIDFONTSIZE="$2"
+          shift
+        fi
+      ;;
+      *)
+        echo "[-utmgrid]: option $2 not recognized"
+        exit 1
+      ;;
+    esac
+  done
+
+  plots+=("utmgrid")
+
+  [[ $utmgridnogeoflag -eq 1 ]] &&  shift && set -- "blank" "$@" "-noframe" "top" "left" "bottom" "right"
+
   ;;
 
   -frameall)
@@ -15375,10 +15457,169 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
-      frameproj)
+      utmgrid)
+
         gmt_init_tmpdir
-          gmt psbasemap -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -JX${PSSIZE}i -B5g5+u"@:8:000m@::" ${VERBOSE} -O -K >> map.ps
+
+        if [[ $calcutmgridzonelaterflag -eq 1 ]]; then
+          # This breaks terribly if the average longitude is not between -180 and 180
+          UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
+          AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
+          UTMGRIDZONES+=($(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}'))
+        fi
         gmt_remove_tmpdir
+
+        # Strategy: Define the range of eastings and northings represented by
+        # the map region for the given UTM zone.
+
+
+
+        for thiszone in ${UTMGRIDZONES[@]}; do
+
+            gmt_init_tmpdir
+
+            info_msg "[-utmgrid]: using UTM Zone $thiszone"
+            UTL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTL ${VERBOSE} | gawk '{print $1, $2}'))
+            UBR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBR ${VERBOSE} | gawk '{print $1, $2}'))
+
+            echo ${UTL[@]} > utmcorners.txt
+            echo ${UBR[@]} >> utmcorners.txt
+            gmt mapproject utmcorners.txt -R0/1/0/1 -JU${thiszone}/1i -F -C > utmcorners.utm
+
+            UTMRANGE=($(gawk < utmcorners.utm '
+            BEGIN {
+              getline
+              minE=$1
+              maxE=$1
+              minN=$2
+              maxN=$2
+            }
+            {
+              minE=($1<minE)?$1:minE
+              maxE=($1>maxE)?$1:maxE
+              minN=($2<minN)?$2:minN
+              maxN=($2>maxN)?$2:maxN
+            }
+            END {
+              print minE, maxE, minN, maxN
+            }'))
+
+            gawk -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+            @include "tectoplot_functions.awk"
+            BEGIN {
+              # Loop through the Eastings
+              for(i=-2000000; i<=3000000; i=i+interval) {
+                if (i >= minE-2*interval && i <= maxE+2*interval) {
+                  # Loop through the Northings
+                  print "> -L" i
+                  for(j=-10000000; j<=10000000; j=j+interval) {
+                    if (j >= minN-2*interval && j <= maxN+2*interval) {
+                      print i, j
+                    }
+                  }
+                }
+              }
+            }' > utmgrid_lon.txt
+
+            gawk -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+            BEGIN {
+              # Loop through the Northings
+              for(j=-10000000; j<=10000000; j=j+interval) {
+                if (j >= minN-2*interval && j <= maxN+2*interval) {
+                  jfix=sprintf("%s", (j>0)?j:10000000+j)
+                  # jsub=substr(jfix, 1, length(jfix)-3)
+                  # jend=substr(jfix, length(jfix)-2, length(jfix))
+
+                  print "> -L" jfix "m"
+                  for(i=-2000000; i<=3000000; i=i+interval) {
+                    # Loop through the Eastings
+                    if (i >= minE-2*interval && i <= maxE+2*interval) {
+                      print i, j
+                    }
+                  }
+                }
+              }
+            }' > utmgrid_lat.txt
+
+            # gawk -v centerlon=$(echo "-180+6*${thiszone}-3" | bc) '
+            # BEGIN {
+            #   # Loop through the Eastings
+            #   print ">"
+            #   for(i=-84; i<=84; i=i+0.5) {
+            #     print centerlon+3, i
+            #   }
+            #   for(i=84; i>=-84; i=i-0.5) {
+            #     print centerlon-3, i
+            #   }
+            #   print centerlon+3, i
+            # }' > utmpoly.txt
+
+            # gmt mapproject utmgrid_lon.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I | gmt spatial -T -R$(echo "-180+6*${thiszone}-6" | bc)/$(echo "-180+6*${thiszone}" | bc)/${MINLAT}/${MAXLAT} > utmgrid_lon.wgs
+            # gmt mapproject utmgrid_lat.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I | gmt spatial -T -R$(echo "-180+6*${thiszone}-6" | bc)/$(echo "-180+6*${thiszone}" | bc)/${MINLAT}/${MAXLAT} > utmgrid_lat.wgs
+
+            gmt mapproject utmgrid_lon.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I > utmgrid_lon.wgs
+            gmt mapproject utmgrid_lat.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I > utmgrid_lat.wgs
+
+            # Remove superfluous line segments - always have only two points
+
+            # gawk < utmgrid_lon.wgs '
+            # BEGIN {
+            #   isstored=0
+            # }
+            # {
+            #   if (substr($0,1,1)==">") {
+            #     # If we are storing an entry and its count is greater than 3,
+            #     # print the entry
+            #     if (isstored==1 && count > 4) {
+            #       for(i=1; i<count; ++i) {
+            #         print store[i]
+            #       }
+            #     }
+            #     # reset the counter
+            #     count=1
+            #   }
+            #   # store
+            #   isstored=1
+            #   store[count++]=$0
+            # }' > utmgrid_lon_cleaned.wgs
+            #
+            # # Remove superfluous line segments - always appear second
+            # gawk < utmgrid_lat.wgs '
+            # BEGIN {
+            #   dontprint=0
+            # }
+            # {
+            #   if (substr($0,1,1)==">") {
+            #     if (seen[$0] == 1) {
+            #       dontprint=1
+            #     } else {
+            #       seen[$0]=1
+            #       dontprint=0
+            #     }
+            #   }
+            #   if (dontprint==0) {
+            #     print
+            #   }
+            # }' > utmgrid_lat_cleaned.wgs
+          gmt_remove_tmpdir
+
+          # gmt psxy utmgrid_lon.wgs -SqN+1:+f4p,Helvetica,black+Lh+a90+j${utmgridjust_lon_top}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          # gmt psxy utmgrid_lat.wgs -SqN+1:+f4p,Helvetica,black+Lh+a0+j${utmgridjust_lat_left}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+
+
+          # gmt psxy utmgrid_lon.wgs -SqN-1:+f4p,Helvetica,black+Lh+a90+j${utmgridjust_lon_top}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          # gmt psxy utmgrid_lat.wgs -SqN-1:+f4p,Helvetica,black+Lh+a0 -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          # gmt psxy utmgrid_lat.wgs -SqN-1:+f4p,Helvetica,black+Lh+a0+d+e+i -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+# @:8:000m@::
+
+          if [[ $utmgridplotlabels -eq 1 ]]; then
+            gmt psxy utmgrid_lon.wgs -SqN2:+e+Lh+f${UTMGRIDFONTSIZE},Helvetica,black+a90+jCM${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+            gmt psxy utmgrid_lat.wgs -SqN2:+e+Lh+f${UTMGRIDFONTSIZE},Helvetica,black+a0+jCM${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          else
+            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          fi
+        done
 
       ;;
       cutframe)
