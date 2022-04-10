@@ -53,7 +53,6 @@ function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
 function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
 
-
 # Rescale a value val that comes from data with range [xmin, xmax] into range [ymin, ymax]
 
 function rescale_value(val, xmin, xmax, ymin, ymax) {

@@ -6307,8 +6307,12 @@ fi
   -utmgrid)
   utmgridplotlines=""
   utmgridplotlabels=1
-  UTMGRIDFONTSIZE="4p"
+  UTMGRIDFONTSIZE="8p"
   UTMGRIDINTERVAL=50000   # UTM grid interval, meters
+  UTMGRIDJUST1="L"        # label justification - default is outside map
+  UTMGRIDJUST2="R"        # label justification - default is outside map
+  UTMGRIDFILL=""
+  UTMGRIDCLIP="-N"
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -6316,6 +6320,14 @@ cat <<-EOF
 Usage: -utmgrid [[zone]] ... [[options]]
 
   If zone is not specified, determine from map centerpoint.
+
+  Options:
+  int          grid interval (meters)
+  inside       plot labels inside the map frame
+  noline       do not plot grid lines
+  nolabel      do not plot grid labels
+  nogeo        turn of geographic frame labels
+  fontsize     set size of grid line labels
 
 --------------------------------------------------------------------------------
 EOF
@@ -6331,6 +6343,16 @@ fi
 
   while ! arg_is_flag $2; do
     case $2 in
+      fill)
+        shift
+        UTMGRIDFILL="-Gwhite"
+      ;;
+      inside)
+        shift
+        UTMGRIDJUST1="R"
+        UTMGRIDJUST2="L"
+        UTMGRIDCLIP=""
+      ;;
       int)
         shift
         if arg_is_positive_float $2; then
@@ -6370,9 +6392,11 @@ fi
     esac
   done
 
-  plots+=("utmgrid")
+  overlayplots+=("utmgrid")
 
-  [[ $utmgridnogeoflag -eq 1 ]] &&  shift && set -- "blank" "$@" "-noframe" "top" "left" "bottom" "right"
+  if [[ $utmgridnogeoflag -eq 1 ]]; then
+    GRIDCALL="blrt"
+  fi
 
   ;;
 
@@ -7592,7 +7616,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -t:            download and visualize topography
-Usage: -t [[datasource=SRTM30]]
+Usage: -t [[datasource=determined by extent]]
+
+  -t without arguments will choose a resolution from the GMT download
+  server such that the DEM area will not exceed ~4000 pixels width.
 
   DATA SOURCE:
 
@@ -7623,132 +7650,134 @@ EOF
 shift && continue
 fi
     if arg_is_flag $2; then
-			info_msg "[-t]: No topo file specified: SRTM30 assumed"
-			BATHYMETRY="SRTM30"
+			info_msg "[-t]: No topo file specified: determining dataset from extent"
+			BATHYMETRY=""
+      selecttopofromextentflag=1
 		else
 			BATHYMETRY="${2}"
 			shift
-		fi
-    clipdemflag=1
 
-    GRIDDIR=$TILETOPODIR
+      clipdemflag=1
+      GRIDDIR=$TILETOPODIR
 
-		case $BATHYMETRY in
-      01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-        plottopo=1
-        GRIDDIR=$EARTHRELIEFDIR
-        GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
-        plots+=("topo")
-        echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
+      case $BATHYMETRY in
+        01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
+          plottopo=1
+          GRIDDIR=$EARTHRELIEFDIR
+          GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
+          plots+=("topo")
+          echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
 
-        [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
+          [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
 
-        ;;
-      BEST)
-        BATHYMETRY="01s"
-        plottopo=1
-        GRIDDIR=$EARTHRELIEFDIR
-        GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
-        plots+=("topo")
-        besttopoflag=1
-        echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
-        echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        BEST)
+          BATHYMETRY="01s"
+          plottopo=1
+          GRIDDIR=$EARTHRELIEFDIR
+          GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
+          plots+=("topo")
+          besttopoflag=1
+          echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
+          echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
 
-        [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
+          [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
 
-        ;;
-      SRTM15)
-        plottopo=1
-        GRIDFILE=$SRTM15FILE
-				plots+=("topo")
-        echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
-        ;;
-			SRTM30)
-			  plottopo=1
-				# GRIDDIR=$SRTM30DIR
-				GRIDFILE=$SRTM30FILE
-				plots+=("topo")
-        echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
-				;;
-      GEBCO20)
-        plottopo=1
-        # GRIDDIR=$GEBCO20DIR
-        GRIDFILE=$GEBCO20FILE
-        plots+=("topo")
-        echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
-        ;;
-      GEBCO21)
-        plottopo=1
-        # GRIDDIR=$GEBCO20DIR
-        GRIDFILE=$GEBCO21FILE
-        plots+=("topo")
-        echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
-        ;;
-      GEBCO1)
-        plottopo=1
-        # GRIDDIR=$GEBCO1DIR
-        GRIDFILE=$GEBCO1FILE
-        plots+=("topo")
-        echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
-        ;;
-      GMRT)
-        plottopo=1
-        # GRIDDIR=$GMRTDIR
-        plots+=("topo")
-        echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-        echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
-        ;;
-      *)
-        plottopo=1
-        plotcustomtopo=1
-        info_msg "Using custom grid"
-        # GRIDDIR=$(abs_dir $BATHYMETRY)
-        GRIDFILE=$(abs_path $BATHYMETRY)  # We already shifted
-        if [[ ! -s ${GRIDFILE} ]]; then
-          echo "Custom topography file $GRIDFILE does not exist or is empty"
-          exit 1
-        fi
-        plots+=("topo")
-        ;;
-    esac
-
-    while ! arg_is_flag "${2}"; do
-      case $2 in
-        reproject)
-          shift
-          reprojecttopoflag=1
-        ;;
-        # rescale)
-        #   shift
-        #   if arg_is_float $2; then
-        #     TMIN=$2
-        #     shift
-        #   else
-        #     echo "[-t]: rescale requires min max arguments"
-        #     exit 1
-        #   fi
-        #   if arg_is_float $2; then
-        #     TMAX=$2
-        #     shift
-        #   else
-        #     echo "[-t]: rescale requires min max arguments"
-        #     exit 1
-        #   fi
-        # ;;
+          ;;
+        SRTM15)
+          plottopo=1
+          GRIDFILE=$SRTM15FILE
+          plots+=("topo")
+          echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        SRTM30)
+          plottopo=1
+          # GRIDDIR=$SRTM30DIR
+          GRIDFILE=$SRTM30FILE
+          plots+=("topo")
+          echo $SRTM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $SRTM_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        GEBCO20)
+          plottopo=1
+          # GRIDDIR=$GEBCO20DIR
+          GRIDFILE=$GEBCO20FILE
+          plots+=("topo")
+          echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        GEBCO21)
+          plottopo=1
+          # GRIDDIR=$GEBCO20DIR
+          GRIDFILE=$GEBCO21FILE
+          plots+=("topo")
+          echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        GEBCO1)
+          plottopo=1
+          # GRIDDIR=$GEBCO1DIR
+          GRIDFILE=$GEBCO1FILE
+          plots+=("topo")
+          echo $GEBCO_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $GEBCO_SOURCESTRING >> ${LONGSOURCES}
+          ;;
+        GMRT)
+          plottopo=1
+          # GRIDDIR=$GMRTDIR
+          plots+=("topo")
+          echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+          echo $GMRT_SOURCESTRING >> ${LONGSOURCES}
+          ;;
         *)
-          echo "[-t]: Argument ${2} not recognized"
-          exit 1
-        ;;
+          plottopo=1
+          plotcustomtopo=1
+          info_msg "Using custom grid"
+          # GRIDDIR=$(abs_dir $BATHYMETRY)
+          GRIDFILE=$(abs_path $BATHYMETRY)  # We already shifted
+          if [[ ! -s ${GRIDFILE} ]]; then
+            echo "Custom topography file $GRIDFILE does not exist or is empty"
+            exit 1
+          fi
+          plots+=("topo")
+          ;;
       esac
-    done
+
+      while ! arg_is_flag "${2}"; do
+        case $2 in
+          reproject)
+            shift
+            reprojecttopoflag=1
+          ;;
+          # rescale)
+          #   shift
+          #   if arg_is_float $2; then
+          #     TMIN=$2
+          #     shift
+          #   else
+          #     echo "[-t]: rescale requires min max arguments"
+          #     exit 1
+          #   fi
+          #   if arg_is_float $2; then
+          #     TMAX=$2
+          #     shift
+          #   else
+          #     echo "[-t]: rescale requires min max arguments"
+          #     exit 1
+          #   fi
+          # ;;
+          *)
+            echo "[-t]: Argument ${2} not recognized"
+            exit 1
+          ;;
+        esac
+      done
+
+		fi
 
 
     cpts+=("topo")
@@ -8878,10 +8907,10 @@ fi
       shift
     fi
 
-    touch ./sentinel.tif
+    touch ./sentinel_img.jpg
     sentineldownloadflag=1
     shift
-    set -- "blank" "$@" "-timg" "img" "sentinel.tif" "${SENTINEL_FACT}"
+    set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}"
     ;;
 
   -tsave) # -tsave: archive terrain visualization for a named region
@@ -8978,11 +9007,11 @@ fi
       esac
     done
 
-    touch ./sentinel.tif
+    touch ./sentinel_img.jpg
     sentineldownloadflag=1
-    # Replace -tsent with -timg [[sentinel.tif]] [[alpha]]
+    # Replace -tsent with -timg [[sentinel_img.jpg]] [[alpha]]
     shift
-    set -- "blank" "$@" "-timg" "img" "sentinel.tif" "${SENTINEL_FACT}"
+    set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}"
     ;;
 
   -tsky) # -tsky: add sky view factor to intensity
@@ -9454,7 +9483,7 @@ fi
     ((timg_index--))
 
     # if [[ -s ${2} ]]; then
-    #       # if [[ ! -s ${2} && "${2}" != "sentinel.tif" && ]]; then
+    #       # if [[ ! -s ${2} && "${2}" != "sentinel_img.jpg" && ]]; then
     #       #   echo "[-timg]: File $2 not found or is empty"
     #       #   exit 1
     #       # else
@@ -10880,6 +10909,7 @@ fi
   shift
 done
 
+
 #### END OF ARGUMENT PROCESSING SECTION
 
 [[ $USAGEFLAG -eq 1 ]] && exit
@@ -11043,7 +11073,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     fi
     info_msg "Using UTM Zone $UTMZONE"
 
-
     if [[ $MAKERECTMAP -eq 1 ]]; then
       rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
       rj[2]="-JU${UTMZONE}/${INCH}i"
@@ -11051,17 +11080,17 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
       # echo "Making map outline"
       # echo     gmt psbasemap -A $RJSTRING ${VERBOSE}
+      NEWRANGE=($(gmt mapproject ${RJSTRING[@]} -Wr))
 
-      gmt psbasemap -A $RJSTRING ${VERBOSE} | grep -v "#" > ${FILETMP}mapoutline.txt
-      MINLONNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;min=$1} NF { min=(min>$1)?$1:min } END{print min}')
-      MAXLONNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;max=$1} NF { max=(max>$1)?max:$1 } END{print max}')
-      MINLATNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;min=$2} NF { min=(min>$2)?$2:min } END{print min}')
-      MAXLATNEW=$(gawk < ${FILETMP}mapoutline.txt 'BEGIN {getline;max=$2} NF { max=(max>$2)?max:$2} END{print max}')
-      info_msg "Updating AOI from ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} to ${MINLONNEW}/${MAXLONNEW}/${MINLATNEW}/${MAXLATNEW}"
-      MINLON=$MINLONNEW
-      MAXLON=$MAXLONNEW
-      MINLAT=$MINLATNEW
-      MAXLAT=$MAXLATNEW
+      if [[ $(echo "${NEWRANGE[0]} > 180 && ${NEWRANGE[1]} >= 180" | bc) -eq 1 ]]; then
+        NEWRANGE[0]=$(echo "${NEWRANGE[0]} - 360" | bc -l)
+        NEWRANGE[1]=$(echo "${NEWRANGE[1]} - 360" | bc -l)
+      fi
+
+      MINLON=${NEWRANGE[0]}
+      MAXLON=${NEWRANGE[1]}
+      MINLAT=${NEWRANGE[2]}
+      MAXLAT=${NEWRANGE[3]}
 
     else
       rj[1]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
@@ -11351,6 +11380,44 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   if [[ $overplotflag -eq 1 ]]; then
      info_msg "[-ips]: Moving copy basemap postscript file into temporary directory"
      mv "${THISDIR}"/tmpmap.ps "${TMP}map.ps"
+  fi
+
+  if [[ $selecttopofromextentflag -eq 1 ]]; then
+    if [[ ${DEM_MINLON} == "unset" ]]; then
+      DEM_MINLON=${MINLON}
+      DEM_MAXLON=${MAXLON}
+      DEM_MINLAT=${MINLAT}
+      DEM_MAXLAT=${MAXLAT}
+    fi
+
+    TOPOTYPE=$(echo ${DEM_MINLON} ${DEM_MAXLON} ${DEM_MINLAT} ${DEM_MAXLAT} | gawk '
+    function abs(x) { return (x>0)?x:-x}
+    {
+      maxrange=(abs($2-$1) > abs($4-$3))?abs($2-$1):abs($4-$3)
+      if (maxrange < 1) {
+        print "01s"
+      } else if (maxrange < 3) {
+        print "03s"
+      } else if (maxrange < 15) {
+        print "15s"
+      } else if (maxrange < 60) {
+        print "01m"
+      } else if (maxrange < 100) {
+        print "05m"
+      } else  {
+        print "10m"
+      }
+    }')
+
+    clipdemflag=1
+    BATHYMETRY=${TOPOTYPE}
+    GRIDDIR=$EARTHRELIEFDIR
+    GRIDFILE=${EARTHRELIEFPREFIX}${TOPOTYPE}
+    plottopo=1
+    plots+=("topo")
+    echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
+    [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
   fi
 
   #### Change into our temporary directory for the rest of the script
@@ -11786,6 +11853,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
 
   if [[ $sentineldownloadflag -eq 1 ]]; then
+
+
+
     SENT_RES=4096
     LONDIFF=$(echo "${MAXLON} - ${MINLON}" | bc -l)
     LATDIFF=$(echo "${MAXLAT} - ${MINLAT}" | bc -l)
@@ -11808,7 +11878,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         ')
     fi
 
-    SENT_FNAME="sentinel_${SENTINEL_TYPE}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${SENT_XRES}_${SENT_YRES}.tif"
+    SENT_FNAME="sentinel_${SENTINEL_TYPE}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${SENT_XRES}_${SENT_YRES}.jpg"
+    SENT_TFWNAME="sentinel_${SENTINEL_TYPE}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${SENT_XRES}_${SENT_YRES}.jgw"
 
     if ! [[ -d ${SENT_DIR} ]]; then
       mkdir -p ${SENT_DIR}
@@ -11816,26 +11887,28 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     if [[ -e ${SENT_DIR}${SENT_FNAME} ]]; then
       info_msg "Sentinel imagery $SENT_FNAME exists. Not redownloading."
-      cp ${SENT_DIR}${SENT_FNAME} sentinel.tif
+      ln -s ${SENT_DIR}${SENT_FNAME} sentinel_img.jpg
     else
 
-      curl "https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=${SENTINEL_TYPE}&bbox=${MINLON},${MINLAT},${MAXLON},${MAXLAT}&width=$SENT_XRES&height=$SENT_YRES&srs=epsg:4326" > sentinel.jpg
+      echo "getting image for ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT}"
+      curl "https://tiles.maps.eox.at/wms?service=wms&request=getmap&version=1.1.1&layers=${SENTINEL_TYPE}&bbox=${MINLON},${MINLAT},${MAXLON},${MAXLAT}&width=$SENT_XRES&height=$SENT_YRES&srs=epsg:4326" > sentinel_img.jpg
+
+      # gdal_translate -of GTiff -outsize $SENT_XRES $SENT_YRES "WMS:https://tiles.maps.eox.at/?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=${SENTINEL_TYPE}&SRS=EPSG:4326&BBOX=-${MINLON},${MINLAT},${MAXLON},${MAXLAT}" setntry.tif
 
       # Create world file for JPG
-      echo "$LONDIFF / $SENT_XRES" | bc -l > sentinel.jgw
-      echo "0" >> sentinel.jgw
-      echo "0" >> sentinel.jgw
-      echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel.jgw
-      echo "$MINLON" >> sentinel.jgw
-      echo "$MAXLAT" >> sentinel.jgw
+      echo "$LONDIFF / $SENT_XRES" | bc -l > sentinel_img.jgw
+      echo "0" >> sentinel_img.jgw
+      echo "0" >> sentinel_img.jgw
+      echo "- (${LATDIFF}) / $SENT_YRES" | bc -l >> sentinel_img.jgw
+      echo "$MINLON" >> sentinel_img.jgw
+      echo "$MAXLAT" >> sentinel_img.jgw
 
-      cat sentinel.jgw
-
-      echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
-      gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel.jpg sentinel.tif
-      cp sentinel.tif ${SENT_DIR}${SENT_FNAME}
+      # gmt convert
+      # echo gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel_img.jpg sentinel_img.jpg
+      # gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of GTiff sentinel_img.jpg sentinel_img.jpg
+      cp sentinel_img.jpg ${SENT_DIR}${SENT_FNAME}
+      cp sentinel_img.jgw ${SENT_DIR}${SENT_TFWNAME}
     fi
-
 
     echo $SENTINEL_SOURCESTRING >> ${LONGSOURCES}
     echo $SENTINEL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -12150,6 +12223,21 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         case $BATHYMETRY in
           01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
             gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+            if [[ $? != 0 ]]; then
+              rm -f ${name}
+            fi
+            if [[ ! -s ${name} ]]; then
+              echo "[-t]: Could not extract GMT online EarthRelief dataset ${BATHYMETRY}. Using 15s instead."
+              GRIDDIR=$EARTHRELIEFDIR
+              GRIDFILE=${EARTHRELIEFPREFIX}15s
+              # BIG CHANGE: NOW STORING TILES AS GEOTIFF
+            	name=$GRIDDIR"15s_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+
+              if [[ ! -s ${name} ]]; then
+                gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+              fi
+            fi
+
             cp ${name} ${F_TOPO}dem.tif
             clipdemflag=0
             name=${F_TOPO}dem.tif
@@ -14744,6 +14832,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
   if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 ]]; then
     plots+=("mprof")
+    cpts+=("seisdepth")
   fi
 fi # if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
@@ -15210,7 +15299,6 @@ done
 
   # Map frame options
 
-  echo "gmt gmtset FORMAT_GEO_MAP=D" >> makemap.sh
 
   gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.25p,black
   gmt gmtset FORMAT_GEO_MAP=D
@@ -15282,7 +15370,6 @@ done
 
   if [[ $usecustomgmtvars -eq 1 ]]; then
     info_msg "gmt gmtset ${GMTVARS[@]}"
-  echo "gmt gmtset ${GMTVARS[@]}" >> makemap.sh
     gmt gmtset ${GMTVARS[@]}
   fi
 
@@ -15457,171 +15544,6 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
-      utmgrid)
-
-        gmt_init_tmpdir
-
-        if [[ $calcutmgridzonelaterflag -eq 1 ]]; then
-          # This breaks terribly if the average longitude is not between -180 and 180
-          UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
-          AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
-          UTMGRIDZONES+=($(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}'))
-        fi
-        gmt_remove_tmpdir
-
-        # Strategy: Define the range of eastings and northings represented by
-        # the map region for the given UTM zone.
-
-
-
-        for thiszone in ${UTMGRIDZONES[@]}; do
-
-            gmt_init_tmpdir
-
-            info_msg "[-utmgrid]: using UTM Zone $thiszone"
-            UTL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTL ${VERBOSE} | gawk '{print $1, $2}'))
-            UBR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBR ${VERBOSE} | gawk '{print $1, $2}'))
-
-            echo ${UTL[@]} > utmcorners.txt
-            echo ${UBR[@]} >> utmcorners.txt
-            gmt mapproject utmcorners.txt -R0/1/0/1 -JU${thiszone}/1i -F -C > utmcorners.utm
-
-            UTMRANGE=($(gawk < utmcorners.utm '
-            BEGIN {
-              getline
-              minE=$1
-              maxE=$1
-              minN=$2
-              maxN=$2
-            }
-            {
-              minE=($1<minE)?$1:minE
-              maxE=($1>maxE)?$1:maxE
-              minN=($2<minN)?$2:minN
-              maxN=($2>maxN)?$2:maxN
-            }
-            END {
-              print minE, maxE, minN, maxN
-            }'))
-
-            gawk -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
-            @include "tectoplot_functions.awk"
-            BEGIN {
-              # Loop through the Eastings
-              for(i=-2000000; i<=3000000; i=i+interval) {
-                if (i >= minE-2*interval && i <= maxE+2*interval) {
-                  # Loop through the Northings
-                  print "> -L" i
-                  for(j=-10000000; j<=10000000; j=j+interval) {
-                    if (j >= minN-2*interval && j <= maxN+2*interval) {
-                      print i, j
-                    }
-                  }
-                }
-              }
-            }' > utmgrid_lon.txt
-
-            gawk -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
-            BEGIN {
-              # Loop through the Northings
-              for(j=-10000000; j<=10000000; j=j+interval) {
-                if (j >= minN-2*interval && j <= maxN+2*interval) {
-                  jfix=sprintf("%s", (j>0)?j:10000000+j)
-                  # jsub=substr(jfix, 1, length(jfix)-3)
-                  # jend=substr(jfix, length(jfix)-2, length(jfix))
-
-                  print "> -L" jfix "m"
-                  for(i=-2000000; i<=3000000; i=i+interval) {
-                    # Loop through the Eastings
-                    if (i >= minE-2*interval && i <= maxE+2*interval) {
-                      print i, j
-                    }
-                  }
-                }
-              }
-            }' > utmgrid_lat.txt
-
-            # gawk -v centerlon=$(echo "-180+6*${thiszone}-3" | bc) '
-            # BEGIN {
-            #   # Loop through the Eastings
-            #   print ">"
-            #   for(i=-84; i<=84; i=i+0.5) {
-            #     print centerlon+3, i
-            #   }
-            #   for(i=84; i>=-84; i=i-0.5) {
-            #     print centerlon-3, i
-            #   }
-            #   print centerlon+3, i
-            # }' > utmpoly.txt
-
-            # gmt mapproject utmgrid_lon.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I | gmt spatial -T -R$(echo "-180+6*${thiszone}-6" | bc)/$(echo "-180+6*${thiszone}" | bc)/${MINLAT}/${MAXLAT} > utmgrid_lon.wgs
-            # gmt mapproject utmgrid_lat.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I | gmt spatial -T -R$(echo "-180+6*${thiszone}-6" | bc)/$(echo "-180+6*${thiszone}" | bc)/${MINLAT}/${MAXLAT} > utmgrid_lat.wgs
-
-            gmt mapproject utmgrid_lon.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I > utmgrid_lon.wgs
-            gmt mapproject utmgrid_lat.txt -R0/1/0/1 -JU${thiszone}/1i -F -C -I > utmgrid_lat.wgs
-
-            # Remove superfluous line segments - always have only two points
-
-            # gawk < utmgrid_lon.wgs '
-            # BEGIN {
-            #   isstored=0
-            # }
-            # {
-            #   if (substr($0,1,1)==">") {
-            #     # If we are storing an entry and its count is greater than 3,
-            #     # print the entry
-            #     if (isstored==1 && count > 4) {
-            #       for(i=1; i<count; ++i) {
-            #         print store[i]
-            #       }
-            #     }
-            #     # reset the counter
-            #     count=1
-            #   }
-            #   # store
-            #   isstored=1
-            #   store[count++]=$0
-            # }' > utmgrid_lon_cleaned.wgs
-            #
-            # # Remove superfluous line segments - always appear second
-            # gawk < utmgrid_lat.wgs '
-            # BEGIN {
-            #   dontprint=0
-            # }
-            # {
-            #   if (substr($0,1,1)==">") {
-            #     if (seen[$0] == 1) {
-            #       dontprint=1
-            #     } else {
-            #       seen[$0]=1
-            #       dontprint=0
-            #     }
-            #   }
-            #   if (dontprint==0) {
-            #     print
-            #   }
-            # }' > utmgrid_lat_cleaned.wgs
-          gmt_remove_tmpdir
-
-          # gmt psxy utmgrid_lon.wgs -SqN+1:+f4p,Helvetica,black+Lh+a90+j${utmgridjust_lon_top}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          # gmt psxy utmgrid_lat.wgs -SqN+1:+f4p,Helvetica,black+Lh+a0+j${utmgridjust_lat_left}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-
-
-          # gmt psxy utmgrid_lon.wgs -SqN-1:+f4p,Helvetica,black+Lh+a90+j${utmgridjust_lon_top}+e${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          # gmt psxy utmgrid_lat.wgs -SqN-1:+f4p,Helvetica,black+Lh+a0 -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          # gmt psxy utmgrid_lat.wgs -SqN-1:+f4p,Helvetica,black+Lh+a0+d+e+i -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-# @:8:000m@::
-
-          if [[ $utmgridplotlabels -eq 1 ]]; then
-            gmt psxy utmgrid_lon.wgs -SqN2:+e+Lh+f${UTMGRIDFONTSIZE},Helvetica,black+a90+jCM${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-            gmt psxy utmgrid_lat.wgs -SqN2:+e+Lh+f${UTMGRIDFONTSIZE},Helvetica,black+a0+jCM${utmgridplotlines} -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          else
-            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          fi
-        done
-
-      ;;
       cutframe)
         MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
         MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
@@ -18544,7 +18466,7 @@ EOF
 
      # This section should probably be outsourced to a separate script or function
      # to allow equivalent DEM visualization for along-profile DEMs, etc.
-     # Requires: dem.nc sentinel.tif TOPO_CPT
+     # Requires: dem.nc sentinel_img.jpg TOPO_CPT
      # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
      # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
 
@@ -18599,11 +18521,11 @@ EOF
             # If a topography dataset exists, then...
             if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
-              # COMEBACK: This needs to be adjusted to work with -timg sentinel.tif instead?
-              # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel.tif
-              if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel.tif" ]]; then
+              # COMEBACK: This needs to be adjusted to work with -timg sentinel_img.jpg instead?
+              # If we are visualizing Sentinel imagery, resample DEM to match the resolution of sentinel_img.jpg
+              if [[ ${topoctrlstring} =~ .*p.* && ${P_IMAGE} =~ "sentinel_img.jpg" ]]; then
                   # Absolute path is needed here as GMT 6.1.1 breaks for a relative path... BUG?
-                  sentinel_dim=($(gdalinfo sentinel.tif | grep "Size is" | sed 's/,//' | gawk '{print $3, $4}'))
+                  sentinel_dim=($(gdalinfo sentinel_img.jpg | grep "Size is" | sed 's/,//' | gawk '{print $3, $4}'))
 
                   sent_dimx=${sentinel_dim[0]}
                   sent_dimy=${sentinel_dim[1]}
@@ -18622,19 +18544,19 @@ EOF
                     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
                   else
                     info_msg "Resampling Sentinel image to match DEM resolution"
-                    gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel.tif ./sentinel_warp.tif
+                    gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel_img.jpg ./sentinel_warp.tif
                     # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
-                    cp ./sentinel_warp.tif ./sentinel.tif
+                    cp ./sentinel_warp.tif ./sentinel_img.jpg
                     # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
                   fi
 
 
                   # If we have set a specific flag, then calculate the average color of areas at or below zero
-                  # elevation and set all cells in sentinel.tif to that color (to make a uniform ocean color?)
+                  # elevation and set all cells in sentinel_img.jpg to that color (to make a uniform ocean color?)
                   if [[ $sentinelrecolorseaflag -eq 1 ]]; then
                     info_msg "Recoloring sea areas of Sentinel image"
-                    recolor_sea ${TOPOGRAPHY_DATA} ./sentinel.tif ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.tif
-                    mv ./sentinel_recolor.tif ./sentinel.tif
+                    recolor_sea ${TOPOGRAPHY_DATA} ./sentinel_img.jpg ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.tif
+                    mv ./sentinel_recolor.tif ./sentinel_img.jpg
                   fi
               fi
 
@@ -19112,6 +19034,160 @@ EOF
   	esac
   done
 
+  for plot in ${overlayplots[@]}; do
+    case $plot in
+      utmgrid)
+
+        gmt_init_tmpdir
+
+        if [[ $calcutmgridzonelaterflag -eq 1 ]]; then
+          unset UTMGRIDZONES
+
+          # UTMGRIDZONES+=($(echo "" | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Ju5i -C 2>&1 | grep "selected" | gawk '{print $8}'))
+
+          # This breaks terribly if the average longitude is not between -180 and 180
+          UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
+          AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
+          UTMGRIDZONES+=($(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}'))
+        fi
+        gmt_remove_tmpdir
+
+        # Strategy: Define the range of eastings and northings represented by
+        # the map region for the given UTM zone.
+
+
+        for thiszone in ${UTMGRIDZONES[@]}; do
+
+            gmt_init_tmpdir
+
+            info_msg "[-utmgrid]: using UTM Zone $thiszone"
+            UTL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTL ${VERBOSE} | gawk '{print $1, $2}'))
+            UBR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBR ${VERBOSE} | gawk '{print $1, $2}'))
+
+            echo ${UTL[@]} > utmcorners.txt
+            echo ${UBR[@]} >> utmcorners.txt
+
+            gawk < utmcorners.txt '{print $2, $1}' | cs2cs EPSG:4326 EPSG:326${thiszone} > utmcorners.utm
+
+            # gmt mapproject utmcorners.txt -R0/1/0/1 -JU${thiszone}/1i -F -C > utmcorners.utm
+
+            UTMRANGE=($(gawk < utmcorners.utm '
+            BEGIN {
+              getline
+              minE=$1
+              maxE=$1
+              minN=$2
+              maxN=$2
+            }
+            {
+              minE=($1<minE)?$1:minE
+              maxE=($1>maxE)?$1:maxE
+              minN=($2<minN)?$2:minN
+              maxN=($2>maxN)?$2:maxN
+            }
+            END {
+              print minE, maxE, minN, maxN
+            }'))
+
+            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+            @include "tectoplot_functions.awk"
+            BEGIN {
+              fontsmall=(fontsize+0)*0.75
+              # Loop through the Eastings
+              for(i=-2000000; i<=3000000; i=i+interval) {
+                if (i >= minE-2*interval && i <= maxE+2*interval) {
+                  # Loop through the Northings
+                  isub=substr(i, 1, length(i)-3)
+                  iend=substr(i, length(i)-2, length(i))
+
+                  print "> -L" isub "@:" fontsmall ":" iend "@::"
+
+                  for(j=-10000000; j<=10000000; j=j+interval) {
+                    if (j >= minN-2*interval && j <= maxN+2*interval) {
+                      print i, j
+                    }
+                  }
+                }
+              }
+            }' > utmgrid_lon.txt
+
+            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+            BEGIN {
+              fontsmall=(fontsize+0)*0.75
+              # Loop through the Northings
+              for(j=-10000000; j<=10000000; j=j+interval) {
+                if (j >= minN-2*interval && j <= maxN+2*interval) {
+                  jfix=sprintf("%s", (j>0)?j:10000000+j)
+                  jsub=substr(jfix, 1, length(jfix)-3)
+                  jend=substr(jfix, length(jfix)-2, length(jfix))
+
+                  print "> -L" jsub "@:" fontsmall ":" jend "@::"
+                  for(i=-2000000; i<=3000000; i=i+interval) {
+                    # Loop through the Eastings
+                    if (i >= minE-2*interval && i <= maxE+2*interval) {
+                      print i, j
+                    }
+                  }
+                }
+              }
+            }' > utmgrid_lat.txt
+
+            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+            BEGIN {
+              fontsmall=(fontsize+0)*0.75
+              # Loop through the Northings
+              for(j=-10000000; j<=10000000; j=j+interval) {
+                if (j >= minN-2*interval && j <= maxN+2*interval) {
+                  jfix=sprintf("%s", (j>0)?j:10000000+j)
+                  jsub=substr(jfix, 1, length(jfix)-3)
+                  jend=substr(jfix, length(jfix)-2, length(jfix))
+
+                  print "> -L" jsub "@:" fontsmall ":" jend "@::"
+                  for(i=-2000000; i<=3000000; i=i+interval) {
+                    # Loop through the Eastings
+                    if (i >= minE-2*interval && i <= maxE+2*interval) {
+                      print i, j
+                    }
+                  }
+                }
+              }
+            }' > utmgrid_lat_ne.txt
+
+
+            # Project gridlines to lon/lat
+            cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lat.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lat.wgs
+            cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lon.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lon.wgs
+
+          gmt_remove_tmpdir
+
+          # Plot the gridlines using psxy and the labels using psxy -Sq + pstext
+
+          if [[ $utmgridplotlabels -eq 1 ]]; then
+            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+
+            gmt psxy utmgrid_lon.wgs -SqN-1:+Lh+a90+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+            mv Line_labels.txt labelsbottom.txt
+            gmt psxy utmgrid_lon.wgs -SqN+1:+Lh+a90+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+            mv Line_labels.txt labelstop.txt
+            gmt psxy utmgrid_lat.wgs -SqN-1:+Lh+a0+t ${RJOK} ${VERBOSE} > /dev/null
+            mv Line_labels.txt labelsleft.txt
+            gmt psxy utmgrid_lat.wgs -SqN+1:+Lh+a0+t ${RJOK} ${VERBOSE} > /dev/null
+            mv Line_labels.txt labelsright.txt
+
+            gmt pstext labelstop.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST1} -Dj2p ${RJOK} >> map.ps
+            gmt pstext labelsbottom.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST2} -Dj2p ${RJOK} >> map.ps
+            gmt pstext labelsleft.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST2} -Dj2p ${RJOK} >> map.ps
+            gmt pstext labelsright.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST1} -Dj2p ${RJOK} >> map.ps
+          else
+            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+          fi
+        done
+
+      ;;
+    esac
+  done
 
   #### SECTION: DATA FRAMES BELOW OR BESIDE THE MAP (currently incompatible with onmap profiles)
   #### Hopefully can be moved to modules
