@@ -4455,6 +4455,24 @@ fi
     info_msg "[-mob]: az=$PERSPECTIVE_AZ, inc=$PERSPECTIVE_INC, exag=$PERSPECTIVE_EXAG, res=$PERSPECTIVE_RES"
     ;;
 
+  -proftopo)
+  # PROFTOPOHEIGHT will not be set unless -proftopo is called
+  PROFTOPOHEIGHT="0.3i"
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-proftopo:    Plot simplified, exaggerated topo on top of profiles
+Usage: -proftopo [[height=${PROFTOPOHEIGHT}]]
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  if ! arg_is_flag $2; then
+    PROFTOPOHEIGHT=$2
+    shift
+  fi
+  ;;
+
   -profsize)
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -7653,6 +7671,8 @@ fi
 			info_msg "[-t]: No topo file specified: determining dataset from extent"
 			BATHYMETRY=""
       selecttopofromextentflag=1
+      plottopo=1
+      plots+=("topo")
 		else
 			BATHYMETRY="${2}"
 			shift
@@ -11413,8 +11433,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     BATHYMETRY=${TOPOTYPE}
     GRIDDIR=$EARTHRELIEFDIR
     GRIDFILE=${EARTHRELIEFPREFIX}${TOPOTYPE}
-    plottopo=1
-    plots+=("topo")
     echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
     [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
@@ -12818,13 +12836,13 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     ##############################################################################
     # Select seismicity that falls within a specified polygon.
 
-    # if [[ $polygonselectflag -eq 1 ]]; then
-    #   info_msg "Selecting seismicity within specified AOI polygon ${POLYGONAOI}"
-    #   mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
-    #   gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-    #   # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
-    #   # cleanup ${F_SEIS}eqs_preselect.txt
-    # fi
+    if [[ $polygonselectflag -eq 1 ]]; then
+      info_msg "Selecting seismicity within specified AOI polygon ${POLYGONAOI}"
+      mv ${F_SEIS}eqs.txt ${F_SEIS}eqs_preselect.txt
+      gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+      # gmt select ${F_SEIS}eqs_preselect.txt -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_SEIS}eqs.txt
+      # cleanup ${F_SEIS}eqs_preselect.txt
+    fi
     # info_msg "Polygon selection: $(wc -l < ${F_SEIS}eqs.txt)"
 
     ##############################################################################
@@ -19096,15 +19114,16 @@ EOF
               # Loop through the Eastings
               for(i=-2000000; i<=3000000; i=i+interval) {
                 if (i >= minE-2*interval && i <= maxE+2*interval) {
+                  stri=sprintf("%06d", i)
                   # Loop through the Northings
-                  isub=substr(i, 1, length(i)-3)
-                  iend=substr(i, length(i)-2, length(i))
+                  isub=substr(stri, 1, length(stri)-3)
+                  iend=substr(stri, length(stri)-2, length(stri))
 
                   print "> -L" isub "@:" fontsmall ":" iend "@::"
 
                   for(j=-10000000; j<=10000000; j=j+interval) {
                     if (j >= minN-2*interval && j <= maxN+2*interval) {
-                      print i, j
+                      print stri, j
                     }
                   }
                 }
@@ -19117,7 +19136,7 @@ EOF
               # Loop through the Northings
               for(j=-10000000; j<=10000000; j=j+interval) {
                 if (j >= minN-2*interval && j <= maxN+2*interval) {
-                  jfix=sprintf("%s", (j>0)?j:10000000+j)
+                  jfix=sprintf("%07d", (j>0)?j:10000000+j)
                   jsub=substr(jfix, 1, length(jfix)-3)
                   jend=substr(jfix, length(jfix)-2, length(jfix))
 

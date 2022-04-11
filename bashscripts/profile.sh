@@ -621,7 +621,7 @@ for i in $(seq 1 $k); do
 
 
     # Initialize the profile plot script
-    echo "#!/bin/bash" > ${F_PROFILES}${LINEID}_profile_plot.sh
+    echo "#!/bin/bash" > ${F_PROFILES}${LINEID}_profile.sh
 
     if [[ ${XOFFSET:0:1} == "N" ]]; then
       info_msg "N flag: XOFFSET and X alignment is overridden for line $LINEID"
@@ -980,6 +980,8 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
         echo "PTGRID ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt" >> ${F_PROFILES}data_id.txt
 
+
+# Normal style for plotting grid swath - within the XZ data domain
         # PLOT ON THE MAP PS
         echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
 
@@ -988,6 +990,15 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
         # PLOT ON THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+#
+
+# Test style for plotting grid swath - above the XZ data domain, but vertically exaggerated
+
+        echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
+
+
+#
+
 
         grep "^[-*0-9]" ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt >> ${F_PROFILES}${LINEID}_all_data.txt
       else
@@ -1475,6 +1486,15 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           echo "gmt psxy -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
           echo "gmt psxy -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
           echo "gmt psxy -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
+          echo "if [[ \$3 != \"\" ]]; then" >> ${LINEID}_temp_profiletop.sh
+            echo "LINERANGE=(\$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt 'BEGIN { getline; minz=\$2; maxz=\$2 } { minz=(\$2<minz)?\$2:minz; maxz=(\$2>maxz)?\$2:maxz } END { print minz-(maxz-minz)/10, maxz+(maxz-minz)/10 }'))" >> ${LINEID}_temp_profiletop.sh
+            echo "gmt psxy -T -R\${line_min_x}/\${line_max_x}/\${LINERANGE[0]}/\${LINERANGE[1]} -Y\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_TOPPER_HEIGHT_IN} -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
+            echo "if [[ \$(echo \"\${LINERANGE[0]} < 0 && \${LINERANGE[1]} > 0\" | bc) -eq 1 ]]; then echo \"\${line_min_x} 0T\${line_max_x} 0T\${line_max_x} \${LINERANGE[0]}T\${line_max_x} \${LINERANGE[0]}T\${line_min_x} \${LINERANGE[0]}T\${line_min_x} 0\" | tr 'T' '\n' | gmt psxy -Vn -L+yb -Glightblue -R -J -O -K -W0.25p,0/0/0 >> ${F_PROFILES}${LINEID}_flat_profile.ps; fi" >> ${LINEID}_temp_profiletop.sh
+            echo "gmt psxy -Vn -L+yb -Gtan -R -J -O -K -W0.25p,0/0/0 ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
+            echo "gmt psbasemap -J -R -BWEb -O -K -Byaf --MAP_FRAME_PEN=thinner,black --FONT_ANNOT_PRIMARY=\"6p,Helvetica,black\" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
+          echo "fi" >> ${LINEID}_temp_profiletop.sh
+
 
           # PLOT ON THE OBLIQUE PROFILE PS
           [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
@@ -2334,10 +2354,16 @@ EOF
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} >> ${PSFILE}" >> plot.sh
 
     # ON THE FLAT PROFILES
-    echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')" >> ${LINEID}_temp_plot.sh
+    if [[ $PROFTOPOHEIGHT == "" ]]; then
+      echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')" >> ${LINEID}_temp_plot.sh
+    else
+      echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN ${PROFTOPOHEIGHT} | gawk '{print (\$1+0)/2 + \$2 + 4/72 \"i\"}')" >> ${LINEID}_temp_plot.sh
+    fi
+
     echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)" >> ${LINEID}_temp_plot.sh
 
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z}' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z, \"${LINEID}\"}' | gmt pstext -F-f12p,Helvetica,black+a0+jBL -D8p/0 -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR}>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
     # ON THE OBLIQUE PLOTS
@@ -2451,40 +2477,40 @@ EOF
       ###     PERSPECTIVE_AZ, PERSPECTIVE_INC, line_min_x, line_max_x, line_min_z, line_max_z, PROFILE_HEIGHT_IN, PROFILE_WIDTH_IN, yshift
 
       # Plot the frame. This sets -R and -J for the actual plotting script commands in plot.sh
-      echo "#!/bin/bash" > ${LINEID}_plot_start.sh
-      echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_plot_start.sh
-      echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_plot_start.sh
-      echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_plot_start.sh
-      echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_plot_start.sh
-      echo "line_min_z=${line_min_z}" >> ${LINEID}_plot_start.sh
-      echo "line_max_z=${line_max_z}" >> ${LINEID}_plot_start.sh
-      echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> ${LINEID}_plot_start.sh
-      echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> ${LINEID}_plot_start.sh
+      echo "#!/bin/bash" > ${LINEID}_perspective.sh
+      echo "PERSPECTIVE_AZ=\${1}" >> ${LINEID}_perspective.sh
+      echo "PERSPECTIVE_INC=\${2}" >> ${LINEID}_perspective.sh
+      echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_perspective.sh
+      echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_perspective.sh
+      echo "line_min_z=${line_min_z}" >> ${LINEID}_perspective.sh
+      echo "line_max_z=${line_max_z}" >> ${LINEID}_perspective.sh
+      echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> ${LINEID}_perspective.sh
+      echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >> ${LINEID}_perspective.sh
 
 
-      echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_WIDTH_IN\" | gawk '{ print 2.5414*(\$1+0) -0.5414*(\$2+0) - 0.0000  }')" >> ${LINEID}_plot_start.sh
-      echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_plot_start.sh
-        echo "xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')" >> ${LINEID}_plot_start.sh
-      echo "else" >> ${LINEID}_plot_start.sh
-        echo "xshift=0" >> ${LINEID}_plot_start.sh
-      echo "fi" >> ${LINEID}_plot_start.sh
+      echo "GUESS=\$(echo \"\$PROFILE_HEIGHT_IN \$PROFILE_WIDTH_IN\" | gawk '{ print 2.5414*(\$1+0) -0.5414*(\$2+0) - 0.0000  }')" >> ${LINEID}_perspective.sh
+      echo "if [[ \$(echo \"\${PERSPECTIVE_AZ} > 180\" | bc -l) -eq 1 ]]; then" >> ${LINEID}_perspective.sh
+        echo "xshift=\$(gawk -v height=\${GUESS} -v az=\$PERSPECTIVE_AZ 'BEGIN{print cos((270-az)*3.1415926/180)*(height+0)}')" >> ${LINEID}_perspective.sh
+      echo "else" >> ${LINEID}_perspective.sh
+        echo "xshift=0" >> ${LINEID}_perspective.sh
+      echo "fi" >> ${LINEID}_perspective.sh
 
-      echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_plot_start.sh
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot_start.sh
+      echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_perspective.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_perspective.sh
 
       # Concatenate the cross section plotting commands onto the script
-      cat ${LINEID}_plot.sh >> ${LINEID}_plot_start.sh
+      cat ${LINEID}_plot.sh >> ${LINEID}_perspective.sh
       cleanup ${LINEID}_plot.sh
 
       # Concatenate the terrain plotting commands onto the script.
       # If there is no top tile, we need to create some commands to allow a plot to be made correctly.
 
       if [[ -e ${LINEID}_topscript.sh ]]; then
-        echo "# Top tile plotting script..." >> ${LINEID}_plot_start.sh
-        cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+        echo "# Top tile plotting script..." >> ${LINEID}_perspective.sh
+        cat ${LINEID}_topscript.sh >> ${LINEID}_perspective.sh
         cleanup ${LINEID}_topscript.sh
       else
-        echo "# Top tile plotting script... alternative mode" >> ${LINEID}_plot_start.sh
+        echo "# Top tile plotting script... alternative mode" >> ${LINEID}_perspective.sh
         echo "VEXAG=\${3}" > ${LINEID}_topscript.sh
         echo "dem_miny=-${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
         echo "dem_maxy=${MAXWIDTH_KM}" >> ${LINEID}_topscript.sh
@@ -2526,7 +2552,7 @@ print
 EOF
         echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
       fi
-        cat ${LINEID}_topscript.sh >> ${LINEID}_plot_start.sh
+        cat ${LINEID}_topscript.sh >> ${LINEID}_perspective.sh
         cleanup ${LINEID}_topscript.sh
       fi
 
@@ -2550,11 +2576,11 @@ EOF
       # NO -K
       echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
 
-      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile >/dev/null 2>&1 " >> ${LINEID}_plot_start.sh
+      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile >/dev/null 2>&1 " >> ${LINEID}_perspective.sh
 
       # Execute plot script
-      chmod a+x ${LINEID}_plot_start.sh
-      echo "./${LINEID}_plot_start.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC} \${PERSPECTIVE_EXAG}" >> ./plot_oblique_profiles.sh
+      chmod a+x ${LINEID}_perspective.sh
+      echo "./${LINEID}_perspective.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC} \${PERSPECTIVE_EXAG}" >> ./plot_oblique_profiles.sh
 
       # gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile
 
@@ -2570,22 +2596,31 @@ EOF
 
     # Create the profile postscript plot
     # Profiles will be plotted by a master script that feeds in the appropriate parameters based on all profiles.
-    echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_profile_plot.sh
-    echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_profile_plot.sh
-    echo "line_min_z=\$1" >> ${LINEID}_profile_plot.sh
-    echo "line_max_z=\$2" >> ${LINEID}_profile_plot.sh
-    echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> ${LINEID}_profile_plot.sh
-    echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >>${LINEID}_profile_plot.sh
+    echo "line_min_x=${PROFILE_XMIN}" >> ${LINEID}_profile.sh
+    echo "line_max_x=${PROFILE_XMAX}" >> ${LINEID}_profile.sh
+    echo "line_min_z=\$1" >> ${LINEID}_profile.sh
+    echo "line_max_z=\$2" >> ${LINEID}_profile.sh
+    echo "PROFILE_HEIGHT_IN=${PROFILE_HEIGHT_IN_TMP}" >> ${LINEID}_profile.sh
+    echo "PROFILE_WIDTH_IN=${PROFILE_WIDTH_IN}" >>${LINEID}_profile.sh
+
+    echo "PROFILE_TOPPER_HEIGHT_IN=0"  >>${LINEID}_profile.sh
+    echo "if [[ \$3 != \"\" ]]; then PROFILE_TOPPER_HEIGHT_IN=\$3; fi" >>${LINEID}_profile.sh
 
     # Center the frame on the new PS document
-    echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
-    cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bltrb -R\${line_min_x}/\${line_max_x}/\${line_min_z}/\${line_max_z} --MAP_FRAME_PEN=thinner,black -K -Xc -Yc > ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile.sh
+    cat ${LINEID}_temp_plot.sh >> ${LINEID}_profile.sh
     cleanup ${LINEID}_temp_plot.sh
-    echo "gmt psbasemap -Vn -BtESW+t\"${LINEID}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile_plot.sh
-    echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile_plot.sh
 
-    echo "./${LINEID}_profile_plot.sh ${line_min_z} ${line_max_z}" >> ./plot_flat_profiles.sh
-    chmod a+x ./${LINEID}_profile_plot.sh
+    echo "gmt psbasemap -Vn -BtESW -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile.sh
+
+
+    [[ -s ${LINEID}_temp_profiletop.sh ]] && cat ${LINEID}_temp_profiletop.sh >> ${LINEID}_profile.sh
+
+    echo "gmt psxy -T -R -J -O >> profiles/P_CW_flat_profile.ps" >> ${LINEID}_profile.sh
+    echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}${LINEID}_flat_profile.ps >/dev/null 2>&1" >> ${LINEID}_profile.sh
+
+    echo "./${LINEID}_profile.sh ${line_min_z} ${line_max_z} \${3}" >> ./plot_flat_profiles.sh
+    chmod a+x ./${LINEID}_profile.sh
 
     # Increment the profile number
     PROFILE_INUM=$(echo "$PROFILE_INUM + 1" | bc)
@@ -2715,7 +2750,7 @@ mv ./plot_flat_profiles.sh ./tmp.sh
 echo "#!/bin/bash" > ./plot_flat_profiles.sh
 cat ./tmp.sh >> ./plot_flat_profiles.sh
 chmod a+x ./plot_flat_profiles.sh
-./plot_flat_profiles.sh $min_z $max_z
+./plot_flat_profiles.sh $min_z $max_z ${PROFTOPOHEIGHT}
 
 # FOR THE OBLIQUE SECTIONS
 if [[ $MAKE_OBLIQUE_PROFILES -eq 1 ]]; then
