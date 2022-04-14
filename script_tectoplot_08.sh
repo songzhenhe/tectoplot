@@ -7431,16 +7431,102 @@ fi
 
   ;;
 
-  -profgrid) # -profgrid: Interpolate XYZV data for profile grid
+  -prof3dgrid)
+  THREEDGRIDRES="1k"
+  THREEDGRIDVAR="vs"
+  THREEDCPT=""
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--profgrid:       Interpolate XYZ data for profile grid
-Usage: -profgrid [file1] [[cptfile]]
+-prof3dgrid:       Interpolate XYZ data and plot grid on profiles
+Usage: -prof3dgrid [file] [[options]]
+
+  XYZV data are projected onto profile plane and then interpolated.
+
+  This method can be problematic because the interpolation is done in X'-Z
+  projected space rather than geographic space.
+
+  Options:
+    var [name=${THREEDGRIDVAR}]
+    res [resolution=${THREEDGRIDRES}]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  prof3dgridflag=1
+  if [[ -s $2 ]]; then
+    PROF3DGRIDFILE=$(abs_path $2)
+    shift
+  else
+    echo "[-prof3dgrid]: Input file ${2} does not exist or is empty"
+    exit 1
+  fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      var)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDGRIDVAR="${2}"
+          shift
+        else
+          echo "[-prof3dgrid]: option var requires argument (eg vs)"
+          exit 1
+        fi
+      ;;
+      res)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDGRIDRES="${2}"
+          shift
+        else
+          echo "[-prof3dgrid]: option res requires argument (eg 1k)"
+          exit 1
+        fi
+      ;;
+      cpt)
+        shift
+        if ! arg_is_flag $2; then
+          if [[ -s ${2} ]]; then
+            THREEDCPT=$(abs_path ${2})
+          else
+            THREEDCPT="${2}"
+          fi
+          shift
+        else
+          echo "[-prof3dgrid]: option cpt requires argument (eg turbo or ./my.cpt)"
+          exit 1
+        fi
+      ;;
+      *)
+        echo "[-prof3dgrid]: option ${2} not recognized"
+        exit 1
+      ;;
+    esac
+  done
+  ;;
+
+  -profgrid) # -profgrid: Interpolate XYZV data for profile grid
+  gridsubsampleX=1  # Subsampling factor. 1=no subsampling
+  gridsubsampleY=1  # Subsampling factor. 1=no subsampling
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-profgrid:       Interpolate XYZ data and plot grid on profiles
+Usage: -profgrid [file] [[options]]
+
+  XYZV data are projected onto profile plane and then interpolated.
+
+  This method can be problematic because the interpolation is done in X'-Z
+  projected space rather than geographic space.
+
+  Options:
+  cpt [file | cptname]     CPT for interpolated grid
+  subx [value]             grid subsampling factor, X coordinate
+  suby [value]             grid subsampling factor, Y coordinate
 
   Notes:
-         Data file has format X Y Z V
-         Data will be added to -sprof, -aprof, etc profiles where close to lines
-         If file ends in .cpt it will be used as the tomography CPT
+    Data file has format X Y Z V
+    Resolution is calculated from data spacing in the input file
 
 --------------------------------------------------------------------------------
 EOF
@@ -7448,14 +7534,47 @@ shift && continue
 fi
 
   # Check if a file or CPT file should be loaded
-  while [[ -s $2 ]]; do
-    if [[ "${2}" == *.cpt ]]; then
-      profgridcpt=$(abs_path $2)
-    else
-      profgridfile=$(abs_path "${2}")
-      profgridflag=1
-    fi
+  if [[ -s $2 ]]; then
+    profgridfile=$(abs_path "${2}")
+    profgridflag=1
     shift
+  else
+    echo "[-profgrid]: Input file ${2} does not exist or is empty"
+    exit 1
+  fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      cpt)
+        shift
+        if [[ -s ${2} ]]; then
+          profgridcpt=$(abs_path $2)
+        else
+          profgridcpt="${2}"
+        fi
+        shift
+      ;;
+      subx)
+        shift
+        if arg_is_positive_float $2; then
+          gridsubsampleX=$2  # Subsampling factor. 1=no subsampling
+        else
+          echo "[-profgrid]: option subx requires a positive number argument"
+          exit 1
+        fi
+        shift
+      ;;
+      suby)
+        shift
+        if arg_is_positive_float $2; then
+          gridsubsampleY=$2  # Subsampling factor. 1=no subsampling
+        else
+          echo "[-profgrid]: option subx requires a positive number argument"
+          exit 1
+        fi
+        shift
+      ;;
+    esac
   done
   ;;
 
@@ -14264,30 +14383,30 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           };
         }' > ${F_PLATES}plateazfile.txt
 
-
-        gawk < ${F_PLATES}geodin.txt '{print $1, $2, $3, $4}' | gawk  '
-        @include "tectoplot_functions.awk"
-        # function acos(x) { return atan2(sqrt(1-x*x), x) }
-            {
-              if ($1 == ">") {
-                # nothing
-                # print $1, $2;
-                fake=1
-              }
-              else {
-                lon1 = $1*3.14159265358979/180;
-                lat1 = $2*3.14159265358979/180;
-                lon2 = $3*3.14159265358979/180;
-                lat2 = $4*3.14159265358979/180;
-                Bx = cos(lat2)*cos(lon2-lon1);
-                By = cos(lat2)*sin(lon2-lon1);
-                latMid = atan2(sin(lat1)+sin(lat2), sqrt((cos(lat1)+Bx)*(cos(lat1)+Bx)+By*By));
-                lonMid = lon1+atan2(By, cos(lat1)+Bx);
-                theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
-                d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
-                printf "%.5f %.5f %.3f %.3f %s %s %s %s\n", lonMid*180/3.14159265358979, latMid*180/3.14159265358979, (theta*180/3.14159265358979+360-90)%360, d, $1, $2, $3, $4;
-              };
-            }' > ${F_PLATES}plateazfile_withpts.txt
+# Not needed for now
+        # gawk < ${F_PLATES}geodin.txt '{print $1, $2, $3, $4}' | gawk  '
+        # @include "tectoplot_functions.awk"
+        # # function acos(x) { return atan2(sqrt(1-x*x), x) }
+        #     {
+        #       if ($1 == ">") {
+        #         # nothing
+        #         # print $1, $2;
+        #         fake=1
+        #       }
+        #       else {
+        #         lon1 = $1*3.14159265358979/180;
+        #         lat1 = $2*3.14159265358979/180;
+        #         lon2 = $3*3.14159265358979/180;
+        #         lat2 = $4*3.14159265358979/180;
+        #         Bx = cos(lat2)*cos(lon2-lon1);
+        #         By = cos(lat2)*sin(lon2-lon1);
+        #         latMid = atan2(sin(lat1)+sin(lat2), sqrt((cos(lat1)+Bx)*(cos(lat1)+Bx)+By*By));
+        #         lonMid = lon1+atan2(By, cos(lat1)+Bx);
+        #         theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
+        #         d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
+        #         printf "%.5f %.5f %.3f %.3f %s %s %s %s\n", lonMid*180/3.14159265358979, latMid*180/3.14159265358979, (theta*180/3.14159265358979+360-90)%360, d, $1, $2, $3, $4;
+        #       };
+        #     }' > ${F_PLATES}plateazfile_withpts.txt
 
     # plateazfile.txt now contains midpoints with azimuth and distance of segments. Multiple
     # headers per plate are possible if multiple disconnected lines were generated
@@ -17651,7 +17770,11 @@ EOF
           if [[ $profgridflag -eq 1 ]]; then
             info_msg "Adding profgrid to sprof as gridded-xyz"
             echo "I $profgridfile ${SPROFWIDTH} -1 ${profgridcpt}" >> sprof.control
+          fi
 
+          if [[ $prof3dgridflag -eq 1 ]]; then
+            info_msg "Adding 3D datacube"
+            echo "Q $PROF3DGRIDFILE ${THREEDGRIDVAR} ${THREEDGRIDRES} ${THREEDCPT}" >> sprof.control
           fi
 
           if [[ -s tomography.txt ]]; then
