@@ -83,6 +83,10 @@
 # Profile line definition
 # P PROFILE_ID color XOFFSET ZOFFSET LON1 LAT1 ... ... LONN LATN
 
+# profile.sh recognizes these global variables:
+# threedresidflag   :   remove horizontal average from 3d interpolated profiles
+
+
 
 # project_xyz_pts_onto_track $1 $2 $3 $4 $5 $6
 #
@@ -472,7 +476,7 @@ elif [[ ${FIRSTWORD:0:1} == "Q" ]]; then
     threedres[$i]="${myarr[3]}"           # Sampling resolution for the vertical profile (e.g. 1k)
     threedcptlist[$i]="${myarr[4]}"           # Optional CPT file or cpt name
 
-    echo "Loading 3D grid file ${threedgridfilelist[$i]}"
+    # echo "Loading 3D grid file ${threedgridfilelist[$i]}"
 
 # S defines grids that we calculate swath profiles from.
 # G defines a grid that will be displayed above oblique profiles.
@@ -1006,10 +1010,6 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
         echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> "${PSFILE}"" >> plot.sh
 
-
-#
-
-
         grep "^[-*0-9]" ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt >> ${F_PROFILES}${LINEID}_all_data.txt
       else
         echo "Can't find source ptgrid file: ${F_PROFILES}${ptgridfilesellist[$i]}"
@@ -1022,23 +1022,14 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
       numsegs=$(echo "$numprofpts - 1" | bc -l)
 
       # Manage the CPTs
-      echo "ctadt is :${threedcptlist[$i]}:"
-      if [[ ${threedcptlist[$i]} == "" ]]; then
-        echo "Making own cpt using turbo"
-
-        zrange=($(gmt grdinfo -Q -C ${threedgridfilelist[$i]} | gawk '{print $8, $9}'))
-        gmt makecpt -Cturbo -T${zrange[0]}/${zrange[1]}/0.1 -Z > ${F_CPTS}prof3d.cpt
-        THREEDCPT=${F_CPTS}prof3d.cpt
-      else
-        THREEDCPT=${threedcptlist[$i]}
-      fi
 
       # Determine the resolution and extents of the data cube
       zinfo=($(gmt grdinfo -Q -C ${threedgridfilelist[$i]} | gawk '{print $6, $7, $12}'))
-      echo info is ${zinfo[@]}
+      if [[ ${zinfo[2]} -eq 0 ]]; then
+        zinfo[2]=${zinfo[0]}
+        echo changed zinfo to ${zinfo[0]}
+      fi
 
-      # if 3 is 0 then 3 is 1
-      
       # For each segment of the track
       cur_x=0
       for segind in $(seq 1 $numsegs); do
@@ -1049,14 +1040,16 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
         p2_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
 
-
         # Slice the 3D grid
-        echo gmt grdinterpolate ${threedgridfilelist[$i]}?vs -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -Gvs_${segind}.nc ${VERBOSE}
+        # echo gmt grdinterpolate ${threedgridfilelist[$i]}?vs -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -Gvs_${segind}.nc ${VERBOSE}
+        INTERPTYPE="-Fa"
 
-        gmt grdinterpolate ${threedgridfilelist[$i]}?vs -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/25 -Gvs_${segind}.nc ${VERBOSE}
+        # echo gmt grdinterpolate ${threedgridfilelist[$i]}?${threeddatatype[$i]} ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
+
+        gmt grdinterpolate ${threedgridfilelist[$i]}?${threeddatatype[$i]} ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
 
         # Convert to text, adjust to add X offset and make Z negative (assuming grid is in depth)
-        gmt grd2xyz vs_${segind}.nc | gawk -v curx=${cur_x} '{print $1+curx, 0-$2, $3}' >> ${LINEID}_threed.txt
+        gmt grd2xyz ${threeddatatype[$i]}_${segind}.nc | gawk -v curx=${cur_x} '{print $1+curx, 0-$2, $3}' >> ${LINEID}_threed.txt
 
         # echo "Segment ${segind}: slicing 3d grid from ${p1_x}/${p1_z} to ${p2_x}/${p2_z}, X=[${cur_x}, $(echo "$cur_x + ${add_x}" | bc -l)]"
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
@@ -1066,11 +1059,53 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
       # Reconstruct a grid from the combined segments
       neg1=$(echo "0 - ${zinfo[1]}" | bc -l)
       neg2=$(echo "0 - ${zinfo[0]}" | bc -l)
-      gmt triangulate ${LINEID}_threed.txt -R0/${cur_x}/${neg1}/${neg2} -I$(echo ${threedres[$i]} | gawk '{print $1+0}')+e -G${F_PROFILES}${LINEID}_threed.nc
+
+      # This removes the horizontal average from each profile. Not really a great way to do this
+      # We should probably just allow people to correct their own data beforehand.
+      if [[ $threedresidflag -eq 1 ]]; then
+        # file is X Z V
+        gawk < ${LINEID}_threed.txt '
+        {
+          x[NR]=$1
+          z[NR]=$2
+          v[NR]=$3
+          if ($2 != "NaN") {
+            sum[$2]+=$3
+            num[$2]++
+          }
+        }
+        END {
+          for (key in sum) {
+            ave[key]=sum[key]/num[key]
+            print "Average of level", key, "is", ave[key] "from", sum[key], "over", num[key] > "/dev/stderr"
+          }
+          for (i=1; i<=NR; i++) {
+            if (v[i]=="NaN") {
+              print x[i], z[i], "NaN"
+            } else {
+              print x[i], z[i], (v[i]-ave[z[i]])/ave[z[i]]
+            }
+          }
+        }' > ${LINEID}_threed_resid.txt
+        TRIANGFILE=${LINEID}_threed_resid.txt
+      else
+        TRIANGFILE=${LINEID}_threed.txt
+      fi
+
+      gmt triangulate ${TRIANGFILE} -R0/${cur_x}/${neg1}/${neg2} -I$(echo ${threedres[$i]} | gawk '{print $1+0}')+e -G${F_PROFILES}${LINEID}_threed.nc
+
+      # Create this CPT only once as there may be different data ranges on different profiles
+      if [[ ${threedcptlist[$i]} == "" && ! -s ${F_CPTS}prof3d.cpt ]]; then
+        echo making own cpt
+        gmt grd2cpt -C${THREED_DEFAULTCPT} ${F_PROFILES}${LINEID}_threed.nc > ${F_CPTS}prof3d.cpt
+      else
+        THREEDCPT=${threedcptlist[$i]}
+      fi
 
       # Plot the grid
-      echo gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -fc -Vn -R -J -O -K -C${THREEDCPT}
-      echo "gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -fc -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      # echo gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -fc -Vn -R -J -O -K -C${THREEDCPT}
+
+      echo "gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
     done
 
@@ -2762,6 +2797,8 @@ EOF
     cleanup ${LINEID}_temp_plot.sh
 
     echo "gmt psbasemap -Vn -BtESW -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile.sh
+
+    echo "grep \") sh mx\" ${F_PROFILES}${LINEID}_flat_profile.ps | gawk '{val[NR]=substr(\$1,2,length(\$1)-2)} END {print val[2]-val[1]}' > ${F_PROFILES}${LINEID}_interval.txt" >> ${LINEID}_profile.sh
 
     # Bring in the code to plot the top swath profile panel, if necessary
     [[ -s ${LINEID}_temp_profiletop.sh ]] && cat ${LINEID}_temp_profiletop.sh >> ${LINEID}_profile.sh

@@ -665,7 +665,7 @@ function tectoplot_plot_gis() {
       LOGFLAG=""
     fi
 
-    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} ${LOGFLAG}  -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
+    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG}  -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
     current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
 
     tectoplot_plot_caught=1

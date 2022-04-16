@@ -1997,7 +1997,7 @@ fi
     # Create profiles by constructing a new mprof) file with relevant data types
     aprofflag=1
 
-    while [[ "${2}" == [A-Y][A-Y] ]]; do
+    while [[ "${2}" == [A-Y]*[A-Y] ]]; do
       aproflist+=("${2}")
       shift
     done
@@ -7435,55 +7435,74 @@ fi
   THREEDGRIDRES="1k"
   THREEDGRIDVAR="vs"
   THREEDCPT=""
+  THREED_DEFAULTCPT="sealand"
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--prof3dgrid:       Interpolate XYZ data and plot grid on profiles
-Usage: -prof3dgrid [file] [[options]]
+-prof3dgrid:       plot slices of 3D interpolated dasets on profiles
+Usage: -prof3dgrid [xyzvfile] [varname] [res] [[options]]
+Usage: -prof3dgrid [netcdf_file] [varname] [res] [[options]]
 
-  XYZV data are projected onto profile plane and then interpolated.
+  Import (or create) a NetCDF data cube and slice it along profiles.
 
-  This method can be problematic because the interpolation is done in X'-Z
-  projected space rather than geographic space.
+  X,Y: degrees longitude/latitude
+  Z: depth (km, positive downward)
+  V: number - define name with [var] option (default=cube)
+
+  Option res is required for both usage cases!
+
+  xyzv [file]  Create a NetCDF 3D data cube from the input data (X Y Z V)
+               Resolution and domain are determined automatically from the data.
+
+ [netcdf]:     Plot profiles through an existing NetCDF datacube
 
   Options:
-    var [name=${THREEDGRIDVAR}]
-    res [resolution=${THREEDGRIDRES}]
+    cpt             Name of or path to CPT
+    resid           Remove horizontal average value from each profile
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
   prof3dgridflag=1
-  if [[ -s $2 ]]; then
-    PROF3DGRIDFILE=$(abs_path $2)
+
+  # If the file is not NetCDF by name, assume it is XYZV and create a datacube
+  if [[ $2 != *.nc ]]; then
+    makexyzvflag=1
+  fi
+
+  if [[ -s ${2} ]]; then
+    PROF3DGRIDFILE=$(abs_path ${2})
     shift
   else
     echo "[-prof3dgrid]: Input file ${2} does not exist or is empty"
     exit 1
   fi
 
+  if ! arg_is_flag $2; then
+    THREEDGRIDVAR="${2}"
+    shift
+  fi
+
+  if ! arg_is_flag $2; then
+    THREEDGRIDRES="${2}"
+    shift
+  fi
+
+  if [[ $makexyzvflag -eq 1 ]]; then
+    echo "Making 3D NetCDF: ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0"
+    ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0
+    if [[ -s ${TMP}datacube.nc ]]; then
+      PROF3DGRIDFILE=${TMP}datacube.nc
+    else
+      echo "[-prof3dgrid]: Creation of datacube failed"
+      exit 1
+    fi
+  fi
+
   while ! arg_is_flag $2; do
     case $2 in
-      var)
-        shift
-        if ! arg_is_flag $2; then
-          THREEDGRIDVAR="${2}"
-          shift
-        else
-          echo "[-prof3dgrid]: option var requires argument (eg vs)"
-          exit 1
-        fi
-      ;;
-      res)
-        shift
-        if ! arg_is_flag $2; then
-          THREEDGRIDRES="${2}"
-          shift
-        else
-          echo "[-prof3dgrid]: option res requires argument (eg 1k)"
-          exit 1
-        fi
-      ;;
       cpt)
         shift
         if ! arg_is_flag $2; then
@@ -7498,12 +7517,32 @@ fi
           exit 1
         fi
       ;;
+      resid)
+        shift
+        threedresidflag=1
+      ;;
       *)
         echo "[-prof3dgrid]: option ${2} not recognized"
         exit 1
       ;;
     esac
   done
+  ;;
+
+  -proflabel)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-proflabel:      label distances along profile lines on map
+Usage: -proflabel
+
+  Profile labels will be placed at same location as major intervals on each
+  profile.
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  profiledistlabelsflag=1
   ;;
 
   -profgrid) # -profgrid: Interpolate XYZV data for profile grid
@@ -11763,11 +11802,18 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   # Extract the aprof list to make the profiles
   for code in ${aproflist[@]}; do
-    p1=($(grep "[${code:0:1}]" ${F_MAPELEMENTS}aprof_database.txt))
-    p2=($(grep "[${code:1:1}]" ${F_MAPELEMENTS}aprof_database.txt))
-    if [[ ${#p1[@]} -eq 3 && ${#p2[@]} -eq 3 ]]; then
-      echo "P P_${code} black 0 N ${p1[0]} ${p1[1]} ${p2[0]} ${p2[1]}" >> ${F_PROFILES}aprof_profs.txt
-    fi
+    profpts=""
+    len=$(echo "${#code} - 1" | bc)
+    for i in $(seq 0 $len); do
+      thispt=($(grep "[${code:i:1}]" ${F_MAPELEMENTS}aprof_database.txt))
+      profpts="${profpts} ${thispt[0]} ${thispt[1]}"
+    done
+    echo "P P_${code} black 0 N ${profpts}" >> ${F_PROFILES}aprof_profs.txt
+    # p1=($(grep "[${code:0:1}]" ${F_MAPELEMENTS}aprof_database.txt))
+    # p2=($(grep "[${code:1:1}]" ${F_MAPELEMENTS}aprof_database.txt))
+    # if [[ ${#p1[@]} -eq 3 && ${#p2[@]} -eq 3 ]]; then
+    #   echo "P P_${code} black 0 N ${p1[0]} ${p1[1]} ${p2[0]} ${p2[1]}" >> ${F_PROFILES}aprof_profs.txt
+    # fi
   done
 
   # Build the cprof profiles
@@ -17849,7 +17895,7 @@ EOF
         # I can calculate the map coordinates of the start and end points for
         # each profile and then set PROFILE_WIDTH/PROFILE_HEIGHT accordingly?
 
-
+# SECTION PROFILES
         info_msg "Drawing profile(s)"
 
         MAP_PSFILE=$(abs_path map.ps)
@@ -17861,25 +17907,56 @@ EOF
         # Plot the profile lines with the assigned color on the map
         # echo TRACKFILE=...$TRACKFILE
 
-        k=$(wc -l < $TRACKFILE | gawk  '{print $1}')
-        for ind in $(seq 1 $k); do
-          FIRSTWORD=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $1}')
-          # echo FIRSTWORD all=${FIRSTWORD}
-          # if [[ ${FIRSTWORD:0:1} != "#" && ${FIRSTWORD:0:1} != "$" && ${FIRSTWORD:0:1} != "%" && ${FIRSTWORD:0:1} != "^" && ${FIRSTWORD:0:1} != "@"  && ${FIRSTWORD:0:1} != ":"  && ${FIRSTWORD:0:1} != ">" ]]; then
+#         k=$(wc -l < $TRACKFILE | gawk  '{print $1}')
+#         for ind in $(seq 1 $k); do
+#           linetext=$(head -n ${ind} $TRACKFILE | tail -n 1)
+#           FIRSTWORD=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $1}')
+#
+#           if [[ ${FIRSTWORD:0:1} == "P" ]]; then
+#             COLOR=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $3}')
+#
+#
+#             # Can plot plain line or with annotated distances along the line
+#             head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
+#
+#
+#
+# # Plot a line with distance ticks... but need to know the spacing somehow!
+# #            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | \
+# #              gmt psxy $RJOK -S~D100k/1:+s-5p+a90 -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
+#             head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
+#             head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
+#           fi
+#         done
+
+        while read trackline; do
+          trackentries=($(echo $trackline))
+          FIRSTWORD=${trackentries[0]}
 
           if [[ ${FIRSTWORD:0:1} == "P" ]]; then
-            # echo FIRSTWORD=${FIRSTWORD}
-            COLOR=$(head -n ${ind} $TRACKFILE | tail -n 1 | gawk  '{print $3}')
-            # echo $FIRSTWORD $ind $k
+            LINEID=${trackentries[1]}
+            COLOR=${trackentries[2]}
 
-            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
-            # info_msg "is it this"
-            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
-            # head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | head -n 1 | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
-            head -n ${ind} $TRACKFILE | tail -n 1 | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
-            # info_msg "here"
+            if [[ -s ${F_PROFILES}${LINEID}_interval.txt && $profiledistlabelsflag -eq 1 ]]; then
+
+              # Plot profile line with distance markers and labels
+
+              read interval1 < ${F_PROFILES}${LINEID}_interval.txt
+
+              echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | \
+                gmt psxy $RJOK -S~D${interval1}k/1:+sc2p+ap+gblack -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
+              echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | \
+                gmt psxy $RJOK -SqD${interval1}k/1:+uk+i+LDk+ap+N0/-8p >> map.ps
+            else
+
+              # Plot a plain profile line
+              echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
+            fi
+
+            echo $trackline | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
+            echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
           fi
-        done
+        done < $TRACKFILE
 
         # PROFILETRACKS=1
         # Plot the gridtrack tracks, for debugging
