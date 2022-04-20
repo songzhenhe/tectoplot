@@ -44,6 +44,7 @@ function tectoplot_defaults_gis() {
 
 
   current_userlinefilenumber=1
+  current_usersymbollinefilenumber=1
   current_userpointfilenumber=1
   current_usergridnumber=1
   current_usergridcontournumber=1
@@ -207,12 +208,13 @@ fi
       if [[ ${ISGMTCPT} -eq 1 ]]; then
         info_msg "[-gr]: Using GMT CPT file ${1}."
         GRIDADDCPT[$usergridfilenumber]="${1}"
+        gmt grd2cpt ${GRIDADDFILE[$usergridfilenumber]} -C${1} -Z > ${TMP}${F_CPTS}gis_grid_${usergridfilenumber}.cpt
+        GRIDADDCPT[$usergridfilenumber]=${TMP}${F_CPTS}gis_grid_${usergridfilenumber}.cpt
       elif [[ -e ${1} ]]; then
         info_msg "[-gr]: Copying user defined CPT ${1}"
         TMPNAME=$(abs_path $1)
-
         cp $TMPNAME ${TMP}${F_CPTS}
-        GRIDADDCPT[$usergridfilenumber]="${F_CPTS}"$(basename "$1")
+        GRIDADDCPT[$usergridfilenumber]="${TMP}${F_CPTS}"$(basename "$1")
       else
         info_msg "CPT file ${1} cannot be found directly. Looking in CPT dir: ${CPTDIR}${2}."
         if [[ -e ${CPTDIR}${1} ]]; then
@@ -248,6 +250,7 @@ fi
     addcustomusergridsflag=1
 
     plots+=("gis_grid")
+
     # cpts+=("gis_grid")
 
     tectoplot_module_caught=1
@@ -303,6 +306,58 @@ fi
 
     tectoplot_module_caught=1
     ;;
+
+  -lis)
+  usersymbollinefilenumber=0
+  USERsymbolLINESYMBOL="t"
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-lis:           plot one or more polyline files as ticked faults
+-lis [filename] [faulttype] [[linecolor]] [[linewidth]]
+
+--------------------------------------------------------------------------------
+EOF
+fi
+  shift
+
+  echo "a"
+
+  if [[ $1 == *kml ]]; then
+    usersymbollinefilenumber=$(echo "$usersymbollinefilenumber + 1" | bc -l)
+    kml_to_all_xy ${1} gis_line_${usersymbollinefilenumber}.txt
+    ls -l gis_line_${usersymbollinefilenumber}.txt
+    USERsymbolLINEDATAFILE[$usersymbollinefilenumber]=$(abs_path gis_line_${usersymbollinefilenumber}.txt)
+  else
+    usersymbollinefilenumber=$(echo "$usersymbollinefilenumber + 1" | bc -l)
+    USERsymbolLINEDATAFILE[$usersymbollinefilenumber]=$(abs_path $1)
+  fi
+
+  echo "b"
+
+  shift
+  ((tectoplot_module_shift++))
+
+  if [[ ! -e ${USERsymbolLINEDATAFILE[$usersymbollinefilenumber]} ]]; then
+    info_msg "[-lis]: User line data file ${USERsymbolLINEDATAFILE[$usersymbollinefilenumber]} does not exist."
+    exit 1
+  fi
+
+  echo "c"
+
+  if arg_is_flag $1; then
+    info_msg "[-lis]: No type specified. Using $USERsymbolLINESYMBOL"
+    USERsymbolLINESYMBOL_arr[$usersymbollinefilenumber]=$USERsymbolLINESYMBOL
+  else
+    USERsymbolLINESYMBOL_arr[$usersymbollinefilenumber]="${1}"
+    shift
+    ((tectoplot_module_shift++))
+    info_msg "[-lis]: User line type specified. Using ${USERsymbolLINECOLOR_arr[$usersymbollinefilenumber]}."
+  fi
+
+  plots+=("gis_symbol_line")
+  tectoplot_module_caught=1
+
+  ;;
 
   -li) # args: file color width
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -796,7 +851,34 @@ function tectoplot_plot_gis() {
     tectoplot_plot_caught=1
   ;;
 
+
+#Front: -Sf<spacing>[/<ticklen>][+r|l][+f|t|s|c|b|v][+o<offset>][+p<pen>]
+       # If <spacing> is negative it means the number of gaps instead. If <spacing> has a leading + then <spacing> is used exactly [adjusted to fit line length]. If not given, <ticklen> defaults to 15% of <spacing>. Append
+       # various modifiers:
+       # +l Plot symbol to the left of the front [centered].
+       # +r Plot symbol to the right of the front [centered].
+       # +i Make main front line invisible [drawn using pen settings from -W].
+       # +b Plot square when centered, half-square otherwise.
+       # +c Plot full circle when centered, half-circle otherwise.
+       # +f Plot centered cross-tick or tick only in specified direction [Default].
+       # +s Plot left-or right-lateral strike-slip arrows. Optionally append the arrow angle [20].
+       # +S Same as +s but with curved arrow-heads.
+       # +t Plot diagonal square when centered, directed triangle otherwise.
+       # +o Plot first symbol when along-front distance is <offset> [0].
+       # +p Append <pen> for front symbol outline; if no <pen> then no outline [Outline with -W pen].
+       # +v Plot two inverted triangles, directed inverted triangle otherwise.
+       # Only one of +b|c|f|i|s|S|t|v may be selected.
+  gis_symbol_line)
+    info_msg "Plotting line dataset $current_usersymbollinefilenumber"
+    gmt psxy -Sf1c/3p+l+${USERsymbolLINESYMBOL_arr[$current_usersymbollinefilenumber]} ${USERsymbolLINEDATAFILE[$current_usersymbollinefilenumber]} -W1p,black -Gblack $RJOK $VERBOSE >> map.ps
+    current_usersymbollinefilenumber=$(echo "$current_usersymbollinefilenumber + 1" | bc -l)
+    tectoplot_plot_caught=1
+  ;;
+
   gis_image)
+  echo ${IMAGENAME}
+  pwd
+  ls
     # echo gmt grdimage ${IMAGENAME} -Q ${RJSTRING[@]} -O -K $VERBOSE
     gmt grdimage ${IMAGENAME} -Q ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
     tectoplot_plot_caught=1
@@ -854,8 +936,8 @@ function tectoplot_plot_gis() {
 function tectoplot_legendbar_gis() {
   case $1 in
     gis_grid)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> legendbars.txt
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
       tectoplot_caught_legendbar=1

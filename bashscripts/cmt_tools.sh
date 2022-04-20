@@ -295,6 +295,10 @@ BEGIN {
         lon_origin=$1
         lat_origin=$2
         depth_origin=$3
+        strike1=$4
+        dip1=$5
+        rake1=$6
+        MW=$7
 
         ### Optional fields
         if (NF > 7) {
@@ -334,10 +338,7 @@ BEGIN {
           depth_origin="none"
         }
       }
-      strike1=$4
-      dip1=$5
-      rake1=$6
-      MW=$7
+
 
       ### Optional fields
       # if (NF > 7) {
@@ -418,6 +419,7 @@ BEGIN {
         }
 
       }
+
       strike1=$4
       dip1=$5
       rake1=$6

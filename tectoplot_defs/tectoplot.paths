@@ -84,6 +84,7 @@ TECTOPLOT_THEMES="${DEFDIR}"tectoplot.themes
 # Source the following scripts at startup
 BASHSCRIPTDIR=${TECTOPLOTDIR}"bashscripts/"
 
+DATACUBE_SH=${BASHSCRIPTDIR}"make3dcube.sh"
 IMAGE_SH=${BASHSCRIPTDIR}"image_processing.sh"
 TIME_SH=${BASHSCRIPTDIR}"time.sh"
 ARGS_CLEANUP_SH=${BASHSCRIPTDIR}"args_cleanup.sh"

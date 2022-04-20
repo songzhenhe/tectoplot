@@ -385,13 +385,14 @@ function tectoplot_plot_geology() {
         }')
 
       # Make a grayscale CPT from categorical and use for the intensity to show the color bars...?
-      gmt makecpt -Ccategorical -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} -Z ${VERBOSE} > ${F_CPTS}categ.cpt
+      gmt makecpt -Ccategorical -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}categ.cpt
+
       clean_cpt ${F_CPTS}categ.cpt > ${F_CPTS}cleangeoage.cpt
       grayscale_cpt ${F_CPTS}cleangeoage.cpt > ${F_CPTS}geogray.cpt
 
-      echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -I+d -C${F_CPTS}geogray.cpt -t${OC_TRANS} -Q
-      gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -I+d -C${F_CPTS}geogray.cpt -t${OC_TRANS} -Q $RJOK $VERBOSE >> map.ps
-      echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE
+      gawk < ${F_CPTS}geogray.cpt '(NR==1) { oldx=$1; oldc=$2 } (NR>1 && $1+0==$1) { print oldx, oldc, $1, oldc; oldx=$1; oldc=$2 } ($1+0!=$1) { print }'  > ${F_CPTS}geoage_gray.cpt
+      gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${F_CPTS}geoage_gray.cpt -t${OC_TRANS} -Q $RJOK $VERBOSE >> map.ps
+      # echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE
       gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE  >> map.ps
       tectoplot_plot_caught=1
       ;;
@@ -464,7 +465,7 @@ function tectoplot_legendbar_geology() {
         fi
 
         gmt makecpt -C$GEOAGE_CPT -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
-        echo "G -0.21i" >> ${LEGENDDIR}legendbars.txt
+        echo "G -0.195i" >> ${LEGENDDIR}legendbars.txt
         echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_caught_legendbar=1

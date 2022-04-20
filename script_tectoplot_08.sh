@@ -3133,6 +3133,57 @@ fi
   set -- "blank" "-cn" "${FAULTGRIDFILES[$faultgridnum]}" "inv" "int" "${FAULTGRIDFILECONTOUR[$faultgridnum]}" "skip" "${FAULTGRIDFILECONTOURSKIP[$faultgridnum]}" "cpt" "cpts/seisdepth.cpt" "$@"
   ;;
 
+  -front)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-front:           plot ticked lines using a front control file
+-front [file_path] [[smoothdist]]
+
+  The input file is a control file with the format:
+
+# Comments begin with #, empty lines are ignored
+absolute_file_path symbol side tickspacing ticklength linecolor linewidth fillcolor
+...
+
+
+The file_path argument is required and must be an absolute path.
+Argument options are as follows (first listed option is the default value)
+symbol=t|f|s|c|v|b
+side=l|r
+tickspacing=1c
+ticklength=3p
+linecolor=black
+linewidth=1p
+fillcolor=black
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if [[ ! -s ${2} ]]; then
+    echo "[-front]: Control file ${2} does not exist or is empty"
+    exit 1
+  else
+    FRONTFILE=$(abs_path $2)
+    shift
+  fi
+
+  if [[ $2 == "smooth" ]]; then
+    shift
+    if ! arg_is_flag $2; then
+      FRONTSMOOTHINC="${2}"
+      shift
+      frontsmoothflag=1
+    else
+      echo "[-front]: smooth option requires argument (e.g. 0.1i)"
+    fi
+  fi
+
+  plots+=("front")
+  ;;
+
+
 	-f)   # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -12070,7 +12121,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     if [[ -e ${SENT_DIR}${SENT_FNAME} ]]; then
       info_msg "Sentinel imagery $SENT_FNAME exists. Not redownloading."
-      ln -s ${SENT_DIR}${SENT_FNAME} sentinel_img.jpg
+      cp ${SENT_DIR}${SENT_FNAME} sentinel_img.jpg
+      cp ${SENT_DIR}${SENT_TFWNAME} sentinel_img.jgw
     else
 
       echo "getting image for ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT}"
@@ -13715,7 +13767,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
           # If we are looking for deep events
           if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
-            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v incout=1 -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
               function abs(v) { return (v>0)?v:-v}
               ($40 != "NaN") {
                 slab2depth=(0-$40)     # now it is positive down, matching CMT depth
@@ -13728,16 +13780,23 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                 } else {
                   lon=$5; lat=$6; depth=$7
                 }
-
                 # If it is in the slab region and the depth is within the offset
-                if (depth-slab2depth>vertdiff)
+                if (depth-slab2depth>vertdiff || (incout==1 && $40=="NaN"))
                 {
                   $42=""
                   $41=""
                   $40=""
                   print $0
                 }
-              }' >> ${F_CMT}cmt_slabselected.txt
+              }
+
+              ($40=="NaN" && incout==1) {
+                  $42=""
+                  $41=""
+                  $40=""
+                  print $0
+              }
+              ' >> ${F_CMT}cmt_slabselected.txt
           fi
         done
       fi
@@ -15727,6 +15786,38 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
+      front)
+        while read p; do
+          if [[ ! -z $p && ! ${p:0:1} == "#" ]]; then
+            pargs=($(echo $p))
+            if [[ ! -s ${pargs[0]} ]]; then
+              echo "File ${pargs[0]} does not exist or is empty"
+            else
+              # Fix the defaults
+              [[ -z ${pargs[1]} ]] && pargs[1]="t"
+              [[ -z ${pargs[2]} ]] && pargs[2]="l"
+              [[ -z ${pargs[3]} ]] && pargs[3]="1c"
+              [[ -z ${pargs[4]} ]] && pargs[4]="3p"
+              [[ -z ${pargs[5]} ]] && pargs[5]="black"
+              [[ -z ${pargs[6]} ]] && pargs[6]="1p"
+              [[ -z ${pargs[7]} ]] && pargs[7]="black"
+
+              if [[ ${pargs[0]} == *kml ]]; then
+                kml_to_all_xy ${pargs[0]} tmp_line.xy
+                pargs[0]=tmp_line.xy
+              fi
+
+              # Plot the line with smoothing if asked
+              if [[ $frontsmoothflag -eq 1 ]]; then
+                gawk < ${pargs[0]} '{ if ($1+0==$1) { print $1, $2, inc++ } else { print } }' | gmt sample1d -Fa -T0.2 -I${FRONTSMOOTHINC} > b.txt
+                pargs[0]="b.txt"
+              fi
+              gmt psxy ${pargs[0]} -Sf${pargs[3]}/${pargs[4]}+${pargs[2]}+${pargs[1]}+p -W${pargs[6]},${pargs[5]} -G${pargs[7]} ${RJOK} ${VERBOSE} >> map.ps
+            fi
+          fi
+        done < ${FRONTFILE}
+
+      ;;
       cutframe)
         MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
         MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
@@ -16063,7 +16154,6 @@ EOF
 
               print indexval, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
               for(i=indexval-cint; i>=minz; i-=cint) {
-                print i
                 if (++ismaj == majorspace) {
                   print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
                   ismaj=0
@@ -16073,7 +16163,6 @@ EOF
               }
               ismaj=0
               for(i=indexval+cint; i<=maxz; i+=cint) {
-                print "j", i
                 if (++ismaj == majorspace) {
                   print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
                   ismaj=0
@@ -16522,8 +16611,8 @@ EOF
               LABEL_FONTSIZE=$(echo ${EQ_LABEL_FONTSIZE})
               LABEL_DIST=${EQ_LABEL_DISTX}
               LABEL_PSFILE=map.ps
-              LABEL_BOXLINE=""
-              LABEL_BOXCOLOR=""
+              LABEL_BOXLINE="0.1p,black"
+              LABEL_BOXCOLOR="white"
 
               source ${PLOTLABELS}
 
@@ -17101,16 +17190,16 @@ EOF
         info_msg "Plotting kinematic slip vectors; kinthrustflag=$kinthrustflag; kinnormalflag=$kinnormalflag; kinssflag=$kinssflag, NP1_COLOR=$NP1_COLOR, NP2_COLOR=$NP2_COLOR"
 
         if [[ $kinthrustflag -eq 1 ]]; then
-          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}thrust_gen_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}thrust_gen_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
         fi
         if [[ $kinnormalflag -eq 1 ]]; then
-          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}normal_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}normal_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}normal_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}normal_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
         fi
         if [[ $kinssflag -eq 1 ]]; then
-          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}strikeslip_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
-          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.05i+jb+e -W0.4p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}strikeslip_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
+          [[ $np1flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP1_COLOR} -G${NP1_COLOR} ${F_KIN}strikeslip_slip_vectors_np1.txt $RJOK $VERBOSE >> map.ps
+          [[ $np2flag -eq 1 ]] && gmt psxy -SV0.1i+jb+e -W1p,${NP2_COLOR} -G${NP2_COLOR} ${F_KIN}strikeslip_slip_vectors_np2.txt $RJOK $VERBOSE >> map.ps
         fi
         ;;
 
@@ -18546,13 +18635,13 @@ EOF
         if [[ $SSUNIFORM -eq 1 ]]; then
           # Use a magnitude of 4 for all events
           gawk < ${F_SEIS}eqs.txt '{print $1, $2, 1}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
-          gmt grd2cpt -Qo -I -Cturbo ${F_SEIS}seissum.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+          gmt grd2cpt -Qo -I -Chot ${F_SEIS}seissum.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
           gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
         else
           # Use the true magnitude for all events
           gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
           gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
-          gmt grd2cpt -Qo -I -Cseis ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
+          gmt grd2cpt -Qo -I -Chot ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
           gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
         fi
 
@@ -18762,7 +18851,7 @@ EOF
                     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
                   else
                     info_msg "Resampling Sentinel image to match DEM resolution"
-                    gdalwarp -r bilinear -of GTiff -q -ts ${dem_dimx} ${dem_dimy} ./sentinel_img.jpg ./sentinel_warp.tif
+                    gdalwarp -r bilinear -q -ts ${dem_dimx} ${dem_dimy} ./sentinel_img.jpg ./sentinel_warp.jpg
                     # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
                     cp ./sentinel_warp.tif ./sentinel_img.jpg
                     # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
@@ -18773,8 +18862,8 @@ EOF
                   # elevation and set all cells in sentinel_img.jpg to that color (to make a uniform ocean color?)
                   if [[ $sentinelrecolorseaflag -eq 1 ]]; then
                     info_msg "Recoloring sea areas of Sentinel image"
-                    recolor_sea ${TOPOGRAPHY_DATA} ./sentinel_img.jpg ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.tif
-                    mv ./sentinel_recolor.tif ./sentinel_img.jpg
+                    recolor_sea ${TOPOGRAPHY_DATA} ./sentinel_img.jpg ${SENTINEL_RECOLOR_R} ${SENTINEL_RECOLOR_G} ${SENTINEL_RECOLOR_B} ./sentinel_recolor.jpg
+                    mv ./sentinel_recolor.jpg ./sentinel_img.jpg
                   fi
               fi
 
@@ -19122,26 +19211,30 @@ EOF
                   this_image=${TIMG_IMAGES[$this_image_ind]}
                   this_fact=${TIMG_FACTS[$this_image_ind]}
 
+                  # gmt grdinfo ${this_image}
+
                   # Detect an alpha channel and remove it if necessary
                   gdal_translate -b 1 -b 2 -b 3 ${this_image} temp_image.tif
                   this_image=temp_image.tif
 
                   info_msg "Rendering georeferenced RGB image ${this_image} as colored texture."
 
-                  if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
-                    info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
-                    rm -f ${F_TOPO}image_alpha.tif
-                    alpha_value temp_image.tif ${this_fact} ${F_TOPO}image_alpha.tif
-                    gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
-                    this_image=${F_TOPO}image_alpha.tif
-                    cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
-                  fi
+                  # if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
+                  #   info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
+                  #   rm -f ${F_TOPO}image_alpha.tif
+                  #   alpha_value temp_image.tif ${this_fact} ${F_TOPO}image_alpha.tif
+                  #   gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
+                  #   this_image=${F_TOPO}image_alpha.tif
+                  #   cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
+                  # fi
+
+                  # quickreport ${this_image}
 
                   info_msg "Rescaling ${this_image} to match DEM"
                   gdalwarp -overwrite -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${this_image} ${F_TOPO}image_pre.tif
                   gdal_edit.py -colorinterp_1 red -colorinterp_2 green -colorinterp_3 blue ${F_TOPO}image_pre.tif
 
-                  quickreport ${F_TOPO}image_pre.tif
+                  # quickreport ${F_TOPO}image_pre.tif
 
 
                   # Either copy (first) or overlay (subsequent) the rescaled image
@@ -20268,7 +20361,7 @@ if [[ $makelegendflag -eq 1 ]]; then
           echo "B ${F_CPTS}seissum.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Earthquake count\"" >> ${LEGENDDIR}legendbars.txt
         else
           echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-          echo "B ${F_CPTS}seissum.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"M0 (x10^N)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+          echo "B ${F_CPTS}seissum.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"M0 (x10^N) dyne*cm\"" >> ${LEGENDDIR}legendbars.txt
         fi
         barplotcount=$barplotcount+1
         ;;
@@ -20518,7 +20611,7 @@ function close_legend_item() {
           GPSMESSAGE="GPS ($GPSMAXVEL_INT mm/yr / ${GPS_ELLIPSE_TEXT})"
           GPSoffset=$(echo "(${#GPSMESSAGE} + 2)* 6 * 0.5" | bc -l)
           echo "$CENTERLON $CENTERLAT ${GPSMESSAGE}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} ${VERBOSE} >> ${LEGFILE}
-          echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 5 5 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -X${GPSoffset}p -L ${RJOK} $VERBOSE >> ${LEGFILE} 2>/dev/null
+          echo "$CENTERLON $CENTERLAT $GPSMAXVEL_INT 0 1 1 0 ID" | gmt psvelo -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -X${GPSoffset}p -L ${RJOK} $VERBOSE >> ${LEGFILE} 2>/dev/null
 
           close_legend_item "gps"
           ;;
@@ -20770,7 +20863,7 @@ function close_legend_item() {
           CL|LC) shifth=10;  shiftv=0  ;;
           BL|LB) shifth=10;  shiftv=10  ;;
           *)
-          echo "Outside justification ${LEGEND_JUST} not recognized. Using BL"
+          echo "Inside justification ${LEGEND_JUST} not recognized. Using BL"
             LEGEND_JUST="BL"; shifth=10;  shiftv=10
           ;;
         esac

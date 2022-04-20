@@ -583,10 +583,10 @@ function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, ma
 #
 # Variables that will be set upon successful execution:
 # ------------------------------------------------------------------------------
-# TNP[1]-TNP[6]: Taz, Tinc, Naz, Ninc, Paz, Pinc (all in degrees)
+# TNP[1]-TNP[9]: Tval, Taz, Tinc, Nval, Naz, Ninc, Pval, Paz, Pinc (angles in degrees)
 # ------------------------------------------------------------------------------
 
-function sdr_to_tnp(strike_d, dip_d, rake_d, TNP,      n,N,T,P,l) {
+function sdr_to_tnp(strike_d, dip_d, rake_d, TNP,      n,N,T,P,l,strike,dip,rake,Taz,Tinc,Tval,Pval,Paz,Pinc,Nval,Naz,Ninc) {
   strike=deg2rad(strike_d)
   dip=deg2rad(dip_d)
   rake=deg2rad(rake_d)
@@ -746,7 +746,7 @@ function rake_from_twosd_im(S1, D1, S2, D2, im) {
 # SDR[1]=strike1, SDR[2]=dip1, SDR[3]=rake1 SDR[4]=strike2 SDR[5]=dip2 SDR[6]=rake2
 # ------------------------------------------------------------------------------
 
-function ntp_to_sdr(Taz, Tinc, Paz, Pinc, SDR) {
+function ntp_to_sdr(Taz, Tinc, Paz, Pinc, SDR,        sdp,cdp,spp,cpp,sdt,cdt,spt,cpt,amz,d1,p1,d2,p2,rake1,rake2) {
 
   sdp=sin(deg2rad(Pinc))
   cdp=cos(deg2rad(Pinc))
