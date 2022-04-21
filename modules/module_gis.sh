@@ -46,7 +46,7 @@ function tectoplot_defaults_gis() {
   current_userlinefilenumber=1
   current_usersymbollinefilenumber=1
   current_userpointfilenumber=1
-  current_usergridnumber=1
+  cugfn=1
   current_usergridcontournumber=1
   current_smallcirclenumber=1
 
@@ -200,9 +200,6 @@ EOF
 fi
     shift
 
-    echo "-gr broken for the moment"
-    exit 1
-
     ugfn=$(echo "$ugfn+1" | bc)  # user grid file number
     if arg_is_flag $1; then
       info_msg "[-gr]: Grid file must be specified"
@@ -217,6 +214,10 @@ fi
 
     # Set defaults before reading options
     GRIDADDCPT[$ugfn]="turbo"
+    GRIDLOGCPT[$ugfn]=0
+    GRIDADDTRANS[$ugfn]=0
+    GRIDPLOT[$ugfn]=1
+    GRIDTIFF[$ugfn]=0
 
     while ! arg_is_flag $1; do
       case $1 in
@@ -245,49 +246,46 @@ fi
               GRIDADDCPT[$ugfn]="turbo"
             fi
           fi
-        ;;
-        log)
+          shift
+          ((tectoplot_module_shift++))
 
         ;;
+        log)
+          GRIDLOGCPT[$ugfn]=1
+          shift
+          ((tectoplot_module_shift++))
+        ;;
         noplot)
-        echo a
+          shift
+          ((tectoplot_module_shift++))
+          GRIDPLOT[$ugfn]=0
         ;;
         trans)
-        echo b
+          shift
+          ((tectoplot_module_shift++))
+          if ! arg_is_positive_float $1; then
+            info_msg "[-gr]: trans option requires number argument"
+            exit 1
+          else
+            GRIDADDTRANS[$ugfn]="${1}"
+            shift
+            ((tectoplot_module_shift++))
+          fi
         ;;
         tiff)
-        echo c
+          shift
+          ((tectoplot_module_shift++))
+          GRIDTIFF[$ugfn]=1
         ;;
         *)
-        echo d
-        exit 1
+          echo $1
+          exit 1
         ;;
       esac
     done
 
-
-
-    #
-    #
-    #   if [[ $1 == "log" ]]; then
-    #     GRIDLOGCPT[$ugfn]=1
-    #     shift
-    #     ((tectoplot_module_shift++))
-    #   else
-    #     GRIDLOGCPT[$ugfn]=0
-    #   fi
-    #
-    # fi
-    # if arg_is_flag $1; then
-    #   info_msg "[-gr]: GRID transparency not specified. Using 0 percent"
-    #   GRIDADDTRANS[$ugfn]=0
-    # else
-    #   GRIDADDTRANS[$ugfn]="${1}"
-    #   shift
-    #   ((tectoplot_module_shift++))
-    # fi
-    # GRIDIDCODE[$ugfn]="c"   # custom ID
-    # addcustomusergridsflag=1
+    GRIDIDCODE[$ugfn]="c"   # custom ID
+    addcustomusergridsflag=1
 
     plots+=("gis_grid")
 
@@ -752,19 +750,26 @@ function tectoplot_plot_gis() {
 
   gis_grid)
     # Each time gis_grid is called, plot the grid and increment to the next
-    info_msg "Plotting user grid $current_usergridnumber: ${GRIDADDFILE[$current_usergridnumber]} with CPT ${GRIDADDCPT[$current_usergridnumber]}"
+    info_msg "Plotting user grid $cugfn: ${GRIDADDFILE[$cugfn]} with CPT ${GRIDADDCPT[$cugfn]}"
 
-    if [[ ${GRIDLOGCPT[$current_usergridnumber]} -eq 1 ]]; then
+    if [[ ${GRIDLOGCPT[$cugfn]} -eq 1 ]]; then
       LOGFLAG="-Q"
     else
       LOGFLAG=""
     fi
 
-    gmt_init_tmpdir
-      gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG} -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} -JX5i -Agrid_${current_usergridnumber}.tif
-    gmt_remove_tmpdir
-    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG} -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
-    current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
+
+    if [[ ${GRIDTIFF[$cugfn]} -eq 1 ]]; then
+      gmt_init_tmpdir
+        gmt grdimage ${GRIDADDFILE[$cugfn]} -Q ${LOGFLAG} -C${GRIDADDCPT[$cugfn]} $GRID_PRINT_RES -t${GRIDADDTRANS[$cugfn]} -JX5i -Agrid_${cugfn}.tif
+      gmt_remove_tmpdir
+    fi
+
+    if [[ ${GRIDPLOT[$cugfn]} -eq 1 ]]; then
+      gmt grdimage ${GRIDADDFILE[$cugfn]} -Q ${LOGFLAG} -C${GRIDADDCPT[$cugfn]} $GRID_PRINT_RES -t${GRIDADDTRANS[$cugfn]} $RJOK ${VERBOSE} >> map.ps
+    fi
+
+    cugfn=$(echo "$cugfn + 1" | bc -l)
 
     tectoplot_plot_caught=1
     ;;
@@ -980,9 +985,9 @@ function tectoplot_legendbar_gis() {
   case $1 in
     gis_grid)
       echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-      echo "B ${GRIDADDCPT[$current_usergridnumber]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"$(basename ${GRIDADDFILE[$current_usergridnumber]})\"" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${GRIDADDCPT[$cugfn]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"$(basename ${GRIDADDFILE[$cugfn]})\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
-      current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
+      cugfn=$(echo "$cugfn + 1" | bc -l)
       tectoplot_caught_legendbar=1
       ;;
   esac
