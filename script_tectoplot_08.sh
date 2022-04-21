@@ -3242,6 +3242,88 @@ fi
   plots+=("flinn-engdahl")
     ;;
 
+-pstrain)
+
+  PSTRAIN_SIZE=16       # points
+  PSTRAIN_COLOR=black
+  PSTRAIN_WIDTH=1p
+  PSTRAIN_TYPE="strain"
+
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-pstrain:       plot principal strains as orthogonal arrows
+Usage: -pstrain [file] [[options]]
+
+Input file has format: lon lat e11 e33 az_e11
+
+Options:
+size [size]         size of largest symbol. Give units [p | c | i]
+type [string]       data type of principal axes (e.g. "strain" | "strain rate")
+color [color]       symbol line color
+width [width]       symbol line width
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if [[ -s ${2} ]]; then
+    PSTRAIN_FILE=$(abs_path $2)
+    shift
+  else
+    echo "[-pstrain]: input file $2 is empty or does not exist"
+    exit 1
+  fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      type)
+        if ! arg_is_flag $2; then
+          shift
+          PSTRAIN_TYPE=$2
+          shift
+        else
+          echo "[-pstraint]: type option requires string argument"
+          exit 1
+        fi
+      ;;
+      size)
+        shift
+        if arg_is_float $2; then
+          PSTRAIN_SIZE=$2
+        elif [[ $2 == *p ]]; then
+          PSTRAIN_SIZE=$(echo $2 | gawk '{print $1+0}')
+        elif  [[ $2 == *c ]]; then
+          PSTRAIN_SIZE=$(echo $2 | gawk '{print ($1+0)*72/2.54}')
+        elif [[ $2 == *i ]]; then
+          PSTRAIN_SIZE=$(echo $2 | gawk '{print ($1+0)*72}')
+        else
+          echo "[-pstrain]: size argument $2 not recognized"
+        fi
+        shift
+      ;;
+      color)
+        shift
+        PSTRAIN_COLOR=$2
+        shift
+      ;;
+      width)
+        shift
+        PSTRAIN_WIDTH=$2
+        shift
+      ;;
+      *)
+        echo "[-pstrain]: option $2 not recognized"
+        exit 1
+      ;;
+    esac
+
+  done
+
+  plots+=("pstrain")
+
+;;
+
   -gg)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3266,7 +3348,7 @@ Usage: -gg [[resolution=${GPS_GG_RES}]] [[poisson=${GPS_GG_VAL}]] [[option ...]]
   Duplicated GPS site locations will be culled, retaining first site.
 
 Example:
-tectoplot -r 30 40 30 42 -a -g EU -gg 0.1d 0.5 subsample 10 -i 4 -o example_gg
+tectoplot -r 30 40 30 42 -a -g ref EU -gg 0.1d 0.5 subsample 10 -i 4 -o example_gg
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
@@ -9652,6 +9734,7 @@ fi
     ;;
 
   -timg) # -timg: color terrain intensity using one or more georeferenced images
+  TIMG_RESAMPLE="near"
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -timg:         color terrain intensity one or more georeferenced images
@@ -9669,6 +9752,10 @@ cat <<-EOF
 
   Options:
   noterrain      override terrain blending; just use the fused images
+  resample       resampling method when resizing grid
+                 choose from: near (default), bilinear, cubic, cubicspline,
+                              lanczos, average, rms, mode,  max, min, med, Q1,
+                              Q3, sum
 
 --------------------------------------------------------------------------------
 EOF
@@ -9685,6 +9772,16 @@ fi
           shift
           timgnotopoflag=1
           ;;
+        resample)
+          shift
+          if ! arg_is_flag $2; then
+            TIMG_RESAMPLE=$2
+            shift
+          else
+            echo "[-timg]: resample option requires argument"
+            exit 1
+          fi
+        ;;
         img)
           shift
           if [[ -s "${2}" ]]; then
@@ -15786,6 +15883,32 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
+      pstrain)
+
+        PSTRAIN_MAXSTR=($(gawk < ${PSTRAIN_FILE} '
+        BEGIN {
+          max=0
+        }
+        ($1+0==$1) {
+          thisid[NR]=$0
+          thismag=sqrt($3*$3+$4*$4)
+          max=(thismag>max)?thismag:max
+          if (max==thismag) {
+            maxNR=NR
+          }
+        }
+        END {
+          print thisid[maxNR]
+        }'))
+
+        PSTRAIN_SIZE_ADJ=$(echo ${PSTRAIN_MAXSTR[@]} | gawk -v insize=${PSTRAIN_SIZE} '
+          {
+            s=sqrt($3*$3+$4*$4)
+            print insize/s
+          }')
+
+        gmt psvelo ${PSTRAIN_FILE} -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE} >> map.ps
+      ;;
       front)
         while read p; do
           if [[ ! -z $p && ! ${p:0:1} == "#" ]]; then
@@ -19231,11 +19354,10 @@ EOF
                   # quickreport ${this_image}
 
                   info_msg "Rescaling ${this_image} to match DEM"
-                  gdalwarp -overwrite -q -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${this_image} ${F_TOPO}image_pre.tif
+                  gdalwarp -overwrite -q -r ${TIMG_RESAMPLE} -te  ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -ts ${dem_dimx} ${dem_dimy} ${this_image} ${F_TOPO}image_pre.tif
                   gdal_edit.py -colorinterp_1 red -colorinterp_2 green -colorinterp_3 blue ${F_TOPO}image_pre.tif
 
                   # quickreport ${F_TOPO}image_pre.tif
-
 
                   # Either copy (first) or overlay (subsequent) the rescaled image
                   if [[ ! -s ${F_TOPO}image.tif ]]; then
@@ -20478,9 +20600,22 @@ function close_legend_item() {
 
     for legend_plot in ${plots[@]} ; do
     	case $legend_plot in
+        pstrain)
+        info_msg "Legend: pstrain"
+        init_legend_item "pstrain"
+
+          echo "$CENTERLON $CENTERLAT Principal ${PSTRAIN_TYPE}" | gmt pstext -F+f6p,Helvetica,black+jRB -D-32p/2p $VERBOSE -J -R -O -K >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT @%12%e@-11@-@%%=${PSTRAIN_MAXSTR[2]} / @%12%e@-33@-@%%=${PSTRAIN_MAXSTR[3]}" | gmt pstext -F+f6p,Helvetica,black+jRT -D-32p/-2p $VERBOSE -J -R -O -K >> ${LEGFILE}
+
+          echo ${PSTRAIN_MAXSTR[@]} | gawk -v clon=${CENTERLON} -v clat=${CENTERLAT} '{print clon, clat, $3, $4, $5 }' | \
+            gmt psvelo -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE}  >> ${LEGFILE}
+
+        close_legend_item "pstrain"
+        ;;
+
         cmt)
-          info_msg "Legend: cmt"
-          init_legend_item "cmt"
+        info_msg "Legend: cmt"
+        init_legend_item "cmt"
 
           CMAXMAG=$(echo ${CMT_MAXMAG} 7 | gawk '{print ($2<$1)?$2:$1}')
 

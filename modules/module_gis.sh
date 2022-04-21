@@ -50,7 +50,7 @@ function tectoplot_defaults_gis() {
   current_usergridcontournumber=1
   current_smallcirclenumber=1
 
-  usergridfilenumber=0
+  ugfn=0
   userlinefilenumber=0
   userpointfilenumber=0
   userpolyfilenumber=0
@@ -177,77 +177,117 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -gr:           plot grid file
--gr [grid1] [[cpt1]] [[trans1]]
+-gr [grid1] [[options]]
 
   Multiple instances of -gr can be specified and the plotting order versus other
-  map layers will be respected.
-  NaN cells are plotted as fully transparent (grdimage -Q)
+  map layers will be respected.NaN cells are plotted as fully transparent (grdimage -Q)
+
+  This command creates a GeoTiff of the rendered grid with the name grid_N.tif
+  where N indicates the Nth grid given - usefult for e.g. -timg img grid_1.tif
+
+  Options:
+  cpt [cptid]          select CPT for grid
+  log
+  noplot               do not actually plot the grid. Useful with tiff option
+  trans [percent]      set transparency of plotted grid
+  tiff                 make a GeoTiff file called grid_N.tif in the temporary folder
 
 Example:
   tectoplot -t -r BR -gr grid1.grd cpt1.cpt -a -gr grid2.grd cpt2.cpt 50
+ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 fi
     shift
-    usergridfilenumber=$(echo "$usergridfilenumber+1" | bc)
+
+    echo "-gr broken for the moment"
+    exit 1
+
+    ugfn=$(echo "$ugfn+1" | bc)  # user grid file number
     if arg_is_flag $1; then
       info_msg "[-gr]: Grid file must be specified"
     else
-      GRIDADDFILE[$usergridfilenumber]=$(abs_path $1)
-      if [[ ! -e "${GRIDADDFILE[$usergridfilenumber]}" ]]; then
-        info_msg "GRID file ${GRIDADDFILE[$usergridfilenumber]} does not exist"
+      GRIDADDFILE[$ugfn]=$(abs_path $1)
+      if [[ ! -e "${GRIDADDFILE[$ugfn]}" ]]; then
+        info_msg "GRID file ${GRIDADDFILE[$ugfn]} does not exist"
       fi
       shift
       ((tectoplot_module_shift++))
     fi
-    if arg_is_flag $1; then
-      info_msg "[-gr]: GRID CPT file not specified. Using turbo."
-      GRIDADDCPT[$usergridfilenumber]="turbo"
-    else
-      ISGMTCPT="$(is_gmt_cpt $1)"
-      if [[ ${ISGMTCPT} -eq 1 ]]; then
-        info_msg "[-gr]: Using GMT CPT file ${1}."
-        GRIDADDCPT[$usergridfilenumber]="${1}"
-        gmt grd2cpt ${GRIDADDFILE[$usergridfilenumber]} -C${1} -Z > ${TMP}${F_CPTS}gis_grid_${usergridfilenumber}.cpt
-        GRIDADDCPT[$usergridfilenumber]=${TMP}${F_CPTS}gis_grid_${usergridfilenumber}.cpt
-      elif [[ -e ${1} ]]; then
-        info_msg "[-gr]: Copying user defined CPT ${1}"
-        TMPNAME=$(abs_path $1)
-        cp $TMPNAME ${TMP}${F_CPTS}
-        GRIDADDCPT[$usergridfilenumber]="${TMP}${F_CPTS}"$(basename "$1")
-      else
-        info_msg "CPT file ${1} cannot be found directly. Looking in CPT dir: ${CPTDIR}${2}."
-        if [[ -e ${CPTDIR}${1} ]]; then
-          cp "${CPTDIR}${1}" ${TMP}${F_CPTS}
-          info_msg "Copying CPT file ${CPTDIR}${1} to temporary holding space"
-          GRIDADDCPT[$usergridfilenumber]="./${F_CPTS}${1}"
-        else
-          info_msg "Using default CPT (turbo)"
-          GRIDADDCPT[$usergridfilenumber]="turbo"
-        fi
-      fi
-      shift
-      ((tectoplot_module_shift++))
 
-      if [[ $1 == "log" ]]; then
-        GRIDLOGCPT[$current_usergridnumber]=1
-        shift
-        ((tectoplot_module_shift++))
-      else
-        GRIDLOGCPT[$current_usergridnumber]=0
-      fi
+    # Set defaults before reading options
+    GRIDADDCPT[$ugfn]="turbo"
 
-    fi
-    if arg_is_flag $1; then
-      info_msg "[-gr]: GRID transparency not specified. Using 0 percent"
-      GRIDADDTRANS[$usergridfilenumber]=0
-    else
-      GRIDADDTRANS[$usergridfilenumber]="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    GRIDIDCODE[$usergridfilenumber]="c"   # custom ID
-    addcustomusergridsflag=1
+    while ! arg_is_flag $1; do
+      case $1 in
+        cpt)
+          shift
+          ((tectoplot_module_shift++))
+          ISGMTCPT="$(is_gmt_cpt $1)"
+          if [[ ${ISGMTCPT} -eq 1 ]]; then
+            info_msg "[-gr]: Using GMT CPT file ${1}."
+            GRIDADDCPT[$ugfn]="${1}"
+            gmt grd2cpt ${GRIDADDFILE[$ugfn]} -C${1} -Z > ${TMP}${F_CPTS}gis_grid_${ugfn}.cpt
+            GRIDADDCPT[$ugfn]=${TMP}${F_CPTS}gis_grid_${ugfn}.cpt
+          elif [[ -e ${1} ]]; then
+            info_msg "[-gr]: Copying user defined CPT ${1}"
+            TMPNAME=$(abs_path $1)
+            cp $TMPNAME ${TMP}${F_CPTS}
+            GRIDADDCPT[$ugfn]="${TMP}${F_CPTS}"$(basename "$1")
+          else
+            info_msg "CPT file ${1} cannot be found directly. Looking in CPT dir: ${CPTDIR}${2}."
+            if [[ -e ${CPTDIR}${1} ]]; then
+              cp "${CPTDIR}${1}" ${TMP}${F_CPTS}
+              info_msg "Copying CPT file ${CPTDIR}${1} to temporary holding space"
+              GRIDADDCPT[$ugfn]="./${F_CPTS}${1}"
+            else
+              info_msg "Using default CPT (turbo)"
+              GRIDADDCPT[$ugfn]="turbo"
+            fi
+          fi
+        ;;
+        log)
+
+        ;;
+        noplot)
+        echo a
+        ;;
+        trans)
+        echo b
+        ;;
+        tiff)
+        echo c
+        ;;
+        *)
+        echo d
+        exit 1
+        ;;
+      esac
+    done
+
+
+
+    #
+    #
+    #   if [[ $1 == "log" ]]; then
+    #     GRIDLOGCPT[$ugfn]=1
+    #     shift
+    #     ((tectoplot_module_shift++))
+    #   else
+    #     GRIDLOGCPT[$ugfn]=0
+    #   fi
+    #
+    # fi
+    # if arg_is_flag $1; then
+    #   info_msg "[-gr]: GRID transparency not specified. Using 0 percent"
+    #   GRIDADDTRANS[$ugfn]=0
+    # else
+    #   GRIDADDTRANS[$ugfn]="${1}"
+    #   shift
+    #   ((tectoplot_module_shift++))
+    # fi
+    # GRIDIDCODE[$ugfn]="c"   # custom ID
+    # addcustomusergridsflag=1
 
     plots+=("gis_grid")
 
@@ -720,7 +760,10 @@ function tectoplot_plot_gis() {
       LOGFLAG=""
     fi
 
-    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG}  -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
+    gmt_init_tmpdir
+      gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG} -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} -JX5i -Agrid_${current_usergridnumber}.tif
+    gmt_remove_tmpdir
+    gmt grdimage ${GRIDADDFILE[$current_usergridnumber]} -Q ${LOGFLAG} -C${GRIDADDCPT[$current_usergridnumber]} $GRID_PRINT_RES -t${GRIDADDTRANS[$current_usergridnumber]} $RJOK ${VERBOSE} >> map.ps
     current_usergridnumber=$(echo "$current_usergridnumber + 1" | bc -l)
 
     tectoplot_plot_caught=1
