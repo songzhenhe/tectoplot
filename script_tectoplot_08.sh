@@ -16225,7 +16225,7 @@ EOF
         fi
 
         if [[ $cmtthrustflag -eq 1 ]]; then
-          echo gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE 
+          echo gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE
           gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
           # gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
         fi
@@ -16735,8 +16735,8 @@ EOF
               LABEL_FONTSIZE=$(echo ${EQ_LABEL_FONTSIZE})
               LABEL_DIST=${EQ_LABEL_DISTX}
               LABEL_PSFILE=map.ps
-              LABEL_BOXLINE="0.1p,black"
-              LABEL_BOXCOLOR="white"
+              LABEL_BOXLINE="-W0.1p,black"
+              LABEL_BOXCOLOR="-Gwhite"
 
               source ${PLOTLABELS}
 
