@@ -16735,8 +16735,8 @@ EOF
               LABEL_FONTSIZE=$(echo ${EQ_LABEL_FONTSIZE})
               LABEL_DIST=${EQ_LABEL_DISTX}
               LABEL_PSFILE=map.ps
-              LABEL_BOXLINE="-W0.1p,black"
-              LABEL_BOXCOLOR="-Gwhite"
+              LABEL_BOXLINE="0.1p,black"
+              LABEL_BOXCOLOR="white"
 
               source ${PLOTLABELS}
 
