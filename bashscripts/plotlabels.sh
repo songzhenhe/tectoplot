@@ -24,21 +24,21 @@
 # LABEL_PSFILE
 # The output PS file
 
+# Calculate from the input variables
+LABEL_DIST_P=$(echo "${EQ_LABEL_DISTX}" | gawk '{print ($1+0)*72}')
+LABEL_FONTSIZE_P=$(echo ${LABEL_FONTSIZE} | gawk '{print $1+0}')
+LABEL_DIST_2=$(echo "${LABEL_DIST}" | gawk '{print ($1+0)*1.5 "i"}')
+LABEL_WIDTH_P=$(echo "${MAP_PS_WIDTH_NOLABELS_IN} * 72" | bc -l)
+LABEL_HEIGHT_P=$(echo "${MAP_PS_HEIGHT_NOLABELS_IN} * 72" | bc -l)
+if [[ $LABEL_BOXLINE != "" ]]; then
+  LABEL_BOXLINE_DEF="-W${LABEL_BOXLINE}"
+fi
+if [[ $LABEL_BOXCOLOR != "" ]]; then
+  LABEL_BOXCOLOR_DEF="-G${LABEL_BOXCOLOR}"
+fi
 
 if [[ $shiftlabelsflag -eq 1 ]]; then
 
-  # Calculate from the input variables
-  LABEL_DIST_P=$(echo "${EQ_LABEL_DISTX}" | gawk '{print ($1+0)*72}')
-  LABEL_FONTSIZE_P=$(echo ${LABEL_FONTSIZE} | gawk '{print $1+0}')
-  LABEL_DIST_2=$(echo "${LABEL_DIST}" | gawk '{print ($1+0)*1.5 "i"}')
-  LABEL_WIDTH_P=$(echo "${MAP_PS_WIDTH_NOLABELS_IN} * 72" | bc -l)
-  LABEL_HEIGHT_P=$(echo "${MAP_PS_HEIGHT_NOLABELS_IN} * 72" | bc -l)
-  if [[ $LABEL_BOXLINE != "" ]]; then
-    LABEL_BOXLINE_DEF="-W${LABEL_BOXLINE}"
-  fi
-  if [[ $LABEL_BOXCOLOR != "" ]]; then
-    LABEL_BOXCOLOR_DEF="-G${LABEL_BOXCOLOR}"
-  fi
 
   gmt mapproject ${LABEL_FILE} ${RJSTRING[@]} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > labels.xy
   paste labels.xy ${LABEL_FILE} > labels.combined
