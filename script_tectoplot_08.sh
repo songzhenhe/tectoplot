@@ -2779,7 +2779,7 @@ Usage: -cdeep [[buffer_distance=${CMTSLAB2VERT}]] [[incout]]
   buffer_distance=-30 will select only regional events (not below Slab2 model)
   below depths of 30 km.
 
-  [[incout]]: Include focal mechanisms outside of slab region
+  [[incout]]: Include any focal mechanisms falling outside of slab region
 
 Example:
 tectoplot -b -c -cdeep -o example_cdeep
