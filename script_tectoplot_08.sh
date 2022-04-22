@@ -2772,12 +2772,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -cdeep:        select focal mechanisms in lower plate below slab2 model
-Usage: -cdeep [[buffer_distance=${CMTSLAB2VERT}]]
+Usage: -cdeep [[buffer_distance=${CMTSLAB2VERT}]] [[incout]]
 
   Buffer distance shifts the Slab2 model up (negative) or down (positive) [km]
   For this option only, buffer_distance also applies to Earth's surface so
   buffer_distance=-30 will select only regional events (not below Slab2 model)
   below depths of 30 km.
+
+  [[incout]]: Include focal mechanisms outside of slab region
 
 Example:
 tectoplot -b -c -cdeep -o example_cdeep
@@ -2789,6 +2791,10 @@ fi
   cmtslab2_deep_filterflag=1
   if arg_is_float $2; then
     CMTSLAB2VERT=${2}
+    shift
+  fi
+  if [[ $2 == "incout" ]]; then
+    SLAB2_INCLUDEOUT=1
     shift
   fi
   ;;
@@ -3245,9 +3251,10 @@ fi
 -pstrain)
 
   PSTRAIN_SIZE=16       # points
-  PSTRAIN_COLOR=black
+  PSTRAIN_COLOR_MAX=black
+  PSTRAIN_COLOR_MIN=black
   PSTRAIN_WIDTH=1p
-  PSTRAIN_TYPE="strain"
+  PSTRAIN_TYPE="Principal strain"
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3259,7 +3266,7 @@ Input file has format: lon lat e11 e33 az_e11
 Options:
 size [size]         size of largest symbol. Give units [p | c | i]
 type [string]       data type of principal axes (e.g. "strain" | "strain rate")
-color [color]       symbol line color
+color [color_max] [color_min]      symbol line color for max/min axes
 width [width]       symbol line width
 
 --------------------------------------------------------------------------------
@@ -3304,7 +3311,9 @@ fi
       ;;
       color)
         shift
-        PSTRAIN_COLOR=$2
+        PSTRAIN_COLOR_MAX=$2
+        shift
+        PSTRAIN_COLOR_MIN=$2
         shift
       ;;
       width)
@@ -13796,7 +13805,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           if [[ $cmtslab2filterflag -eq 1 ]]; then
             info_msg "Selecting interplate thrust focal mechanisms: v ${CMTSLAB2VERT} / s ${CMTSLAB2STR} / d ${CMTSLAB2DIP}"
             touch ${F_CMT}cmt_nodalplane.txt
-            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v incout=${SLAB2_INCLUDEOUT} -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
               function abs(v) { return (v>0)?v:-v}
               ($40 != "NaN") {
                 slab2depth=(0-$40)     # now it is positive down, matching CMT depth
@@ -13830,14 +13839,22 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                     print nodalplane, $3, $16, vertdiff >> "./cmt_thrust_nodalplane.txt"
                   }
                 }
-              }' >> ${F_CMT}cmt_slabselected.txt
+              }
+
+              ($40=="NaN" && incout==1) {
+                  $42=""
+                  $41=""
+                  $40=""
+                  print $0
+              }
+              ' >> ${F_CMT}cmt_slabselected.txt
             #   wc -l ../${F_CMT}cmt_thrust_nearslab.txt
             #   cat ./cmt_thrust_nodalplane.txt >> ../${F_CMT}cmt_thrust_nodalplane.txt
             #   rm -f ./cmt_thrust_nodalplane.txt
           fi
           # If we are looking for shallow events
           if [[ $cmtslab2_shallow_filterflag -eq 1 ]]; then
-            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v incout=${SLAB2_INCLUDEOUT} -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
               function abs(v) { return (v>0)?v:-v}
               ($40 != "NaN") {
                 slab2depth=(0-$40)     # now it is positive down, matching CMT depth
@@ -13859,12 +13876,20 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                   $40=""
                   print $0
                 }
-              }' >> ${F_CMT}cmt_slabselected.txt
+              }
+
+              ($40=="NaN" && incout==1) {
+                  $42=""
+                  $41=""
+                  $40=""
+                  print $0
+              }
+              ' >> ${F_CMT}cmt_slabselected.txt
           fi
 
           # If we are looking for deep events
           if [[ $cmtslab2_deep_filterflag -eq 1 ]]; then
-            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v incout=1 -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
+            gawk < ${F_CMT}cmt_slab2_sample_${slab2inregion[$i]}_pasted.txt -v incout=${SLAB2_INCLUDEOUT} -v cmttype=${CMTTYPE} -v strikediff=${CMTSLAB2STR} -v dipdiff=${CMTSLAB2DIP} -v vertdiff=${CMTSLAB2VERT} '
               function abs(v) { return (v>0)?v:-v}
               ($40 != "NaN") {
                 slab2depth=(0-$40)     # now it is positive down, matching CMT depth
@@ -15907,7 +15932,8 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
             print insize/s
           }')
 
-        gmt psvelo ${PSTRAIN_FILE} -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE} >> map.ps
+          gawk < ${PSTRAIN_FILE} '{print $1, $2, $3, 0, $5}' | gmt psvelo  -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR_MAX} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE} >> map.ps
+          gawk < ${PSTRAIN_FILE} '{print $1, $2, 0, $4, $5}' | gmt psvelo  -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR_MIN} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE} >> map.ps
       ;;
       front)
         while read p; do
@@ -16225,7 +16251,6 @@ EOF
         fi
 
         if [[ $cmtthrustflag -eq 1 ]]; then
-          echo gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE
           gmt psmeca -Z${SEIS_CPT}  -E"${CMT_THRUSTCOLOR}" -T0/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -i0-12 $RJOK $VERBOSE >> map.ps
           # gmt_psmeca_wrapper ${SEIS_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${CMT_THRUSTPLOT} -L${CMT_LINEWIDTH},${CMT_LINECOLOR} $RJOK $VERBOSE >> map.ps
         fi
@@ -20605,11 +20630,14 @@ function close_legend_item() {
         info_msg "Legend: pstrain"
         init_legend_item "pstrain"
 
-          echo "$CENTERLON $CENTERLAT Principal ${PSTRAIN_TYPE}" | gmt pstext -F+f6p,Helvetica,black+jRB -D-32p/2p $VERBOSE -J -R -O -K >> ${LEGFILE}
+          echo "$CENTERLON $CENTERLAT ${PSTRAIN_TYPE}" | gmt pstext -F+f6p,Helvetica,black+jRB -D-32p/2p $VERBOSE -J -R -O -K >> ${LEGFILE}
           echo "$CENTERLON $CENTERLAT @%12%e@-11@-@%%=${PSTRAIN_MAXSTR[2]} / @%12%e@-33@-@%%=${PSTRAIN_MAXSTR[3]}" | gmt pstext -F+f6p,Helvetica,black+jRT -D-32p/-2p $VERBOSE -J -R -O -K >> ${LEGFILE}
 
-          echo ${PSTRAIN_MAXSTR[@]} | gawk -v clon=${CENTERLON} -v clat=${CENTERLAT} '{print clon, clat, $3, $4, $5 }' | \
-            gmt psvelo -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE}  >> ${LEGFILE}
+          echo ${PSTRAIN_MAXSTR[@]} | gawk -v clon=${CENTERLON} -v clat=${CENTERLAT} '{print clon, clat, $3, 0, $5 }' | \
+            gmt psvelo -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR_MAX} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE}  >> ${LEGFILE}
+
+          echo ${PSTRAIN_MAXSTR[@]} | gawk -v clon=${CENTERLON} -v clat=${CENTERLAT} '{print clon, clat, 0, $4, $5 }' | \
+            gmt psvelo -Sx${PSTRAIN_SIZE_ADJ}p -W${PSTRAIN_WIDTH},${PSTRAIN_COLOR_MIN} -A0.01/0.3/0.12 ${RJOK} ${VERBOSE}  >> ${LEGFILE}
 
         close_legend_item "pstrain"
         ;;
