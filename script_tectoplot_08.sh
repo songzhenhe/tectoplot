@@ -650,6 +650,7 @@ Options:
   nounits:  don't print units
   csv:      print in CSV format
   data:     print data from file
+  fieldnum: print field number in an additional trailing bracke [n]
 
 field1 ... fieldn are field IDs of fields to be selected
 
@@ -726,6 +727,9 @@ fi
       data)
         query_dataflag=1
         ;;
+      fieldnumber)
+        query_fieldnumberflag=1
+        ;;
       *) # should get index of field coinciding with argument
         # echo "Other argument $key"
         ismatched=0
@@ -758,18 +762,29 @@ fi
   if [[ $query_headerflag -eq 1 ]]; then
     if [[ $query_nounitsflag -eq 1 ]]; then
       if [[ $query_csvflag -eq 1 ]]; then
-        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' | tr ' ' ','
+        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' | tr ' ' ',' > queryheader.out
       else
-        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g'
+        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' > queryheader.out
       fi
     else
       if [[ $query_csvflag -eq 1 ]]; then
-        echo "${fieldlist[@]}" | tr ' ' ','
+        echo "${fieldlist[@]}" | tr ' ' ',' > queryheader.out
       else
-        echo "${fieldlist[@]}"
+        echo "${fieldlist[@]}" > queryheader.out
       fi
     fi
   fi
+
+  [[ -s queryheader.out ]] && gawk < queryheader.out -v fnf=$query_fieldnumberflag '{
+    if (fnf != 1) {
+      print $0
+    } else {
+      for(i=1;i<NF;i++) {
+        printf("%s[%s] ", $(i), i)
+      }
+      printf("%s[%s]\n", $(NF), NF)
+    }
+  }'
 
   if [[ $query_dataflag -eq 1 ]]; then
     keystr="$(echo ${keylist[@]})"
@@ -6610,6 +6625,9 @@ Usage: -RJ [projection] [[central_meridian]] [[central_latitude]] [[degree_horiz
     Orthographic|G
     Stereo|S
 
+Mercator:
+Usage: -RJ M
+
 Oblique Mercator: specified by center point, azimuth, width and height
 Usage: -RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
 
@@ -6653,11 +6671,17 @@ fi
       shift
       RJSTRING="${rj[@]}"
       ;;
-
+      M) # Mercator
+        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+        rj+=("-JM${PSSIZE}i")
+        RJSTRING="${rj[@]}"
+        projname="Mercator"
+      ;;
       UTM)
         if [[ $2 =~ ^[0-9]+$ ]]; then   # Specified a UTM Zone (positive integer)
           UTMZONE=$2
           shift
+          projname="UTM Zone ${UTMZONE}"
         else
           calcutmzonelaterflag=1
         fi
@@ -6681,14 +6705,14 @@ fi
         fi
         rj+=("-Rg")
         case $ARG1 in
-          Eckert4|Kf)      rj+=("-JKf${CENTRALMERIDIAN}/${PSSIZE}i")    ;;
-          Eckert6|Ks)      rj+=("-JKs${CENTRALMERIDIAN}/${PSSIZE}i")    ;;
-          Hammer|H)        rj+=("-JH${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
-          Mollweide|W)     rj+=("-JW${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
-          Robinson|N)      rj+=("-JN${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
-          Sinusoidal|I)    rj+=("-JI${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
-          VanderGrinten|V) rj+=("-JV${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
-          Winkel|R)        rj+=("-JR${CENTRALMERIDIAN}/${PSSIZE}i")     ;;
+          Eckert4|Kf)      rj+=("-JKf${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert4" ;;
+          Eckert6|Ks)      rj+=("-JKs${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert6" ;;
+          Hammer|H)        rj+=("-JH${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Hammer" ;;
+          Mollweide|W)     rj+=("-JW${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Mollweide" ;;
+          Robinson|N)      rj+=("-JN${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Robinson" ;;
+          Sinusoidal|I)    rj+=("-JI${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Sinusoidal" ;;
+          VanderGrinten|V) rj+=("-JV${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Van der Grinten" ;;
+          Winkel|R)        rj+=("-JR${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Winkel" ;;
         esac
         RJSTRING="${rj[@]}"
         recalcregionflag_lonlat=0
@@ -6715,6 +6739,7 @@ fi
           Hemisphere|A) rj+=("-JA${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${PSSIZE}i")   ;;
         esac
         RJSTRING="${rj[@]}"
+        projname="Hemisphere"
         recalcregionflag_lonlat=0
       ;;
       Gnomonic|Fg|F|Orthographic|Gg|G|Stereo|Sg|S)
@@ -6745,9 +6770,15 @@ fi
         rj+=("-Rg")
         case $ARG1 in
           Gnomonic|Fg|F)      [[ $DEGRANGE -ge 90 ]] && DEGRANGE=60   # Gnomonic can't have default degree range
-                              rj+=("-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
-          Orthographic|Gg|G)  rj+=("-JG${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
-          Stereo|Sg|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")     ;;
+                              rj+=("-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
+                              projname="Gnomonic"
+                              ;;
+          Orthographic|Gg|G)  rj+=("-JG${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
+                              projname="Orthographic"
+                              ;;
+          Stereo|Sg|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
+                              projname="Stereo"
+                              ;;
         esac
         RJSTRING="${rj[@]}"
 
@@ -6762,6 +6793,7 @@ fi
       # Oblique Mercator A (lon lat azimuth widthkm heightkm)
       ObMercA|OA|OAv)
         # Set up default values
+        projname="Oblique Mercator (azimuth)"
         CENTRALLON=0
         CENTRALLAT=0
         ORIENTAZIMUTH=0
@@ -6803,6 +6835,7 @@ fi
       ;;
       # Lon Lat lonpole latPole widthkm heightkm
       ObMercC|OC)
+        projname="Oblique Mercator (pole)"
         # Set up default values
         CENTRALLON=0
         CENTRALLAT=0
@@ -6893,9 +6926,15 @@ fi
         rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
 
         case $ARG1 in
-          Albers|B)      rj+=("-JB${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
-          Lambert|L)     rj+=("-JL${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
-          Equid|D)       rj+=("-JD${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")    ;;
+          Albers|B)      rj+=("-JB${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
+                         projname="Albers"
+                         ;;
+          Lambert|L)     rj+=("-JL${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
+                         projname="Lambert"
+                         ;;
+          Equid|D)       rj+=("-JD${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
+                         projname="Equidistant"
+                         ;;
         esac
 
         RJSTRING="${rj[@]}"
@@ -6913,6 +6952,7 @@ fi
         rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
         rj+=("-JX${PSSIZE}i/${PSSIZE_ALT}id")
         RJSTRING="${rj[@]}"
+        projname="Cartesian"
       ;;
       *)
         echo "[-RJ]: projection ${ARG1} not recognized."
@@ -13467,7 +13507,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     # A list of various CMT-related files to cleanup
     cleanup ${F_CMT}sub_extract.cat
-    cleanup ${F_CMT}cmt_global_aoi.dat
+    # cleanup ${F_CMT}cmt_global_aoi.dat
     cleanup ${F_CMT}cmt_merged_ids.txt
     cleanup ${F_CMT}cmt_presort.txt
     cleanup ${F_CMT}cmt_typefilter.dat
@@ -13981,8 +14021,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       ntp_to_sdr(d_AZ0, d_PL0, d_AZ2, d_PL2, SDR)
 
       print $1,$2"-rotated",$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,SDR[1],SDR[2],SDR[3],SDR[4],SDR[5],SDR[6],$22,d_EV0,d_AZ0,d_PL0,d_EV1,d_AZ1,d_PL1,d_EV2,d_AZ2,d_PL2,$32,r_Mxx,r_Myy,r_Mzz,r_Mxy,r_Mxz,r_Myz,$39
-    }' > ${F_CMT}cmt_rotated_slab2.txt
-    [[ -s ${F_CMT}cmt_rotated_slab2.txt ]] && CMTFILE=$(abs_path ${F_CMT}cmt_rotated_slab2.txt)
+    }' > ${F_CMT}cmt_rotated_slab2.dat
+    [[ -s ${F_CMT}cmt_rotated_slab2.dat ]] && CMTFILE=$(abs_path ${F_CMT}cmt_rotated_slab2.dat)
   fi
 
   #  # (This section is for a very specific application and probably should be removed)
