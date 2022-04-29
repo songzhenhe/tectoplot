@@ -642,17 +642,21 @@ if [[ $1 == "-query" ]]; then
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 --------------------------------------------------------------------------------
--query:        query and print information from files produced by prior call
--query [filename] [options...] [field1] ... [fieldn]
+-query:        query and print from files produced by prior call to tectoplot
+-query [[tmpdir]] [filename] [options...] [field1] ... [fieldn]
 
 Options:
-  noheader: don't print field ID/units
-  nounits:  don't print units
-  csv:      print in CSV format
-  data:     print data from file
-  fieldnum: print field number in an additional trailing bracke [n]
+  tmpdir:      path to a temporary directory within which the query is run
+  noheader:    don't print field ID/units
+  nounits:     don't print units
+  csv:         print in CSV format
+  data:        print data from file
+  fieldnum:    print field number in an additional trailing bracket [n]
 
 field1 ... fieldn are field IDs of fields to be selected
+
+A field id is either a number (field number, starting from 1) or a field name.
+Field names are case sensitive.
 
 Example:
   tectoplot -r GR -z
@@ -662,15 +666,20 @@ EOF
 else
   USAGEFLAG=1
 fi
-
-
   shift
+
+  if [[ -d $1 ]]; then
+    TMP=$(abs_path $1)
+    shift
+  fi
+
   # echo "Entered query processing block"
   if [[ ! $tempdirqueryflag -eq 1 ]]; then
     if [[ ! -d ${TMP} ]]; then
       echo "Temporary directory $TMP does not exist"
       exit 1
     else
+      # Change into the temporary directory
       cd ${TMP}
     fi
   fi
@@ -679,7 +688,7 @@ fi
   # First argument to -query needs to be a filename.
 
   if [[ ! -e $1 ]]; then
-    # IF the file doesn't exist in the temporary directory, search for it in a
+    # IF the file doesn't exist in the temporary directory, search for it in any
     # subdirectory.
     searchname=$(find . -name $1 -print)
     if [[ -e $searchname ]]; then
@@ -706,8 +715,8 @@ fi
   while [[ $# -gt 0 ]]; do
     key="${1}"
     case ${key} in
+      # If a number, select the field with that number
       [0-9]*)
-        # echo "Detected number argument $key"
         keylist+=("$key")
         if [[ "${headerline[$key]}" == "" ]]; then
           fieldlist+=("none")
@@ -715,30 +724,32 @@ fi
           fieldlist+=("${headerline[$key]}")
         fi
         ;;
+      # Do not print the header
       noheader)
         query_headerflag=0
         ;;
+      # Do not print units in the header
       nounits)
         query_nounitsflag=1
         ;;
+      # Output fields separated by commas
       csv)
         query_csvflag=1
         ;;
+      # Print the selected data
       data)
         query_dataflag=1
         ;;
+      # Print the field number in the header
       fieldnumber)
         query_fieldnumberflag=1
         ;;
-      *) # should get index of field coinciding with argument
-        # echo "Other argument $key"
+      # Select a field with the supplied name
+      *)
         ismatched=0
         for ((i=1; i < ${#headerline[@]}; ++i)); do
-          # This needs to exactly match the field name before [...]
           lk=${#key}
-          # echo $key $lk ${headerline[$i]:0:$lk} ${headerline[$i]:$lk:1}
           if [[ "${headerline[$i]:0:$lk}" == "${key}" && "${headerline[$i]:$lk:1}" == "[" ]]; then
-            # echo "Found likely index for $key at index $i"
             keylist+=("$i")
             fieldlist+=("${headerline[$i]}")
             ismatched=1
@@ -753,12 +764,12 @@ fi
     shift
   done
 
+  # If no fields are selected, then the field list is all fields in the header line
   if [[ ${#fieldlist[@]} -eq 0 ]]; then
-    # echo "No fields: header is"
     fieldlist=(${headerline[@]:1})
-    # echo ${fieldlist[@]}
   fi
 
+  # Figure out how to print fields
   if [[ $query_headerflag -eq 1 ]]; then
     if [[ $query_nounitsflag -eq 1 ]]; then
       if [[ $query_csvflag -eq 1 ]]; then
@@ -775,6 +786,7 @@ fi
     fi
   fi
 
+  # Print the field numbers if asked
   [[ -s queryheader.out ]] && gawk < queryheader.out -v fnf=$query_fieldnumberflag '{
     if (fnf != 1) {
       print $0
@@ -786,6 +798,7 @@ fi
     }
   }'
 
+  # If we are printing the data, do so
   if [[ $query_dataflag -eq 1 ]]; then
     keystr="$(echo ${keylist[@]})"
     gawk < ${QUERYFILE} -v keys="$keystr" -v csv=$query_csvflag '
@@ -3155,10 +3168,19 @@ fi
   ;;
 
   -front)
+  FRONTSCALE=1
+  FRONTSMOOTHINC="10k"
+  FRONTTRANS=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -front:           plot ticked lines using a front control file
--front [file_path] [[smoothdist]]
+-front [file_path] [[options]]
+
+  Options:
+  smooth [distance]        subsample using given distance increment, spline
+  scale [factor]           rescale line width and tick size by this factor
+  space [pageunit]         spacing of decorations (e.g. 1i); overrides control
+  trans [percent]          line transparency
 
   The input file is a control file with the format:
 
@@ -3168,14 +3190,14 @@ absolute_file_path symbol side tickspacing ticklength linecolor linewidth fillco
 
 
 The file_path argument is required and must be an absolute path.
-Argument options are as follows (first listed option is the default value)
-symbol=t|f|s|c|v|b
-side=l|r
-tickspacing=1c
-ticklength=3p
-linecolor=black
-linewidth=1p
-fillcolor=black
+Argument options are as follows (first listed option is the default value):
+  symbol=t|f|s|c|v|b
+  side=l|r
+  tickspacing=1c
+  ticklength=3p
+  linecolor=black
+  linewidth=1p
+  fillcolor=black
 
 --------------------------------------------------------------------------------
 EOF
@@ -3190,16 +3212,58 @@ fi
     shift
   fi
 
-  if [[ $2 == "smooth" ]]; then
-    shift
-    if ! arg_is_flag $2; then
-      FRONTSMOOTHINC="${2}"
-      shift
-      frontsmoothflag=1
-    else
-      echo "[-front]: smooth option requires argument (e.g. 0.1i)"
-    fi
-  fi
+  while ! arg_is_flag $2; do
+    case $2 in
+      space)
+        shift
+        if ! arg_is_flag $2; then
+          FRONTSPACE="${2}"
+          shift
+          frontspaceflag=1  # override input file
+        else
+          echo "[-front]: space option requires page distance argument (e.g. 1i)"
+          exit 1
+        fi
+      ;;
+      smooth)
+        shift
+        if [[ $2 != "scale" && $2 != "trans" && $2 != "space" ]]; then
+          if ! arg_is_flag $2; then
+            FRONTSMOOTHINC="${2}"
+            shift
+            frontsmoothflag=1
+          else
+            echo "[-front]: smooth option requires km distance argument (using default 10k)"
+          fi
+        fi
+      ;;
+      scale)
+        shift
+        if arg_is_positive_float $2; then
+          FRONTSCALE="${2}"
+          frontscaleflag=1
+          shift
+        else
+          echo "[-front]: scale option requires positive number (e.g. 2.5)"
+          exit 1
+        fi
+      ;;
+      trans)
+        shift
+        if arg_is_positive_float $2; then
+          FRONTTRANS="${2}"
+          shift
+        else
+          echo "[-front]: trans option requires percentage argument (e.g. 50)"
+          exit 1
+        fi
+      ;;
+      *)
+        echo "[-front]: option $2 not recognized"
+        exit 1
+      ;;
+    esac
+  done
 
   plots+=("front")
   ;;
@@ -13464,9 +13528,15 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # Do the initial AOI scrape and filter events by CENTROID/ORIGIN location.
       # We should have a cmt_tools.sh option to set events as centroid/origin when importing!
 
+# FileINFO cmt_global_aoi.dat
+# Contains the original tectoplot-format focal mechanism data imported from various catalogs
+# prior to any manipulations such as culling of equivalent events
+
       if [[ $THIS_CMTFILE == "${F_CMT}usgs_foc.cat" ]]; then
+        # This is a special case where the catalog is directly added without additional checks
         cat $THIS_CMTFILE >> ${F_CMT}cmt_global_aoi.dat
       elif [[ -s $THIS_CMTFILE ]]; then
+        # For other catalogs (tectoplot format), filter by location in lon/lat box, magnitude range
         gawk < $THIS_CMTFILE -v orig=$ORIGINFLAG -v cent=$CENTROIDFLAG -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${CMT_MINMAG} -v maxmag=${CMT_MAXMAG} '
         @include "tectoplot_functions.awk"
         {
@@ -13490,12 +13560,13 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         }' > ${F_CMT}sub_extract.cat
         info_msg "Extracted $(wc -l < ${F_CMT}sub_extract.cat) CMT events from $THIS_CMTFILE"
         cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
+        rm -f ${F_CMT}sub_extract.cat
       fi
     done
 
     # Restrict events to those falling within the map region.
-    # This is useful when map borders do not coincide with meridians and parallels
-    # We could consider not running this unless an oblique projection is specified
+    # Should we remove the above filtering based on lon/lat range?
+
     case $CMTTYPE in
       CENTROID)
           select_in_gmt_map_by_columns 5 6 ${F_CMT}cmt_global_aoi.dat ${RJSTRING[@]}
@@ -13519,8 +13590,16 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
       before_e=$(wc -l < ${F_CMT}cmt_global_aoi.dat)
 
+      CMT_WINDOW_DELTALON=2
+      CMT_WINDOW_DELTALAT=2
+      CMT_WINDOW_DELTASEC=15
+      CMT_WINDOW_DELTADEPTH=30
+      CMT_WINDOW_DELTAMAG=0.5
+
       sort ${F_CMT}cmt_global_aoi.dat -k3,3 | uniq -u > ${F_CMT}cmt_presort.txt
-      gawk < ${F_CMT}cmt_presort.txt -v removedfile=${F_CMT}"cmt_removed_cull.cat" -v cent=$CENTROIDFLAG -v ccatstring=${CCAT_STRING} '
+      gawk < ${F_CMT}cmt_presort.txt -v removedfile=${F_CMT}"cmt_removed_cull.cat" -v cent=$CENTROIDFLAG \
+            -v ccatstring=${CCAT_STRING} -v delta_lon=${CMT_WINDOW_DELTALON} -v delta_lat=${CMT_WINDOW_DELTALAT} \
+            -v delta_sec=${CMT_WINDOW_DELTASEC} -v delta_depth=${CMT_WINDOW_DELTADEPTH} -v delta_mag=${CMT_WINDOW_DELTAMAG} '
       function abs(v) { return (v>0)?v:-v }
       function build_index(ccstr) {
         for(i=1; i<=length(ccstr); i++) {
@@ -13529,11 +13608,11 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       }
       BEGIN {
         # Define the window for potentially equivalent earthquakes
-        delta_lon=2
-        delta_lat=2
-        delta_sec=15
-        delta_depth=30
-        delta_mag=0.5
+        #delta_lon=2
+        #delta_lat=2
+        #delta_sec=15
+        #delta_depth=30
+        #delta_mag=0.5
 
         # Build the priority index
         build_index(ccatstring)
@@ -15993,15 +16072,35 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
               if [[ ${pargs[0]} == *kml ]]; then
                 kml_to_all_xy ${pargs[0]} tmp_line.xy
+                # cat tmp_line.xy
                 pargs[0]=tmp_line.xy
               fi
 
               # Plot the line with smoothing if asked
               if [[ $frontsmoothflag -eq 1 ]]; then
-                gawk < ${pargs[0]} '{ if ($1+0==$1) { print $1, $2, inc++ } else { print } }' | gmt sample1d -Fa -T0.2 -I${FRONTSMOOTHINC} > b.txt
-                pargs[0]="b.txt"
+                # gmt sample1d a.txt
+                # gawk < ${pargs[0]} '{ if ($1+0==$1) { print inc++, $1, $2 } else { print; inc=0 } }' > a.txt
+                # gmt mapproject ${pargs[0]} -G+a+uk -o2,0,1 -hi1 | gmt sample1d -I$(echo ${FRONTSMOOTHINC} | gawk '{print $1+0}') -Fa -Ar
+                gmt mapproject ${pargs[0]} -G+a+uk -o2,0,1 -hi1 | gmt sample1d -I$(echo ${FRONTSMOOTHINC} | gawk '{print $1+0}') -Fa -Ar | gawk '($1+0==$1) {print $2, $3} ($1+0!=$1) { print }' > spline.txt
+                # cat spline.txt
+                oldfile=${pargs[0]}
+                pargs[0]="spline.txt"
               fi
-              gmt psxy ${pargs[0]} -Sf${pargs[3]}/${pargs[4]}+${pargs[2]}+${pargs[1]}+p -W${pargs[6]},${pargs[5]} -G${pargs[7]} ${RJOK} ${VERBOSE} >> map.ps
+
+
+              if [[ $frontspaceflag -eq 1 ]]; then
+                pargs[3]=${FRONTSPACE}
+              fi
+
+              if [[ $frontscaleflag -eq 1 ]]; then
+                pargs[4]=$(echo ${pargs[4]} | gawk -v mul=${FRONTSCALE} '{print ($1+0)*mul "p"}')
+                pargs[6]=$(echo ${pargs[6]} | gawk -v mul=${FRONTSCALE} '{print ($1+0)*mul "p"}')
+              fi
+              # FRONTSCALE
+              gmt psxy ${pargs[0]} -Sf${pargs[3]}/${pargs[4]}+${pargs[2]}+${pargs[1]}+p -W${pargs[6]},${pargs[5]} -G${pargs[7]} -t${FRONTTRANS} ${RJOK} ${VERBOSE} >> map.ps
+              # gmt psxy ${pargs[0]} -Sc0.05i  -Gred ${RJOK} ${VERBOSE} >> map.ps
+              # gmt psxy ${oldfile} -Sc0.05i  -Gblack ${RJOK} ${VERBOSE} >> map.ps
+
             fi
           fi
         done < ${FRONTFILE}

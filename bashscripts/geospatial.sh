@@ -418,11 +418,21 @@ function kml_to_all_xy() {
     }
     ($1==">") {
       print
+      # getline
+      # if (substr($0,1,1)=="#") {
+      #   print ">", $2
+      # } else {
+      #   print ">"
+      # }
     }
     ($1+0==$1) {
       print $1, $2
     }' > "${2}"
     rm -f ./tectoplot_tmp.gmt
+}
+
+function kml_to_all_gmt() {
+  ogr2ogr -f "OGR_GMT" ${2} ${1}
 }
 
 # Convert first line/polygon element in KML file $1, store output XY file in $2
