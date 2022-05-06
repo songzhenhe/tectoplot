@@ -323,6 +323,17 @@ function smooth_rgb_tiff() {
 }
 
 
+# Create a white TIFF based on input raster
+
+function white_tiff() {
+
+  gdal_calc.py --overwrite --quiet -A "${1}" --A_band=1 --calc  "uint8(254)" --type=Byte --outfile=outA.tif
+  # merge the out files
+  rm -f "${2}"
+  gdal_merge.py -q -co "PHOTOMETRIC=RGB" -separate -o "${2}" outA.tif outA.tif outA.tif
+}
+
+
 # Takes a RGB tiff ${1} and a DEM ${2} and sets R=${3} G=${4} B=${5} for cells where DEM<=0, output to ${6}
 
 function recolor_sea() {

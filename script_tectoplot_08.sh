@@ -3268,7 +3268,6 @@ fi
   plots+=("front")
   ;;
 
-
 	-f)   # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3327,7 +3326,7 @@ fi
   plots+=("flinn-engdahl")
     ;;
 
--pstrain)
+  -pstrain)
 
   PSTRAIN_SIZE=16       # points
   PSTRAIN_COLOR_MAX=black
@@ -4719,6 +4718,71 @@ fi
     PROFILE_HEIGHT_IN=$2
     shift
   fi
+  ;;
+
+  -lprof)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-lprof:       Create N equally spaced profiles locally orthogonal to a polyline
+Usage: -lprof [line_file] [profile_length] [profile_width] [resolution] [distance_sep]
+
+  line_file                   file containing at least one polyline (1 used only)
+  profile_length              length of each cross-profile (e.g. 100k)
+  profile_width               width of each cross-profile (e.g. 10k)
+  resolution                  sampling interval for grid data (e.g. 1k)
+  distance_sep                along-profile spacing of cross-profile lines
+
+  Input line formats accepted:
+  Google Earth KML
+  ESRI Shapefile (polyline)
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if [[ ! -s ${2} ]]; then
+    info_msg "[-lprof]: Input file ${2} doesn't exist or is empty."
+    exit 1
+  else
+    LPROFFILE=$(abs_path ${2})
+    shift
+  fi
+
+  if arg_is_flag $2; then
+    info_msg "[-lprof]: No profile length specified. Using 100k"
+    LPROF_LENGTH="100k"
+  else
+    LPROF_LENGTH="${2}"
+    shift
+  fi
+
+  if arg_is_flag $2; then
+    info_msg "[-lprof]: No width specified. Using 10k"
+    SPROFWIDTH="10k"
+  else
+    SPROFWIDTH="${2}"
+    shift
+  fi
+
+  if arg_is_flag $2; then
+    info_msg "[-lprof]: No sampling interval specified. Using 1k"
+    SPROF_RES="1k"
+  else
+    SPROF_RES="${2}"
+    shift
+  fi
+
+  if arg_is_flag $2; then
+    info_msg "[-lprof]: No cross-line spacing specified. Using 100k"
+    LPROF_SPACE="100k"
+  else
+    LPROF_SPACE="${2}"
+    shift
+  fi
+
+  lprofflag=1
+
   ;;
 
   -kprof)
@@ -7595,24 +7659,34 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -showprof:     plot a selected profile or stacked profile on map PS file
-Usage: -showprof [all | ID]
+Usage: -showprof [[all]] [[stacked]] [[ID1 ... IDN]]
 
-  Places a profile EPS file below the map.
+  Places profile EPS files below the map.
+
+  all          plot every generated profile on the map (-showprof all)
+  IDN          plot the Nth generated profile (e.g. -showprof 1 3 5)
+  stacked      plot the stacked profile
 
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
-  if [[ $2 == "right" ]]; then
-    showprofrightflag=1
+  # if [[ $2 == "right" ]]; then
+  #   showprofrightflag=1
+  #   shift
+  # fi
+
+  if [[ $2 =~ "stacked" ]]; then
+    showprofstackedflag=1
     shift
   fi
 
   if [[ $2 =~ "all" ]]; then
-    SHOWPROFLIST+=(0)
+    showprofallflag=1
     shift
   fi
+
   while arg_is_positive_float $2; do
     SHOWPROFLIST+=(${2})
     shift
@@ -9337,6 +9411,21 @@ fi
     set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}"
     ;;
 
+  -tw) # set intensity raster to white
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tw:        set terrain intensity to white
+Usage: -tw
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  useowntopoctrlflag=1
+  fasttopoflag=0
+  topoctrlstring=${topoctrlstring}"b"
+
+  ;;
+
   -tsave) # -tsave: archive terrain visualization for a named region
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9846,12 +9935,44 @@ fi
     useowntopoctrlflag=1
     ;;
 
+  -tint) # -tint: derive terrain intensity directly from input grid dataset
+  TINT_FACT=0.7
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tint:         derive terrain intensity directly from input grid dataset
+Usage: -tint [grid] [[fact]]
+
+  Renders grid data with grayscale CPT and uses the result as the terrain
+  intensity. Input data will be resampled to match DEM.
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if [[ ! -s $2 ]]; then
+    echo "[-tint]: input file $2 does not exist or is empty"
+    exit 1
+  fi
+
+  TINTFILE=$(abs_path $2)
+  shift
+  topoctrlstring=${topoctrlstring}"a"
+
+  if arg_is_positive_float $2; then
+    TINT_FACT=$2
+    shift
+  fi
+
+
+  ;;
+
   -timg) # -timg: color terrain intensity using one or more georeferenced images
   TIMG_RESAMPLE="near"
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -timg:         color terrain intensity one or more georeferenced images
--timg [[options]] [img filename1] [[fact1]] [[img filename2]] [[fact2]] ...
+Usage: -timg [[options]] [img filename1] [[fact1]] [[img filename2]] [[fact2]] ...
 
   Blends georeferenced RGB images to form an overlay that is then
   multiply combined with terrain intensity.
@@ -12149,6 +12270,52 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     done < ${F_PROFILES}cprof_prep.txt
   fi
 
+  # Build lprof profiles
+
+  if [[ $lprofflag -eq 1 ]]; then
+    if [[ ${LPROFFILE} =~ ".kml" ]]; then
+      info_msg "[-lprof]: KML file specified for XY file. Converting lines to XY format."
+      CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}lprof_profiles.gmt ${LPROFFILE}
+    fi
+    if [[ ${LPROFFILE} =~ ".shp" ]]; then
+      info_msg "[-lprof]: SHP file specified for XY file. Converting lines to XY format."
+      CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}lprof_profiles.gmt ${LPROFFILE}
+    fi
+    if [[ ${LPROFFILE} =~ ".gmt" ]]; then
+      info_msg "[-lprof]: GMT file specified for XY file. Using lines in XY format."
+      cp ${LPROFFILE} ${F_PROFILES}lprof_profiles.gmt
+    fi
+    # Extract only the first polyline to use as the profile
+    if [[ -s ${F_PROFILES}lprof_profiles.gmt ]]; then
+      gawk < ${F_PROFILES}lprof_profiles.gmt '
+        BEGIN {
+          isnum=0
+        }
+        {
+          if ($1+0==$1) {
+            isnum=1
+            print $1, $2
+          } else {
+            if (isnum==1) {
+              exit
+            }
+          }
+        }' > ${F_PROFILES}lprof_profile.xy
+    fi
+    if [[ -s ${F_PROFILES}lprof_profile.xy ]]; then
+       gmt grdmath -R-180/180/-90/90 -I1d 1 = 1.grd
+       gmt grdtrack -G1.grd ${F_PROFILES}lprof_profile.xy -C${LPROF_LENGTH}/${SPROF_RES}/${LPROF_SPACE} -F -Ar | gawk -v align=${PROFILE_ALIGNZ} '
+        BEGIN {
+          count=1
+        }
+        ($7!="NaN" && $10 != "NaN") {
+          printf("P P_%d black 0 %s %s %s %s %s\n", count++, align, $7, $8, $10, $11)
+        }
+        ' >> ${F_PROFILES}lprof_profs.txt
+       rm -f 1.grd
+    fi
+  fi
+
   # Build kprof profiles
 
   if [[ $kprofflag -eq 1 ]]; then
@@ -12368,16 +12535,17 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     numslab2inregion=0
     echo $CENTERLON $CENTERLAT > inpoint.file
     cleanup inpoint.file
-    for slabcfile in $(ls -1a ${SLAB2_CLIPDIR}*.csv); do
-      # echo "Looking at file $slabcfile"
-      # gawk <  '{
-      #   if ($1 > 180) {
-      #     print $1-360, $2
-      #   } else {
-      #     print $1, $2
-      #   }
-      # }' > tmpslabfile.dat
 
+    # Select the slab2 models to examine if requested; otherwise do all
+    if [[ $slab2selectflag -eq 1 ]]; then
+      for thisselect in ${SLAB2SELECT[@]}; do
+        slabclist+=($(ls -1a ${SLAB2_CLIPDIR}${thisselect}*.csv))
+      done
+    else
+      slabclist=($(ls -1a ${SLAB2_CLIPDIR}*.csv))
+    fi
+
+    for slabcfile in ${slabclist[@]}; do
       gawk < $slabcfile '
         BEGIN {
           found_m180=0
@@ -12433,15 +12601,13 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           }
         }' > new_tmpslabfile.dat
 
-
-      # echo gmt select tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
-      # gmt select new_tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
+      # Count the number of points within the processed slab file within region
       numinregion=$(gmt select new_tmpslabfile.dat -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} | wc -l)
-      # echo $numinregion
+
+      # If we found one or more points, then add the to the slab2inregion array
       if [[ $numinregion -ge 1 ]]; then
         numslab2inregion=$(echo "$numslab2inregion+1" | bc)
         slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
-        # echo added ${slab2inregion[$numslab2inregion]}
       else
 
         # If the slab wasn't selected above, try another approach
@@ -12452,10 +12618,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
         # echo $numinregion
         if [[ $numinregion -eq 1 ]]; then
-
           numslab2inregion=$(echo "$numslab2inregion+1" | bc)
-          # echo added x ${slab2inregion[$numslab2inregion]}
-
           slab2inregion[$numslab2inregion]=$(basename -s .csv $slabcfile)
         fi
       fi
@@ -12465,7 +12628,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     else
       for i in $(seq 1 $numslab2inregion); do
         info_msg "[-b]: Found slab2 slab ${slab2inregion[$i]}"
-        echo ${slab2inregion[i]} | cut -f 1 -d '_' > ${F_SLAB}"slab_ids.txt"
+        thisslabid=$(echo ${slab2inregion[i]} | cut -f 1 -d '_')
+        echo ${thisslabid} > ${F_SLAB}"slab_ids.txt"
       done
     fi
   fi
@@ -15313,7 +15477,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
 
 
-  if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 ]]; then
+  if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 ]]; then
     plots+=("mprof")
     cpts+=("seisdepth")
   fi
@@ -15592,7 +15756,6 @@ for cptfile in ${cpts[@]} ; do
           TMAX=${zrange[1]}
         fi
 
-
         # Check and see if the CPT has a zero slice
         CPT_HAS_ZERO=$(gmt makecpt -C${TOPO_CPT_DEF} | gawk '
           BEGIN {
@@ -15642,8 +15805,6 @@ for cptfile in ${cpts[@]} ; do
         }' > ${F_CPTS}topo_temp2.cpt
         mv ${F_CPTS}topo_temp2.cpt ${F_CPTS}topo_temp.cpt
       fi
-
-
 
       # Determine the range of the CPT directly
       CPT_ZRANGE_2=($(gawk < ${F_CPTS}topo_temp.cpt '
@@ -17964,10 +18125,6 @@ EOF
             gmt psimage -D${SCALE_ONOFFCODE}${SCALE_JUST_CODE}+o${shifth}p/${shiftv}p+w${SCALE_PS_WIDTH}i/0${thisJ} ${SCALEFILL}${SCALE_BORDER_CALL} scale.eps $RJOK ${VERBOSE} >> map.ps
           fi
         fi
-        # gmt psimage -Dg${SCALEREFLON}/${SCALEREFLAT}+w${SCALE_PS_WIDTH}i+jBL scale.eps -F+gwhite ${RJOK} ${VERBOSE} >> map.ps
-        # gmt psimage -DjTL+w${SCALE_PS_WIDTH}i+o10p/-40p+jBL scale.eps -F+gwhite ${RJOK} ${VERBOSE} >> map.ps
-
-        # gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}all_profiles.eps $RJOK ${VERBOSE} >> map.ps
         ;;
 
       northarrow)
@@ -18119,7 +18276,7 @@ EOF
 
       mprof)
 
-        if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 ]]; then
+        if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 ]]; then
           info_msg "Updating mprof to use a newly generated sprof.control file"
           # PROFILE_WIDTH_IN="7i"
           # PROFILE_HEIGHT_IN="2i"
@@ -18266,6 +18423,9 @@ EOF
           fi
           if [[ $kprofflag -eq 1 ]]; then
             cat ${F_PROFILES}kprof_profs.txt >> sprof.control
+          fi
+          if [[ $lprofflag -eq 1 ]]; then
+            cat ${F_PROFILES}lprof_profs.txt >> sprof.control
           fi
         fi
 
@@ -18470,25 +18630,38 @@ EOF
             grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_flat_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
           fi
 
-          for profile_number in ${SHOWPROFLIST[@]}; do
-            if [[ $profile_number -eq 0 ]]; then
-              # Find size of ${F_PROFILES}all_profiles.ps
-              PS_DIM=$(gmt psconvert ${F_PROFILES}all_profiles.ps -F${F_PROFILES}all_profiles -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
-              PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
-              PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
-              PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
-              gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}all_profiles.eps $RJOK ${VERBOSE} >> map.ps
-            else
-              SLURP_PROFID=$(gawk < ${F_PROFILES}profile_filenames.txt -v ind=${profile_number} '(NR==ind) {print}')
-              if [[ -s ${F_PROFILES}$SLURP_PROFID.ps ]]; then
-                info_msg "Plotting line ${profile_number} from file $SLURP_PROFID.ps"
-                PS_DIM=$(gmt psconvert ${F_PROFILES}${SLURP_PROFID}.ps -F${F_PROFILES}${SLURP_PROFID} -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+
+          if [[ $showprofallflag -eq 1 ]]; then
+            SHOWPROFLIST=($(cat ${F_PROFILES}profile_filenames.txt))
+          else
+            PROFLIST=($(cat ${F_PROFILES}profile_filenames.txt))
+            for profile_number in ${SHOWPROFLIST[@]}; do
+              SHOWPROFLIST+=(${PROFLIST[$profile_number]})
+            done
+          fi
+
+          if [[ $showprofstackedflag -eq 1 ]]; then
+            SHOWPROFLIST+=("stacked_profiles")
+          fi
+
+          for profile_name in ${SHOWPROFLIST[@]}; do
+            # if [[ $profile_number -eq 0 ]]; then
+            #   # Find size of ${F_PROFILES}stacked_profiles.ps
+            #   PS_DIM=$(gmt psconvert ${F_PROFILES}stacked_profiles.ps -F${F_PROFILES}stacked_profiles -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+            #   PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
+            #   PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
+            #   PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
+            #   gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}stacked_profiles.eps $RJOK ${VERBOSE} >> map.ps
+            # else
+              # SLURP_PROFID=$(gawk < ${F_PROFILES}profile_filenames.txt -v ind=${profile_number} '(NR==ind) {print}')
+              # if [[ -s ${F_PROFILES}$SLURP_PROFID.ps ]]; then
+                PS_DIM=$(gmt psconvert ${F_PROFILES}${profile_name}.ps -F${F_PROFILES}${profile_name} -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
                 PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
                 PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
                 PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
-                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${SLURP_PROFID}.eps $RJOK ${VERBOSE} >> map.ps
-              fi
-            fi
+                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${profile_name}.eps $RJOK ${VERBOSE} >> map.ps
+              # fi
+            # fi
           done
         fi
         ;;
@@ -19052,8 +19225,6 @@ EOF
 
       ;;
 
-
-
       topo)
 
      # Somehow, we need to handle the case where no topo is plotted but Sentinel
@@ -19145,7 +19316,6 @@ EOF
                     # gmt grdcut ${F_TOPO}dem_warp.nc -R${F_TOPO}dem_warp.nc -G${F_TOPO}dem.tif=gd:GTiff ${VERBOSE}
                   fi
 
-
                   # If we have set a specific flag, then calculate the average color of areas at or below zero
                   # elevation and set all cells in sentinel_img.jpg to that color (to make a uniform ocean color?)
                   if [[ $sentinelrecolorseaflag -eq 1 ]]; then
@@ -19206,25 +19376,48 @@ EOF
             fi
             # ########################################################################
             # Create and render a colored shaded relief map using a topoctrlstring
-            # command string = "csmhvdtg"
-            #
+            # e.g. command string = "csmhvdtg"
 
+
+            # a = custom intensity from grid data                              [WEIGHTED AVE]
+            # b = set intensity to white based on DEM
             # c = color stretch  [ DEM_ALPHA CPT_NAME HINGE_VALUE HIST_EQ ]    [MULTIPLY]
-            # s = slope map                                                    [WEIGHTED AVE]
-            # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
-            # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
-            # v = sky view factor                                              [WEIGHTED AVE]
-            # i = terrain ruggedness index                                     [WEIGHTED AVE]
             # d = cast shadows [ SUN_ELEV SUN_AZ ]                             [MULTIPLY]
-            # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
-            # q = height above local quantile                                  [WEIGHTED AVE]
             # g = stretch/gamma on intensity [ HS_GAMMA ]                      [DIRECT]
+            # h = unidirectional hillshade (gdaldem)  [ SUN_ELEV SUN_AZ ]      [WEIGHTED AVE]
+            # i = terrain ruggedness index                                     [WEIGHTED AVE]
+            # m = multiple hillshade (gdaldem)  [ SUN_ELEV ]                   [WEIGHTED AVE]
             # p = use TIFF image(s) instead of color stretch
-            # w = clip to alternative AOI
+            # q = height above local quantile                                  [WEIGHTED AVE]
+            # s = slope map                                                    [WEIGHTED AVE]
+            # t = texture shade [ TFRAC TSTRETCH ]                             [WEIGHTED AVE]
             # u = tunsetflat
+            # v = sky view factor                                              [WEIGHTED AVE]
+            # w = clip to alternative AOI
+            # x = percent cut on intensity layer
 
             while read -n1 character; do
               case $character in
+
+              a)
+              info_msg "Blending rendered grid ${TINTFILE} with intensity image"
+              dem_dim=($(gmt grdinfo ${TOPOGRAPHY_DATA} -C -L -Vn))
+              dem_dimx=${dem_dim[9]}
+              dem_dimy=${dem_dim[10]}
+              gmt_init_tmpdir
+              gmt grdimage ${TINTFILE} -R${TOPOGRAPHY_DATA} -JX5i -Cgray -Atintimage_pre.tif=gd:GTiff
+              gmt_remove_tmpdir
+
+              gdalwarp -overwrite -r cubic -q -ts ${dem_dimx} ${dem_dimy} ./tintimage_pre.tif ./tintimage.tif
+              weighted_average_combine ./tintimage.tif ${F_TOPO}intensity.tif ${TINT_FACT} ${F_TOPO}intensity.tif
+              # cp ./tintimage.tif ${F_TOPO}intensity.tif
+              # gdalwarp nukes the z values for some stupid reason leaving a raster that GMT interprets as all 0s
+              ;;
+
+              b)
+              echo white tiff
+              white_tiff ${TOPOGRAPHY_DATA} ${F_TOPO}intensity.tif
+              ;;
 
               c)
                 info_msg "Creating and blending color stretch from ${TOPOGRAPHY_DATA} (alpha=$DEM_ALPHA)."
@@ -19507,14 +19700,15 @@ EOF
 
                   info_msg "Rendering georeferenced RGB image ${this_image} as colored texture."
 
-                  # if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
-                  #   info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
-                  #   rm -f ${F_TOPO}image_alpha.tif
-                  #   alpha_value temp_image.tif ${this_fact} ${F_TOPO}image_alpha.tif
-                  #   gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
-                  #   this_image=${F_TOPO}image_alpha.tif
-                  #   cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
-                  # fi
+                  # THIS CODE CAN BREAK SOME THINGS SOMETIMES - NOT SURE WHY
+                  if [[ $(echo "${this_fact} != 0" | bc) -eq 1 ]]; then
+                    info_msg "Adjusting opacity of RGB image ${this_image}: alpha=${this_fact}"
+                    rm -f ${F_TOPO}image_alpha.tif
+                    alpha_value temp_image.tif ${this_fact} ${F_TOPO}image_alpha.tif
+                    gdal_edit.py -unsetnodata ${F_TOPO}image_alpha.tif
+                    this_image=${F_TOPO}image_alpha.tif
+                    cp ${F_TOPO}image_alpha.tif ${F_TOPO}image_alpha_saved.tif
+                  fi
 
                   # quickreport ${this_image}
 

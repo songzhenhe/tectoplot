@@ -73,12 +73,14 @@ modules/module_resgrid.sh
     contour   Plot contours of the smoothed average grid
     path      Plot the profile path
     relief    Plot shaded relief of residual grid
+    plotave   Plot the average grid rather than the residual grid; contour resid
 
   Gravity models:
     BG        WGM2012 Bouguer
     FA        WGM2012 Free Air
     IS        WGM2012 Isostatic
     SW        Sandwell 2019 Free Air
+    CV        Sandwell 2019 Free Air curvature
 
   TOPOGRAPHY:
     TP        Use topography file created with -t
@@ -129,7 +131,7 @@ EOF
           GRAVRELIEFFLAG=1
           echo setting here ${GRAVRELIEFFLAG}
         ;;
-        plotav)
+        plotave)
           PLOTAVGRID=1
         ;;
         *)
@@ -194,6 +196,10 @@ EOF
         GRAVCPT=${TMP}${F_CPTS}topo.cpt
         RESGRID_CPTRANGE=2500
         ;;
+      CV)
+        GRAVDATA=${SANDWELLFREEAIR_CURV}
+        GRAVCPT=gray
+        ;;
       *)
         if [[ ! -s $GRAVMODEL ]]; then
           echo "Gravity model $GRAVMODEL not recognized."
@@ -246,11 +252,12 @@ function tectoplot_plot_resgrid() {
         GRAVICMD=""
       fi
       if [[ $PLOTAVGRID -eq 1 ]]; then
-        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${GRAV_CPT} $RJOK $VERBOSE >> map.ps
+        [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/grid_residual.nc -W0.3p,white -T -C50 $RJOK ${VERBOSE} >> map.ps
       else
         gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
+        [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/grid_smoothed.nc -W0.3p,white,- -T -C50 $RJOK ${VERBOSE} >> map.ps
       fi
-      [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/gridwindowed_resample.nc -W0.3p,white,- -C50 $RJOK ${VERBOSE} >> map.ps
     fi
     if [[ $GRAVPATHFLAG -eq 1 ]]; then
       [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps

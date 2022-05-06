@@ -180,21 +180,21 @@ PROFILE_AXIS_FONT=10p,Helvetica,black
 PROFILE_TITLE_FONT=10p,Helvetica,black
 PROFILE_NUMBERS_FONT=10p,Helvetica,black
 
-cat <<-EOF > ./plot_oblique_profiles.sh
+cat <<-EOF > ./plot_perspective_profiles.sh
 #!/bin/bash
 PERSPECTIVE_AZ=\${1}
 PERSPECTIVE_INC=\${2}
 PERSPECTIVE_EXAG=\${3}
 
 if [[ \$# -lt 3 ]]; then
-  echo "Usage: ./plot_oblique_profiles.sh [azimuth] [inclination] [vexag]"
+  echo "Usage: ./plot_perspective_profiles.sh [azimuth] [inclination] [vexag]"
   exit 1
 fi
 
 EOF
 
 # Overplot all profiles onto one profile.
-PSFILE="${F_PROFILES}"all_profiles.ps
+PSFILE="${F_PROFILES}"stacked_profiles.ps
 gmt psxy -T -R -J -K -Vn > "${PSFILE}"
 
 PFLAG="-px\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}"
@@ -931,11 +931,11 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
 
       # PLOT ON THE FLAT PROFILE PS
       echo "gmt psxy -L ${F_PROFILES}${LINEID}_litho1_poly.dat -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-      echo "gmt psxy ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      echo "gmt psxy ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_temp_plot.sh
 
       # PLOT ON THE OBLIQUE PROFILE PS
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${F_PROFILES}${LINEID}_litho1_poly.dat -t${LITHO1_TRANS} -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -L -p ${F_PROFILES}${LINEID}_litho1_poly.dat -t${LITHO1_TRANS} -G+z -C$LITHO1_CPT -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+      [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p ${F_PROFILES}${LINEID}_lab.xy -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
     fi
 
@@ -1003,7 +1003,7 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
         echo "gmt psxy -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ON THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 #
 
 # Test style for plotting grid swath - above the XZ data domain, but vertically exaggerated
@@ -1105,7 +1105,7 @@ cleanup ${F_PROFILES}${LINEID}_endprof.txt
       # Plot the grid
       # echo gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -fc -Vn -R -J -O -K -C${THREEDCPT}
 
-      echo "gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      echo "gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_temp_plot.sh
 
     done
 
@@ -1395,7 +1395,7 @@ cat << EOF > ${F_PROFILES}blue.vrt
 EOF
         fi
         dem_minz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $5*zs}')
-    >         dem_maxz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $6*zs}')
+        dem_maxz=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt -v zs=${gridzscalelist[$i]} '{print $6*zs}')
         # dem_minx,y are in units of km
         dem_minx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $1}')
         dem_maxx=$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilerange.txt '{print $2}')
@@ -1453,7 +1453,7 @@ EOF
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
 
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
         # If we have an end-cap plot (e.g. litho1), plot that here.
         # Data needs to be plottable by psxyz
@@ -1474,7 +1474,7 @@ print
 }
 }' > ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-          echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+          echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
         fi
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
@@ -1491,16 +1491,16 @@ EOF
         echo "  echo \"\$line_max_x \$dem_miny \$line_max_z\" >> ${F_PROFILES}${LINEID}_endbox.xyz" >> ${LINEID}_topscript.sh
         echo "fi" >> ${LINEID}_topscript.sh
 
-        echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -K -O >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
         # I think this could be done with gmt makecpt -C+Uk but technical questions exist
         # This assumes topo is in m and needs to be in km... not applicable for other grids
 
         gawk < ${gridcptlist[$i]} -v sc=${gridzscalelist[$i]} '{ if ($1 ~ /^[-+]?[0-9]*\.?[0-9]+$/) { print $1*sc "\t" $2 "\t" $3*sc "\t" $4} else {print}}' > ${F_PROFILES}${LINEID}_topokm.cpt
-        echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc  -G${F_PROFILES}${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
-        # echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc -Cgeo -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc  -G${F_PROFILES}${LINEID}_${grididnum[$i]}_colored_hillshade.tif -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
+        # echo "gmt grdview ${F_PROFILES}${LINEID}_${grididnum[$i]}_newgrid.nc -Cgeo -p -Qi${PERSPECTIVE_IM_RES} -R -J -JZ -O  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
       fi
 
@@ -1600,9 +1600,9 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
 
           # PLOT ON THE OBLIQUE PROFILE PS
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileenvelope.txt -t$SWATHTRANS -R -J -O -K -G${LIGHTERCOLOR}  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -t$SWATHTRANS -G${LIGHTCOLOR} ${F_PROFILES}${LINEID}_${grididnum[$i]}_profileq13envelope.txt >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -W$SWATHLINE_WIDTH,$COLOR ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
         # Box-and-whisker diagram
         fi
@@ -1634,7 +1634,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           # PLOT ON THE OBLIQUE PROFILE PS
           echo "width_p=\$(echo \"\${PROFILE_WIDTH_IN}\" | gawk '{print (\$1+0)*72}')" >> ${LINEID}_plot.sh
           echo "binwidth_p=\$(echo \"(\${width_p} / ${numboxbins})*0.9\" | bc -l)" >> ${LINEID}_plot.sh
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${boxfile} -EY+p0.1p+w\${binwidth_p}p -Sp ${boxcptcmd} -R -J -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn ${boxfile} -EY+p0.1p+w\${binwidth_p}p -Sp ${boxcptcmd} -R -J -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
         fi
 
@@ -1912,7 +1912,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         # PLOT ON THE OBLIQUE SECTION PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "OLD_PROJ_LENGTH_UNIT=\$(gmt gmtget PROJ_LENGTH_UNIT -Vn)" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT p" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -p -G$COLOR ${SEIS_INPUTORDER1} -S${SEISSYMBOL} ${xyzcommandlist[i]} -t$SEISTRANS -C$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}stretch_finaldist_${FNAME} -p -G$COLOR ${SEIS_INPUTORDER1} -S${SEISSYMBOL} ${xyzcommandlist[i]} -t$SEISTRANS -C$SEIS_CPT $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt gmtset PROJ_LENGTH_UNIT \$OLD_PROJ_LENGTH_UNIT" >> ${LINEID}_plot.sh
 
       else
@@ -1955,7 +1955,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -Sc0.01i -Gblack -R -J -O -K >> ${PSFILE}" >> plot.sh
 
             # PLOT ON THE OBLIQUE SECTION PS
-            [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage xyzgrid_${FNAME}.nc -p ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+            [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage xyzgrid_${FNAME}.nc -p ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
             # gmt grdimage tomography.nc -Cseis
         else
@@ -1970,7 +1970,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
           # PLOT ON THE OBLIQUE SECTION PS
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -p -G$COLOR ${xyzcommandlist[i]} -R -J -O -K  -Vn  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
         fi
       fi
 
@@ -2297,10 +2297,10 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         [[ -s ${CMT_PROFILE_THRUSTPLOT} ]] && echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_THRUSTCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_thrust_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_thrust_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_THRUSTPLOT} ]] &&  echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_THRUSTPLOT} ]] &&  echo "sort < ${CMT_PROFILE_THRUSTPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_THRUSTCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtnormalflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
@@ -2314,9 +2314,9 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         [[ -s ${CMT_PROFILE_NORMALPLOT} ]] && echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_NORMALCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_NORMALPLOT} ]] &&  echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_normal_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_normal_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_NORMALPLOT} ]] &&  echo "sort < ${CMT_PROFILE_NORMALPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_NORMALCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
       fi
       if [[ $cmtssflag -eq 1 ]]; then
         # PLOT ONTO THE MAP DOCUMENT
@@ -2330,9 +2330,9 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         [[ -s ${CMT_PROFILE_STRIKESLIPPLOT} ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -E"${CMT_SSCOLOR}" -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
         # PLOT ONTO THE OBLIQUE PROFILE PS
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_STRIKESLIPPLOT} ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_pts_strikeslip_sel_proj.xyz -p -Sc0.03i -Gblack $RJOK $VERBOSE  >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] && [[ -e ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz ]] && echo "gmt psxy ${F_PROFILES}${LINEID}_cmt_alt_lines_strikeslip_proj_final.xyz -p -W0.1p,black $RJOK $VERBOSE >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 && -s ${CMT_PROFILE_STRIKESLIPPLOT} ]] &&  echo "sort < ${CMT_PROFILE_STRIKESLIPPLOT} -n -k 11 | gmt psmeca -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -p -E${CMT_SSCOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} -G$COLOR $CMTCOMMANDS -C${SEIS_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
       fi
     fi
 
@@ -2525,7 +2525,7 @@ EOF
 
           # PLOT ON THE OBLIQUE SECTION PS
           cat tmp.txt >> ${LINEID}_plot.sh
-          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -p -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+          [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "uniq -u ${F_PROFILES}labels_${FNAME} | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -p -Gwhite  -F+f+a+j -W0.5p,black -R -J -O -K -Vn >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
           rm -f presort_${FNAME}
         done # LABELS
@@ -2555,8 +2555,8 @@ EOF
     echo "Ho2=\$(echo \$PROFILE_HEIGHT_IN | gawk '{print (\$1+0)/2 + 4/72 \"i\"}')" >> ${LINEID}_plot.sh
     echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)" >> ${LINEID}_plot.sh
 
-    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z}' | gmt psxy -p -J -R -K -O  -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
-    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_plot.sh
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z}' | gmt psxy -p -J -R -K -O  -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+    [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -p -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
 
     if [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]]; then
 
@@ -2681,7 +2681,7 @@ EOF
       echo "fi" >> ${LINEID}_perspective.sh
 
       echo "gmt gmtset PS_MEDIA 100ix100i"  >> ${LINEID}_perspective.sh
-      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" -K > ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_perspective.sh
+      echo "gmt psbasemap -py\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC} -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Bxaf+l\"${x_axis_label}\" -Byaf+l\"${z_axis_label}\" -BSEW -R\$line_min_x/\$line_max_x/\$line_min_z/\$line_max_z -Xc -Yc --MAP_FRAME_PEN=thinner,black --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" -K > ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_perspective.sh
 
       # Concatenate the cross section plotting commands onto the script
       cat ${LINEID}_plot.sh >> ${LINEID}_perspective.sh
@@ -2712,11 +2712,11 @@ EOF
         echo "fi" >> ${LINEID}_topscript.sh
 
         echo "yshift=\$(gawk -v height=\${PROFILE_HEIGHT_IN} -v inc=\$PERSPECTIVE_INC 'BEGIN{print cos(inc*3.1415926/180)*(height+0)}')" >> ${LINEID}_topscript.sh
-        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${line_max_z} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${line_min_z}/\${line_max_z}r -JZ\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_DEPTH_IN} -Byaf+l\"${y_axis_label}\" -X\${xshift}i --MAP_FRAME_PEN=thinner,black -K -O >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
         # Draw the box at the end of the profile. For other view angles, should draw the other box?
 
-#        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+#        echo "gmt psbasemap -p\${PERSPECTIVE_AZ}/\${PERSPECTIVE_INC}/\${dem_minz} -R\${line_min_x}/\${dem_miny}/\${line_max_x}/\${dem_maxy}/\${dem_minz}/\${dem_maxz}r -JZ\${ZSIZE}i -J -Bzaf -Bxaf --MAP_FRAME_PEN=thinner,black -K -O -Y\${yshift}i >> ${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
       if [[ $litho1profileflag -eq 1 ]]; then
 
@@ -2735,7 +2735,7 @@ print
 }
 }' > ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat
 EOF
-        echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+        echo "gmt psxyz -p ${F_PROFILES}${LINEID}_litho1_cross_poly_xyz.dat -L -G+z -C$LITHO1_CPT -t${LITHO1_TRANS} -Vn -R -J -JZ -O -K >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
       fi
         cat ${LINEID}_topscript.sh >> ${LINEID}_perspective.sh
         cleanup ${LINEID}_topscript.sh
@@ -2759,15 +2759,15 @@ EOF
       echo "fi" >> ${LINEID}_topscript.sh
 
       # NO -K
-      echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${F_PROFILES}${LINEID}_profile.ps" >> ${LINEID}_topscript.sh
+      echo "gmt psxyz ${F_PROFILES}${LINEID}_endbox.xyz -p -R -J -JZ -Wthinner,black -O >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_topscript.sh
 
-      echo "gmt psconvert ${F_PROFILES}${LINEID}_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_profile >/dev/null 2>&1 " >> ${LINEID}_perspective.sh
+      echo "gmt psconvert ${F_PROFILES}${LINEID}_perspective_profile.ps -A+m1i -Tf -F${F_PROFILES}${LINEID}_perspective_profile >/dev/null 2>&1 " >> ${LINEID}_perspective.sh
 
       # Execute plot script
       chmod a+x ${LINEID}_perspective.sh
-      echo "./${LINEID}_perspective.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC} \${PERSPECTIVE_EXAG}" >> ./plot_oblique_profiles.sh
+      echo "./${LINEID}_perspective.sh \${PERSPECTIVE_AZ} \${PERSPECTIVE_INC} \${PERSPECTIVE_EXAG}" >> ./plot_perspective_profiles.sh
 
-      # gmt psconvert ${LINEID}_profile.ps -A+m1i -Tf -F${LINEID}_profile
+      # gmt psconvert ${LINEID}_perspective_profile.ps -A+m1i -Tf -F${LINEID}_profile
 
     fi # Finalize individual profile plots
 
@@ -2801,7 +2801,7 @@ EOF
     echo "grep \") sh mx\" ${F_PROFILES}${LINEID}_flat_profile.ps | gawk '{val[NR]=substr(\$1,2,length(\$1)-2)} END {print val[2]-val[1]}' > ${F_PROFILES}${LINEID}_interval.txt" >> ${LINEID}_profile.sh
 
     # Bring in the code to plot the top swath profile panel, if necessary
-    [[ -s ${LINEID}_temp_profiletop.sh ]] && cat ${LINEID}_temp_profiletop.sh >> ${LINEID}_profile.sh
+    [[ -s ${LINEID}_temp_profiletop.sh ]] && cat ${LINEID}_temp_profiletop.sh >> ${LINEID}_profile.sh && cleanup ${LINEID}_temp_profiletop.sh
 
     # Finalize the profile and convert to PDF
     echo "gmt psxy -T -R -J -O >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_profile.sh
@@ -2908,7 +2908,7 @@ fi
 # actual plotting script commands in plot.sh
 
 echo "#!/usr/bin/env bash" > plot_combined_profiles.sh
-echo "rm -f ${F_PROFILES}all_profiles.ps" >> plot_combined_profiles.sh
+echo "rm -f ${PSFILE}" >> plot_combined_profiles.sh
 echo "line_min_x=${min_x}" >> plot_combined_profiles.sh
 echo "line_max_x=${max_x}" >> plot_combined_profiles.sh
 echo "line_min_z=${min_z}" >> plot_combined_profiles.sh
@@ -2925,11 +2925,12 @@ echo "gmt psbasemap -Vn -JX\${PROFILE_WIDTH_IN}/\${PROFILE_HEIGHT_IN} -Xc -Yc -B
 cat plot.sh >> plot_combined_profiles.sh
 echo "gmt psbasemap -Vn -BtESW+t\"${LINETEXT}\" -Baf -Bx+l\"${x_axis_label}\" -By+l\"${z_axis_label}\" --FONT_TITLE=\"${PROFILE_TITLE_FONT}\" --FONT_ANNOT_PRIMARY=\"${PROFILE_NUMBERS_FONT}\" --FONT_LABEL=\"${PROFILE_AXIS_FONT}\" --MAP_FRAME_PEN=thinner,black $RJOK >> ${PSFILE}" >> plot_combined_profiles.sh
 echo "gmt psxy -T -R -J -O -Vn >> ${PSFILE}" >> plot_combined_profiles.sh
-echo "gmt psconvert -Tf -A+m0.5i ${F_PROFILES}all_profiles.ps >/dev/null 2>&1" >> plot_combined_profiles.sh
+echo "gmt psconvert -Tf -A+m0.5i ${PSFILE} >/dev/null 2>&1" >> plot_combined_profiles.sh
 
 # Execute plot script
 chmod a+x ./plot_combined_profiles.sh
 ./plot_combined_profiles.sh
+
 cleanup plot.sh
 
 
@@ -2942,8 +2943,8 @@ chmod a+x ./plot_flat_profiles.sh
 
 # FOR THE OBLIQUE SECTIONS
 if [[ $MAKE_OBLIQUE_PROFILES -eq 1 ]]; then
-   chmod a+x ./plot_oblique_profiles.sh
-   ./plot_oblique_profiles.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC} ${PERSPECTIVE_EXAG}
+   chmod a+x ./plot_perspective_profiles.sh
+   ./plot_perspective_profiles.sh ${PERSPECTIVE_AZ} ${PERSPECTIVE_INC} ${PERSPECTIVE_EXAG}
 fi
 
 

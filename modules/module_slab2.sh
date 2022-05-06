@@ -38,13 +38,19 @@ function tectoplot_args_slab2()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -b|--slab2) # args: none || strong
+  -b) # args: none || strong
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--b:            plot slab2.0 data
--b [[commandstring=${SLAB2STR}]]
+-b:            Load and visualize slab2.0 data
+-b [[commandstring=${SLAB2STR}]] [[slabID1 slabID2 ...]]
   If commandstring contains 'c', plot Slab2.0 depth contours
   In the future, this option will implement depth grids, strike grids, etc.
+
+  If slabIDs are specified, restrict selection to specified slabs
+
+  slab list:
+  alu cal cam car cas cot hal hel him hin izu ker kur mak man mue pam phi png
+  puy ryu sam sco sol sul sum van
 
 Example: Plot Slab2.0 around Japan
   tectoplot -r JP -b -a
@@ -53,19 +59,35 @@ EOF
   fi
 
     shift
-		if arg_is_flag $1; then
-			info_msg "[-b]: Slab2 control string not specified. Using c"
-		else
-			SLAB2STR="${1}"
-			shift
+		# if arg_is_flag $1; then
+		# 	info_msg "[-b]: Slab2 control string not specified. Using c"
+		# else
+		# 	SLAB2STR="${1}"
+		# 	shift
+    #   ((tectoplot_module_shift++))
+		# fi
+
+    slab2list=" alu cal cam car cas cot hal hel him hin izu ker kur mak man mue pam phi png
+    puy ryu sam sco sol sul sum van "
+
+    while ! arg_is_flag $1; do
+      if [[ " ${slab2list} " =~ " ${1} " ]]; then
+        SLAB2SELECT+=("$1")
+        slab2selectflag=1
+    # whatever you want to do when array contains value
+      else
+        echo "[-b]: SlabID $1 not recognized. Run tectoplot -usage -b for a list"
+        exit 1
+      fi
+      shift
       ((tectoplot_module_shift++))
-		fi
+    done
+
     plotslab2=1
 
 		plots+=("slab2")
     cpts+=("slab2")
     legendbarwords+=("slab2")
-
 
     makeplyslab2meshflag=1
     echo $SLAB2_SHORT_SOURCESTRING >> ${SHORTSOURCES}

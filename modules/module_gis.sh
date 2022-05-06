@@ -47,7 +47,7 @@ function tectoplot_defaults_gis() {
   current_usersymbollinefilenumber=1
   current_userpointfilenumber=1
   cugfn=1
-  current_usergridcontournumber=1
+  cugcn=1
   current_smallcirclenumber=1
 
   ugfn=0
@@ -103,7 +103,7 @@ fi
     shift
 
     if [[ $cnfirst -ne 1 ]]; then
-      usergridcontournumber=0
+      ugcn=0
       cnfirst=1
     fi
 
@@ -111,15 +111,29 @@ fi
       info_msg "[-cn]: Grid file not specified"
       exit 1
     else
-      usergridcontournumber=$(echo "${usergridcontournumber} + 1" | bc)
+      ugcn=$(echo "${ugcn} + 1" | bc)
 
-      CONTOURGRID[$usergridcontournumber]=$(abs_path $1)
+      CONTOURGRID[$ugcn]=$(abs_path $1)
       shift
       ((tectoplot_module_shift++))
     fi
 
+    GRIDCONTOUR_MINDIST[$ugcn]=""
+
     while ! arg_is_flag $1; do
       case $1 in
+        len)
+          shift
+          ((tectoplot_module_shift++))
+          if ! arg_is_flag $1; then
+            GRIDCONTOUR_MINDIST[$ugcn]="-Q${1}"
+            shift
+            ((tectoplot_module_shift++))
+          else
+            echo "[-cn]: option len requires length/distance argument (e.g. 100k)"
+            exit 1
+          fi
+        ;;
         skip)
           shift
           ((tectoplot_module_shift++))
@@ -130,20 +144,20 @@ fi
         inv)
           shift
           ((tectoplot_module_shift++))
-          gridcontourinvertflag[$usergridcontournumber]=1
+          gridcontourinvertflag[$ugcn]=1
           ;;
         int)
           shift
           ((tectoplot_module_shift++))
-          GRIDCONTOURINT[$usergridcontournumber]=$1
+          GRIDCONTOURINT[$ugcn]=$1
           shift
           ((tectoplot_module_shift++))
         ;;
         cpt)
           shift
           ((tectoplot_module_shift++))
-          GRIDCONTOURCPT[$usergridcontournumber]=$1
-          gridcontourusecptflag[$usergridcontournumber]=1
+          GRIDCONTOURCPT[$ugcn]=$1
+          gridcontourusecptflag[$ugcn]=1
           shift
           ((tectoplot_module_shift++))
         ;;
@@ -777,9 +791,9 @@ function tectoplot_plot_gis() {
   gis_grid_contour)
     # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
 
-    AFLAG=-A${GRIDCONTOURINT[${current_usergridcontournumber}]}
-    CFLAG=-C${GRIDCONTOURINT[$current_usergridcontournumber]}
-    SFLAG=-S${GRIDCONTOURSMOOTH[$current_usergridcontournumber]}
+    AFLAG=-A${GRIDCONTOURINT[${cugcn}]}
+    CFLAG=-C${GRIDCONTOURINT[$cugcn]}
+    SFLAG=-S${GRIDCONTOURSMOOTH[$cugcn]}
 
     # for i in ${CONTOURGRIDVARS[@]}; do
     #   if [[ ${i:0:2} =~ "-A" ]]; then
@@ -796,9 +810,9 @@ function tectoplot_plot_gis() {
     # Currently we run this strange program but only use the contour intervals that
     # come out. This could be further modified to plot major/minor contours.
 
-    zrange=($(grid_zrange ${CONTOURGRID[$current_usergridcontournumber]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -fg))
+    zrange=($(grid_zrange ${CONTOURGRID[$cugcn]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -fg))
 
-    gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=${GRIDCONTOURINT[$current_usergridcontournumber]} -v majorspace=${GRIDCONTOURMAJORSPACE} -v minwidth=${GRIDCONTOURMINORWIDTH} -v maxwidth=${GRIDCONTOURMAJORWIDTH} -v mincolor=${GRIDCONTOURMINORCOLOR} -v maxcolor=${GRIDCONTOURMAJORCOLOR} '
+    gawk -v minz=${zrange[0]} -v maxz=${zrange[1]} -v cint=${GRIDCONTOURINT[$cugcn]} -v majorspace=${GRIDCONTOURMAJORSPACE} -v minwidth=${GRIDCONTOURMINORWIDTH} -v maxwidth=${GRIDCONTOURMAJORWIDTH} -v mincolor=${GRIDCONTOURMINORCOLOR} -v maxcolor=${GRIDCONTOURMAJORCOLOR} '
       BEGIN {
         # If the range straddles 0, ensure 0 is a major contour
         if (minz<0 && maxz>0) {
@@ -839,9 +853,9 @@ function tectoplot_plot_gis() {
 
     gawk < grid.contourdef '{print $1}' | tr '\n' ',' | gawk '{print substr($0, 1, length($0)-1)}' > grid_clevels.txt
 
-    gmt grdcontour ${CONTOURGRID[$current_usergridcontournumber]} $AFLAG $SFLAG -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
+    gmt grdcontour ${CONTOURGRID[$cugcn]} $AFLAG $SFLAG ${GRIDCONTOUR_MINDIST[$cugcn]} -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
 
-    gawk < grid_contours.txt -v skipint=${GRIDCONTOURLABELSSKIPINT} -v inv=${gridcontourinvertflag[$current_usergridcontournumber]} '
+    gawk < grid_contours.txt -v skipint=${GRIDCONTOURLABELSSKIPINT} -v inv=${gridcontourinvertflag[$cugcn]} '
     BEGIN {
       gotline=0
       thisskip=1
@@ -871,12 +885,21 @@ function tectoplot_plot_gis() {
         print
       }
     }' > grid_replaced.txt
-    gmt psxy grid_replaced.txt -Sqn1:+f${GRIDCONTOURFONT}+Lh+i+e --FONT_ANNOT_PRIMARY="4p,Helvetica,black" -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
-    gmt psxy grid_replaced.txt -W+z -C${GRIDCONTOURCPT[$current_usergridcontournumber]} ${RJOK} >> map.ps
+
+
+    # gmt psxy grid_replaced.txt -W0.2p,black ${RJOK} ${VERBOSE} >> map.ps
+
+    if [[ ${gridcontourusecptflag[$cugcn]} -eq 1 ]]; then
+      gmt psxy grid_replaced.txt -Sqn1:+f${GRIDCONTOURFONT}+Lh+i+e --FONT_ANNOT_PRIMARY="4p,Helvetica,black" -C${GRIDCONTOURCPT[$cugcn]} ${RJOK} >> map.ps
+      gmt psxy grid_replaced.txt -W+z -C${GRIDCONTOURCPT[$cugcn]} ${RJOK} >> map.ps
+    else
+      gmt psxy grid_replaced.txt -Sqn1:+f${GRIDCONTOURFONT}+Lh+i+e --FONT_ANNOT_PRIMARY="4p,Helvetica,black" ${RJOK} >> map.ps
+      gmt psxy grid_replaced.txt -W+z ${RJOK} >> map.ps
+    fi
     gmt psclip -C ${RJOK} >> map.ps
     # gmt grdcontour $CONTOURGRID $AFLAG $CFLAG $SFLAG -W$GRIDCONTOURWIDTH,$GRIDCONTOURCOLOUR ${CONTOURGRIDVARS[@]} $RJOK ${VERBOSE} >> map.ps
 
-    current_usergridcontournumber=$(echo "$current_usergridcontournumber + 1" | bc -l)
+    cugcn=$(echo "$cugcn + 1" | bc -l)
 
     tectoplot_plot_caught=1
   ;;
