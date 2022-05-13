@@ -4533,12 +4533,17 @@ fi
     ;;
 
   -litho1)
+  LITHO1_TRANS=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -litho1:       plot litho1 3d data on cross section
-Usage: -litho1 [type]
+Usage: -litho1 [type] [[options]]
 
   [type]: "density" | "Vp" | "Vs"
+
+  options:
+  trans [percent]        transparency of litho1 data
+
 
 Example: Plot litho1 cross section
 tectoplot -t -aprof CW 10k 1k -litho1 density -profdepth -100 0 -o example_litho1
@@ -4559,6 +4564,37 @@ fi
     [[ $LITHO1_TYPE == "density" ]] && LITHO1_FIELDNUM=2 && LITHO1_CPT=$LITHO1_DENSITY_CPT
     [[ $LITHO1_TYPE == "Vp" ]] && LITHO1_FIELDNUM=3 && LITHO1_CPT=$LITHO1_VELOCITY_CPT
     [[ $LITHO1_TYPE == "Vs" ]] && LITHO1_FIELDNUM=4 && LITHO1_CPT=$LITHO1_VELOCITY_CPT
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        trans)
+          shift
+          if arg_is_positive_float $2; then
+            LITHO1_TRANS=$2
+            shift
+          else
+            echo "[-litho1]: trans option requires percent argument"
+            exit 1
+          fi
+        ;;
+        lab)
+          shift
+          litho1plotlabflag=1
+        ;;
+        moho)
+          shift
+          litho1plotmohoflag=1
+        ;;
+        nogrid)
+          shift
+          litho1nogridflag=1
+        ;;
+        *)
+        echo "[-litho1]: option $2 not recognized."
+        exit 1
+        ;;
+      esac
+    done
 
     cpts+=("litho1")
     plots+=("litho1")
@@ -4883,6 +4919,61 @@ EOF
 shift && continue
 fi
   SWATHORBOX="W"
+  ;;
+
+  -xprof)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-xprof:        create an across-profile swath
+Usage: -sprof [lon1] [lat1] [lon2] [lat2] ... [width] [resolution]
+
+  width is the full profile width
+  resolution is the along- and across-profile sample spacing
+  width and resolution are specified with a unit (e.g. 100k)
+
+  This option can be called multiple times to add several profiles.
+  The width and resolution must be specified for each profile but
+  the last values specified will apply to all profiles.
+
+Example:
+tectoplot -t -xprof 156.2 -7.5 158.5 -9 100k 1k -o example_xprof
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+    # Create a single profile across by constructing a new mprof) file with relevant data types
+    # Needs some argument checking logic as too few arguments will mess things up spectacularly
+    xprofflag=1
+    ((xprofnumber++))
+
+    while arg_is_float $2; do
+      if arg_is_float $2 && arg_is_float $3; then
+        XPROFPTS[${xprofnumber}]="${XPROFPTS[${xprofnumber}]}$2 $3 "
+      else
+        echo "[-xprof]: profile points require lon lat pairs"
+        exit 1
+      fi
+      shift
+      shift
+    done
+
+    if ! arg_is_flag $2; then
+      SPROFWIDTH="${2}"
+      shift
+    else
+      echo "[-xprof]: width argument required (e.g. 20k)"
+      exit 1
+    fi
+    if ! arg_is_flag $2; then
+      SPROF_RES="${2}"
+      shift
+    else
+      echo "[-xprof]: sample spacing argument required (e.g. 1k)"
+      exit 1
+    fi
+
   ;;
 
   -mprof)
@@ -6316,7 +6407,7 @@ fi
         info_msg "[-r] lonlat: Region is ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
 
       # Set region to be the same as an input file (raster, XY file)
-      elif [[ -e "${2}" ]]; then
+      elif [[ -s "${2}" ]]; then
         info_msg "[-r]: File specified; trying to determine extent."
 
         if [[ $2 == *".kml" ]]; then
@@ -6351,12 +6442,13 @@ fi
                 MAXLON=${rasrange[1]}
                 MINLAT=${rasrange[2]}
                 MAXLAT=${rasrange[3]}
+                echo got ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}
                 ;;
             esac
           shift
         fi
 
-        if arg_is_positive_float "${2}"; then
+        if arg_is_float "${2}"; then
           REGION_BUFDEG="${2}"
           shift
           MINLON=$(echo $REGION_BUFDEG $MINLON | gawk  '{print $2-$1}')
@@ -7841,6 +7933,11 @@ fi
         shift
         threedresidflag=1
       ;;
+      buf)
+        shift
+        THREEDBUF=$2
+        shift
+      ;;
       *)
         echo "[-prof3dgrid]: option ${2} not recognized"
         exit 1
@@ -7932,6 +8029,10 @@ fi
           exit 1
         fi
         shift
+      ;;
+      *)
+        echo "[-profgrid]: option $2 not recognized"
+        exit 1
       ;;
     esac
   done
@@ -10183,22 +10284,23 @@ fi
     ;;
 
   -tsmooth) # -tsmooth: smooth input DEM before processing
+  DEM_SMOOTH_RAD=1
     if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsmooth:       smooth input DEM before processing
 Usage: -tquant [[radius=${DEM_SMOOTH_RAD}]]
 
-  Gaussian smoothing, radius is in pixels
+  Gaussian smoothing, radius is in km, no units given
 
 Example:
-tectoplot -t -tsmooth 11 -o example_tsmooth
+tectoplot -t -tsmooth 5m -o example_tsmooth
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
-    if arg_is_positive_float "${2}"; then
+    if ! arg_is_flag "${2}"; then
       DEM_SMOOTH_RAD="${2}"
       shift
     fi
@@ -10864,7 +10966,7 @@ fi
     esac
   done
 
-  if [[ $2 =~ "urhammer" || $2 =~ "gk" || $2 =~ "gruenthal" || $2 =~ "rb" ]]; then
+  if [[ $2 =~ "urhammer" || $2 =~ "gk" || $2 =~ "gruenthal" || $2 =~ "rb" || $2 == "zp" ]]; then
     DECLUSTER_METHOD="${2}"
     shift
   fi
@@ -12796,11 +12898,11 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # We have specified a custom topo file
       if [[ $plotcustomtopo -eq 1 ]]; then
     #     info_msg "[-t]: Using custom topography file ${GRIDFILE}"
-    #     if [[ $reprojecttopoflag -eq 1 ]]; then
-    #       info_msg "[-t]: reprojecting source file to WGS1984"
-    #       gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.nc -q -of "NetCDF" -t_srs "+proj=longlat +ellps=WGS84"
-    #       GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.nc)
-    #     fi
+        if [[ $reprojecttopoflag -eq 1 ]]; then
+          info_msg "[-t]: reprojecting source file to WGS1984"
+          gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.tif -of "GTiff" -et 2 -t_srs "+proj=longlat +ellps=WGS84"
+          GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.tif)
+        fi
     #   # gmt grdcut sometimes does strange things with DEMs
     #   # Probably need some logic here to not use -projwin for some rasters...
     #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif"
@@ -13490,7 +13592,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     [[ $cmtslab2_deep_filterflag -eq 1 ]] && zslab2_deep_filterflag=1
 
     if [[ $zslab2filterflag -eq 1 || $zslab2_shallow_filterflag -eq 1 || $zslab2_deep_filterflag -eq 1 ]]; then
-      echo number of slabs is $numslab2inregion
       if [[ ! $numslab2inregion -eq 0 ]]; then
 
         # For each slab in the region
@@ -13559,30 +13660,35 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         done
       fi
       [[ -s ${F_SEIS}seis_slabselect.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_preslab2.txt && cp ${F_SEIS}seis_slabselect.txt ${F_SEIS}eqs.txt
-      wc -l < ${F_SEIS}eqs.txt
     fi
 
     #### Decluster seismicity using one of several available algorithms
 
     if [[ $seisdeclusterflag -eq 1 ]]; then
       info_msg "Declustering seismicity catalog..."
-      if [[ ${DECLUSTER_METHOD} =~ "rb" ]]; then
-        info_msg "Using Reasenberg method"
+      case ${DECLUSTER_METHOD} in
+        zp)
+          info_msg "Using Zaliapin 2008 declustering method"
 
-        if [[ ! -x ${REASENBERG_EXEC} ]]; then
-          echo "Compiling Reasenberg declustering code"
-          ${F90COMPILER} ${REASENBERG_SCRIPT} -o ${REASENBERG_EXEC}
-        fi
+        ;;
+        rb)
+          info_msg "Using Reasenberg declustering method"
 
-        if [[ -x ${REASENBERG_EXEC} ]]; then
-          ${REASENBERG_SH} ${F_SEIS}eqs.txt ${REASENBERG_EXEC} ${DECLUSTER_MINSIZE}
-        fi
+          if [[ ! -x ${REASENBERG_EXEC} ]]; then
+            echo "Compiling Reasenberg declustering code"
+            ${F90COMPILER} ${REASENBERG_SCRIPT} -o ${REASENBERG_EXEC}
+          fi
 
-      else
-        info_msg "Using Gardner-Knopoff window method ${DECLUSTER_METHOD}"
-        ${DECLUSTER_GK} ${F_SEIS}eqs.txt ${DECLUSTER_METHOD} ${DECLUSTER_MINSIZE}
-        cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_predecluster.txt
-      fi
+          if [[ -x ${REASENBERG_EXEC} ]]; then
+            ${REASENBERG_SH} ${F_SEIS}eqs.txt ${REASENBERG_EXEC} ${DECLUSTER_MINSIZE}
+          fi
+        ;;
+        *)
+          info_msg "Using Gardner-Knopoff window declustring method ${DECLUSTER_METHOD}"
+          ${DECLUSTER_GK} ${F_SEIS}eqs.txt ${DECLUSTER_METHOD} ${DECLUSTER_MINSIZE}
+          cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_predecluster.txt
+        ;;
+      esac
       if [[ ${DECLUSTER_REMOVE} -eq 1 ]]; then
         cp ./catalog_declustered.txt ${F_SEIS}eqs.txt
       else
@@ -14259,7 +14365,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         dip=$(2*numsamples+mindepth_ind)
       }
 
-      moment_tensor_rotate($33,$34,$35,$36,$37,$38,strike,dip,dip)
+      moment_tensor_rotate($33,$34,$35,$36,$37,$38,strike,0,dip)
       moment_tensor_diagonalize_ntp(r_Mxx, r_Myy, r_Mzz, r_Mxy, r_Mxz, r_Myz)
       ntp_to_sdr(d_AZ0, d_PL0, d_AZ2, d_PL2, SDR)
 
@@ -15477,7 +15583,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
 
 
-  if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 ]]; then
+  if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 || $xprofflag -eq 1 ]]; then
     plots+=("mprof")
     cpts+=("seisdepth")
   fi
@@ -15927,7 +16033,7 @@ done
   # Add a PS comment with the command line used to invoke tectoplot. Use >> as we might
   # be adding this line onto an already existing PS file
 
-  echo "%TECTOPLOT: ${COMMAND}" >> map.ps
+  echo "% Map created using tectoplot v.${TECTOPLOT_VERSION} on $(date -u): ${COMMAND}" >> map.ps
 
   # Before we plot anything but after we have done the data processing, set any
   # GMT variables that are given on the command line using -gmtvars { A val ... }
@@ -16592,10 +16698,10 @@ EOF
               }
 
               while (indexval <= maxz) {
-                indexval+=cint
+                indexval+=majorspace*cint
               }
               while (indexval >= minz) {
-                indexval-=cint
+                indexval-=majorspace*cint
               }
 
             # Ensure indexval is a major contour
@@ -16641,12 +16747,15 @@ EOF
           info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
 
           if [[ -s topo.major.contourdef ]]; then
-             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} > majorcontourlines.dat
+            echo              gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} \> majorcontourlines.dat
+
+             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} ${VERBOSE} > majorcontourlines.dat
           fi
 
 
           if [[ -s topo.minor.contourdef ]]; then
-             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} > minorcontourlines.dat
+            echo gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} \> minorcontourlines.dat
+             gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} ${VERBOSE} > minorcontourlines.dat
           fi
         fi
 
@@ -18276,7 +18385,7 @@ EOF
 
       mprof)
 
-        if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 ]]; then
+        if [[ $sprofflag -eq 1 || $aprofflag -eq 1 || $cprofflag -eq 1 || $kprofflag -eq 1 || $lprofflag -eq 1 || $xprofflag -eq 1 ]]; then
           info_msg "Updating mprof to use a newly generated sprof.control file"
           # PROFILE_WIDTH_IN="7i"
           # PROFILE_HEIGHT_IN="2i"
@@ -18354,7 +18463,7 @@ EOF
 
           if [[ $prof3dgridflag -eq 1 ]]; then
             info_msg "Adding 3D datacube"
-            echo "Q $PROF3DGRIDFILE ${THREEDGRIDVAR} ${THREEDGRIDRES} ${THREEDCPT}" >> sprof.control
+            echo "Q $PROF3DGRIDFILE ${THREEDGRIDVAR} ${THREEDGRIDRES} ${THREEDCPT} ${THREEDBUF}" >> sprof.control
           fi
 
           if [[ -s tomography.txt ]]; then
@@ -18415,6 +18524,13 @@ EOF
               echo "P P${thissprof} black N N ${SPROFPTS[${sprofnumber}]}" >> sprof.control
             done
           fi
+          if [[ $xprofflag -eq 1 ]]; then
+
+            for thisxprof in $(seq 1 $xprofnumber); do
+              echo "A A${thisxprof} black N N ${XPROFPTS[${xprofnumber}]}" >> sprof.control
+            done
+          fi
+
           if [[ $cprofflag -eq 1 ]]; then
             cat ${F_PROFILES}cprof_profs.txt >> sprof.control
           fi
@@ -18470,7 +18586,7 @@ EOF
           trackentries=($(echo $trackline))
           FIRSTWORD=${trackentries[0]}
 
-          if [[ ${FIRSTWORD:0:1} == "P" ]]; then
+          if [[ ${FIRSTWORD:0:1} == "P" || ${FIRSTWORD:0:1} == "A" ]]; then
             LINEID=${trackentries[1]}
             COLOR=${trackentries[2]}
 
@@ -19266,7 +19382,7 @@ EOF
          if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
            info_msg "[-tsmooth]: Smoothing DEM"
            # MODIFIED DEM DATA FILE
-           gmt grdfilter -Dp${DEM_SMOOTH_RAD} -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
+           gmt grdfilter -D2 -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
            TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.tif
          fi
 

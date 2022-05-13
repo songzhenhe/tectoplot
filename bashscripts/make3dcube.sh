@@ -13,6 +13,7 @@ xyzvfile=$1
 cubefile=$2
 datalabel=$3
 buffernumber=${4-0}  # 0 by default
+gridspace=${5-0}     # 0 by default
 
 xlabel="longitude [deg]"
 ylabel="latitude [deg]"
@@ -25,6 +26,14 @@ cubeinfo=($(gawk < $xyzvfile -v bufnum=${buffernumber} '
     xind=1
     yind=1
     zind=1
+    header=1
+
+    while(header==1) {
+      getline
+      if ($1+0==$1) {
+        header=0
+      }
+    }
 
     xs[xind]=$1
     ys[yind]=$2
@@ -47,6 +56,7 @@ cubeinfo=($(gawk < $xyzvfile -v bufnum=${buffernumber} '
 
   }
   END {
+
     asort(xs)
     asort(ys)
     asort(zs)
@@ -58,12 +68,21 @@ cubeinfo=($(gawk < $xyzvfile -v bufnum=${buffernumber} '
     print xs[1]-xint*bufnum, xs[length(xs)]+xint*bufnum, ys[1]-yint*bufnum, ys[length(ys)]+yint*bufnum, xint, yint
   }'))
 
+# echo cubinfo is ${cubeinfo[@]}
+# cubeinfo[4]=0.03
+# cubeinfo[5]=0.03
+# Mval=0.01d
+
 rm -f *.ttt
 rm -f data_*.nc
 depths=""
 while read depth; do
   outfile="data_${depth}.nc"
   gawk < $xyzvfile -v dep=${depth} '($3 == dep) {print $1, $2, $4}' | gmt xyz2grd -R${cubeinfo[0]}/${cubeinfo[1]}/${cubeinfo[2]}/${cubeinfo[3]} -I${cubeinfo[4]}/${cubeinfo[5]} -G${outfile}
+
+  # Experiments with interpolation of the 2D data slices before stacking
+  
+  # gawk < $xyzvfile -v dep=${depth} '($3 == dep) {print $1, $2, $4}' | gmt surface -R${cubeinfo[0]}/${cubeinfo[1]}/${cubeinfo[2]}/${cubeinfo[3]} -I${cubeinfo[4]}/${cubeinfo[5]} -G${outfile} -Vn
   grids+=(${outfile})
   if [[ $depths == "" ]]; then
     depths=${depth}
@@ -75,5 +94,5 @@ done < depths.txt
 
 # gmt grdinterpolate $(cat gridslist.txt) -R0/vs_0.grd -Z -D+x"Longitude; positive east"+y"Latitude; positive north"+z"depth below Earth surface [km]"+dvs+vvs -Gvs.nc
 
-
+echo grdinterpolate ${grids[@]} -R${grids[0]} -Z${depths}
 gmt grdinterpolate ${grids[@]} -R${grids[0]} -Z${depths} -D+x"${xlabel}"+y"${ylabel}"+z"${zlabel}"+d${datalabel}+v${datalabel} -G${cubefile}

@@ -947,11 +947,8 @@ function tectoplot_plot_gis() {
   ;;
 
   gis_image)
-  echo ${IMAGENAME}
-  pwd
-  ls
-    # echo gmt grdimage ${IMAGENAME} -Q ${RJSTRING[@]} -O -K $VERBOSE
-    gmt grdimage ${IMAGENAME} -Q ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+    # echo gmt grdimage ${IMAGEARGS[@]}  ${IMAGENAME} -Q ${RJSTRING[@]} -O -K $VERBOSE
+    gmt grdimage ${IMAGENAME} ${IMAGEARGS[@]} -Q ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
     tectoplot_plot_caught=1
   ;;
 
