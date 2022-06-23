@@ -25,9 +25,13 @@ modules/module_stereonet.sh
  Requires -c option to select focal mechanism data.
  Output file is stereo.pdf in temporary directory.
 
+ Default is -cs np pa
+
  Options
 
  np          plot fault nodal planes and poles
+ pa          plot principal axes
+ nogrid      do not plot the lower hemisphere grid lines
 
 Example:
  tectoplot -r PY -c -cs
@@ -37,6 +41,8 @@ EOF
     tectoplot_module_shift=0
 
     shift
+    cstereonodalflag=0
+    cstereonpaflag=0
 
     while ! arg_is_flag $1; do
       case $1 in
@@ -44,6 +50,11 @@ EOF
           shift
           ((tectoplot_module_shift++))
           cstereonodalflag=1
+        ;;
+        pa)
+          shift
+          ((tectoplot_module_shift++))
+          cstereonpaflag=1
         ;;
         nogrid)
           shift
@@ -57,9 +68,8 @@ EOF
       esac
     done
 
-    if [[ $1 == "np" ]]; then
-      shift
-      ((tectoplot_module_shift++))
+    if [[ $cstereonodalflag -eq 0 && $cstereonpaflag -eq 0 ]]; then
+      cstereonpaflag=1
       cstereonodalflag=1
     fi
 
@@ -91,7 +101,7 @@ function tectoplot_post_stereonet() {
   # RJOK : -R -J -O -K
 
   if [[ -s ${CMTFILE} ]]; then
-    echo "Making stereonet of focal mechanism axes"
+    info_msg "[-cs]: Making stereonet of focal mechanism data"
 
     # We use Lambert azimuthal equal-area, lower hemisphere
     if [[ $cstereonogridflag -eq 1 ]]; then
@@ -112,27 +122,31 @@ function tectoplot_post_stereonet() {
     symbolsize_np=0.15i
 
     if [[ $cstereonodalflag -eq 1 ]]; then
-      echo "Plotting nodal plane poles"
+      info_msg "[-cs]: Plotting nodal plane poles"
       gawk < ${F_CMT}cmt.dat '{$1=0; $2=-90; print}' | gmt psmeca -Gwhite@100 -Ewhite@100 -T -W0.2p,gray -Sm5i+m -R -J -O -K ${VERBOSE} >> stereo.ps
 
       gawk < ${CMTFILE} '{ if ($17>0) { print $16-90, $17-90 } else { print $16-90, $17 } }' | gmt psxy -Sd${symbolsize_np} -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
       gawk < ${CMTFILE} '{ if ($20>0) { print $19-90, $20-90 } else { print $19-90, $20 } }' | gmt psxy -Sd${symbolsize_np} -W0.5p,red -Gwhite -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
 
-    if [[ $axescmtthrustflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $30, -$31 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $27, -$28 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-    fi
-    if [[ $axescmtnormalflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $24, -$25 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $30, -$31 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $27, -$28 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-    fi
-    if [[ $axescmtssflag -eq 1 ]]; then
-      [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $24, -$25 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
-      [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+    if [[ $cstereonpaflag -eq 1 ]]; then
+      info_msg "[-cs]: Plotting principal axes"
+
+      if [[ $axescmtthrustflag -eq 1 ]]; then
+        [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $30, -$31 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $27, -$28 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      fi
+      if [[ $axescmtnormalflag -eq 1 ]]; then
+        [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $24, -$25 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $30, -$31 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="N"){ print $27, -$28 }' | gmt psxy -Ss${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      fi
+      if [[ $axescmtssflag -eq 1 ]]; then
+        [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $24, -$25 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+        [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
+      fi
     fi
 
     gmt psxy -T -R -J -K -O ${VERBOSE} >> stereo.ps
