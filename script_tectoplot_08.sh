@@ -2002,6 +2002,25 @@ fi
     # Calculate the profile start and end points based on the given information
   ;;
 
+  -margin)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-margin:    set the width of the blank margin surrounding the map document
+Usage: -margin [length]
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  if ! arg_is_flag $2; then
+    MAPMARGIN=$2
+  else
+    echo "[-margin]: requires a map length argument (e.g. 0.5i)"
+    exit 1
+  fi
+
+  ;;
+
   -aprof) # args: aprofcode1 aprofcode2 ... width res
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -8732,6 +8751,8 @@ Usage: -tn [[options]]
 
   int [number | auto]
       Contour interval
+  fontsize [number]
+      Set font size for contour labels
   index [number]
       Set specified contour to be a major contour
   list [level1,level2,...]
@@ -8765,6 +8786,7 @@ fi
     TOPOCONTOURSMOOTH=""
     TOPOCONTOURINDEX=0       # Value of an index contour
     TOPOCONTOURINT=100       # Default contour interval
+    TOPOCONTOURFONTSIZE=2    # small labels
 
     topocontourindexflag=0
     CONTOURMAJORSPACE=5
@@ -8778,6 +8800,16 @@ fi
 
     while ! arg_is_flag $2; do
       case $2 in
+        fontsize)
+          shift
+          if arg_is_positive_float $2; then
+            TOPOCONTOURFONTSIZE="${2}"
+            shift
+          else
+            echo "[-tn]: fontsize option requires positive number argument"
+            exit 1
+          fi
+        ;;
         int)
           shift
           if arg_is_positive_float $2; then
@@ -8878,7 +8910,7 @@ fi
         trans) # [percent]
           shift
           if arg_is_positive_float $2; then
-            TOPOCONTOURTRANS=$2
+            TOPOCONTOURTRANS="-t$2"
             shift
           else
             echo "[-tn]: trans requires positive float width argument"
@@ -9583,9 +9615,17 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsent:        color terrain using downloaded sentinel cloud-free image
-Usage: -tsent [[fact=${SENTINEL_FACT}]] [[gamma=${SENTINEL_GAMMA}]]
+Usage: -tsent [[fact=${SENTINEL_FACT}]] [[options]] [[img imgoptions]]
 
   Note: There is still an issue with blending against pure black/white.
+
+  Options:
+  gamma        apply gamma adjustment
+  notopo       don't plot topo, only sentinel image
+  upample      upsample image
+
+  imgoptions are any further options recognized by -timg
+
 
 Example: Sentinel cloud free image draped onto multi-hillshade, Arizona USA
 tectoplot -r -113 -112.3 36 36.5 -t 01s -tmult -tsent 0.2 -o example_tsent
@@ -9602,13 +9642,20 @@ fi
       SENTINEL_FACT=${2}
       shift
     fi
-    if arg_is_positive_float $2; then
-      info_msg "[-tsent]: Sentinel image gamma correction set to $2"
-      SENTINEL_GAMMA=${2}
-      shift
-    fi
+
     while ! arg_is_flag $2; do
       case $2 in
+        gamma)
+          shift
+          if arg_is_positive_float $2; then
+            info_msg "[-tsent]: Sentinel image gamma correction set to $2"
+            SENTINEL_GAMMA=${2}
+            shift
+          else
+            echo "[-tsent]: gamma option requires number argument"
+            exit 1
+          fi
+        ;;
         notopo)
           info_msg "[-tsent]: No topo plotted with Sentinel data"
           sentinelnotopoflag=1
@@ -9618,6 +9665,17 @@ fi
           shift
           SENTINEL_DOWNSAMPLE=0
         ;;
+        img)
+          shift
+          while ! arg_is_flag $2; do
+            SENT_IMOPTS+=("$2")
+            shift
+          done
+        ;;
+        *)
+          echo "[-tsent]: option $2 not recognized"
+          exit 1
+        ;;
       esac
     done
 
@@ -9625,7 +9683,7 @@ fi
     sentineldownloadflag=1
     # Replace -tsent with -timg [[sentinel_img.jpg]] [[alpha]]
     shift
-    set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}"
+    set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}" ${SENT_IMOPTS[@]}
     ;;
 
   -tsky) # -tsky: add sky view factor to intensity
@@ -14292,12 +14350,24 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                   lon=$5; lat=$6; depth=$7
                 }
                 # If it is in the slab region and the depth is within the offset
+                ## AND the strike-dip of both nodal planes do not match slab2
                 if (depth-slab2depth>vertdiff || (incout==1 && $40=="NaN"))
                 {
-                  $42=""
-                  $41=""
-                  $40=""
-                  print $0
+                  # If the strike and dip of one nodal plane matches the slab
+                  printme=1
+                  if (abs(slab2strike-events1) < strikediff && (abs(slab2dip-eventd1)<dipdiff)) {
+                    printme=0
+                    nodalplane=1
+                  } else if (abs(slab2strike-events2) < strikediff && (abs(slab2dip-eventd2)<dipdiff)) {
+                    printme=0
+                    nodalplane=2
+                  }
+                  if (printme==1) {
+                    $42=""
+                    $41=""
+                    $40=""
+                    print $0
+                  }
                 }
               }
 
@@ -16785,7 +16855,7 @@ EOF
              print
            }' > splitmajorcontourlines.dat
 
-           gmt psxy splitmajorcontourlines.dat -Sqn1+r${TOPOCONTOURLABELSEP}:+f2p,Helvetica,black+Lh+e -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${TOPOCONTOURTRANS} ${RJOK} >> map.ps
+           gmt psxy splitmajorcontourlines.dat -Sqn1+r${TOPOCONTOURLABELSEP}:+f${TOPOCONTOURFONTSIZE}p,Helvetica,black+Lh+e -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${TOPOCONTOURTRANS} ${RJOK} >> map.ps
            # gmt psxy splitmajorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
            # gmt psclip -C ${RJOK} >> map.ps
            # gmt psxy majorcontourlines.dat -W${TOPOCONTOURMAJORWIDTH},${TOPOCONTOURMAJORCOLOR} ${RJOK} >> map.ps
@@ -17379,7 +17449,6 @@ EOF
 
         gmt_init_tmpdir
 
-
         # Use blockmean to avoid aliasing
         gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init.txt -fg -i0,1,2,4 -W ${VERBOSE} > blk.llu
         gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init.txt -fg -i0,1,3,5 -W ${VERBOSE} > blk.llv
@@ -17540,6 +17609,9 @@ EOF
         # Plot velocity arrows
 
         if [[ -s ${F_GPS}gps_strain_u.nc && -s ${F_GPS}gps_strain_v.nc ]]; then
+
+          gmt_init_tmpdir
+
           gmt grdmath ${F_GPS}gps_strain_u.nc SQR ${F_GPS}gps_strain_v.nc SQR ADD SQRT = ${F_GPS}gps_vel.nc
           # gmt grdimage ${F_GPS}gps_vel.nc -Cturbo ${RJOK} ${VERBOSE} >> map.ps
 
@@ -17596,6 +17668,8 @@ EOF
             }'
 
           mv gps_g_* ${F_GPS}
+
+          gmt_remove_tmpdir
 
           if [[ $GG_NO_AVE -ne 1 ]]; then
             [[ -s ${F_GPS}gps_g_withdata.txt ]] && gmt psvelo ${F_GPS}gps_g_withdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gblack -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
@@ -20965,16 +21039,18 @@ if [[ $makelegendflag -eq 1 ]]; then
 
 # Requires CPT and BATHYINC
       topo)
-        topotranslevel=$(echo "$DEM_ALPHA * 100" | bc -l)
-        if [[ $fasttopoflag -eq 0 ]]; then
-          gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
-          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-          echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
-        else
-          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-          echo "B ${TOPO_CPT} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+        if [[ $dontplottopoflag -ne 1 ]]; then
+          topotranslevel=$(echo "$DEM_ALPHA * 100" | bc -l)
+          if [[ $fasttopoflag -eq 0 ]]; then
+            gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
+            echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+            echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+          else
+            echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+            echo "B ${TOPO_CPT} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+          fi
+          barplotcount=$barplotcount+1
         fi
-        barplotcount=$barplotcount+1
         ;;
 
 # Modules
@@ -21011,8 +21087,8 @@ if [[ $makelegendflag -eq 1 ]]; then
     LEGEND_SOURCES_WIDTH=$(gawk -v lw=${LEGEND_WIDTH} 'BEGIN{print (lw+0) - 0.7}' )
     echo "> ${CENTERLON} ${CENTERLAT} 0.1i ${LEGEND_SOURCES_WIDTH}i l" > datasourceslegend.txt
     [[ -s ${SHORTSOURCES} ]] && uniq ${SHORTSOURCES} | tr '\n' ' ' >> datasourceslegend.txt
-  else
-    touch datasourceslegend.txt
+  # else
+  #   touch datasourceslegend.txt
   fi
 
 #
@@ -21319,10 +21395,13 @@ function close_legend_item() {
       esac
     done
 
-    init_legend_item "datasources"
-    echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
-    gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
-    close_legend_item "datasources"
+    numsources=$(wc -l < datasourceslegend.txt)
+    if [[ $numsources -gt 1 ]]; then
+      init_legend_item "datasources"
+      echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+      gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+      close_legend_item "datasources"
+    fi
 
     gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
     LEG2_X=0
@@ -21538,7 +21617,6 @@ done
 #     gmt psimage prerotate.png -Dx0/0+w${PS_WIDTH}i ${RJSTRING[@]} -p${ROTATE_ANGLE} > map.ps
 #   fi
 
-
   echo "${COMMAND}" > "$MAPOUT.history"
   echo "${COMMAND}" >> $OPTDIR"tectoplot.history"
 
@@ -21547,9 +21625,9 @@ done
   ##### MAKE PDF OF MAP
   if [[ $keepopenflag -eq 0 ]]; then
      if [[ $epsoverlayflag -eq 1 ]]; then
-       gmt psconvert -Tf -A+m0.5i -Mf${EPSOVERLAY} $VERBOSE map.ps
+       gmt psconvert -Tf -A+m${MAPMARGIN} -Mf${EPSOVERLAY} $VERBOSE map.ps
      else
-       gmt psconvert -Tf -A+m0.5i $VERBOSE map.ps
+       gmt psconvert -Tf -A+m${MAPMARGIN} $VERBOSE map.ps
     fi
 
     if [[ $outputdirflag -eq 1 ]]; then

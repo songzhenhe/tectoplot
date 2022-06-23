@@ -20,10 +20,14 @@ function tectoplot_args_stereonet()  {
 cat <<-EOF
 modules/module_stereonet.sh
 -cs:           plot focal mechanism principal axes on a stereonet
--cs
+-cs [[options]]
 
  Requires -c option to select focal mechanism data.
  Output file is stereo.pdf in temporary directory.
+
+ Options
+
+ np          plot fault nodal planes and poles
 
 Example:
  tectoplot -r PY -c -cs
@@ -31,6 +35,34 @@ Example:
 EOF
   fi
     tectoplot_module_shift=0
+
+    shift
+
+    while ! arg_is_flag $1; do
+      case $1 in
+        np)
+          shift
+          ((tectoplot_module_shift++))
+          cstereonodalflag=1
+        ;;
+        nogrid)
+          shift
+          ((tectoplot_module_shift++))
+          cstereonogridflag=1
+        ;;
+        *)
+          echo "[-cs]: Option $1 not recognized"
+          exit 1
+        ;;
+      esac
+    done
+
+    if [[ $1 == "np" ]]; then
+      shift
+      ((tectoplot_module_shift++))
+      cstereonodalflag=1
+    fi
+
     tectoplot_module_caught=1
     ;;
   esac
@@ -60,7 +92,15 @@ function tectoplot_post_stereonet() {
 
   if [[ -s ${CMTFILE} ]]; then
     echo "Making stereonet of focal mechanism axes"
-    gmt psbasemap -JA0/-89.999/5i -Rg -Bxa10fg10 -Bya10fg10 -K ${VERBOSE} > stereo.ps
+
+    # We use Lambert azimuthal equal-area, lower hemisphere
+    if [[ $cstereonogridflag -eq 1 ]]; then
+      csgridcmd="-Bxa -Bya"
+    else
+      csgridcmd="-Bxafg10 -Byafg10"
+    fi
+
+    gmt psbasemap -JA0/-89.99999/5i -Rg $csgridcmd -K ${VERBOSE} > stereo.ps
 
     axestflag=1
     axespflag=1
@@ -69,6 +109,15 @@ function tectoplot_post_stereonet() {
     axescmtssflag=1
     axescmtnormalflag=1
     symbolsize=0.1i
+    symbolsize_np=0.15i
+
+    if [[ $cstereonodalflag -eq 1 ]]; then
+      echo "Plotting nodal plane poles"
+      gawk < ${F_CMT}cmt.dat '{$1=0; $2=-90; print}' | gmt psmeca -Gwhite@100 -Ewhite@100 -T -W0.2p,gray -Sm5i+m -R -J -O -K ${VERBOSE} >> stereo.ps
+
+      gawk < ${CMTFILE} '{ if ($17>0) { print $16-90, $17-90 } else { print $16-90, $17 } }' | gmt psxy -Sd${symbolsize_np} -W0.25p,black -Gred -R -J -O -K ${VERBOSE} >> stereo.ps
+      gawk < ${CMTFILE} '{ if ($20>0) { print $19-90, $20-90 } else { print $19-90, $20 } }' | gmt psxy -Sd${symbolsize_np} -W0.5p,red -Gwhite -R -J -O -K ${VERBOSE} >> stereo.ps
+    fi
 
     if [[ $axescmtthrustflag -eq 1 ]]; then
       [[ $axestflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="T"){ print $24, -$25 }' | gmt psxy -Sc${symbolsize} -W0.25p,black -G${T_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
@@ -85,6 +134,7 @@ function tectoplot_post_stereonet() {
       [[ $axespflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $30, -$31 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${P_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
       [[ $axesnflag -eq 1 ]] && gawk  < ${CMTFILE}  '(substr($1,2,1)=="S"){ print $27, -$28 }' | gmt psxy -St${symbolsize} -W0.25p,black -G${N_AXIS_COLOR} -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
+
     gmt psxy -T -R -J -K -O ${VERBOSE} >> stereo.ps
 
 cat<<-EOF > stereonet_legend.txt
