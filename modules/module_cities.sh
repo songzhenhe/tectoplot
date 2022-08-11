@@ -1,12 +1,6 @@
 
 TECTOPLOT_MODULES+=("cities")
 
-# Calculate residual grid by removing along-line average, using da-dt formulation
-# Builtin support for gravity grids
-
-# Variables needed:
-
-
 function tectoplot_defaults_cities() {
 
   CITIES_SOURCESTRING="City data from geonames (CC-BY)"
@@ -32,7 +26,7 @@ function tectoplot_defaults_cities() {
   CITIES_LABEL_FONTCOLOR="black"
 
   POPULATION_CPT=${F_CPTS}"population.cpt"
-
+  
 }
 
 function tectoplot_args_cities()  {

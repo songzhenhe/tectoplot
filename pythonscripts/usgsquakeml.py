@@ -5,6 +5,8 @@
 # https://sites.psu.edu/charlesammon/2017/01/31/parsing-usgs-quakeml-files-with-python/
 
 from xml.etree import cElementTree as ElementTree
+import xml.etree.ElementTree as ET
+
 import time, sys, os
 
 try:
@@ -417,9 +419,6 @@ ns = {"q":"http://quakeml.org/xmlns/quakeml/1.2",
         "tensor":"http://anss.org/xmlns/tensor/0.1"}
 
 def parse_usgs_xml(event_id_code):
-    #
-    # you can import xml from online:
-
     # test if the argument is a file that exists
     if os.path.isfile(event_id_code):
         xtree = ElementTree.parse(event_id_code)
@@ -433,18 +432,23 @@ def parse_usgs_xml(event_id_code):
             quit()
 
         original_stdout = sys.stdout # Save a reference to the original standard output
+        xroot = ElementTree.fromstring(xmlstring)
 
         with open('{}.quakeml'.format(event_id_code), 'w') as f:
             sys.stdout = f # Change the standard output to the file we created.
-            print(xmlstring)
+            ET.indent(xroot)
+            print(ET.tostring(xroot, encoding='unicode'))
+            # print(xmlstring)
             sys.stdout = original_stdout
 
-
-        xroot = ElementTree.fromstring(xmlstring)
-
+    # original_stdout = sys.stdout
+    # sys.stdout = sys.stderr
+    i=0
     xeventParameters = xroot.findall('d:eventParameters',ns)
     for ep in xeventParameters:
         xevents = ep.findall('d:event',ns)
+        i=i+1
+        print('Event {}'.format(i))
     events = []
     i = 0
     for xev in xevents:
@@ -473,6 +477,8 @@ def parse_usgs_xml(event_id_code):
 
         i += 1
     return events
+    # sys.stdout = original_stdout
+
 
 if len(sys.argv) > 1:
 

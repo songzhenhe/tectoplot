@@ -511,7 +511,11 @@ function tectoplot_calculate_geography()  {
     # gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*B)" --outfile=fixeddem.tif
 
     # Set pixels below sea level but inside the land polygon to above sea level, and pixels outside land polygon above sea level to below sea level
-    gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*(B<0)*B + (A==0)*(B>=0)*-0.1)" --outfile=fixeddem.tif
+    # A==1 : land in OSM dataset
+    # A==0 : sea in OSM dataset
+    # B : elevation in DEM dataset
+    #                                                                                OSM land/DEM land    OSM land/DEM Sea     OSM sea / DEM sea       OSM SEA / DEM land
+    gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B   + (A==1)*(B<=0)*1   +   (A==0)*(B<0)*B     +    (A==0)*(B>=0)*-0.3)" --outfile=fixeddem.tif
 
 
     # gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif

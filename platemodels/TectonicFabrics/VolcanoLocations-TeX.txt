@@ -1,0 +1,822 @@
+
+1 & Shiveluch & 161.359 & 56.652 & 39 & Mutnovsky & 158.178 & 52.458
+
+2 & Karchinsky & 160.825 & 56.425 & 40 & Tolmacev Dol & 157.563 & 52.647
+
+3 & Zarechny & 160.830 & 56.380 & 41 & Opala & 157.338 & 52.543
+
+4 & Ushkovsky & 160.470 & 56.100 & 42 & Visokiy & 157.931 & 52.432
+
+5 & Klyuchevskoy & 160.641 & 56.057 & 43 & Asacha & 157.830 & 52.355
+
+6 & Kamen & 160.595 & 56.019 & 44 & Golaya & 157.792 & 52.262
+
+7 & Bezymianny & 160.595 & 55.972 & 45 & Otdelniy & 157.434 & 52.221
+
+8 & Zimina & 160.605 & 55.861 & 46 & Piratkovsky & 157.851 & 52.110
+
+9 & Tolbachik & 160.377 & 55.820 & 47 & Khodutka & 157.707 & 52.066
+
+10 & Udina & 160.527 & 55.759 & 48 & Olkoviy & 157.530 & 52.011
+
+11 & Kizimen & 160.320 & 55.131 & 49 & Ostanet & 157.323 & 52.148
+
+12 & Vysoky & 160.761 & 55.061 & 50 & Zheltiy & 157.607 & 51.936
+
+13 & Komarov & 160.726 & 55.032 & 51 & Ozernoy & 157.385 & 51.893
+
+14 & Gamchen & 160.702 & 54.973 & 52 & Ksudach & 157.535 & 51.818
+
+15 & Schmidt & 160.627 & 54.914 & 53 & Balenkaya & 157.266 & 51.750
+
+16 & Kronotsky & 160.533 & 54.753 & 54 & Kell & 157.358 & 51.658
+
+17 & Krasheninikov & 160.275 & 54.596 & 55 & Zheltovsky & 157.328 & 51.577
+
+18 & Kikhpinych & 160.252 & 54.488 & 56 & Ilyinksky & 157.202 & 51.498
+
+19 & Uzon & 159.970 & 54.500 & 57 & Kurile Lake & 157.120 & 51.450
+
+20 & Taunshits & 159.804 & 54.531 & 58 & Diky Greben & 156.975 & 51.452
+
+21 & Bolshoi Semiachik & 160.015 & 54.313 & 59 & Koshelev & 156.753 & 51.356
+
+22 & Maly Semiachik & 159.655 & 54.118 & 60 & Kambalny & 156.879 & 51.304
+
+23 & Karymsky & 159.442 & 54.047 & 61 & Mashkovtsev & 156.720 & 51.100
+
+24 & Akademia Nauk & 159.450 & 53.980 & 62 & Alaid & 155.557 & 50.858
+
+25 & Zhupanovsky & 159.125 & 53.588 & 63 & Ebeko & 156.014 & 50.686
+
+26 & Dzenzursky & 158.920 & 53.640 & 64 & Vernadskii & 155.964 & 50.549
+
+27 & Zavaritsky & 158.384 & 53.907 & 65 & Chikurachki & 155.460 & 50.321
+
+28 & Bakening & 158.072 & 53.907 & 66 & Lomonosov & 155.434 & 50.252
+
+29 & Kostakan & 158.055 & 53.833 & 67 & Fuss Peak & 155.248 & 50.270
+
+30 & Veer & 158.448 & 53.752 & 68 & Karpinsky & 155.368 & 50.130
+
+31 & Koryaksky & 158.712 & 53.321 & 69 & Nemo Peak & 154.814 & 49.564
+
+32 & Avachinsky & 158.833 & 53.256 & 70 & Tao-Rusyr Caldera & 154.708 & 49.352
+
+33 & Unnamed 1 & 158.520 & 52.920 & 71 & Harimkotan & 154.520 & 49.118
+
+34 & Unnamed 2 & 158.289 & 52.860 & 72 & Ekarma & 153.940 & 48.946
+
+35 & Barakhatnaya Sopka & 158.240 & 52.802 & 73 & Sinarka & 154.182 & 48.874
+
+36 & Vilyuchick & 158.281 & 52.705 & 74 & Kontumintar & 154.016 & 48.758
+
+37 & Bolshe Banaya & 157.776 & 52.926 & 75 & Chirinkotan & 153.484 & 48.977
+
+38 & Gorely & 158.035 & 52.555
+
+1 & Raikoke & 153.248 & 48.294 & 24 & Chirip & 147.921 & 45.337
+
+2 & Sarychev Peak & 153.198 & 48.091 & 25 & Baransky & 148.015 & 45.103
+
+3 & Rasshua & 153.022 & 47.756 & 26 & Tebenkov & 147.917 & 45.028
+
+4 & Srednii & 152.920 & 47.600 & 27 & Etorofu-Yakeyama & 147.871 & 45.012
+
+5 & Ushishur & 152.814 & 47.513 & 28 & Bogatyr & 147.344 & 44.839
+
+6 & Ketoi & 152.479 & 47.343 & 29 & Atsonopuri & 147.128 & 44.807
+
+7 & Urataman & 152.247 & 47.121 & 30 & Lvinaya Past & 146.994 & 44.608
+
+8 & Prevo Peak & 152.115 & 47.011 & 31 & Berutarube & 146.928 & 44.479
+
+9 & Zavaritzki Caldera & 151.950 & 46.925 & 32 & Tiatia & 146.251 & 44.354
+
+10 & Milne & 151.786 & 46.815 & 33 & Smirnov & 146.139 & 44.454
+
+11 & Goriaschaia Sopka & 151.751 & 46.832 & 34 & Mendeleev & 145.733 & 43.978
+
+12 & Chirpoi & 150.866 & 46.522 & 35 & Golovnin & 145.505 & 43.844
+
+13 & Gora Desantnaya & 150.369 & 46.192 & 36 & Shiretoko-Iwo-Zan & 145.163 & 44.130
+
+14 & Antipin & 150.230 & 46.150 & 37 & Rausu & 145.122 & 44.076
+
+15 & Kolokol & 150.065 & 46.061 & 38 & Tenchozan & 145.086 & 44.044
+
+16 & Petr Shmidt Ridge & 150.053 & 45.953 & 39 & Shari & 144.722 & 43.762
+
+17 & Tri Sestry & 149.925 & 45.910 & 40 & Mashu & 144.555 & 43.567
+
+18 & Rudakov & 149.823 & 45.872 & 41 & Kutcharo & 144.438 & 43.611
+
+19 & Ivao & 149.672 & 45.755 & 42 & Akan & 144.006 & 43.385
+
+20 & Demon & 148.852 & 45.506 & 43 & Daisetsu & 142.855 & 43.663
+
+21 & Medvezhia & 148.811 & 45.382 & 44 & Nipesotsu-Maruyama & 143.031 & 43.455
+
+22 & Rucharuyama & 148.344 & 45.243 & 45 & Shirakibetsu & 143.092 & 43.315
+
+23 & Tsirk & 148.580 & 45.400 & 46 & Tokachi & 142.682 & 43.421
+
+
+
+1 & Shikotsu & 141.377 & 42.691 & 23 & Adatara & 140.283 & 37.627
+
+2 & Kuttara & 141.180 & 42.500 & 24 & Bandaisan & 140.079 & 37.608
+
+3 & Toya & 140.833 & 42.543 & 25 & Numazawa & 139.579 & 37.450
+
+4 & Yotei & 140.806 & 42.827 & 26 & Nasu & 139.963 & 37.125
+
+5 & Niseko & 140.636 & 42.884 & 27 & Takahara & 139.777 & 36.900
+
+6 & Komagatake & 140.686 & 42.066 & 28 & Omanago & 139.508 & 36.795
+
+7 & Essan & 141.165 & 41.806 & 29 & Nantai & 139.491 & 36.767
+
+8 & Oshima-Oshima & 139.353 & 41.513 & 30 & Nikko-Shiranesan & 139.376 & 36.798
+
+9 & Osoremaya & 141.120 & 41.279 & 31 & Hiuchigatake & 139.286 & 36.953
+
+10 & Hakkoda & 140.878 & 40.658 & 32 & Akagi & 139.177 & 36.540
+
+11 & Iwaki & 140.303 & 40.656 & 33 & Haruna & 138.878 & 36.476
+
+12 & Towada & 140.920 & 40.470 & 34 & Kusatsu & 138.536 & 36.643
+
+13 & Akita-Yakeyama & 140.759 & 39.966 & 35 & Shiga & 138.514 & 36.690
+
+14 & Hachimantai & 140.857 & 39.955 & 36 & Niigata-Yakeyama & 138.035 & 36.921
+
+15 & Iwate & 141.003 & 39.851 & 37 & Myoko & 138.112 & 36.892
+
+16 & Akita-Komaga-Take & 140.792 & 39.752 & 38 & Asama & 138.520 & 36.407
+
+17 & Chokai & 140.049 & 39.099 & 39 & Tateshina & 138.294 & 36.103
+
+18 & Kurikomayama & 140.779 & 38.967 & 40 & Tateyama & 137.605 & 36.554
+
+19 & Hijiori & 140.180 & 38.600 & 41 & Yakedake & 137.587 & 36.228
+
+20 & Narugo & 140.725 & 38.734 & 42 & Norikuradake & 137.548 & 36.107
+
+21 & Zao & 140.450 & 38.136 & 43 & Ontakesan & 137.478 & 35.894
+
+22 & Azuma & 140.261 & 37.722 & 44 & Hakusan & 136.771 & 36.155
+
+
+
+1 & Fuji$^{[**]}$ & 138.730 & 35.363 & 17 & Sofugan & 140.357 & 29.808
+
+2 & Hakoneyama$^{[**]}$ & 139.022 & 35.243 & 18 & Nichiyo & 140.329 & 29.480
+
+3 & Izu-Tobu$^{[**]}$ & 139.095 & 34.904 & 19 & Getsuyo & 140.466 & 29.311
+
+4 & Izu-Oshima$^{[**]}$ & 139.395 & 34.726 & 20 & Kayo & 140.538 & 29.064
+
+5 & Toshima$^{[**]}$ & 139.279 & 34.521 & 21 & Suiyo & 140.643 & 28.572
+
+6 & Niijima$^{[**]}$ & 139.264 & 34.398 & 22 & Mokuyo & 140.567 & 28.316
+
+7 & Kozushima$^{[**]}$ & 139.152 & 34.218 & 23 & Doyo & 140.801 & 27.679
+
+8 & Miyakejima & 139.526 & 34.086 & 24 & Kinyo & 140.804 & 28.082
+
+9 & Kurose Hole & 139.680 & 33.399 & 25 & Nishinoshima & 140.879 & 27.243
+
+10 & Mikurajima & 139.601 & 33.869 & 26 & Kaikata & 140.930 & 26.667
+
+11 & Hachijojima & 139.765 & 33.139 & 27 & Kaitoku & 141.102 & 26.122
+
+12 & Aogashima & 139.910 & 32.470 & 28 & Kita-Iwojima & 141.265 & 25.446
+
+13 & Kita-Bayonnaise & 139.844 & 32.108 & 29 & Iwojima & 141.379 & 24.780
+
+14 & Bayonnaise Rocks & 139.986 & 31.894 & 30 & Kita-Fukutokutai & 141.419 & 24.414
+
+15 & Sumisujima & 140.044 & 31.444 & 31 & Fukutoku-Oka-no-Ba & 141.480 & 24.285
+
+16 & Izu-Torishima & 140.305 & 30.482
+
+
+
+1 & Tsurumi & 131.392 & 33.282 & 9 & Kikai & 130.308 & 30.792
+
+2 & Kuju & 131.246 & 33.085 & 10 & Kuchinoerabujima & 130.216 & 30.446
+
+3 & Aso & 131.085 & 32.885 & 11 & Kuchinoshima & 129.926 & 29.968
+
+4 & Unzen & 130.298 & 32.761 & 12 & Nakanoshima & 129.859 & 29.859
+
+5 & Kirishimayama & 130.862 & 31.938 & 13 & Suwanosejima & 129.715 & 29.642
+
+6 & Sumiyoshi-ike & 130.592 & 31.771 & 14 & Akusekijima & 129.593 & 29.466
+
+7 & Sakurajima & 130.658 & 31.579 & 15 & Yokoatejima & 128.996 & 28.799
+
+8 & Ibusuki & 130.569 & 31.219 & 16 & Iwotorishima & 128.228 & 27.869
+
+
+
+1 & Buldir & 175.908 & 52.346 & 20 & Amukta & -171.255 & 52.495
+
+2 & Kiska & 177.605 & 52.105 & 21 & Chugalak & -171.141 & 52.574
+
+3 & Segula & 178.136 & 52.015 & 22 & Yunaska W & -170.778 & 52.609
+
+4 & Davidof & 178.330 & 51.970 & 23 & Yunaska E & -170.635 & 52.640
+
+5 & Little Sitkin & 178.541 & 51.949 & 24 & Herbert & -170.117 & 52.750
+
+6 & Semisopochnoi & 179.586 & 51.936 & 25 & Carlisle & -170.059 & 52.892
+
+7 & Galeroi & -178.795 & 51.789 & 26 & Cleveland & -169.946 & 52.822
+
+8 & Tanaga & -178.143 & 51.884 & 27 & Tana & -169.792 & 52.841
+
+9 & Takawangha & -178.006 & 51.872 & 28 & Kagami & -169.720 & 52.973
+
+10 & Bobrof & -177.443 & 51.907 & 29 & Uliaga & -169.763 & 53.065
+
+11 & Kanaga & -177.164 & 51.924 & 30 & Vsevidof & -168.687 & 53.127
+
+12 & Moffett & -176.739 & 51.935 & 31 & Recheschnoi & -168.571 & 53.153
+
+13 & Adagdak & -176.586 & 51.990 & 32 & Okmok & -168.130 & 53.429
+
+14 & Great Sitkin & -176.132 & 52.078 & 33 & Bogoslof & -168.039 & 53.933
+
+15 & Kasatochi & -175.512 & 52.174 & 34 & Makushin & -166.928 & 53.887
+
+16 & Koniuji & -175.132 & 52.222 & 35 & Table Top & -166.681 & 53.969
+
+17 & Atka & -174.141 & 52.330 & 36 & Wide Bay & -166.618 & 53.964
+
+18 & Korovin & -174.159 & 52.379 & 37 & Akutan & -165.975 & 54.146
+
+19 & Seguam & -172.513 & 52.313 & 38 & Gilbert & -165.660 & 54.252
+
+
+
+1 & Westdahl & -164.650 & 54.517 & 23 & Kialagvik & -156.745 & 57.202
+
+2 & Fisher & -164.365 & 54.668 & 24 & Ugashik-Peulik & -156.379 & 57.746
+
+3 & Shishaldin & -163.970 & 54.756 & 25 & Ukinrek & -156.514 & 57.834
+
+4 & Isanotski & -163.730 & 54.767 & 26 & Unnamed & -155.411 & 57.870
+
+5 & Round Top & -163.594 & 54.802 & 27 & Martin & -155.356 & 58.169
+
+6 & Frosty & -162.836 & 55.067 & 28 & Mageik & -155.247 & 58.196
+
+7 & Dutton & -162.275 & 55.185 & 29 & Trident & -155.102 & 58.234
+
+8 & Emmons Lake & -162.076 & 55.341 & 30 & Novarupta & -155.159 & 58.265
+
+9 & Pavlof & -161.894 & 55.417 & 31 & Griggs & -155.106 & 58.351
+
+10 & Pavlof Sister & -161.854 & 55.457 & 32 & Katmai & -154.978 & 58.262
+
+11 & Amak & -163.147 & 55.418 & 33 & Snowy & -154.686 & 58.333
+
+12 & Dana & -161.213 & 55.629 & 34 & Denison & -154.451 & 58.417
+
+13 & Stepovak Bay 1 & -160.098 & 55.869 & 35 & Steller & -154.395 & 58.431
+
+14 & Stepovak Bay 2 & -160.041 & 55.913 & 36 & Kukak & -154.357 & 58.453
+
+15 & Stepovak Bay 3 & -160.000 & 55.933 & 37 & Kaguyak & -154.068 & 58.606
+
+16 & Stepovak Bay 4 & -159.956 & 55.952 & 38 & Fourpeaked & -153.673 & 58.770
+
+17 & Kupreanof & -159.792 & 56.014 & 39 & Douglas & -153.541 & 58.854
+
+18 & Vemiaminof & -159.390 & 56.195 & 40 & Augustine & -153.432 & 59.361
+
+19 & Black Peak & -158.788 & 56.557 & 41 & Iliamna & -153.089 & 60.032
+
+20 & Aniakchak & -158.151 & 56.885 & 42 & Redoubt & -152.763 & 60.491
+
+21 & Yantarini & -157.191 & 57.017 & 43 & Spurr & -152.250 & 61.301
+
+22 & Chiginakagak & -156.987 & 57.133 & 44 & Hayes & -152.411 & 61.641
+
+
+
+1 & Takana & -92.109 & 15.132 & 39 & Taburete & -88.533 & 13.439
+
+2 & Tajumulco & -91.904 & 15.043 & 40 & Tecapa & -88.494 & 13.492
+
+3 & Chicabal & -91.656 & 14.787 & 41 & Usulutan & -88.469 & 13.419
+
+4 & Santiaguito & -91.568 & 14.738 & 42 & El Tigre & -88.430 & 13.470
+
+5 & Santa Maria & -91.553 & 14.755 & 43 & Chinameca & -88.319 & 13.477
+
+6 & Almolonga & -91.519 & 14.799 & 44 & San Miguel & -88.271 & 13.432
+
+7 & San Pedro & -91.267 & 14.657 & 45 & Laguna Aramuaca & -88.105 & 13.430
+
+8 & Toliman & -91.186 & 14.621 & 46 & Conchagua & -87.845 & 13.275
+
+9 & Atitlan & -91.188 & 14.583 & 47 & Conchaguita & -87.768 & 13.231
+
+10 & Acatenango & -90.876 & 14.501 & 48 & Isla El Tigre & -87.639 & 13.273
+
+11 & Fuego & -90.881 & 14.474 & 49 & Isla Zacate Grande & -87.626 & 13.333
+
+12 & Agua & -90.742 & 14.466 & 50 & Cosiguina & -87.567 & 12.982
+
+13 & Pacaya & -90.602 & 14.382 & 51 & San Cristobal & -87.002 & 12.704
+
+14 & Tecuamburro & -90.400 & 14.153 & 52 & Telica & -86.842 & 12.605
+
+15 & Cuilapa-Barbarena & -90.400 & 14.330 & 53 & Rota & -86.750 & 12.550
+
+16 & Jumaytepeque & -90.271 & 14.339 & 54 & Cerro Negro & -86.702 & 12.508
+
+17 & Moruta & -90.095 & 14.027 & 55 & Las Pillas & -86.688 & 12.497
+
+18 & Flores & -89.995 & 14.307 & 56 & El Hoyo & -86.668 & 12.488
+
+19 & Tahual & -89.901 & 14.437 & 57 & Momotombo & -86.539 & 12.424
+
+20 & Cerro Santiago & -89.870 & 14.339 & 58 & Apoyeque & -86.341 & 12.244
+
+21 & Suchitan & -89.775 & 14.398 & 59 & Nejapa-Milaflores & -86.321 & 12.120
+
+22 & Ixtepeque & -89.683 & 14.425 & 60 & Masaya & -86.168 & 11.984
+
+23 & Ipala & -89.640 & 14.556 & 61 & Granada & -85.980 & 11.920
+
+24 & Chiquimula & -89.547 & 14.830 & 62 & Mombacho & -85.975 & 11.830
+
+25 & Quezaltepeque & -89.426 & 14.585 & 63 & Zepatera & -85.818 & 11.732
+
+26 & San Diego & -89.480 & 14.273 & 64 & Concepcion & -85.622 & 11.538
+
+27 & Chingo & -89.727 & 14.117 & 65 & Maderas & -85.512 & 11.445
+
+28 & Cerro Singuil & -89.631 & 14.054 & 66 & Orosi & -85.472 & 10.979
+
+29 & Apaneca Range & -89.787 & 13.891 & 67 & Rincon de la Vieja & -85.337 & 10.831
+
+30 & Santa Ana & -89.629 & 13.849 & 68 & Miravalles & -85.151 & 10.747
+
+31 & Izalco & -89.632 & 13.814 & 69 & Tenorio & -85.012 & 10.671
+
+32 & Coatepeque Caldera & -89.550 & 13.870 & 70 & Arenal & -84.703 & 10.463
+
+33 & San Salvador & -89.286 & 13.737 & 71 & Platanar & -84.366 & 10.299
+
+34 & Cerro Cinotepeque & -89.245 & 14.008 & 72 & Poas & -84.231 & 10.198
+
+35 & Guazapa & -89.114 & 13.902 & 73 & Barva & -84.106 & 10.134
+
+36 & Ilopango & -89.053 & 13.672 & 74 & Irazu & -83.846 & 9.981
+
+37 & San Vicente & -88.839 & 13.597 & 75 & Turialba & -83.763 & 10.020
+
+38 & Apastapeque & -88.770 & 13.720
+
+
+
+1 & Saba & -63.239 & 17.634 & 10 & Morne Trois Pitons & -61.325 & 15.370
+
+2 & Northern Centres & -62.997 & 17.508 & 11 & Morne Watt & -61.296 & 15.318
+
+3 & The Quill & -62.963 & 17.477 & 12 & Morne Plat Pays & -61.347 & 15.250
+
+4 & Liamuiga & -62.810 & 17.370 & 13 & Pelee & -61.167 & 14.810
+
+5 & Nevis & -62.582 & 17.156 & 14 & Qualibou & -61.047 & 13.838
+
+6 & Soufriere Hills & -62.176 & 16.711 & 15 & Soufriere St Vincent & -61.183 & 13.335
+
+7 & Soufriere Guadaloupe & -61.664 & 16.043 & 16 & Kick 'em Jenny & -61.631 & 12.299
+
+8 & Morne aux Diables & -61.432 & 15.615 & 17 & St Catherine & -61.675 & 12.162
+
+9 & Morne Diablotins & -61.398 & 15.504
+
+
+
+1 & San Diego & -74.961 & 5.650 & 19 & Quicocha & -78.364 & 0.308
+
+2 & Cerro Bravo & -75.292 & 5.091 & 20 & Imbabura & -78.180 & 0.258
+
+3 & Romeral & -75.365 & 5.212 & 21 & Soche & -77.577 & 0.552
+
+4 & Ruiz & -75.319 & 4.892 & 22 & Reventador & -77.658 & -0.081
+
+5 & Santa Isabel & -75.367 & 4.818 & 23 & Cayambe & -77.989 & 0.025
+
+6 & Nevada del Quindo & -75.389 & 4.715 & 24 & Mojanda & -78.275 & 0.123
+
+7 & Nevada del Tolima & -75.330 & 4.658 & 25 & Pulagua & -78.465 & 0.035
+
+8 & Machin & -75.390 & 4.487 & 26 & Guagua Pichinca & -78.613 & -0.170
+
+9 & Nevado del Huila & -76.026 & 2.932 & 27 & Atacazo & -78.623 & -0.356
+
+10 & Purace & -76.396 & 2.314 & 28 & Chacana & -78.252 & -0.369
+
+11 & Sotara & -76.590 & 2.106 & 29 & Sumaco & -77.627 & -0.540
+
+12 & Dona Juana & -76.936 & 1.500 & 30 & Antisana & -78.139 & -0.481
+
+13 & Galeras & -77.359 & 1.221 & 31 & Cotopaxi & -78.437 & -0.684
+
+14 & Azufral & -77.719 & 1.086 & 32 & Illiniza & -78.716 & -0.662
+
+15 & Cumbal & -77.885 & 0.956 & 33 & Quilotoa & -78.904 & -0.860
+
+16 & Cerro Negro & -77.934 & 0.819 & 34 & Tungurahua & -78.447 & -1.469
+
+17 & Chachimbiro & -78.290 & 0.469 & 35 & Chimborazo & -78.817 & -1.469
+
+18 & Cotacachi & -78.346 & 0.367 & 36 & Sangay & -78.341 & -2.005
+
+
+
+1 & Sara Sara & -73.446 & -15.329 & 32 & Seiracabur & -67.891 & -22.719
+
+2 & Nevados Firura & -72.640 & -15.237 & 33 & Licancabur & -67.884 & -22.834
+
+3 & Coropuna & -72.657 & -15.520 & 34 & Guayaques & -67.575 & -22.893
+
+4 & Andahua-Orcumpampa & -72.339 & -15.426 & 35 & Purico Complex & -67.746 & -22.993
+
+5 & Huambo & -72.133 & -15.837 & 36 & Colachi & -67.646 & -23.241
+
+6 & Sabancaya & -71.856 & -15.788 & 37 & Aramachi & -67.620 & -23.293
+
+7 & Cerro Nicholson & -71.754 & -16.262 & 38 & Lascar & -67.732 & -23.363
+
+8 & Nevado Chachani & -71.528 & -16.192 & 39 & Cerro Overo & -67.662 & -23.517
+
+9 & El Misti & -71.406 & -16.299 & 40 & Chiliques & -67.702 & -23.579
+
+10 & Ubinas & -70.898 & -16.346 & 41 & Cordon de Puntas Negras & -67.540 & -23.743
+
+11 & Huaynaputina & -70.854 & -16.614 & 42 & Caichinque & -67.739 & -23.949
+
+12 & Ticsani & -70.604 & -16.766 & 43 & Miniques & -67.758 & -23.819
+
+13 & Tutupaca & -70.359 & -17.027 & 44 & Cerro Tujle & -67.952 & -23.835
+
+14 & Yucamane & -70.199 & -17.183 & 45 & Tilocalar & -68.129 & -23.978
+
+15 & Nevados Casiri & -69.814 & -17.470 & 46 & El Negrillar & -68.250 & -24.180
+
+16 & Tacora & -69.772 & -17.721 & 47 & La Negrillar & -68.589 & -24.318
+
+17 & Tapaca & -69.508 & -18.097 & 48 & Pular & -68.056 & -24.191
+
+18 & Parinacota & -69.143 & -18.164 & 49 & Aracar & -67.791 & -24.288
+
+19 & Guallatiri & -69.092 & -18.420 & 50 & Socompa & -68.247 & -24.396
+
+20 & Tambo Quemado & -68.757 & -18.626 & 51 & Llullaillaco & -68.537 & -24.720
+
+21 & Isluga & -68.835 & -19.156 & 52 & Escorial & -68.366 & -25.081
+
+22 & Tata Sabaya & -68.523 & -19.136 & 53 & Lastarria & -68.504 & -25.168
+
+23 & Laguna Jaya Khota & -67.432 & -19.464 & 54 & Cordon del Azufre & -68.524 & -25.335
+
+24 & Irruputuncu & -68.558 & -20.734 & 55 & Cerro Bayo Gorbea & -68.589 & -25.413
+
+25 & Olca Paruma & -68.480 & -20.944 & 56 & Sierra Nevada & -68.578 & -26.481
+
+26 & Ollague & -68.182 & -21.305 & 57 & El Condor & -68.361 & -26.632
+
+27 & San Pedro & -68.407 & -21.884 & 58 & Peinado & -68.115 & -26.621
+
+28 & Cerro del Azufre & -68.240 & -21.785 & 59 & False Azufre & -68.363 & -26.806
+
+29 & Cerro Toconce & -68.079 & -22.188 & 60 & Nevados Ojos del Salado & -68.543 & -27.109
+
+30 & Cerros de Tocorpuri & -67.891 & -22.442 & 61 & El Solo & -68.713 & -27.105
+
+31 & Putana & -67.854 & -22.557 & 62 & Tipas & -68.559 & -27.195
+
+
+
+1 & Tupungatito & -69.797 & -33.425 & 31 & Caburgua-Holloemolle & -71.826 & -39.201
+
+2 & San Jose & -69.901 & -33.785 & 32 & Villarica & -71.940 & -39.420
+
+3 & Maipo & -69.834 & -34.165 & 33 & Quetrupillan & -71.717 & -39.499
+
+4 & Palomo & -70.297 & -34.611 & 34 & Lanin & -71.503 & -39.637
+
+5 & Caldera del Ateul & -70.003 & -34.594 & 35 & Huanquihue & -71.580 & -39.887
+
+6 & Tinguiririca & -70.354 & -34.817 & 36 & Mocho-Choshuenco & -72.028 & -39.930
+
+7 & Sordo Lucas & -70.455 & -34.992 & 37 & Carran-Los Venados & -72.059 & -40.361
+
+8 & Infiernillo & -69.901 & -35.123 & 38 & Puyuhue-Cordon Caulle & -72.112 & -40.583
+
+9 & Risco Plateado & -69.993 & -34.919 & 39 & Antillanca & -72.156 & -40.777
+
+10 & Planchon-Peteroa & -70.574 & -35.240 & 40 & Puntiguido-Cordon Cenizos & -72.267 & -40.973
+
+11 & Calabozos & -70.500 & -35.567 & 41 & Osorno & -72.497 & -41.105
+
+12 & Descabezado Grande & -70.752 & -35.588 & 42 & Cayute-La Viguera & -72.282 & -41.250
+
+13 & Cerro Azul & -70.764 & -35.657 & 43 & Calbuco & -72.609 & -41.330
+
+14 & Los Hornitos & -70.810 & -35.729 & 44 & Yate & -72.399 & -41.759
+
+15 & San Pedro-Pellado & -70.852 & -35.993 & 45 & Hornopiren & -72.433 & -41.880
+
+16 & Laguna del Maule & -70.492 & -36.058 & 46 & Apagado & -72.589 & -41.884
+
+17 & Nevado de Longavi & -71.165 & -36.199 & 47 & Huequi & -72.583 & -42.382
+
+18 & Loma Blancas & -71.010 & -36.290 & 48 & Machinmahuida & -72.446 & -42.799
+
+19 & Volcan Resago & -70.920 & -36.450 & 49 & Chaiten & -72.656 & -42.836
+
+20 & Nevados de Chillan & -71.378 & -36.868 & 50 & Corcovado & -72.792 & -43.193
+
+21 & Antuco & -71.351 & -37.410 & 51 & Yanteles & -72.811 & -43.497
+
+22 & Copahue & -71.173 & -37.863 & 52 & Palena Volcanic Group & -72.488 & -43.796
+
+23 & Callaqui & -71.449 & -37.927 & 53 & Melimoyo & -72.869 & -44.074
+
+24 & Laguna Marinaqui & -71.162 & -38.256 & 54 & Puyuhuapi & -72.544 & -44.307
+
+25 & Tralihue & -70.900 & -38.510 & 55 & Mentolat & -73.078 & -44.693
+
+26 & Tolhuaca & -71.645 & -38.310 & 56 & Cay & -72.985 & -45.059
+
+27 & Lonquimay & -71.590 & -38.379 & 57 & Maca & -73.170 & -45.106
+
+28 & Sierra Nevada & -71.563 & -38.582 & 58 & Meulin & -73.049 & -45.205
+
+29 & Llaima & -71.730 & -38.697 & 59 & Cerro Hudson & -72.947 & -45.929
+
+30 & Sollipulli & -71.521 & -38.975
+
+
+
+1 & Protector Shoal & -28.080 & -55.921 & 6 & Saunders & -26.464 & -57.780
+
+2 & Zavodovski & -27.582 & -56.297 & 7 & Montagu & -26.361 & -58.423
+
+3 & Leskov & -28.130 & -56.670 & 8 & Bristol & -26.589 & -59.062
+
+4 & Hodson & -27.177 & -56.712 & 9 & Thule Islands & -27.361 & -59.442
+
+5 & Candlemas & -26.706 & -57.084
+
+
+
+1 & Ruapehu & 175.564 & -39.281 & 22 & Kibblewhite & 179.264 & -34.577
+
+2 & Ngaruhue & 175.632 & -39.157 & 23 & Sonne & 179.579 & -34.078
+
+3 & Tongariro & 175.651 & -39.137 & 24 & Ngatoroirangi & 179.827 & -33.732
+
+4 & Taupo & 176.000 & -38.820 & 25 & Cole & 179.954 & -33.414
+
+5 & Maroa & 176.080 & -38.420 & 26 & Kuiwai & -179.954 & -33.162
+
+6 & Reporoa & 176.330 & -38.420 & 27 & Haungaroa & -179.622 & -32.619
+
+7 & Tarawera & 176.510 & -38.225 & 28 & Oliver-Speight & -179.588 & -32.388
+
+8 & Okataina & 176.501 & -38.117 & 29 & Wright & -179.180 & -31.851
+
+9 & White Island & 177.183 & -37.521 & 30 & Havre Seamount & -179.031 & -31.080
+
+10 & Clark & 177.838 & -36.449 & 31 & Curtis Island & -178.556 & -30.543
+
+11 & Tangaroa & 178.028 & -36.322 & 32 & Macauley & -178.436 & -30.231
+
+12 & Rumble IV & 178.050 & -36.131 & 33 & Giggenbach & -178.714 & -30.038
+
+13 & Rumble V & 178.197 & -36.143 & 34 & Raoul Island & -177.920 & -29.265
+
+14 & Rumble III & 178.478 & -35.746 & 35 & Hinatapeka & -177.826 & -28.832
+
+15 & Rumble II East & 178.652 & -35.420 & 36 & Volcano OP & -177.690 & -28.224
+
+16 & Rumble II West & 178.526 & -35.355 & 37 & Putoto & -177.617 & -27.861
+
+17 & Thompson & 178.865 & -35.287 & 38 & Volcano Q & -177.504 & -27.473
+
+18 & Silent II East & 178.978 & -35.211 & 39 & Gamble & -177.407 & -27.206
+
+19 & Silent II West & 178.902 & -35.171 & 40 & Rakahore & -177.398 & -26.810
+
+20 & Healy & 178.973 & -35.005 & 41 & Hinepuia & -177.266 & -26.391
+
+21 & Brothers & 179.075 & -34.875 & 42 & Monowai & -177.188 & -25.887
+
+
+
+
+1 & Volcano 19 & -177.018 & -24.802 & 23 & Tonga Hunga-Hunga Ha'apai & -175.391 & -20.546
+
+2 & Volcano 18 & -176.924 & -24.582 & 24 & Fonuafo'ou & -175.420 & -20.320
+
+3 & Volcano 16 & -176.849 & -24.177 & 25 & Volcano C & -175.162 & -20.126
+
+4 & Volcano 15 & -176.779 & -23.897 & 26 & Tofua & -175.071 & -19.732
+
+5 & Volcano 2 & -176.666 & -23.565 & 27 & Kao & -175.014 & -19.670
+
+6 & Volcano 8S & -176.405 & -22.976 & 28 & Volcano D & -174.938 & -19.420
+
+7 & Volcano 8 & -176.416 & -22.841 & 29 & Methis Shoal & -174.852 & -19.180
+
+8 & Volcano 7 & -176.388 & -22.707 & 30 & Home Reef & -174.775 & -18.992
+
+9 & Volcano 7B & -176.444 & -22.553 & 31 & Late & -174.648 & -18.806
+
+10 & Volcano 6.5 & -176.346 & -22.456 & 32 & Volcano F & -174.365 & -18.326
+
+11 & Volcano 4 SE & -176.187 & -22.191 & 33 & Toku & -174.180 & -18.162
+
+12 & Volcano 4 S & -176.243 & -22.146 & 34 & Fonualei & -174.317 & -18.023
+
+13 & Volcano 4 & -176.299 & -22.029 & 35 & Volcano H & -174.250 & -17.872
+
+14 & Volcano  5 SW & -176.094 & -22.085 & 36 & Volcano I & -174.153 & -17.548
+
+15 & Volcano 5a N & -176.032 & -22.026 & 37 & Volcano J & -173.970 & -17.251
+
+16 & Volcano 3 & -175.930 & -21.831 & 38 & Volcano M & -173.822 & -16.841
+
+17 & Volcano 2.5 & -175.750 & -21.378 & 39 & Volcano K & -173.763 & -16.550
+
+18 & Unnamed & -175.650 & -21.338 & 40 & Volcano L & -173.899 & -16.221
+
+19 & Volcano 1 & -175.750 & -21.150 & 41 & Tafahi & -173.747 & -15.854
+
+20 & Volcano A & -175.550 & -20.853 & 42 & Curacoa & -173.670 & -15.621
+
+21 & Volcano B-S & -175.450 & -20.700 & 43 & Volcano N & -173.693 & -15.572
+
+22 & Volcano B-W & -175.531 & -20.581
+
+
+
+1 & Eastern Gemini & 170.282 & -20.987 & 9 & Lopevi & 168.341 & -16.509
+
+2 & Aneityum & 169.788 & -20.188 & 10 & Ambrym & 168.128 & -16.249
+
+3 & Yasur & 169.447 & -19.529 & 11 & Ambae & 167.830 & -15.391
+
+4 & Traitor's Head & 169.234 & -18.755 & 12 & Mere Lava & 168.040 & -14.460
+
+5 & North Vate & 168.359 & -17.460 & 13 & Gaua & 167.518 & -14.285
+
+6 & NE Shepherd Island & 168.592 & -16.992 & 14 & Suretamatai & 167.470 & -13.800
+
+7 & Kuwae & 168.536 & -16.829 & 15 & Motlav & 167.670 & -13.671
+
+8 & Epi & 168.370 & -16.680 & 16 & Ureparapara & 167.338 & -13.538
+
+
+
+1 & Nikko (NI) & 142.326 & 23.078 & 20 & Agrigan (AG)$^{[1]}$ & 145.667 & 18.750
+
+2 & Ichiyo (IC) & 142.533 & 22.958 & 21 & Pagan (PA)$^{[1]}$ & 145.750 & 18.120
+
+3 & Syoyo (SY) & 142.983 & 22.475 & 22 & Alamagan (AL)$^{[1]}$ & 145.850 & 17.600
+
+4 & S Fukuyama (SF) & 143.096 & 22.355 & 23 & Guguan (GU)$^{[1]}$ & 145.867 & 17.300
+
+5 & Fukujin (FU) & 143.458 & 21.942 & 24 & Zealandia (ZE)$^{[2]}$ & 145.800 & 16.883
+
+6 & Kasuga 1 (K1) & 143.708 & 21.777 & 25 & Sarigan (SA)$^{[1]}$ & 145.783 & 16.700
+
+7 & NW Eifuku (NWE) & 144.043 & 21.488 & 26 & S Sarigan (SS)$^{[2]}$ & 145.775 & 16.588
+
+8 & Eifuku (EI) & 144.145 & 21.415 & 27 & Anatahan (AN)$^{[1]}$ & 145.667 & 16.333
+
+9 & Daikoku (DA) & 144.194 & 21.324 & 28 & E. Diamante (ED)$^{[2]}$ & 145.658 & 15.917
+
+10 & SE Daikoku  (SED) & 144.417 & 21.208 & 29 & N Ruby 2 (NR)$^{[2]}$ & 145.617 & 15.733
+
+11 & S Daikoku (SD) & 144.525 & 21.023 & 30 & Ruby (RU)$^{[1]}$ & 145.573 & 15.604
+
+12 & Chamorro (CH) & 144.704 & 20.810 & 31 & W Saipan (WS)$^{[2]}$ & 145.450 & 15.300
+
+13 & Farallone de Parajos (FP)$^{[1]}$ & 144.883 & 20.530 & 32 & W Tinian (WT)$^{[2]}$ & 145.417 & 15.083
+
+14 & Ahyi (AH)$^{[1]}$ & 145.029 & 20.438 & 33 & Esmeralda (ES)$^{[1]}$ & 145.246 & 14.958
+
+15 & Supply Reef (SR)$^{[2]}$ & 145.100 & 20.133 & 34 & NW Rota 3 (NR3) & 144.996 & 14.596
+
+16 & Maug (MA)$^{[1]}$ & 145.222 & 20.021 & 35 & W Rota (WR) & 144.833 & 14.325
+
+17 & Asuncion (AS)$^{[1]}$ & 145.453 & 19.700 & 36 & NW Guam (NWG) & 144.638 & 14.017
+
+18 & Cheref (CE)$^{[2]}$ & 145.467 & 19.408 & 37 & Tracey (TR) & 144.411 & 13.633
+
+19 & Poyo (PO)$^{[2]}$ & 145.517 & 19.223
+
+
+
+
+
+
+1 & Krakatau (Krk) & 105.423 & -6.101 & 24 & Sumbing (Smb) & 110.074 & -7.382
+
+2 & Pulosari (Pls) & 105.978 & -6.342 & 25 & Ungaran (Ugr) & 110.344 & -7.189
+
+3 & Parakasak (Pks)& 105.981 & -6.248 & 26 & Telomoyo (Tlm) & 110.403 & -7.360
+
+4 & Karang (Krg) & 106.047 & -6.272 & 27 & Merbabu (Mbb) & 110.439 & -7.453
+
+5 & Endut (End) & 106.362 & -6.620 & 28 & Merapi (Mrp) & 110.447 & -7.539
+
+6 & Perbakti (PG) & 106.693 & -6.751 & 29 & Lawu (Lwu) & 111.193 & -7.626
+
+7 & Salak (Slk) & 106.732 & -6.708 & 30 & Wilis (Wls) & 111.760 & -7.812
+
+8 & Gede (Gde) & 106.985 & -6.791 & 31 & Kelud (Klt) & 112.308 & -7.936
+
+9 & Patuha (Pth) & 107.406 & -7.176 & 32 & Kawi (KB) & 112.443 & -7.921
+
+10 & Tangkuban Perahu (TP) & 107.607 & -6.759 & 33 & Arjuna-Welirang (AW) & 112.589 & -7.765
+
+11 & Malabar (Mlb) & 107.622 & -7.136 & 34 & Penanggungan (Png) & 112.620 & -7.615
+
+12 & Wayang-Windu (WW) & 107.631 & -7.224 & 35 & Semeru (Smr) & 112.922 & -8.109
+
+13 & Kendang (Kdg) & 107.720 & -7.230 & 36 & Tengger Caldera (Tgg) & 112.951 & -7.950
+
+14 & Papandayan (Ppd) & 107.729 & -7.321 & 37 & Lamongan (Lmg) & 113.340 & -7.981
+
+15 & Kamojang (Kmj) & 107.800 & -7.125 & 38 & Argapura (IA) & 113.595 & -7.976
+
+16 & Guntur (Gtr) & 107.842 & -7.146 & 39 & Raung (Rag) & 114.055 & -8.120
+
+17 & Tampomas (Tmp) & 107.962 & -6.763 & 40 & Ijen (Ijn) & 114.242 & -8.057
+
+18 & Talagabodas (Tlg) & 108.059 & -7.225 & 41 & Bratan (Brt) & 115.139 & -8.262
+
+19 & Galunggung (Glg) & 108.059 & -7.248 & 42 & Batur (Btr) & 115.377 & -8.238
+
+20 & Ciremai (Crm) & 108.408 & -6.895 & 43 & Agung (Agg) & 115.507 & -8.343
+
+21 & Slamet (Slm) & 109.216 & -7.242 & 44 & Rinjani (Rjn) & 116.413 & -8.409
+
+22 & Dieng Vol. Complex (Dng) & 109.902 & -7.224 & 45 & Nangi (Nng) & 116.561 & -8.413
+
+23 & Sundoro (Sdr) & 109.996 & -7.3
+
+
+
+1 & Pulau We (Pwe) & 95.284 & 5.874 & 21 & Kunyit (Kny) & 101.483 & -2.274
+
+2 & Seulawah Agam (Sag) & 95.658 & 5.448 & 22 & Hutapanjang (Htp) & 101.600 & -2.330
+
+3 & Peuet Sague (Psa) & 96.329 & 4.914 & 23 & Sumbing (Smb) & 101.728 & -2.414
+
+4 & Geureudong (Geu) & 96.820 & 4.813 & 24 & Tungkat (Tgk) & 102.025 & -2.480
+
+5 & Bur Ni Telong (Bnt) & 96.821 & 4.769 & 25 & Lumut (Lum) & 102.207 & -3.214
+
+6 & Kembar (Kbr) & 97.664 & 3.850 & 26 & Gedanghululai (Gdh) & 102.239 & -3.245
+
+7 & Sibayak (Sby) & 98.501 & 3.248 & 27 & Daun (Bda) & 102.370 & -3.380
+
+8 & Sinabung (Snb)& 98.392 & 3.170 & 28 & Kaba (Kba) & 102.627 & -3.515
+
+9 & Pusuk Bukit (PB) & 98.653 & 2.602 & 29 & Isauisau (Isa) & 103.624 & -3.968
+
+10 & Toba (Tob) & 98.830 & 2.580 & 30 & Dempo (Dmp) & 103.124 & -4.016
+
+11 & Andiantorping (Adt) & 98.968 & 1.961 & 31 & Lumut-Balai (Blb) & 103.621 & -4.224
+
+12 & Sibualbuali (Sbl) & 99.255 & 1.556 & 32 & Besar 1 (Bs1) & 103.365 & -4.243
+
+13 & Lubuk Raya (Lbr) & 99.209 & 1.478 & 33 & Patah (Pta) & 103.300 & -4.270
+
+14 & Sorik Merapi (Srm)& 99.541 & 0.684 & 34 & Besar 2 (Bs2) & 103.679 & -4.442
+
+15 & Sarik-Gajah (Srg) & 100.200 & 0.080 & 35 & Ranau (Rna) & 103.927 & -4.855
+
+16 & Talamau (Tlm) & 99.980 & 0.079 & 36 & Seminung (Smu) & 103.960 & -4.912
+
+17 & Marapi (Mrp) & 100.473 & -0.381 & 37 & Sekincau (Skc) & 104.314 & -5.088
+
+18 & Tandikat-Singgalang (Tds) & 100.331 & -0.390 & 38 & Suoh (Suo) & 104.291 & -5.248
+
+19 & Talang (Tlg) & 100.679 & -0.978 & 39 & Krakatau (Krk) & 105.423 & -6.101
+
+20 & Kerinci (Krc) & 101.264 & -1.697

@@ -12,7 +12,7 @@ if [ ! -w $(pwd) ]; then
   exit
 fi
 
-GMTREQ="6.3"
+GMTREQ="6.4"
 GAWKREQ="5"
 
 CCOMPILER="gcc"
@@ -368,34 +368,6 @@ function brew_packages() {
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
 
-  # # Install gmt 6.1.1 instead of GMT 6.2 until tectoplot is stable with 6.2
-  # if command -v gmt --version; then
-	# GMTVERSION=$(gmt --version)
-	# if brew list --versions gmt; then
-	# 	homebrew_gmt=$(brew list --versions gmt)
-	# 	if [[ $homebrew_gmt == "gmt 6.2"* ]]; then
-	# 		read -r -p "GMT 6.2 is already installed with homebrew. Uninstall? Default=yes. [y|n] " douninstall
-	# 		case $douninstall in
-	# 		  Y|y|Yy|yY|yes|"")
-	# 			brew uninstall gmt
-	# 			;;
-	# 		  N|n|Nn|no)
-	# 		  echo exiting
-	# 			break
-	# 			;;
-	# 		  *)
-	# 			echo "Response $douninstall not recognized. Exiting"
-	# 			exit 1
-	# 			;;
-	# 		esac
-	# 	fi
-	# fi
-  # fi
-
-  # echo "Installing GMT 6.1.1_6 using homebrew"
-  # # This is the formula for GMT 6.1.1_6
-  # curl -L "https://raw.githubusercontent.com/Homebrew/homebrew-core/1179e1a8bfa9b8f985ee6f004a1ce65d3cba9a85/Formula/gmt.rb" > gmt.rb && HOMEBREW_NO_AUTO_UPDATE=1 brew install gmt.rb && rm -f gmt.rb
-
   echo "Installing other packages"
   for tap in ${tap_list}; do
     echo "Checking for tap > ${tap}"
@@ -512,15 +484,15 @@ function miniconda_deps() {
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
       *)
         echo "Unrecognized system type ${OSTYPE}. Only installing non-system-specific packages."
-        conda install -y python=3.9 git gmt=6.3 gawk ghostscript mupdf -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf -c conda-forge
       ;;
     esac
 

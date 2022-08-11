@@ -2,6 +2,7 @@
 #
 TESTBOXCMD="-F+p+c0"
 
+shopt -s nullglob
 
 # Rules for legend items:
 # If items are flexible then their parameters must be specifiable in advance
@@ -1033,14 +1034,16 @@ do
       if [[ "${2}" == "dropbox" || "${2}" == "Dropbox" ]]; then
         shift
         echo "Looking up index of ZIP files..."
-        if curl "https://dl.dropboxusercontent.com/s/d08iy67u8avs2xg/ziplinks.txt" -o ziplinks.txt; then
+        if curl "https://dl.dropboxusercontent.com/s/t8atcpw9dhkamtn/ziplinks_new.txt" | gawk '(substr($1,1,1) != "#"){print}' > ziplinks.txt; then
           while read p; do
-            dropbox_urls+=("${p}")
+              echo "Adding url ${p} to download list"
+              dropbox_urls+=("${p}")
           done < ziplinks.txt
         else
           echo "[-getdata dropbox]: Can't download link index file ziplinks.txt from Dropbox"
           exit 1
         fi
+        exit
         echo "Found the following URLs: ${dropbox_urls[@]}"
 
         for this_zip in ${dropbox_urls[@]}; do
@@ -2921,12 +2924,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -e:            execute custom script
-Usage: -e [script.sh]
+Usage: -e [scriptfile] [arg1] [...]
 
   Execute a script via bash sourcing (. script.sh). The script will run in the
   current tectoplot environment and will have access to its variables.
   Please be careful about running scripts in this fashion as there are no checks
   on whether the script is safe.
+
+  All following non-flag arguments are passed to the script as arguments.
 
 --------------------------------------------------------------------------------
 EOF
@@ -2934,6 +2939,12 @@ shift && continue
 fi
     EXECUTEFILE=$(abs_path $2)
     shift
+
+    while ! arg_is_flag $2; do
+      EXEC_ARGS+=("$2")
+      shift
+    done
+
     plots+=("execute")
     ;;
 
@@ -3115,6 +3126,7 @@ Usage: -faultgrid gridfile [[options]]
   and adds the faults to any profiles.
 
   Options:
+  inv                          invert the sign of depth
   res [resolution]             sample spacing for -mprof, e.g. 5k for Slab2
   int [number]                 contour interval
   skip [number]                only label contours a multiple of this number
@@ -3143,9 +3155,20 @@ fi
   FAULTGRIDFILERES[$faultgridnum]="1k"
   FAULTGRIDFILECONTOUR[$faultgridnum]=1
   FAULTGRIDFILECONTOURSKIP[$faultgridnum]=1
+  FAULTGRIDFILEMUL[$faultgridnum]=1  # Multiplication factor
 
   while ! arg_is_flag $2; do
     case $2 in
+    mul)
+      shift
+      if arg_is_float $2; then
+        FAULTGRIDFILEMUL[$faultgridnum]=$2
+        shift
+      else
+        echo "[-faultgrid]: mul option requires number argument"
+        exit 1
+      fi
+      ;;
     int)
       shift
       if arg_is_positive_float $2; then
@@ -5770,7 +5793,7 @@ fi
           plots+=("polygonaoi")
         ;;
         fe)
-          info_msg "[-pg]: Using Flinn-Engdahl polygons from -feg or -fes"
+          info_msg "[-pg]: Using Flinn-Engdahl polygons from -fe"
           POLYGONAOI=$(abs_path ${TMP}"fe_region.txt")
           polygonselectflag=1
           fixselectpolygonsflag=1
@@ -6315,9 +6338,9 @@ Option 6: Rectangular area centered on lat/lon coordinate in flexible format.
 Option 7: Same as option 6 but lonlat format.
 -r lonlon [lon] [lat] [[mapwidth]]
 
-Option 8: Flinn-Engdahl geographic or seismic region code
--r feg IDnum(1-757)
--r fes IDnum(1-50)
+Option 8: Flinn-Engdahl geographic or seismic region code(s)
+-r feg IDnum(1-757) ...
+-r fes IDnum(1-50) ...
 
 --------------------------------------------------------------------------------
 EOF
@@ -6328,21 +6351,27 @@ fi
       # If first argument isn't a number, it is interpreted as a global extent (g), an earthquake event, an XY file, a raster file, or finally as a country code.
 # Option 1: Global extent from -180:180 longitude
 
-
       # Flinn-Engdahl region, geographic
       if [[ "${2}" == "feg" ]]; then
         shift
         while arg_is_positive_float "${2}"; do
           FE_REGION_ID="${2}"
           shift
-          cat ${FE_REGION_POLY}"flinn_engdahl_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+          if [[ -s ${FE_REGION_POLY}"flinn_engdahl_${FE_REGION_ID}.txt" ]]; then
+            cat ${FE_REGION_POLY}"flinn_engdahl_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+          fi
         done
 
+      if [[ -s ${TMP}fe_region.txt ]]; then
         FE_RANGE=($(xy_range ${TMP}fe_region.txt))
         MINLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $1 } else { print $1-1 } }')
         MAXLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $2 } else { print $2+1 } }')
         MINLAT=$(echo "${FE_RANGE[2]}" | gawk '{print ($1-1>-90)?$1-1:-90}')
         MAXLAT=$(echo "${FE_RANGE[3]}" | gawk '{print ($1+1<90)?$1+1:90}')
+      else
+        echo "[-r]: Flinn-Engdahl geographic region(s) not recognized."
+        exit 1
+      fi
 
         if [[ "${2}" == show ]]; then
           plotselectedfeflag=1
@@ -6355,14 +6384,21 @@ fi
         while arg_is_positive_float "${2}"; do
           FE_REGION_ID="${2}"
           shift
-          cat ${FE_SEISMIC_POLY}"flinn_engdahl_combined_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+          if [[ -s ${FE_SEISMIC_POLY}"flinn_engdahl_combined_${FE_REGION_ID}.txt" ]]; then
+            cat ${FE_SEISMIC_POLY}"flinn_engdahl_combined_${FE_REGION_ID}.txt" >> ${TMP}fe_region.txt
+          fi
         done
 
-        FE_RANGE=($(xy_range ${TMP}fe_region.txt))
-        MINLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $1 } else { print $1-1 } }')
-        MAXLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $2 } else { print $2+1 } }')
-        MINLAT=$(echo "${FE_RANGE[2]}" | gawk '{print ($1-1>-90)?$1-1:-90}')
-        MAXLAT=$(echo "${FE_RANGE[3]}" | gawk '{print ($1+1<90)?$1+1:90}')
+        if [[ -s ${TMP}fe_region.txt ]]; then
+          FE_RANGE=($(xy_range ${TMP}fe_region.txt))
+          MINLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $1 } else { print $1-1 } }')
+          MAXLON=$(echo "${FE_RANGE[0]} ${FE_RANGE[1]}" | gawk '{ if ($2-$1 > 358) { print $2 } else { print $2+1 } }')
+          MINLAT=$(echo "${FE_RANGE[2]}" | gawk '{print ($1-1>-90)?$1-1:-90}')
+          MAXLAT=$(echo "${FE_RANGE[3]}" | gawk '{print ($1+1<90)?$1+1:90}')
+        else
+          echo "[-r]: Flinn-Engdahl seismic region(s) not recognized."
+          exit 1
+        fi
 
         if [[ "${2}" == show ]]; then
           plotselectedfeflag=1
@@ -8225,6 +8261,21 @@ fi
       plots+=("slipvecs")
     fi
     ;;
+
+  -tnoload)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tnoload:        do not attempt to load saved colored relief image
+Usage: -tnoload
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  toponoloadflag=1
+
+  ;;
 
   -t) # -t: visualize topography
   TMIN=-11000 # Challenger Deep
@@ -14874,7 +14925,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # Print 8 fields in case we are declustering
     if [[ $SCALEEQS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
       [[ -e ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
-      gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+      gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG 'BEGIN{OFMT="%f"} {print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
     fi
   fi
 
@@ -17254,7 +17305,7 @@ EOF
 
       execute)
         info_msg "Executing script $EXECUTEFILE. Be Careful!"
-        source "${EXECUTEFILE}"
+        source "${EXECUTEFILE}" ${EXEC_ARGS[@]}
         ;;
 
       extragps)
@@ -18578,7 +18629,7 @@ EOF
 
           if [[ $plotfaultgridflag -eq 1 ]]; then
             for thisfault in $(seq 1 $faultgridnum); do
-              echo "T ${FAULTGRIDFILES[$thisfault]} -1 ${FAULTGRIDFILERES[$thisfault]} -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+              echo "T ${FAULTGRIDFILES[$thisfault]} ${FAULTGRIDFILEMUL[$thisfault]} ${FAULTGRIDFILERES[$thisfault]} -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
             done
           fi
 
@@ -19439,41 +19490,47 @@ EOF
      # fi
 
 
-         if [[ $FILLGRIDNANS_CLOSEST -eq 1 ]]; then
-           info_msg "Filling topo grid file NaN values with nearest non-NaN value"
-           gmt grdfill ${TOPOGRAPHY_DATA} -An -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
-           TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
-         elif [[ $FILLGRIDNANS_SPLINE -eq 1 ]]; then
-           info_msg "Filling topo grid file NaN values using spline with tension $FILLGRIDNANS_SPLINE_TENSION"
-           gmt grdfill ${TOPOGRAPHY_DATA} -As${FILLGRIDNANS_SPLINE_TENSION} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
-           TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
-         elif [[ $FILLGRIDNANS_VALUE -eq 1 ]]; then
-           info_msg "Filling topo grid file NaN values with constant value ${FILLGRIDVALUE}"
-           gmt grdfill ${TOPOGRAPHY_DATA} -Ac${FILLGRIDVALUE} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
-           TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
-         fi
+        if [[ $FILLGRIDNANS_CLOSEST -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values with nearest non-NaN value"
+         gmt grdfill ${TOPOGRAPHY_DATA} -An -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+        elif [[ $FILLGRIDNANS_SPLINE -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values using spline with tension $FILLGRIDNANS_SPLINE_TENSION"
+         gmt grdfill ${TOPOGRAPHY_DATA} -As${FILLGRIDNANS_SPLINE_TENSION} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+        elif [[ $FILLGRIDNANS_VALUE -eq 1 ]]; then
+         info_msg "Filling topo grid file NaN values with constant value ${FILLGRIDVALUE}"
+         gmt grdfill ${TOPOGRAPHY_DATA} -Ac${FILLGRIDVALUE} -G${F_TOPO}dem_no_nan.tif=gd:GTiff ${VERBOSE}
+         TOPOGRAPHY_DATA=${F_TOPO}dem_no_nan.tif
+        fi
 
-         if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
-           info_msg "[-tsmooth]: Smoothing DEM"
-           # MODIFIED DEM DATA FILE
-           gmt grdfilter -D2 -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
-           TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.tif
-         fi
+        if [[ $DEM_SMOOTH_FLAG -eq 1 ]]; then
+         info_msg "[-tsmooth]: Smoothing DEM"
+         # MODIFIED DEM DATA FILE
+         gmt grdfilter -D2 -Fg${DEM_SMOOTH_RAD} ${TOPOGRAPHY_DATA} -G${F_TOPO}dem_smooth.tif=gd:GTiff
+         TOPOGRAPHY_DATA=${F_TOPO}dem_smooth.tif
+        fi
 
         plottedtopoflag=1
         if [[ $fasttopoflag -eq 0 ]]; then   # If we are doing more complex topo visualization
+
+          # Look for the saved final image
+
+          info_msg "Looking for topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif"
 
           # If we are loading a saved image for a region, do so.
           if [[ $tloadflag -eq 1 && $usingcustomregionflag -eq 1 ]]; then
             COLORED_RELIEF=${SAVEDTOPODIR}${CUSTOMREGIONID}.tif
 
             if [[ ! -s ${COLORED_RELIEF} ]]; then
-              info_msg "Saved topo for region ${CUSTOMREGIONID} (${COLORED_RELIF}) does not exist. Not plotting topo."
+              info_msg "Saved topo for region ${CUSTOMREGIONID} (${COLORED_RELIEF}) does not exist. Not plotting topo."
               dontplottopoflag=1
             fi
           # Otherwise, calculate the colored relief.
+          elif [[ $toponoloadflag -ne 1 && -s ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif ]]; then
+            info_msg "Found saved image... using"
+            COLORED_RELIEF=${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif
           else
-
             # If a topography dataset exists, then...
             if [[ -s ${TOPOGRAPHY_DATA} ]]; then
 
@@ -19917,8 +19974,6 @@ EOF
                     cp ${F_TOPO}image_out.tif ${F_TOPO}image.tif
                   fi
 
-
-
       # This is the problematic command that overly brightens the image sometimes
       #              histogram_rescale_stretch ${F_TOPO}image_pre.tif 1 180 1 254 ${SENTINEL_GAMMA} ${F_TOPO}image.tif
       # Causes major clipping of white areas in original image.
@@ -19950,7 +20005,10 @@ EOF
               COLORED_RELIEF=$INTENSITY_RELIEF
             fi
             # BATHY=${TOPOGRAPHY_DATA}
+            echo "Saving finished tile to ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif"
+            cp ${COLORED_RELIEF} ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif
           fi
+
         fi  # fasttopoflag = 0
 
         # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated

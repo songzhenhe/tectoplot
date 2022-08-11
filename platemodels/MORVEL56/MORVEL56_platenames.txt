@@ -1,0 +1,56 @@
+AS Aegean Sea	
+AM Amur
+AP Altiplano
+AT Anatolia
+AN Antarctic
+AR Arabia
+AU Australia
+BR Bahnoral Reef
+BS Banda Sea
+BH Birds Head
+BU Burma
+CP Capricorn
+CA Caribbean
+CL Caroline
+CO Cocos
+CR Conway Reef
+EA Easter
+EU Eurasia
+FT Futuna
+GP Galapagos
+IN India
+JZ Juan Fernandez
+JF Juan de Fuca
+KE Kermadec
+LW Lwandle
+MQ Macquarie
+MN Manus
+MO Maoke
+MA Mariana
+MS Molucca Sea
+NZ Nazca
+NA N. America
+NH New Hebrides
+NI Niuafo'ou
+ND North Andes
+NB North Bismarck
+NU Nubia
+OK Okhotsk
+ON Okinawa
+PA Pacific
+PM Panama
+PS Philippine Sea
+RI Rivera
+SW Sandwich
+SC Scotia
+SL Shetland
+SS Solomon Sea
+SM Somalia
+SA S. America
+SB S. Bismarck
+SU Sundaland
+SR Sur
+TI Timor
+TO Tonga
+WL Woodlark
+YZ Yangtze

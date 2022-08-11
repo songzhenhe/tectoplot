@@ -793,7 +793,7 @@ function tectoplot_plot_gis() {
 
     AFLAG=-A${GRIDCONTOURINT[${cugcn}]}
     CFLAG=-C${GRIDCONTOURINT[$cugcn]}
-    SFLAG=-S${GRIDCONTOURSMOOTH[$cugcn]}
+    [[ ! -z ${GRIDCONTOURSMOOTH[$cugcn]} ]] && SFLAG=-S${GRIDCONTOURSMOOTH[$cugcn]} || SFLAG=""
 
     # for i in ${CONTOURGRIDVARS[@]}; do
     #   if [[ ${i:0:2} =~ "-A" ]]; then
@@ -852,6 +852,8 @@ function tectoplot_plot_gis() {
       }' > grid.contourdef
 
     gawk < grid.contourdef '{print $1}' | tr '\n' ',' | gawk '{print substr($0, 1, length($0)-1)}' > grid_clevels.txt
+
+    echo     gmt grdcontour ${CONTOURGRID[$cugcn]} $AFLAG $SFLAG ${GRIDCONTOUR_MINDIST[$cugcn]} -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
 
     gmt grdcontour ${CONTOURGRID[$cugcn]} $AFLAG $SFLAG ${GRIDCONTOUR_MINDIST[$cugcn]} -C$(cat grid_clevels.txt) ${RJSTRING[@]} -Dgrid_contours.txt
 
