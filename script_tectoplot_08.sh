@@ -1043,7 +1043,7 @@ do
           echo "[-getdata dropbox]: Can't download link index file ziplinks.txt from Dropbox"
           exit 1
         fi
-        exit
+
         echo "Found the following URLs: ${dropbox_urls[@]}"
 
         for this_zip in ${dropbox_urls[@]}; do
