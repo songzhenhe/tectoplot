@@ -244,10 +244,10 @@ function set_miniconda_folder() {
 function select_manager() {
   local response
   while true; do
-    read -r -p "Do you want to use homebrew or miniconda to install/upgrade the dependencies? Default is no. [y|n] " response1
+    read -r -p "Do you want to use homebrew, apt, or miniconda to install/upgrade the dependencies? Default is no. [y|n] " response1
     case "${response1}" in
       Y|y|Yy|yY|yes)
-        read -r -p "Which package manager do you want to install? Default is miniconda. [ homebrew | miniconda ] " response2
+        read -r -p "Which package manager do you want to install? Default is miniconda. [ homebrew | apt | miniconda ] " response2
         case "${response2}" in
           homebrew)
             echo
@@ -259,6 +259,11 @@ function select_manager() {
           miniconda|"")
             echo
             INSTALLTYPE="miniconda"
+            break
+            ;;
+          apt|"")
+            echo
+            INSTALLTYPE="apt"
             break
             ;;
           *)
@@ -426,6 +431,17 @@ function install_evince() {
     brew install evince
   fi
 }
+
+function install_apt() {
+  echo "Checking for apt..."
+  if command_exists "apt"; then
+    sudo apt install build-essential cmake curl ffmpeg gawk gcc gdal-bin gfortran ghostscript git gmt graphicsmagick libblas-dev libcurl4-gnutls-dev libfftw3-dev libgdal-dev libglib2.0-dev liblapack-dev libnetcdf-dev libpcre3-dev netcdf-bin
+  else
+    echo "apt not found... cannot install packages."
+    exit 1
+  fi
+}
+
 
 function exit_msg() {
   echo "Previous step failed... exiting"
@@ -801,6 +817,9 @@ main() {
       install_miniconda
       miniconda_deps
     ;;
+    apt)
+      install_apt
+    ;;
   esac
 
   # If we ran an installation, check dependencies again!
@@ -817,7 +836,7 @@ main() {
 
     if [[ ! -z ${needed[@]} ]]; then
       echo "Remaining dependencies are not sufficient: ${needed[@]}"
-      echo "Please manually fix using homebrew/miniconda or retry install_tectoplot.sh"
+      echo "Please manually fix using homebrew/apt/miniconda or retry install_tectoplot.sh"
 
       while true; do
         read -r -p "Exit before cloning tectoplot? Default=yes. [y|n] " response
