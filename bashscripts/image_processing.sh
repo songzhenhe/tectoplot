@@ -205,8 +205,8 @@ function histogram_percentcut_byte() {
         # print key, cums[key]/sum, range[key]
       }
     }'))
-    echo gdal_translate -overwrite -q "${1}" "${4}" -scale "${cutrange[2]}" "${cutrange[3]}" 1 254 -ot Byte
-    gdal_translate -overwrite -q "${1}" "${4}" -scale "${cutrange[2]}" "${cutrange[3]}" 1 254 -ot Byte
+    # echo gdal_translate -overwrite -q "${1}" "${4}" -scale "${cutrange[2]}" "${cutrange[3]}" 1 254 -ot Byte
+    gdal_translate -q "${1}" "${4}" -scale "${cutrange[2]}" "${cutrange[3]}" 1 254 -ot Byte
     gdal_edit.py -unsetnodata "${4}"
 }
 

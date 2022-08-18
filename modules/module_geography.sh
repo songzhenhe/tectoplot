@@ -544,7 +544,7 @@ function tectoplot_plot_geography() {
     ;;
 
   countries)
-    gmt pscoast -Df -E+l -Vn | gawk -F'\t' '{print $1}' > ${F_MAPELEMENTS}countries.txt
+    gmt pscoast -Df -E+l -Vn 2>/dev/null | gawk -F'\t' '{print $1}' > ${F_MAPELEMENTS}countries.txt
     NUMCOUNTRIES=$(wc -l < ${F_MAPELEMENTS}countries.txt | gawk '{print $1+0}')
     gmt makecpt -N -T0/${NUMCOUNTRIES}/1 -C${COUNTRIESCPT} -Vn  | gawk '{print $2}' > ${F_MAPELEMENTS}country_colors.txt
 
@@ -558,7 +558,7 @@ function tectoplot_plot_geography() {
 
     paste ${F_MAPELEMENTS}countries_shuffled.txt ${F_MAPELEMENTS}country_colors.txt | gawk '{printf("-E%s+g%s ", $1, $2)}' > ${F_MAPELEMENTS}combined.txt
     string=($(cat ${F_MAPELEMENTS}combined.txt))
-    gmt pscoast -Df ${string[@]} ${RJOK} ${VERBOSE} -t${COUNTRIES_TRANS}  >> map.ps
+    gmt pscoast -Df ${string[@]} ${RJOK} -Vn -t${COUNTRIES_TRANS}  >> map.ps
     # -Slightblue
     tectoplot_plot_caught=1
     ;;

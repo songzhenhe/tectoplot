@@ -917,7 +917,7 @@ function tectoplot_plot_gis() {
     tectoplot_plot_caught=1
   ;;
 
-  gis_line)
+  gis_line)  # Should we use -A or not? Unclear!!!
     info_msg "Plotting line dataset $current_userlinefilenumber"
     gmt psxy ${USERLINEDATAFILE[$current_userlinefilenumber]} ${USERLINEFILL_arr[$current_userlinefilenumber]} -W${USERLINEWIDTH_arr[$current_userlinefilenumber]},${USERLINECOLOR_arr[$current_userlinefilenumber]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
     current_userlinefilenumber=$(echo "$current_userlinefilenumber + 1" | bc -l)

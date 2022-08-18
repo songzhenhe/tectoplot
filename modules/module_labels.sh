@@ -37,9 +37,11 @@ font                                 GMT builtin font name
 color                                fill color
 maxsize                              font size larger than this will be set to this
 minsize                              text with font smaller than this will not plot
+setsize                              try to plot all labels at set font size
 outline  [proportion] [color]        activate outline
 trans                                label text transparency
 upper | lower | title                change case of label text
+maxspace                             maximum number of spaces to add to text
 
 GMT fonts
 
@@ -102,6 +104,7 @@ EOF
   MODULE_LABEL_OUTLINE[$uglab]=${MODULE_LABEL_OUTLINE_DEFAULT}
   MODULE_LABEL_OUTLINE_COLOR[$uglab]=${MODULE_LABEL_OUTLINE_COLOR_DEFAULT}
   MODULE_LABEL_CASEFLAG[$uglab]=""
+  MODULE_LABEL_MAXSPACING[$uglab]=4
 
   while ! arg_is_flag $1; do
     case $1 in
@@ -156,6 +159,31 @@ EOF
           ((tectoplot_module_shift++))
         else
           echo "[-label]: option minsize requires argument"
+          exit 1
+        fi
+      ;;
+      setsize)
+        shift
+        ((tectoplot_module_shift++))
+        if ! arg_is_flag $1; then
+          MODULE_LABEL_MINFONTSIZE[$uglab]="${1}"
+          MODULE_LABEL_MAXFONTSIZE[$uglab]="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-label]: option setsize requires argument"
+          exit 1
+        fi
+      ;;
+      maxspace)
+        shift
+        ((tectoplot_module_shift++))
+        if ! arg_is_flag $1; then
+          MODULE_LABEL_MAXSPACING[$uglab]="${1}"
+          shift
+          ((tectoplot_module_shift++))
+        else
+          echo "[-label]: option maxspace requires argument"
           exit 1
         fi
       ;;
@@ -301,7 +329,7 @@ function tectoplot_plot_labels() {
       shopt -s nullglob
       rm -f text*.gmt
 
-      gawk -v maxfontsize=${MODULE_LABEL_MAXFONTSIZE[$cuglab]} '
+      gawk -v maxfontsize=${MODULE_LABEL_MAXFONTSIZE[$cuglab]} -v maxspacing=${MODULE_LABEL_MAXSPACING[$cuglab]} '
         function max(a,b) { return (a>b)?a:b }
         function min(a,b) { return (a<b)?a:b }
         function rd(n, multipleOf)
@@ -319,7 +347,6 @@ function tectoplot_plot_labels() {
         }
         BEGIN {
           changesize=1
-          maxspacing=4
           minfontsize=1
         }
         (NR==FNR) {
@@ -420,13 +447,14 @@ function tectoplot_plot_labels() {
 
       for textfile in text*.gmt; do
         fontsize=$(basename $textfile | gawk -F_ '{print $2}')
-        if [[ $(echo "$fontsize > ${MODULE_LABEL_MINFONTSIZE[$cuglab]}" | bc) -eq 1 ]]; then
+        if [[ $(echo "$fontsize >= ${MODULE_LABEL_MINFONTSIZE[$cuglab]}" | bc) -eq 1 ]]; then
           #echo gmt psxy $textfile -Sqn1:+Lh+f${fontsize}p,$TEXT_FONT${PLOTLINE}+v $RJOK
           if [[ ${MODULE_LABEL_OUTLINE[$cuglab]} != "" ]]; then
             widthval=$(echo "$fontsize * ${MODULE_LABEL_OUTLINE[$cuglab]}" | bc -l)
             TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}"=${widthval}p,${MODULE_LABEL_OUTLINE_COLOR[$cuglab]}"
             gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
           fi
+          echo gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK \>\> map.ps
           gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
         fi
       done

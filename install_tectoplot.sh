@@ -73,6 +73,19 @@ function clone_tectoplot() {
   fi
 }
 
+function clone_gmt() {
+  if [[ -d ${tectoplot_folder_dir}/gmt ]]; then
+    echo "tectoplot directory ${tectoplot_folder_dir}/gmt already exists. Delete before reinstalling!"
+  else
+    if git clone https://github.com/GenericMappingTools/gmt.git ${tectoplot_folder_dir}/gmt; then
+      echo "gmt succesfully cloned to ${tectoplot_folder_dir}/gmt/"
+    else
+      echo "ERROR: Could not clone gmt repository to ${tectoplot_folder_dir}/gmt/"
+    fi
+  fi
+}
+
+
 function clone_tectoplot_examples() {
   if [[ -d ${tectoplot_folder_dir}/tectoplot-examples/ ]]; then
     echo "tectoplot directory ${tectoplot_folder_dir}/tectoplot-examples/ already exists. Delete before reinstalling!"
@@ -869,6 +882,8 @@ main() {
   fi
 
   configure_tectoplot
+
+  check_gmt
 
   # if ! command_exists "evince"; then
   #   install_evince_anyway
