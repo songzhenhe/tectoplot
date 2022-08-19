@@ -257,9 +257,21 @@ function tectoplot_plot_labels() {
           # skip lines starting with a >
         }
         # Extract the @D values which are the quoted labels followed by a |
+        # The problem is to get the string either between the first two quotes
+        # or between the D and the first | character
+
+# @D"continental plateau"||||||1|0|-1||        @
+# @Dslope||||||1|0|-1||
+
         (substr($0,0,4) == "# @D") {
-            out=substr($0,5,length($0)-5)
-            print "> -L" out
+            if (substr($0,5,1) == "\"") {
+              split($0,a,"\"")
+              out=a[2]
+            } else {
+              split($0,a,"|")
+              out=substr(a[1],5,length(a[1])-4)
+            }
+            print "> -L\""  out "\""
         }
         # Print the longitude and latitude values with an increment used for splining
         ($1+0==$1) {
@@ -452,9 +464,9 @@ function tectoplot_plot_labels() {
           if [[ ${MODULE_LABEL_OUTLINE[$cuglab]} != "" ]]; then
             widthval=$(echo "$fontsize * ${MODULE_LABEL_OUTLINE[$cuglab]}" | bc -l)
             TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}"=${widthval}p,${MODULE_LABEL_OUTLINE_COLOR[$cuglab]}"
-            gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+            sed 's/\r//g' $textfile | gmt psxy -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
           fi
-          gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+          sed 's/\r//g' $textfile | gmt psxy -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
         fi
       done
 
