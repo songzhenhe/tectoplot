@@ -1645,6 +1645,34 @@ fi
     set -- "blank" "-t" "-t0" "-ob" "45" "20" "3" "$@"
     ;;
 
+    -topoprof)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-topoprof:     plot -t0 topo with a single topo profile, with scale and inset
+Usage: -topoprof [aprofcodes] [[scalelength]]
+
+Example: Plot a topographic map of Ryukyu
+tectoplot -r CH -topoprof
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  aprofcode=$2
+  shift
+
+  if ! arg_is_flag $2; then
+    scalelen="length $2"
+    shift
+  else
+    scalelen=""
+  fi
+
+  shift
+  set -- "blank" "-t" "-t0" "-tr" "-scale" ${scalelen} "inlegend" "horz" "-aprof" "${aprofcode}" "50k" "1k" "-inset" "topot0" "size" "1.5i" "onmap" "BL" "-legend" "onmap" "TL" "-showprof" "all" "-RJ" "B" "-rect" "$@"
+  ;;
+
   -sunlit)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3931,6 +3959,8 @@ fi
   insetfillflag=0
   INSET_XOFF=0
   INSET_YOFF=0
+  INSET_DH=30
+  INSET_DV=50
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3943,23 +3973,27 @@ Usage: -inset [[options]]
                        Useful options: onmap, -pgs, degw
 
   topo                 inset map of GMT shaded relief, high saturation
+  topot0               inset map of -t0 shaded relief, low saturation
+  plates               inset map of tectonic plates (MORVEL56), motions, etc.
 
   Plot an inset globe. Default location is lower left of map; can be modified
   with x_shift and y_shift values.
 
   [[options]]
-  onmap  [[just]]      place within map area
-  offmap [[just]]      place outside of map area
-  size                 size of inset in inches
+  onmap  [[just]]      place inset within map area
+  offmap [[just]]      place inset outside of map area
+  size [inches]        size of inset in inches [${INSET_SIZE}]
   degw [number]        radius of inset area in degrees
   xoff [number]        shift in X direction by number of inches
   yoff [number]        shift in Y direction by number of inches
   line [color] [width] symbology of box outlining map region
   args [args]          quoted string with tectoplot arguments for inset map
   proj [args]          quoted string with -r and -RJ tectoplot arguments for inset
+  dh [number]          horizontal offset of inset, points [${INSET_DH}]
+  dv [number]          vertical offset of inset, points [${INSET_DV}]
 
 Example:
-tectoplot -a -inset 2i 30 5.5i 5.5i -o example_inset
+tectoplot -a -inset size 2i onmap TR -o example_inset
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
@@ -3991,7 +4025,7 @@ fi
           offmapflag=0
           [[ ${2} == "offmap" ]] && offmapflag=1
           shift
-          if [[ ${2:0:1} =~ [B,M,T,L,C,R] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
+          if [[ ${2:0:1} =~ [B,M,T,L,C,R,U] && ${2:1:1} =~ [B,M,T,L,C,R] ]]; then
             INSET_JUST_CODE="${2:0:2}"
             shift
           fi
@@ -4111,6 +4145,28 @@ fi
             exit 1
           fi
         ;;
+        dh)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_DV="${2}"
+            inset_customdvflag=1
+            shift
+            else
+            echo "[-inset]: option dh requires argument in points"
+            exit 1
+          fi
+        ;;
+        dv)
+          shift
+          if ! arg_is_flag $2; then
+            INSET_DH="${2}"
+            inset_customdhflag=1
+            shift
+            else
+            echo "[-inset]: option dh requires argument in points"
+            exit 1
+          fi
+        ;;
         *)
           echo "[-inset]: option $2 not recognized."
           exit 1
@@ -4120,6 +4176,17 @@ fi
 
     addinsetplotflag=1
     [[ $insetfillflag -eq 1 ]] && INSET_FILL="-F+c2p+gwhite@${INSET_TRANS}" || INSET_FILL=""
+
+    case ${INSET_ONOFFCODE} in
+      j)
+        [[ $inset_customdhflag -ne 1 ]] && INSET_DH=10
+        [[ $inset_customdvflag -ne 1 ]] && INSET_DV=10
+      ;;
+      J)
+        [[ $inset_customdhflag -ne 1 ]] && INSET_DH=50
+        [[ $inset_customdvflag -ne 1 ]] && INSET_DV=30
+      ;;
+    esac
 
     ;;
 
@@ -6316,29 +6383,31 @@ cat <<-EOF
 -r:            specify the area of interest of the map
 Usage: -r [options]
 
-Option 1: Use GMT region ID codes to specify the region
+Global extent (-180:180 longitude and -90:90 latitude)
+-r g
+
+Use GMT region ID codes to specify the region:
 -r [GMT RegionID]    e.g.   -r ID  OR  -r =NA,SA  OR  -r IT+R5  etc.
 
-Option 2: Use a saved custom region (-radd, -rdelete, -rlist)
+Use a saved custom region (-radd, -rdelete, -rlist):
 -r [CustomRegionID]  e.g.   -r BaliLombok_1
 
-Option 3: Use a rectangular region. All arguments are decimal degrees.
+Use a rectangular region. All arguments are decimal degrees:
 -r [MinLon] [MaxLon] [MinLat] [MaxLat]
 
-Option 4: Use the extent of an existing XY file (lon lat format) or grid file
+Use the extent of an existing XY file (lon lat format), KML file, or grid file.
+If file is KML, the extent of the first polyline/polygon is used:
 -r [filename] [[degree_buffer]]
 
-Option 5: Rectangular area centered on a catalog earthquake. -z is required.
+Square area centered on a catalog earthquake. -z is required:
 -r eq [EarthquakeID] [[mapwidth=${EQ_REGION_WIDTH}]]
 
-Option 6: Rectangular area centered on lat/lon coordinate in flexible format.
+Square area centered on lat/lon or lon/lat coordinate in flexible format:
           Formats are flexible (e.g. 2°8'12.134' or 2d 8m 12.11s et.)
 -r latlon [lat] [lon] [[mapwidth]]
-
-Option 7: Same as option 6 but lonlat format.
 -r lonlon [lon] [lat] [[mapwidth]]
 
-Option 8: Flinn-Engdahl geographic or seismic region code(s)
+Flinn-Engdahl geographic or seismic region code(s)
 -r feg IDnum(1-757) ...
 -r fes IDnum(1-50) ...
 
@@ -8273,7 +8342,7 @@ EOF
 shift && continue
 fi
 
-  toponoloadflag=1
+  toponoloadflag=0
 
   ;;
 
@@ -17826,18 +17895,35 @@ EOF
             if [[ ${INSET_ONOFFCODE} == "J" ]]; then
               # Place outside the map frame
               case ${INSET_JUST_CODE} in
-                TL) shifth=0;   shiftv=30;   thisJ="+jBL";; # top edge, left side
-                TM) INSET_JUST="TC"; shifth=0;  shiftv=30;    thisJ="+jBC";; # top edge, middle
-                TR) shifth=0;  shiftv=30;   thisJ="+jBR";; # top edge, right side
-                BL) shifth=0;  shiftv=30;    thisJ="+jTL";; # bottom edge, left
-                BM) INSET_JUST_CODE="BC"; shifth=0;  shiftv=30;    thisJ="+jTC";; # bottom edge, center
-                BR) shifth=0;  shiftv=30;    thisJ="+jTR";; # bottom edge, right
-                RT) shifth=50;  shiftv=30;   thisJ="+jBL";; # right edge, top
-                RM) INSET_JUST_CODE="CR"; shifth=50;  shiftv=0; thisJ="+jML";; # right edge, center
-                RB) shifth=50;  shiftv=0;   thisJ="+jBL";; # right edge, bottom
-                LT) shifth=50;  shiftv=0;    thisJ="+jTR";;  # left edge, top
-                LM) INSET_JUST_CODE="CL"; shifth=50;  shiftv=0; thisJ="+jMR";;  # left edge, center
-                LB) shifth=50;  shiftv=0;   thisJ="+jBR";; # left edge, bottom
+                TL) shifth=0;   shiftv=${INSET_DV}; thisJ="+jBL";; # top edge, left side
+                TM) INSET_JUST_CODE="TC"
+                    shifth=0;   shiftv=${INSET_DV}; thisJ="+jBC";; # top edge, middle
+                TR) shifth=0;   shiftv=${INSET_DV}; thisJ="+jBR";; # top edge, right side
+
+                BL) shifth=0;   shiftv=${INSET_DV}; thisJ="+jTL";; # bottom edge, left
+                BM) INSET_JUST_CODE="BC"
+                    shifth=0;   shiftv=${INSET_DV}; thisJ="+jTC";; # bottom edge, center
+                BR) shifth=0;   shiftv=${INSET_DV}; thisJ="+jTR";; # bottom edge, right
+
+                RT) shifth=${INSET_DH};  shiftv=0;  thisJ="+jTL";; # right edge, top
+                RM) INSET_JUST_CODE="CR"
+                    shifth=${INSET_DH};  shiftv=0;  thisJ="+jML";; # right edge, center
+                RB) shifth=${INSET_DH};  shiftv=0;  thisJ="+jBL";; # right edge, bottom
+
+                LT) shifth=${INSET_DH};  shiftv=0;  thisJ="+jTR";;  # left edge, top
+                LM) INSET_JUST_CODE="CL"
+                    shifth=${INSET_DH};  shiftv=0;  thisJ="+jMR";;  # left edge, center
+                LB) shifth=${INSET_DH};  shiftv=0;  thisJ="+jBR";; # left edge, bottom
+
+                UL) INSET_JUST_CODE="TL"
+                    shifth=${INSET_DH};  shiftv=${INSET_DV}; thisJ="+jBR";;
+                UR) INSET_JUST_CODE="UR"
+                    shifth=${INSET_DH};  shiftv=${INSET_DV}; thisJ="+jBL";;
+                LL) INSET_JUST_CODE="BL"
+                    shifth=${INSET_DH};  shiftv=${INSET_DV}; thisJ="+jTR";;
+                LR) INSET_JUST_CODE="BR"
+                    shifth=${INSET_DH};  shiftv=${INSET_DV}; thisJ="+jTL";;
+
                 *)
                   echo "Outside justification ${INSET_JUST_CODE} not recognized. Using TL."
                   INSET_JUST_CODE="TL"
@@ -17847,20 +17933,30 @@ EOF
             else
               # Place inside the map frame
               case ${INSET_JUST_CODE} in
-                TR|RT) shifth=10; shiftv=10 ;;
-                CR|RC) shifth=10;  shiftv=0  ;;
-                BR|RB) shifth=10;  shiftv=10  ;;
-                TC|CT) shifth=0;  shiftv=10  ;;
-                CM|MC) shifth=0; shiftv=0 ;;
-                BC|CB) shifth=0;  shiftv=10  ;;
-                TL|LT) shifth=10;  shiftv=10  ;;
-                CL|LC) shifth=10;  shiftv=0  ;;
-                BL|LB) shifth=10;  shiftv=10  ;;
+                TR|RT) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
+                MR|RM|CR|RC) INSET_JUST_CODE="CR"
+                       shifth=${INSET_DH};  shiftv=0   ;;
+                BR|RB) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
+                TM|MT|TC|CT) INSET_JUST_CODE="CT"
+                       shifth=0;   shiftv=${INSET_DV}  ;;
+                M|MM|CM|MC)  INSET_JUST_CODE="CM"
+                       shifth=0;   shiftv=0   ;;
+                BM|MB|BC|CB) INSET_JUST_CODE="CB"
+                       shifth=0;   shiftv=${INSET_DV}  ;;
+                TL|LT) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
+                ML|LM|CL|LC) INSET_JUST_CODE="LC"
+                       shifth=${INSET_DH};  shiftv=0   ;;
+                BL|LB) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
                 *)
                 echo "Outside justification ${INSET_JUST_CODE} not recognized. Using BL"
-                  INSET_JUST_CODE="BL"; shifth=10;  shiftv=10
+                  INSET_JUST_CODE="BL"; shifth=${INSET_DH};  shiftv=${INSET_DV}
                 ;;
               esac
+            fi
+
+            if [[ $(echo "${shifth} == 0 && ${shiftv} == 0" | bc -l) -eq 1 ]]; then
+              shifth=0.01
+              shiftv=0.01
             fi
 
             gmt psimage -D${INSET_ONOFFCODE}${INSET_JUST_CODE}+o${shifth}p/${shiftv}p+w${INSET_SIZE}i/0${thisJ} inset.png ${INSET_FILL} ${RJSTRING[@]} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -O -K ${VERBOSE} >> map.ps
@@ -19527,7 +19623,8 @@ EOF
               dontplottopoflag=1
             fi
           # Otherwise, calculate the colored relief.
-          elif [[ $toponoloadflag -ne 1 && -s ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif ]]; then
+        ### -tnoload is currently turned off
+        elif [[ $toponoloadflag -ne 0 && -s ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif ]]; then
             info_msg "Found saved image... using"
             COLORED_RELIEF=${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif
           else
@@ -20005,8 +20102,11 @@ EOF
               COLORED_RELIEF=$INTENSITY_RELIEF
             fi
             # BATHY=${TOPOGRAPHY_DATA}
-            echo "Saving finished tile to ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif"
-            cp ${COLORED_RELIEF} ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif
+
+            if [[ $toponoloadflag -ne 0 ]]; then
+              echo "Saving finished tile to ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif"
+              cp ${COLORED_RELIEF} ${SAVEDTOPODIR}topoimg_${BATHYMETRY}_${MINLON}_${MAXLON}_${MINLAT}_${MAXLAT}_${topoctrlstring}.tif
+            fi
           fi
 
         fi  # fasttopoflag = 0

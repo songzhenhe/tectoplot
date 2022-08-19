@@ -5,14 +5,15 @@
 # or -LSingleLabel. Outputs the file with an additional field in the header
 
 
-LETTERDATA="/Users/kylebradley/Dropbox/blender/globe/lettersizes.txt"
-
 THIS_FONT=$1
 shift
 THIS_FONTSIZE=$1
 shift
 THIS_FILE=$1
 shift
+LETTERDATA=$1
+shift
+
 #
 # rm -f stringlength.txt
 # while [[ $# -gt 0 ]]; do

@@ -316,7 +316,7 @@ function tectoplot_plot_labels() {
       gmt mapproject data_clipped.txt -i0,1 -G+uC+a -R -J  > data_proj_dist.txt
 
       # Calculate the lengths of the labels for fontsize 1
-      ${BASHSCRIPTDIR}stringlength.sh ${MODULE_LABEL_FONT[$cuglab]} 1 data_proj_dist.txt > data_proj_dist_labelcalc.txt
+      ${BASHSCRIPTDIR}stringlength.sh ${MODULE_LABEL_FONT[$cuglab]} 1 data_proj_dist.txt ${BASHSCRIPTDIR}lettersizes.txt > data_proj_dist_labelcalc.txt
 
       #gmt mapproject data_pre.txt -i0,1 -G+ud+a > data_dist.txt
 
@@ -454,7 +454,6 @@ function tectoplot_plot_labels() {
             TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}"=${widthval}p,${MODULE_LABEL_OUTLINE_COLOR[$cuglab]}"
             gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
           fi
-          echo gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK \>\> map.ps
           gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
         fi
       done
