@@ -2354,6 +2354,33 @@ fi
   done
   ;;
 
+  -d) # args: filename
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-d:            load options from file
+Usage: -d [file1] [[file2 ...]]
+
+  Adds first line from file as options on the command line
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  unset vals
+  while ! arg_is_flag $2; do
+    if [[ -s $2 ]]; then
+      vals=($(echo ${vals[@]}) $(head -n 1 ${2}))
+    else
+      echo "[-d]: File $2 does not exist or is empty"
+      exit 1
+    fi
+    shift
+  done
+  shift
+  set -- "blank" ${vals[@]} "$@"
+  echo -n "[-d]: arguments expanded to"
+  echo ${@} | gawk '{$1=""; print}'
+  ;;
+
 	-c) # args: none || number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -10409,6 +10436,19 @@ fi
     tposwhiteflag=1
     ;;
 
+  -tnegwhite) # -tposwhite: set color of areas above sea level to white in DEM stretch
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tnegwhite:  set color of areas below sea level to white in DEM stretch
+Usage: -tnegwhite
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    tnegwhiteflag=1
+    ;;
+
   -tunsetflat) # -tunsetflat: set regions with elevation = 0 to white in terrain intensity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -12556,14 +12596,19 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     if [[ ${LPROFFILE} =~ ".kml" ]]; then
       info_msg "[-lprof]: KML file specified for XY file. Converting lines to XY format."
       CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}lprof_profiles.gmt ${LPROFFILE}
-    fi
-    if [[ ${LPROFFILE} =~ ".shp" ]]; then
+    elif [[ ${LPROFFILE} =~ ".shp" ]]; then
       info_msg "[-lprof]: SHP file specified for XY file. Converting lines to XY format."
       CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" ${F_PROFILES}lprof_profiles.gmt ${LPROFFILE}
-    fi
-    if [[ ${LPROFFILE} =~ ".gmt" ]]; then
+    elif [[ ${LPROFFILE} =~ ".gmt" ]]; then
       info_msg "[-lprof]: GMT file specified for XY file. Using lines in XY format."
       cp ${LPROFFILE} ${F_PROFILES}lprof_profiles.gmt
+    else
+      gawk < ${LPROFFILE} '
+        ($1+0==$1) { print }
+        ($1==">") {
+          line++
+          if (line==2) { exit }
+        }' > ${F_PROFILES}lprof_profile.xy
     fi
     # Extract only the first polyline to use as the profile
     if [[ -s ${F_PROFILES}lprof_profiles.gmt ]]; then
@@ -18778,8 +18823,16 @@ EOF
         . $MPROFILE_SH_SRC
         cp gmt.history.preprofile gmt.history
 
+        # If using -lprof, plot the track line
+
+        if [[ -s ${F_PROFILES}lprof_profile.xy ]]; then
+          gmt psxy ${F_PROFILES}lprof_profile.xy -W1p,black,- ${RJOK} >> map.ps
+        fi
+
+
         # Plot the profile lines with the assigned color on the map
         # echo TRACKFILE=...$TRACKFILE
+
 
 #         k=$(wc -l < $TRACKFILE | gawk  '{print $1}')
 #         for ind in $(seq 1 $k); do
@@ -19777,6 +19830,11 @@ EOF
                   image_setabove ${F_TOPO}colordem.tif ${TOPOGRAPHY_DATA} 0 254 ${F_TOPO}colordemwhite.tif
                   [[ -s ${F_TOPO}colordemwhite.tif ]] && mv ${F_TOPO}colordemwhite.tif ${F_TOPO}colordem.tif
                 fi
+                if [[ $tnegwhiteflag -eq 1 ]]; then
+                  image_setbelow ${F_TOPO}colordem.tif ${TOPOGRAPHY_DATA} 0 254 ${F_TOPO}colordemwhite.tif
+                  [[ -s ${F_TOPO}colordemwhite.tif ]] && mv ${F_TOPO}colordemwhite.tif ${F_TOPO}colordem.tif
+                fi
+
                 alpha_value ${F_TOPO}colordem.tif ${DEM_ALPHA} ${F_TOPO}colordem_alpha.tif
               ;;
 

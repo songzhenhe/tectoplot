@@ -464,9 +464,9 @@ function tectoplot_plot_labels() {
           if [[ ${MODULE_LABEL_OUTLINE[$cuglab]} != "" ]]; then
             widthval=$(echo "$fontsize * ${MODULE_LABEL_OUTLINE[$cuglab]}" | bc -l)
             TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}"=${widthval}p,${MODULE_LABEL_OUTLINE_COLOR[$cuglab]}"
-            sed 's/\r//g' $textfile | gmt psxy -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+            gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
           fi
-          sed 's/\r//g' $textfile | gmt psxy -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+          gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
         fi
       done
 

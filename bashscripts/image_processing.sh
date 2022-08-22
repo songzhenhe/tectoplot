@@ -220,6 +220,11 @@ function image_setabove() {
   gdal_calc.py --type=Byte --overwrite --quiet -A "${1}" -B "${2}" --allBands=A --calc="uint8(( (B>${3})*$4.+(B<=${3})*A))" --outfile="${5}"
 }
 
+# If raster $2 has value below $3, outval=$4, else outval=raster $1, put into $5
+function image_setbelow() {
+  gdal_calc.py --type=Byte --overwrite --quiet -A "${1}" -B "${2}" --allBands=A --calc="uint8(( (B<${3})*$4.+(B>=${3})*A))" --outfile="${5}"
+}
+
 # Linearly rescale an image $1 from ($2, $3) to ($4, $5), stretch by $6>0, output to $7
 function histogram_rescale_stretch() {
   gdal_translate -q "${1}" "${7}" -scale "${2}" "${3}" "${4}" "${5}" -exponent "${6}"

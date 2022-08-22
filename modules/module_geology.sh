@@ -365,7 +365,7 @@ function tectoplot_plot_geology() {
     oceanage)
 
       gmt_init_tmpdir
-      gmt grdcut ${OC_AGE} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -G${TMP}/modules/geology/oceanage.nc
+      gmt grdcut ${OC_AGE} -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -G${TMP}/modules/geology/oceanage.nc -Vn
       gmt_remove_tmpdir
 
       zrange=($(grid_zrange ./modules/geology/oceanage.nc -C -Vn))
@@ -391,6 +391,7 @@ function tectoplot_plot_geology() {
       grayscale_cpt ${F_CPTS}cleangeoage.cpt > ${F_CPTS}geogray.cpt
 
       gawk < ${F_CPTS}geogray.cpt '(NR==1) { oldx=$1; oldc=$2 } (NR>1 && $1+0==$1) { print oldx, oldc, $1, oldc; oldx=$1; oldc=$2 } ($1+0!=$1) { print }'  > ${F_CPTS}geoage_gray.cpt
+
       gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${F_CPTS}geoage_gray.cpt -t${OC_TRANS} -Q $RJOK $VERBOSE >> map.ps
       # echo gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE
       gmt grdimage ./modules/geology/oceanage.nc $GRID_PRINT_RES -C${GEOAGE_CPT} -Q -t${OC_TRANS} $RJOK $VERBOSE  >> map.ps
