@@ -284,6 +284,8 @@ fi
 # Load GMT shell functions
 source gmt_shell_functions.sh
 
+gmt gmtset D_FORMAT "%.12f"
+
 ################################################################################
 # Define paths and defaults
 
@@ -11989,7 +11991,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
 
   # Estimate the AOI by sampling a grid of lon/lat points
-
   if [[ $recalcregionflag_lonlat -eq 1 ]]; then
 
     # Check if the box is very small, and if so don't expand the AOI
@@ -12131,7 +12132,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   if [[ $recalcregionflag_circle -eq 1 ]]; then
     # For science, make a small circle that approximates the map edge
-
     polelat=${CENTRALLATITUDE}
     polelon=${CENTRALMERIDIAN}
     poledeg=${DEGRANGE}
@@ -12144,8 +12144,16 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     gmt_remove_tmpdir
 
     gotrange=0
+    # Special case of map centered at equator with 90 degree deg_range
+    if [[ $(echo "$CENTRALLATITUDE == 0 && $DEGRANGE == 90" | bc) -eq 1 ]]; then
+        MINLON=$(echo "$CENTRALMERIDIAN - 90" | bc -l)
+        MAXLON=$(echo "$CENTRALMERIDIAN + 90" | bc -l)
+        MINLAT=-90
+        MAXLAT=90
+        gotrange=1
+    # Case of map centered above the equator - can exclude low latitude areas
     # Calculate the distance in degrees from the center point to the north pole
-    if [[ $(echo "$CENTRALLATITUDE >= 0" | bc) -eq 1 ]]; then
+    elif [[ $(echo "$CENTRALLATITUDE >= 0" | bc) -eq 1 ]]; then
       if [[ $(echo "$CENTRALLATITUDE + $DEGRANGE > 90" | bc) -eq 1 ]]; then
         MINLON=-180
         MAXLON=180
@@ -12153,6 +12161,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
         MAXLAT=90
         gotrange=1
       fi
+    # Case of map centered below equator - can exclude high latitude areas
     else # Negative latitude
       if [[ $(echo "$CENTRALLATITUDE - $DEGRANGE < -90" | bc) -eq 1 ]]; then
         MINLON=-180
@@ -13162,7 +13171,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       else
         case $BATHYMETRY in
           01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-            gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+            gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             if [[ $? != 0 ]]; then
               rm -f ${name}
             fi
@@ -13174,7 +13183,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             	name=$GRIDDIR"15s_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
               if [[ ! -s ${name} ]]; then
-                gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+                gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
               fi
             fi
 

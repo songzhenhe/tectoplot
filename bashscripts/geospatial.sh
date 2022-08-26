@@ -344,8 +344,8 @@ function fix_dateline_poly() {
     while (getmore==1) {
       getline
       if ($1+0==$1) {
-        oldlon=$1
-        oldlat=$2
+        oldlon=$1+0
+        oldlat=$2+0
         getmore=0
       }
       print
@@ -353,8 +353,8 @@ function fix_dateline_poly() {
     }
   }
   ($1+0==$1) {
-    lon=$1
-    lat=$2
+    lon=$1+0
+    lat=$2+0
     # Check to see if we crossed the dateline
     if (abs(lon-oldlon)>350) {
       if (oldlon > lon) {

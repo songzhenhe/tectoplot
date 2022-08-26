@@ -167,7 +167,7 @@ cat <<-EOF
   fz: fracture zones (EarthByte)
   ht: hotspots (EarthByte)
   is: oceanic isochrons (EarthByte)
-      [[linewidth]] [[color]]
+      [[linewidth=${EBISOWIDTH}]] [[color=geoage]]
   pf: pseudo faults (EarthByte)
   pr: propagating ridges (EarthByte)
   sr: spreading ridges (active and extinct) (Muller et al., 2016; via Gplates2.2.0)
@@ -235,19 +235,24 @@ fi
             echo $EARTHBYTE_SOURCESTRING >> ${LONGSOURCES}
             echo $EARTHBYTE_SHORT_SOURCESTRING >> ${SHORTSOURCES}
 
-            # if ! arg_is_flag "${2}"; then
-            #   EBISOWIDTH="${2}"
-            #   shift
-            #   ((tectoplot_module_shift++))
-            # fi
-            #
-            # if ! arg_is_flag "${2}"; then
-            #   EBISOCOLOR="-W${EBISOWIDTH},${2}"
-            #   shift
-            #   ((tectoplot_module_shift++))
-            # else
-            #   EBISOCOLOR="-aZ=FROMAGE -W${EBISOWIDTH}+cl -C${GEOAGE_CPT}"
-            # fi
+            if [[ $2 =~ ^[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)$p ]]; then
+              EBISOWIDTH="${2}"
+              shift
+              ((tectoplot_module_shift++))
+
+              if ! arg_is_flag $2; then
+                if [[ ${#2} -gt 2 ]]; then
+                  EBISOCOLOR="-W${EBISOWIDTH},${2}"
+                  shift
+                  ((tectoplot_module_shift++))
+                fi
+              else
+                EBISOCOLOR="-aZ=FROMAGE -W${EBISOWIDTH}+cl -C${GEOAGE_CPT}"
+              fi
+            else
+              EBISOCOLOR="-aZ=FROMAGE -W${EBISOWIDTH}+cl -C${GEOAGE_CPT}"
+            fi
+
 
           ;;
           pf)
@@ -277,6 +282,10 @@ fi
             echo $TECTFABRICS_VP_SOURCESTRING >> ${LONGSOURCES}
             echo $TECTFABRICS_VP_SHORT_SOURCESTRING >> ${SHORTSOURCES}
             makegeoageflag=1
+          ;;
+          *)
+            echo "[-tf]: option $1 is not recognized"
+            exit 1
           ;;
         esac
     shift
