@@ -2662,7 +2662,13 @@ fi
 
     clipcmd=$1
     CLIP_POLY_FILE=$(abs_path $2)
-    if [[ -e ${CLIP_POLY_FILE} ]]; then
+    if [[ -s ${CLIP_POLY_FILE} ]]; then
+
+      if [[ ${CLIP_POLY_FILE} == *.kml ]]; then
+        echo "Making KML into poly"
+      fi
+      kml_to_first_xy ${CLIP_POLY_FILE} ${TMP}clip_poly.txt
+      CLIP_POLY_FILE=$(abs_path ${TMP}clip_poly.txt)
       info_msg "[-clipon|clipout]: Using polygon file ${CLIP_POLY_FILE}"
       shift
       [[ $clipcmd =~ "-clipon" ]] && plots+=("clipon")

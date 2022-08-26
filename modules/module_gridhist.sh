@@ -41,6 +41,7 @@ modules/module_gridhist.sh
   File can be a KML with a polygon or an XY (lon lat) file.
   The first object in the KML file will be closed if necessary, so a line path
     will work.
+  The clipping polygon will be plotted as a black, dashed line.
 
 Example: None
 --------------------------------------------------------------------------------
@@ -62,6 +63,7 @@ fi
     shift
     ((tectoplot_module_shift++))
   fi
+
   tectoplot_module_caught=1
   ;;
 
@@ -114,11 +116,12 @@ fi
 
   if ! arg_is_flag "${1}"; then
     if [[ -s "${1}" ]]; then
-      GRIDHIST_FILE="${1}"
+      GRIDHIST_FILE=$(abs_path ${1})
       gridhistfileflag=1
     else
-      echo "[-gridhistfile]: Input file ${1} not found"
-      exit 1
+      info_msg "[-gridhistfile]: Input file ${1} not found... assuming it will be created"
+      GRIDHIST_FILE="${1}"
+      gridhistfileflag=1
     fi
     shift
     ((tectoplot_module_shift++))
@@ -371,9 +374,11 @@ function tectoplot_post_gridhist() {
         GRIDHIST_CPTCMD="-Ggray"
       fi
 
-      gmt pshistogram module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=12p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -N -K > module_gridhist/gridhist.ps
+      # Adding -N to the following command will draw the equivalent normal distribution
 
-      gmt pshistogram module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=12p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
+      gmt pshistogram module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=10p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -K > module_gridhist/gridhist.ps
+
+      gmt pshistogram module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=10p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
 
       gmt psconvert module_gridhist/gridhist.ps -Tf -A+m0.5i
     # ;;
