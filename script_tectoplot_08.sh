@@ -4697,6 +4697,11 @@ EOF
 shift && continue
 fi
     litho1profileflag=1
+
+    if [[ ! -e ${LITHO1_PROG} ]]; then
+      echo "[-litho1]: access program ${LITHO1_PROG} is not compiled. Run tectoplot -compile"
+      exit 1
+    fi
     if arg_is_flag $2; then
       info_msg "[-litho1]: No type specified. Using default $LITHO1_TYPE"
     else
@@ -5543,6 +5548,8 @@ fi
       MIDPOINTS=$MORVELMIDPOINTS
       EDGES=$MORVELPLATEEDGES
 			POLES=$MORVELPOLES
+      PLATENAMES=$MORVELPLATENAMES
+
 			DEFREF="NNR"
       echo $MORVEL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
       echo $MORVEL_SOURCESTRING >> ${LONGSOURCES}
@@ -5557,6 +5564,8 @@ fi
         MIDPOINTS=$MORVELMIDPOINTS
         EDGES=$MORVELPLATEEDGES
 				DEFREF="NNR"
+        PLATENAMES=$MORVELPLATENAMES
+
         echo $MORVEL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $MORVEL_SOURCESTRING >> ${LONGSOURCES}
 				;;
@@ -5597,6 +5606,7 @@ fi
 				PLATES=$MORVELPLATES
 				POLES=$MORVELPOLES
         MIDPOINTS=$MORVELMIDPOINTS
+        PLATENAMES=$MORVELPLATENAMES
 				DEFREF="NNR"
 				;;
 			esac
@@ -8276,10 +8286,11 @@ fi
     # Needs some argument checking logic as too few arguments will mess things up spectacularly
     sprofflag=1
     ((sprofnumber++))
+    unset SPROFPTS
 
     while arg_is_float $2; do
       if arg_is_float $2 && arg_is_float $3; then
-        SPROFPTS[${sprofnumber}]="${SPROFPTS[${sprofnumber}]}$2 $3 "
+        SPROFPTS="${SPROFPTS}$2 $3 "
       else
         echo "[-sprof]: profile points require lon lat pairs"
         exit 1
@@ -8287,7 +8298,7 @@ fi
       shift
       shift
     done
-
+    echo ${SPROFPTS} >> ${TMP}sprof.lines
     if ! arg_is_flag $2; then
       SPROFWIDTH="${2}"
       shift
@@ -8406,8 +8417,11 @@ Usage: -t [[datasource=determined by extent]]
     BEST is a fusion of GMRT from online and SRTM 30 tiles from the GMT server.
 
   Dynamically downloaded data from GMT server (tiles managed by GMT)
+  Default dataset is IPGG EarthRelief - [[gebco]] option selects GEBCO21
   -t 01d | 30m | 20m | 15m | 10m | 06m | 05m | 04m | 03m | 02m | 01m
-         | 15s | 03s | 01s
+         | 15s | 03s | 01s  [[gebco]]
+
+
 
   The default visualization is GMT standard CPT+hillshade.
 
@@ -8434,10 +8448,16 @@ fi
       GRIDDIR=$TILETOPODIR
 
       case $BATHYMETRY in
-        01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
+        01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s|auto)
           plottopo=1
           GRIDDIR=$EARTHRELIEFDIR
-          GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
+          if [[ $2 == "gebco" ]]; then
+            EARTHRELIEFPREFIX="@earth_gebco"
+            EARTHRELIEF_SHORT_SOURCESTRING="GEBCO21"
+            EARTHRELIEF_SOURCESTRING="GEBCO 2021 bathymetry (https://www.gebco.net/data_and_products/gridded_bathymetry_data/gebco_2021/) retrieved from GMT Earth Relief server at resolution $BATHYMETRY"
+            shift
+          fi
+          GRIDFILE=${EARTHRELIEFPREFIX}_${BATHYMETRY}
           plots+=("topo")
           echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
           echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
@@ -8449,7 +8469,7 @@ fi
           BATHYMETRY="01s"
           plottopo=1
           GRIDDIR=$EARTHRELIEFDIR
-          GRIDFILE=${EARTHRELIEFPREFIX}${BATHYMETRY}
+          GRIDFILE=${EARTHRELIEFPREFIX}_${BATHYMETRY}
           plots+=("topo")
           besttopoflag=1
           echo $GMRT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
@@ -9753,8 +9773,8 @@ fi
   -tdelete) # -tdelete: delete archived terrain data for a named region
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--tdelete:      delete archived terrain data for a named region
-Usage: -tdelete
+-tdelete:      delete archived terrain data for a named region (or all data)
+Usage: -tdelete [[all]]
 
   If using -r RegionID, delete a saved rendered terrain image.
   Requires -radd RegionID prior to calling
@@ -9764,6 +9784,12 @@ EOF
 shift && continue
 fi
     tdeleteflag=1
+
+    if [[ $2 == "all" ]]; then
+      tedeleteallflag=1
+      shift
+    fi
+
     ;;
 
   -tsent) # -tsent: color terrain using downloaded sentinel cloud-free image
@@ -12136,6 +12162,14 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     polelon=${CENTRALMERIDIAN}
     poledeg=${DEGRANGE}
 
+    # The gmt grdtrack approach doesn't really work
+    # echo gmt grdcut to get region
+    # gmt grdmath -R-180/180/-90/90 -I1d 1 = ${TMP}1.grd
+    # echo     gmt grdcut ${TMP}1.grd -D -S${polelon}/${polelat}/${poledeg}d
+    #
+    # gmt grdcut ${TMP}1.grd -D -S${polelon}/${polelat}/${poledeg}d
+    # echo out
+
     poleantilat=$(echo "0 - (${polelat}+0.0000001)" | bc -l)
     poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
 
@@ -12307,7 +12341,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     clipdemflag=1
     BATHYMETRY=${TOPOTYPE}
     GRIDDIR=$EARTHRELIEFDIR
-    GRIDFILE=${EARTHRELIEFPREFIX}${TOPOTYPE}
+    GRIDFILE=${EARTHRELIEFPREFIX}_${TOPOTYPE}
     echo $EARTHRELIEF_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $EARTHRELIEF_SOURCESTRING >> ${LONGSOURCES}
     [[ ! -d $EARTHRELIEFDIR ]] && mkdir -p $EARTHRELIEFDIR
@@ -13039,6 +13073,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       if [[ ! -s ${name} ]]; then
         info_msg "Downloading GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
         curl "https://www.gmrt.org:443/services/GridServer?minlongitude=${DEM_MINLON}&maxlongitude=${DEM_MAXLON}&minlatitude=${DEM_MINLAT}&maxlatitude=${DEM_MAXLAT}&format=geotiff&resolution=max&layer=topo" > $GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+        # gmt grdsample -T $GMRTDIR"GMRT_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
       else
         info_msg "GMRT data file ${name} already exists."
       fi
@@ -13120,12 +13155,17 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # name=$GMRTDIR"GMRT_${minlonfloor}_${maxlonceil}_${minlatfloor}_${maxlatceil}.tif"
 
       if [[ $BATHYMETRY =~ "GMRT" ]]; then
+        # We have to cut GMRT to our -R domain or else our downloaded tiles will bug out
+        # in subsequent grdimage commands for some reason
         BATHY=$name
-      elif [[ $besttopoflag -eq 1 ]]; then
-
+        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        clipdemflag=0
+        name=${F_TOPO}dem.tif
+        TOPOGRAPHY_DATA=${F_TOPO}dem.tif
+      elif [[ $besttopoflag -eq 1 && $bestexistsflag -eq 0 ]]; then
         # If we are making BEST bathymetry, the negative elevations are equivalent to the GMRT tile
-
-        NEGBATHYGRID=$name
+        gmt grdcut ${name} -G${F_TOPO}negbathy.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        NEGBATHYGRID=${F_TOPO}negbathy.tif
       fi
     # fi
 
@@ -13163,27 +13203,50 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       info_msg "[-t]: Using grid file $GRIDFILE"
 
       # BIG CHANGE: NOW STORING TILES AS GEOTIFF
-    	name=$GRIDDIR"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+    	name=${GRIDDIR}"${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
     	if [[ -s $name ]]; then
     		info_msg "DEM file $name already exists"
         demiscutflag=1
       else
+        if [[ $BATHYMETRY == "auto" ]]; then
+          projection=$(echo "${RJSTRING[@]}" | gawk '{print $(NF)}')
+
+          res=$(gmt grdcut ${EARTHRELIEFPREFIX} -D+t -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} ${projection} | gawk -F/ '{print $(NF)}')
+          case $res in
+            01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
+              BATHYMETRY=$res
+            ;;
+            *)
+              BATHYMETRY=10m
+            ;;
+          esac
+          GRIDFILE=${EARTHRELIEFPREFIX}_${BATHYMETRY}
+          info_msg "[-t]: auto resolution was determined to be ${BATHYMETRY}"
+        fi
+
         case $BATHYMETRY in
           01d|30m|20m|15m|10m|06m|05m|04m|03m|02m|01m|15s|03s|01s)
-            gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+            name="${GRIDDIR}${EARTHRELIEFPREFIX}_${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+
+            if [[ ${BATHYMETRY} == "15s" ]]; then
+              gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} -Vq
+            else
+              gmt grdcut ${GRIDFILE}_g -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} -Vq
+            fi
+
             if [[ $? != 0 ]]; then
               rm -f ${name}
             fi
             if [[ ! -s ${name} ]]; then
               echo "[-t]: Could not extract GMT online EarthRelief dataset ${BATHYMETRY}. Using 15s instead."
               GRIDDIR=$EARTHRELIEFDIR
-              GRIDFILE=${EARTHRELIEFPREFIX}15s
+              GRIDFILE=${EARTHRELIEFPREFIX}_15s
               # BIG CHANGE: NOW STORING TILES AS GEOTIFF
-            	name=$GRIDDIR"15s_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
+            	name=${GRIDDIR}${EARTHRELIEFPREFIX}_"15s_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
               if [[ ! -s ${name} ]]; then
-                gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+                gmt grdcut ${GRIDFILE}_p -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} -Vq
               fi
             fi
 
@@ -13269,15 +13332,19 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # gmt grdinfo $BATHY
     #
     # gmt grdsample ${BATHY} -R -I0.00055555555 -Gpos.tif
-    # gmt grdsample ${NEGBATHYGRID} -R -I0.00055555555 -Gneg.tif
+    # gmt grdsample ${NEGBATHYGRID} -R -I0.00055555555 -G${F_TOPO}neg.tif
 
     # Is it best to resample SRTM to the BATHY resolution
 
     gmt_init_tmpdir
-    gmt grdsample ${NEGBATHYGRID} -R${BATHY} -Gneg.tif=gd:GTiff
+
+    gridres=($(gmt grdinfo -C ${BATHY} | gawk '{print $10, $11}'))
+    echo ${gridres[@]}
+    gdal_translate -q -of "GTiff" -outsize ${gridres[0]} ${gridres[1]} -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${BATHY} ${F_TOPO}neg.tif
+    # gmt grdsample ${NEGBATHYGRID} -R${BATHY} -G${F_TOPO}neg.tif=gd:GTiff
     gmt_remove_tmpdir
 
-    # gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID neg.tif
+    # gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $NEGBATHYGRID ${F_TOPO}neg.tif
     # gdalwarp -q -et 0.01 -r cubic -dstnodata NaN -te $DEM_MINLON $DEM_MINLAT $DEM_MAXLON $DEM_MAXLAT -tr .00055555555 .00055555555 -of GTiff $BATHY pos.tif
 
     GMRT_MERGELEVEL_BOTTOM=-500
@@ -13286,10 +13353,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     GMRT_MERGELEVEL=-100
 
     # This is a straight merge with a hard line
-    #gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
+    #gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B ${F_TOPO}neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
 
     # This is a linear interpolation over the defined topographic interval
-    gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>${GMRT_MERGELEVEL_TOP})*A + (A<${GMRT_MERGELEVEL_BOTTOM})*B+(A>=${GMRT_MERGELEVEL_BOTTOM})*(A<=${GMRT_MERGELEVEL_TOP})*(B*(${GMRT_MERGELEVEL_TOP}-A)+A*(A - ${GMRT_MERGELEVEL_BOTTOM}))/(${GMRT_MERGELEVEL_TOP}-${GMRT_MERGELEVEL_BOTTOM}))" --outfile=merged.tif
+    gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B ${F_TOPO}neg.tif --calc="((A>${GMRT_MERGELEVEL_TOP})*A + (A<${GMRT_MERGELEVEL_BOTTOM})*B+(A>=${GMRT_MERGELEVEL_BOTTOM})*(A<=${GMRT_MERGELEVEL_TOP})*(B*(${GMRT_MERGELEVEL_TOP}-A)+A*(A - ${GMRT_MERGELEVEL_BOTTOM}))/(${GMRT_MERGELEVEL_TOP}-${GMRT_MERGELEVEL_BOTTOM}))" --outfile=merged.tif
 
     cp merged.tif $bestname
     # cp neggdal.tif $bestname
@@ -13311,7 +13378,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       else
         # This assumes that BATHY is a tif file.
         if [[ ${BATHY} == *tif ]]; then
-          cp ${BATHY} ${F_TOPO}dem.tif
+          if [[ ! -s ${F_TOPO}dem.tif ]]; then
+            cp ${BATHY} ${F_TOPO}dem.tif
+          fi
         else
           echo "${BATHY} is not a TIF file? Aborting"
           exit 1
@@ -15066,6 +15135,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
   if [[ $plotplates -eq 1 ]]; then
 
+    info_msg "[-p]: $PLATES $POLES"
+
     # Calculates relative plate motion along plate boundaries - most time consuming!
     # Calculates plate edge midpoints and plate edge azimuths
     # Calculates relative motion of grid points within plates
@@ -15111,7 +15182,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # This step FAILS to select plates on the other side of the dateline...
 
     gmt spatial $PLATES -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' > ${F_PLATES}map_plates_clip_b.txt
-
 
     # Sometimes gmt spatial will produce a zero-area polygon due to strange geometry issues
     # So strip out any polygons with zero area
@@ -15189,18 +15259,39 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     grep ">" ${F_PLATES}map_plates_clip.txt | uniq | gawk  '{print $2}' > ${F_PLATES}plate_id_list.txt
 
+
+
     if [[ $outputplatesflag -eq 1 ]]; then
       echo "Plates in model:"
-      gawk < $POLES '{print $1}' | tr '\n' '\t'
-      echo ""
-      echo "Plates within AOI":
-      gawk < ${F_PLATES}plate_id_list.txt '{
-        split($1, v, "_");
-        for(i=1; i<length(v); i++) {
-          printf "%s\n", v[i]
-        }
-      }' | tr '\n' '\t'
-      echo ""
+
+      if [[ -s $PLATENAMES ]]; then
+        cat $PLATENAMES
+        echo "Plates within AOI"
+        gawk '
+          (NR == FNR) {
+            key=$1
+            $1=""
+            string=$0
+            plate[key]=string
+          }
+          (NR!=FNR) {
+            split($1, v, "_")
+            print v[1], plate[v[1]]
+          }
+        ' ${PLATENAMES} ${F_PLATES}plate_id_list.txt | tr '\n' '\t'
+        echo ""
+      else
+        echo "Plates within AOI"
+        gawk < ${F_PLATES}plate_id_list.txt '{
+          split($1, v, "_");
+          for(i=1; i<length(v); i++) {
+            printf "%s\n", v[i]
+          }
+        }' | tr '\n' '\t'
+        echo ""
+        gawk < $POLES '{print $1}' | tr '\n' '\t'
+        echo ""
+      fi
       exit
     fi
 
@@ -15543,8 +15634,24 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     done # while (Iterate over plates calculating pldat, centroids, and poles
 
     # Create the plate labels at the centroid locations
-  	paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_list.txt > ${F_PLATES}map_labels.txt
+    if [[ -s $PLATENAMES ]]; then
+      gawk '
+        (NR == FNR) {
+          key=$1
+          $1=""
+          string=$0
+          plate[key]=string
+        }
+        (NR!=FNR) {
+          split($1, v, "_")
+          print plate[v[1]]
+        }
+      ' ${PLATENAMES} ${F_PLATES}plate_id_list.txt > ${F_PLATES}plate_id_names.txt
+      paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_names.txt > ${F_PLATES}map_labels.txt
 
+  	else
+      paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_list.txt > ${F_PLATES}map_labels.txt
+    fi
     # EDGE CALCULATIONS. Determine the relative motion of each plate pair for each plate edge segment
     # by extracting the two Euler poles and calculating predicted motions at the segment midpoint.
     # This calculation is time consuming for large areas because my implementation is... algorithmically
@@ -18799,11 +18906,12 @@ EOF
             fi
           fi
           if [[ $sprofflag -eq 1 ]]; then
-
-            for thissprof in $(seq 1 $sprofnumber); do
+            thissprof=0
+            while read p; do
+              ((thissprof++))
               # echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
-              echo "P P${thissprof} black N N ${SPROFPTS[${sprofnumber}]}" >> sprof.control
-            done
+              echo "P P${thissprof} black N N ${p}" >> sprof.control
+            done < ${TMP}sprof.lines
           fi
           if [[ $xprofflag -eq 1 ]]; then
 
@@ -19280,7 +19388,13 @@ EOF
 
         # Label the plates if we calculated the centroid locations
         # Remove the trailing _N from all plate labels
-        [[ $plotplates -eq 1 ]] && gawk  < ${F_PLATES}map_labels.txt -F, '{print $1, $2, substr($3, 1, length($3)-2)}' | gmt pstext -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
+        if [[ $plotplates -eq 1 ]]; then
+          if [[ -s ${F_PLATES}plate_id_names.txt ]]; then
+            gmt pstext ${F_PLATES}map_labels.txt -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
+          else
+            gawk  < ${F_PLATES}map_labels.txt -F, '{print $1, $2, substr($3, 1, length($3)-2)}' | gmt pstext -C0.1+t -F+f$PLATELABEL_SIZE,Helvetica,$PLATELABEL_COLOR+jCB $RJOK $VERBOSE  >> map.ps
+          fi
+        fi
         ;;
 
       platepolycolor_all)
@@ -19649,7 +19763,7 @@ EOF
      #   # gdal_rasterize -a_srs "EPSG:4326" -at -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -burn 1 -tr ${rasterinfo[0]} ${rasterinfo[1]} osmcoasts.shp shapemask.tif
      #   gdal_rasterize -q -a_srs "EPSG:4326" -at -te ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -burn 1 -ts ${rasterinfo[0]} ${rasterinfo[1]} osmcoasts.shp shapemask.tif
      #   gdal_calc.py --quiet --format=GTiff -A shapemask.tif -B ${F_TOPO}dem.tif --calc="((A==1)*(B>=0)*B + (A==1)*(B<0)*1 + (A==0)*B)" --outfile=fixeddem.tif
-     #   # gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
+     #   # gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${BATHY} -B ${F_TOPO}neg.tif --calc="((A>=${GMRT_MERGELEVEL})*A + (A<${GMRT_MERGELEVEL})*B)" --outfile=merged.tif
      #   [[ -s fixeddem.tif ]] && mv fixeddem.tif ${F_TOPO}dem.tif
      # fi
 
@@ -19865,6 +19979,7 @@ EOF
                 # cd ./tmpcut
                 # gmt grdcut ../${F_TOPO}dem.tif -R${CLIP_MINLON}/${CLIP_MAXLON}/${CLIP_MINLAT}/${CLIP_MAXLAT} -G../${F_TOPO}clip.nc ${VERBOSE}
                 # cd ..
+
                 cp ${F_TOPO}dem_clip.tif ${F_TOPO}dem.tif
                 TOPOGRAPHY_DATA=${F_TOPO}dem.tif
               ;;
@@ -20187,21 +20302,23 @@ EOF
         # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated
         if [[ $fasttopoflag -eq 0 ]]; then
           if [[ $dontplottopoflag -eq 0 ]]; then
-            gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES $RJOK -t$TOPOTRANS ${VERBOSE} >> map.ps
-
+            gmt grdimage ${COLORED_RELIEF} $RJOK -t$TOPOTRANS ${VERBOSE} >> map.ps
             # gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
           fi
         else
         # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
           gmt_init_tmpdir
             gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+            # Change the coordinate info to match ${TOPOGRAPHY_DATA}
+            gdal_edit.py -a_srs "None" ${F_TOPO}colored_relief.tif
             COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
           gmt_remove_tmpdir
 
           if [[ $dontplottopoflag -eq 0 ]]; then
-            # echo gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS ${RJSTRING[@]} \> test.ps
-            gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
-            # GRID_PRINT_RES
+            # Note that plotting the colored_relief image doesn't work due to strange GMT issues
+            # with -srcwin through gdal... so just plot again with grdimage
+            # gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+            gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} ${RJOK} ${VERBOSE} >> map.ps
           fi
         fi
         ;;

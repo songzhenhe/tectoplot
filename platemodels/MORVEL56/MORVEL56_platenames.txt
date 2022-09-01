@@ -1,4 +1,4 @@
-AS Aegean Sea	
+AS Aegean Sea
 AM Amur
 AP Altiplano
 AT Anatolia
@@ -29,7 +29,7 @@ MO Maoke
 MA Mariana
 MS Molucca Sea
 NZ Nazca
-NA N. America
+NA North America
 NH New Hebrides
 NI Niuafo'ou
 ND North Andes
@@ -46,8 +46,8 @@ SC Scotia
 SL Shetland
 SS Solomon Sea
 SM Somalia
-SA S. America
-SB S. Bismarck
+SA South America
+SB South Bismarck
 SU Sundaland
 SR Sur
 TI Timor
