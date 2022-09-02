@@ -61,6 +61,7 @@ function euleradd(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2) {
 	a22 = eV2*cos(eLat_r2)*sin(eLon_r2)
 	a32 = eV2*sin(eLat_r2)
 
+	# Note that this is actually an Euler subtraction not addition!
 	a1 = a11-a12
 	a2 = a21-a22
 	a3 = a31-a32

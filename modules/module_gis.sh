@@ -687,55 +687,51 @@ EOF
 cat <<-EOF
 modules/module_gis.sh
 -greatc:       plot great circles passing through points with given azimuths
--greatc [[file]] [lon1] [lat1] [azimuth1] [[lon2]] [[lat2]] [[azimuth2]] ..
+-greatc [[files ...]] [lon1] [lat1] [azimuth1] [[lon2]] [[lat2]] [[azimuth2]] ..
 
-  If file is specified, read it in first. Format: lon lat azimuth
+  If files are specified, read them in first. Format: lon(°) lat(°) azimuth(°)
 
 Example: None
 --------------------------------------------------------------------------------
 EOF
   fi
       shift
-
+      greatcnumber=0
       # Check if there is an input file
-      if [[ -s "${1}" ]]; then
+      while [[ -s "${1}" ]]; do
         greatcfile="${1}"
-        echo "input file"
         shift
         ((tectoplot_module_shift++))
         #
         while read p; do
-          greatcnumber=$(echo "${greatcnumber} + 1" | bc -l)
+          ((greatcnumber++))
           d=($(echo $p))
           GREATCLON[$greatcnumber]=${d[0]}
           GREATCLAT[$greatcnumber]=${d[1]}
           GREATCAZ[$greatcnumber]=${d[2]}
         done < $greatcfile
-      else
+      done
+      while ! arg_is_flag $1; do
+        ((greatcnumber++))
 
-        while ! arg_is_flag $1; do
-          greatcnumber=$(echo "${greatcnumber} + 1" | bc -l)
+        if arg_is_float $1; then
+          GREATCLON[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        fi
 
-          if arg_is_float $1; then
-            GREATCLON[$greatcnumber]=$1
-            shift
-            ((tectoplot_module_shift++))
-          fi
+        if arg_is_float $1; then
+          GREATCLAT[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        fi
 
-          if arg_is_float $1; then
-            GREATCLAT[$greatcnumber]=$1
-            shift
-            ((tectoplot_module_shift++))
-          fi
-
-          if arg_is_float $1; then
-            GREATCAZ[$greatcnumber]=$1
-            shift
-            ((tectoplot_module_shift++))
-          fi
-
-        done
-      fi
+        if arg_is_float $1; then
+          GREATCAZ[$greatcnumber]=$1
+          shift
+          ((tectoplot_module_shift++))
+        fi
+      done
 
       if [[ ${greatcnumber} -gt 0 ]]; then
         info_msg "[-greatc]: ${greatcnumber} great circles defined"
@@ -959,6 +955,11 @@ function tectoplot_plot_gis() {
     for this_gc in $(seq 1 $greatcnumber); do
       gmt project -C${GREATCLON[$this_gc]}/${GREATCLAT[$this_gc]} -A${GREATCAZ[$this_gc]} -G0.5 -L-360/0 > great_circle_${this_gc}.txt
       gmt psxy great_circle_${this_gc}.txt -W1p,black $RJOK $VERBOSE >> map.ps
+      echo "${GREATCLON[$this_gc]} ${GREATCLAT[$this_gc]}" | gmt psxy -Sc3p -Gblack ${RJOK} ${VERBOSE} >> map.ps
+      newlon=$(echo "${GREATCLON[$this_gc]} + 180" | bc -l)
+      newlat=$(echo "0 - ${GREATCLAT[$this_gc]}" | bc -l)
+      echo "$newlon $newlat" | gmt psxy -Sc3p -Gblack ${RJOK} ${VERBOSE} >> map.ps
+
     done
   ;;
 

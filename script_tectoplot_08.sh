@@ -8621,6 +8621,8 @@ Usage: -text [file] [[options...]]
   Plots text strings in white boxes at specified locations.
 
   options are:
+  default           Use 10p,Helvetica,black 0 ML
+                    Input file has lon lat as first columns, followed by text
   box [[color]]:    plot boxes behind text with fill color
   line:             plot a line to origin location if offsetting text
   offset [[Xoff]] [[Yoff]]   shift text by Xoff/Yoff [e.g. 0.1i 0.1i]
@@ -8657,6 +8659,10 @@ fi
 
     while ! arg_is_flag $2; do
       case $2 in
+        default)
+          shift
+          TEXTDEFAULT=1
+        ;;
         box)
           shift
           if ! arg_is_flag $2; then
@@ -12559,7 +12565,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       thispt=($(grep "[${code:i:1}]" ${F_MAPELEMENTS}aprof_database.txt))
       profpts="${profpts} ${thispt[0]} ${thispt[1]}"
     done
-    echo "P P_${code} black 0 N ${profpts}" >> ${F_PROFILES}aprof_profs.txt
+    echo "P A_${code} black 0 N ${profpts}" >> ${F_PROFILES}aprof_profs.txt
     # p1=($(grep "[${code:0:1}]" ${F_MAPELEMENTS}aprof_database.txt))
     # p2=($(grep "[${code:1:1}]" ${F_MAPELEMENTS}aprof_database.txt))
     # if [[ ${#p1[@]} -eq 3 && ${#p2[@]} -eq 3 ]]; then
@@ -12683,7 +12689,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
           count=1
         }
         ($7!="NaN" && $10 != "NaN") {
-          printf("P P_%d black 0 %s %s %s %s %s\n", count++, align, $7, $8, $10, $11)
+          printf("P L_%d black 0 %s %s %s %s %s\n", count++, align, $7, $8, $10, $11)
         }
         ' >> ${F_PROFILES}lprof_profs.txt
        rm -f 1.grd
@@ -12717,7 +12723,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
         if (count>1) {
           printf("\n")
         }
-        printf("P P_%d black 0 %s ", count, align)
+        printf("P K_%d black 0 %s ", count, align)
       }
       ($1+0==$1) {
         printf("%s %s ", $1, $2)
@@ -18905,8 +18911,11 @@ EOF
               done
             fi
           fi
+
+          # Keep track of the current profile number
+          thissprof=0
+
           if [[ $sprofflag -eq 1 ]]; then
-            thissprof=0
             while read p; do
               ((thissprof++))
               # echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
@@ -18914,9 +18923,9 @@ EOF
             done < ${TMP}sprof.lines
           fi
           if [[ $xprofflag -eq 1 ]]; then
-
             for thisxprof in $(seq 1 $xprofnumber); do
-              echo "A A${thisxprof} black N N ${XPROFPTS[${xprofnumber}]}" >> sprof.control
+              ((thissprof++))
+              echo "A A${thissprof} black N N ${XPROFPTS[${xprofnumber}]}" >> sprof.control
             done
           fi
 
@@ -19682,7 +19691,16 @@ EOF
         ;;
 
       text)
-        gmt pstext ${TEXTFILE} -D${TEXTXOFF}/${TEXTYOFF}${TEXTLINE} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
+        if [[ $TEXTDEFAULT -eq 1 ]]; then
+          gawk < ${TEXTFILE} '{
+            print $1, $2, "10p,Helvetica,black 0 ML", $3
+          }' > text.tmp
+          gmt pstext text.tmp -D${TEXTXOFF}/${TEXTYOFF}${TEXTLINE} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
+
+        else
+          gmt pstext ${TEXTFILE} -D${TEXTXOFF}/${TEXTYOFF}${TEXTLINE} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
+
+        fi
         # gmt pstext ${TEXTFILE} -Xa${TEXTXOFF} -Ya${TEXTYOFF} ${TEXTBOX} -F+f+a+j  $RJOK $VERBOSE >> map.ps
         # -Dj-0.05i/0.025i+v0.7p,black
       ;;

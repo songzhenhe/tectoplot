@@ -468,15 +468,15 @@ function tectoplot_legendbar_geology() {
         madegeolegendbar=1
         # Reduce the CPT to the used scale range
 
-        if [[ -s ${F_CPTS}geogray.cpt ]]; then
-          gmt makecpt -C${F_CPTS}geogray.cpt -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}geoage_gray_colorbar.cpt
-          echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-          echo "B ${F_CPTS}geoage_gray_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Btlbr -Bxa1000" >> ${LEGENDDIR}legendbars.txt
-        fi
+        # if [[ -s ${F_CPTS}geogray.cpt ]]; then
+        #   gmt makecpt -C${F_CPTS}geogray.cpt -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/${OC_STRIPE_AGE} ${VERBOSE} > ${F_CPTS}geoage_gray_colorbar.cpt
+        #   echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+        #   echo "B ${F_CPTS}geoage_gray_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Btlbr -Bxa1000" >> ${LEGENDDIR}legendbars.txt
+        # fi
 
         gmt makecpt -C$GEOAGE_CPT -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
         echo "G -0.195i" >> ${LEGENDDIR}legendbars.txt
-        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa100f50+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bx+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_caught_legendbar=1
       fi
