@@ -626,10 +626,10 @@ function tectoplot_plot_gis() {
     ((module_gis_greatc_callnum++))
     tt=${module_gis_greatc_callnum}
 
-    unset GREATCLON
-    unset GREATCLAT
-    unset GREATCAZ
-    unset GREATC_NUMSET
+    local GREATCLON
+    local GREATCLAT
+    local GREATCAZ
+    local GREATC_NUMSET
     greatcnumber=0
 
     # Read all of the great circles from the file
@@ -703,26 +703,22 @@ function tectoplot_plot_gis() {
     ((module_gis_smallc_callnum++))
     tt=${module_gis_smallc_callnum}
 
-    unset SMALLCLON
-    unset SMALLCLAT
-    unset SMALLCDIST
-    unset SMALLC_NUMSET
+    local smallc_lon
+    local smallc_lat
+    local smallc_dist
+    local smallc_numset
     smallcnumber=0
 
     # Read all of the small circles from the file
     if [[ -s ${module_gis_smallc_file[$tt]} ]]; then
       while IFS= read -r p <&3 || [ -n "$p" ] ; do
         d=($(echo $p))
-        if arg_is_float ${d[0]}; then
+        if arg_is_positive_float ${d[2]}; then
           ((smallcnumber++))
-          SMALLCLON[$smallcnumber]=${d[0]}
-          SMALLCLAT[$smallcnumber]=${d[1]}
-          SMALLCDIST[$smallcnumber]=${d[2]}
-          if ! arg_is_positive_float ${d[2]}; then
-            echo "[-smallc]: degree radius value ${d[2]} is not a positive float"
-            exit 1
-          fi
-          SMALLC_NUMSET="${SMALLC_NUMSET} ${smallcnumber}"
+          smallc_lon[$smallcnumber]=${d[0]}
+          smallc_lat[$smallcnumber]=${d[1]}
+          smallc_dist[$smallcnumber]=${d[2]}
+          smallc_numset="${smallc_numset} ${smallcnumber}"
         else
           echo "[-smallc]: skipping line $p"
         fi
@@ -734,15 +730,15 @@ function tectoplot_plot_gis() {
     while [[ ! -z ${module_gis_smallc_list[$tt]} ]]; do
       ((smallcnumber++))
       # First word
-      SMALLCLON[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
+      smallc_lon[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
       # All but first word
       module_gis_smallc_list[$tt]=${module_gis_smallc_list[$tt]#* }
       # First word
-      SMALLCLAT[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
+      smallc_lat[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
       # All but first word
       module_gis_smallc_list[$tt]=${module_gis_smallc_list[$tt]#* }
       # First word
-      SMALLCDIST[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
+      smallc_dist[$smallcnumber]=${module_gis_smallc_list[$tt]%% *}
       if ! arg_is_positive_float ${module_gis_smallc_list[$tt]%% *}; then
         echo "[-smallc]: degree radius value ${module_gis_smallc_list[$tt]%% *} is not a positive float"
         exit 1
@@ -750,14 +746,14 @@ function tectoplot_plot_gis() {
       # All but first word
       module_gis_smallc_list[$tt]=${module_gis_smallc_list[$tt]#* }
       if [[ ${module_gis_smallc_list[$tt]} == ${module_gis_smallc_list[$tt]#* } ]]; then
-        SMALLC_NUMSET="${SMALLC_NUMSET} ${smallcnumber}"
+        smallc_numset="${smallc_numset} ${smallcnumber}"
         break
       fi
-      SMALLC_NUMSET="${SMALLC_NUMSET} ${smallcnumber}"
+      smallc_numset="${smallc_numset} ${smallcnumber}"
     done
 
     # This is the list of indices for great circles
-    p=(${SMALLC_NUMSET})
+    p=(${smallc_numset})
 
     if [[ ${module_gis_smallc_dash[$tt]} -ne 0 ]]; then
       module_gis_smallc_dashcmd=",-"
@@ -766,20 +762,28 @@ function tectoplot_plot_gis() {
     fi
 
     for this_sc in ${p[@]}; do
-      polelat=${SMALLCLAT[$this_sc]}
-      polelon=${SMALLCLON[$this_sc]}
+      polelat=${smallc_lat[$this_sc]}
+      polelon=${smallc_lon[$this_sc]}
 
       poleantilat=$(echo "0 - (${polelat})+0.00000000001" | bc -l)
       poleantilon=$(echo "${polelon}" | gawk  '{if ($1 < 0) { print $1+180 } else { print $1-180 } }')
 
       gmt_init_tmpdir
-        gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} -G0.5/${SMALLCDIST[$this_sc]} -L-360/0 $VERBOSE | gawk '{print $1, $2}' > ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt
+        gmt project -T${polelon}/${polelat} -C${poleantilon}/${poleantilat} \
+          -G0.5/${smallc_dist[$this_sc]} -L-360/0 $VERBOSE \
+          | gawk '{print $1, $2}' \
+          > ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt
       gmt_remove_tmpdir
 
       if [[ ${SMALLC_PLOTLABEL[$this_sc]} -eq 1 ]]; then
-        gmt psxy ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt -Sqn1:+f8p,Helvetica,${SMALLCCOLOR[$this_sc]}+l"${SMALLCDIST[$this_sc]}°"+v -W${module_gis_smallc_stroke[$tt]}${module_gis_smallc_dashcmd} $RJOK $VERBOSE >> map.ps
+        gmt psxy ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt \
+          -Sqn1:+f8p,Helvetica,${SMALLCCOLOR[$this_sc]}+l"${smallc_dist[$this_sc]}°"+v \
+          -W${module_gis_smallc_stroke[$tt]}${module_gis_smallc_dashcmd} $RJOK $VERBOSE \
+          >> map.ps
       else
-        gmt psxy ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt -W${module_gis_smallc_stroke[$tt]}${module_gis_smallc_dashcmd} $RJOK $VERBOSE >> map.ps
+        gmt psxy ${F_MAPELEMENTS}smallcircle_${tt}_${this_sc}.txt \
+          -W${module_gis_smallc_stroke[$tt]}${module_gis_smallc_dashcmd} $RJOK $VERBOSE \
+          >> map.ps
       fi
 
       if [[ ${SMALLCPOLE[$this_sc]} -eq 1 ]]; then
@@ -789,7 +793,7 @@ function tectoplot_plot_gis() {
       fillcolor=$(echo ${module_gis_smallc_stroke[$tt]} | gawk -F, '{print $2}')
 
       if [[ ${module_gis_smallc_pole[$tt]} -eq 1 ]]; then
-        echo "${SMALLCLON[$this_sc]} ${SMALLCLAT[$this_sc]}" | gmt psxy -Sc0.1i -G${fillcolor} $RJOK $VERBOSE >> map.ps
+        echo "${smallc_lon[$this_sc]} ${smallc_lat[$this_sc]}" | gmt psxy -Sc0.1i -G${fillcolor} $RJOK $VERBOSE >> map.ps
       fi
     done
     tectoplot_plot_caught=1

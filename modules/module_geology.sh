@@ -476,7 +476,7 @@ function tectoplot_legendbar_geology() {
 
         gmt makecpt -C$GEOAGE_CPT -A${OC_TRANS} -Fr -G${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX} -T${GEOAGE_COLORBAR_MIN}/${GEOAGE_COLORBAR_MAX}/10 ${VERBOSE} > ${F_CPTS}geoage_colorbar.cpt
         echo "G -0.195i" >> ${LEGENDDIR}legendbars.txt
-        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bx+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${F_CPTS}geoage_colorbar.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bx100f50+l\"Age (Ma)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_caught_legendbar=1
       fi
