@@ -363,25 +363,27 @@ function get_cpt_path() {
   local cptarg="${1}"
   if [[ -s ${cptarg} ]]; then
     CPT_PATH=$(abs_path ${cptarg})
-    info_msg "[-tcpt]: Setting CPT to ${CPT_PATH}"
+    info_msg "[get_cpt_path]: Setting CPT to ${CPT_PATH}"
+  elif [[ -d ${cptarg} ]]; then
+    info_msg "CPT name conflicts with directory name... assuming GMT builtin CPT"
   elif gmt makecpt -C${cptarg} > /dev/null 2>&1; then
-    info_msg "[-tcpt]: CPT ${cptarg} is a builtin GMT CPT."
+    info_msg "[get_cpt_path]: CPT ${cptarg} is a builtin GMT CPT."
     CPT_PATH="${cptarg}"
   elif [[ -s ${CPTDIR}${cptarg} ]]; then
-    info_msg "[-tcpt]: CPT ${cptarg} is a builtin tectoplot CPT in ${CPTDIR}."
+    info_msg "[get_cpt_path]: CPT ${cptarg} is a builtin tectoplot CPT in ${CPTDIR}."
     CPT_PATH=$(abs_path ${CPTDIR}${cptarg})
   elif [[ -s ${CPTDIR}${cptarg}.cpt ]]; then
-    info_msg "[-tcpt]: CPT ${cptarg}.cpt is a builtin tectoplot CPT in ${CPTDIR}."
+    info_msg "[get_cpt_path]: CPT ${cptarg}.cpt is a builtin tectoplot CPT in ${CPTDIR}."
     CPT_PATH=$(abs_path ${CPTDIR}${cptarg}.cpt)
   elif [[ -s ${CPTDIR}colorcet/CET-${cptarg}.cpt ]]; then
-    info_msg "[-tcpt]: CET-${cptarg}.cpt is colorcet CPT in ${CPTDIR}/colorcet/"
+    info_msg "[get_cpt_path]: CET-${cptarg}.cpt is colorcet CPT in ${CPTDIR}/colorcet/"
     CPT_PATH=$(abs_path ${CPTDIR}colorcet/CET-${cptarg}.cpt)
   elif [[ -s ${CPTDIR}colorcet/${cptarg} ]]; then
-    info_msg "[-tcpt]: CPT ${cptarg} is colorcet CPT in ${CPTDIR}/colorcet/"
+    info_msg "[get_cpt_path]: CPT ${cptarg} is colorcet CPT in ${CPTDIR}/colorcet/"
     CPT_PATH=$(abs_path ${CPTDIR}"colorcet/"${cptarg})
   else
-    echo "${cptarg} is not a valid CPT"
-    CPT_PATH=""
+    info_msg "${cptarg} is not a valid CPT... yet"
+    CPT_PATH="${cptarg}"
     return 1
   fi
   return 0

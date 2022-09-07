@@ -4,6 +4,9 @@ TESTBOXCMD="-F+p+c0"
 
 shopt -s nullglob
 
+
+
+
 # Rules for legend items:
 # If items are flexible then their parameters must be specifiable in advance
 # so that parallel instances can match with a fast legend
@@ -862,7 +865,7 @@ do
 
   -n)
     narrateflag=1
-    info_msg "${COMMAND}"
+    info_msg ${COMMAND}
     ;;
 
   -pss)
@@ -889,6 +892,7 @@ do
   shift
 
 done
+
 if [[ $DONTRESETCOMSFLAG -eq 0 ]]; then
   set -- "${saved_args[@]}"
 fi
@@ -903,13 +907,53 @@ do
   case ${key} in
 
   -usage)
-  USAGEFLAG=1
+    USAGEFLAG=1
+  ;;
+
+  -history) # Print/search tectoplot history and exit
+    if [[ ! $USAGEFLAG -eq 1 ]]; then
+      if [[ $2 == "archive" ]]; then
+        echo "Archive history? Will overwrite previous archive. [y/n]"
+        read -r -p "" response
+        case $response in
+         y)
+           echo "Archiving history to ${OPTDIR}tectoplot.history.archive"
+           cp ${OPTDIR}tectoplot.history ${OPTDIR}tectoplot.history.archive
+         ;;
+        esac
+      elif [[ $2 == "delete" ]]; then
+        echo "Delete history? [y/n]"
+        read -r -p "" response
+        case $response in
+         y)
+           echo "Deleting history from ${OPTDIR}tectoplot.history"
+           rm -f ${OPTDIR}tectoplot.history
+           touch ${OPTDIR}tectoplot.history
+         ;;
+        esac
+      elif [[ $2 == "restore" ]]; then
+        echo "Restore history? Will append archive to current history [y/n]"
+        read -r -p "" response
+        case $response in
+         y)
+           echo "Restoring history. Appending to ${OPTDIR}tectoplot.history"
+           [[ -s ${OPTDIR}tectoplot.history.archive ]] && cat ${OPTDIR}tectoplot.history.archive >> ${OPTDIR}tectoplot.history
+         ;;
+        esac
+      elif arg_is_integer $2; then
+         tail -n $2 ${OPTDIR}tectoplot.history
+      elif [[ ! -z $2 ]]; then
+         grep -- $2 ${OPTDIR}tectoplot.history
+      else
+         cat ${OPTDIR}tectoplot.history
+      fi
+      exit
+    fi
   ;;
 
   -addpath) # Add tectoplot source directory to ~/.profile and exit
 
-
-  if [[ ! $USAGEFLAG -eq 1 ]]; then
+    if [[ ! $USAGEFLAG -eq 1 ]]; then
       if [[ ! -e ~/.profile ]]; then
         info_msg "[-addpath]: ~/.profile does not exist. Creating."
       else
@@ -1153,6 +1197,7 @@ do
   esac
   shift
 done
+
 set -- "${saved_args[@]}"
 ##### End command line arguments that always end with exit
 
@@ -1467,6 +1512,11 @@ EOF
 fi
 USAGEFLAG=1
 
+ if [[ $2 == "vars" ]]; then
+   USAGEVARSFLAG=1
+   shift
+ fi
+
  if [[ $2 =~ "all" ]]; then
    shift
    SCRIPTFILE="${BASH_SOURCE[0]}"
@@ -1575,7 +1625,7 @@ fi
   ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
   shift
   set -- "blank" "-a" "a" "-z" "-c" "-time" "${STARTTIME}" "${ENDTIME}" "$@"
-  echo $@
+  echo "$@"
   ;;
 
   -latesteqs)
@@ -1767,7 +1817,7 @@ fi
       esac
     done
 
-    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" ${EVENTMAP_MMI[@]} "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" $@
+    set -- "blank" "-r" "eq" "usgs" ${EVENTMAP_DEGBUF} "-usgs" "${EVENTMAP_ID}"  "-t" "${EVENTMAP_TOPO}" "-t0" "-b" ${EVENTMAP_APROF[@]} "-z" "-zcat" "usgs" "ANSS" "ISC" "-zcrescale" "2"  "-c" "-ccat" "usgs" "GCMT" ${EVENTMAP_MMI[@]} "-eqlist" "{" "${EVENTMAP_ID}" "}" "-eqlabel" "list" "datemag" "-legend" "onmap" "-inset" "1i" "45" "0.1i" "0.1i" "-oto" "change_h" "$@"
     # echo $@
     ;;
 
@@ -6611,7 +6661,6 @@ fi
                 MAXLON=${rasrange[1]}
                 MINLAT=${rasrange[2]}
                 MAXLAT=${rasrange[3]}
-                echo got ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}
                 ;;
             esac
           shift
@@ -8920,203 +8969,205 @@ fi
     plots+=("maptitle")
     ;;
 
-  -tn) # -tn: plot topographic contours
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--tn:           plot topographic contours
-Usage: -tn [[options]]
-
-  Plot contours of -t topography.
-
-  Options:
-
-  int [number | auto]
-      Contour interval
-  fontsize [number]
-      Set font size for contour labels
-  index [number]
-      Set specified contour to be a major contour
-  list [level1,level2,...]
-      Use the comma-specified list, plot all as major contours
-  minsize [arg]
-      Suppresses plotting of small closed contours
-      specify minimum numbner of points (e.g. 500) or length (e.g. 10k)
-  smooth [arg]
-      Smooth contours by a factor (e.g. 3)
-  major [width] [[color]]
-      Set appearance of major contours
-  minor [width] [[color]]
-      Set appearance of minor contours
-  trans [percent]
-      Set transparency of all contours
-  space [distance]
-      Set spacing between contour labels (inches, e.g. 0.5i)
 
 
-
-Example:
-tectoplot -t -tn 1000 -o example_tn
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    TOPOCONTOURTRANS=""
-    TOPOCONTOURSPACE=""
-    TOPOCONTOURMINSIZE=""
-    TOPOCONTOURSMOOTH=""
-    TOPOCONTOURINDEX=0       # Value of an index contour
-    TOPOCONTOURINT=100       # Default contour interval
-    TOPOCONTOURFONTSIZE=2    # small labels
-
-    topocontourindexflag=0
-    CONTOURMAJORSPACE=5
-    TOPOCONTOURSPACE=""
-    TOPOCONTOURLABELSEP="0.5i"
-
-    TOPOCONTOURMINORWIDTH=0.1
-    TOPOCONTOURMAJORWIDTH=0.25
-    TOPOCONTOURMINORCOLOR="black"
-    TOPOCONTOURMAJORCOLOR="black"
-
-    while ! arg_is_flag $2; do
-      case $2 in
-        fontsize)
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURFONTSIZE="${2}"
-            shift
-          else
-            echo "[-tn]: fontsize option requires positive number argument"
-            exit 1
-          fi
-        ;;
-        int)
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURINT="${2}"
-            shift
-          elif [[ $2 == "auto" ]]; then
-            topocontourcalcflag=1
-            shift
-          else
-            echo "[-tn]: int option requires positive number argument"
-            exit 1
-          fi
-        ;;
-        index)
-          shift
-          if arg_is_float $2; then
-            topocontourindexflag=1
-            TOPOCONTOURINDEX="${2}"
-            shift
-          else
-            echo "[-tn]: index option requires number argument"
-            exit 1
-          fi
-        ;;
-        list)
-          shift
-          if [[ $2 == "" ]]; then
-            echo "[-tn]: list option requires comma-separated list argument"
-            exit 1
-          else
-            if [[ $2 == *,* ]]; then
-              TOPOCONTOURLIST="${2}"
-            else
-              TOPOCONTOURLIST="${2},"
-            fi
-            topocontourlistflag=1
-            shift
-          fi
-          ;;
-        number)
-          shift
-          if arg_is_positive_integer $2; then
-            TOPOCONTOURNUMDEF=$2
-            shift
-          else
-            echo "[-tn]: number option requires positive integer argument"
-            exit 1
-          fi
-          ;;
-        minsize)
-          shift
-          if ! arg_is_flag $2; then
-            TOPOCONTOURMINSIZE="-Q${2}"
-            shift
-          else
-            echo "[-tn]: minsize requires argument"
-            exit 1
-          fi
-        ;;
-        smooth) # int
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURSMOOTH="-S${2}"
-            shift
-          else
-            echo "[-tn]: smooth requires positive float argument"
-            exit 1
-          fi
-        ;;
-        major) # [width] [[color]]
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURMAJORWIDTH=$2
-            shift
-            if ! arg_is_flag $2; then
-              TOPOCONTOURMAJORCOLOR=$2
-              shift
-            fi
-          else
-            echo "[-tn]: major requires positive float width argument"
-            exit 1
-          fi
-        ;;
-        minor) # [width] [[color]]
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURMINORWIDTH=$2
-            shift
-            if ! arg_is_flag $2; then
-              TOPOCONTOURMINORCOLOR=$2
-              shift
-            fi
-          else
-            echo "[-tn]: minor requires positive float width argument"
-            exit 1
-          fi
-        ;;
-        trans) # [percent]
-          shift
-          if arg_is_positive_float $2; then
-            TOPOCONTOURTRANS="-t$2"
-            shift
-          else
-            echo "[-tn]: trans requires positive float width argument"
-            exit 1
-          fi
-        ;;
-        space) # [degrees]
-          shift
-          if ! arg_is_flag $2; then
-            TOPOCONTOURLABELSEP="$2"
-            shift
-          else
-            echo "[-tn]: space requires positive float width argument"
-            exit 1
-          fi
-        ;;
-        *)
-          echo "[-tn]: option $2 not recognized"
-          exit 1
-        ;;
-      esac
-    done
-
-    plots+=("contours")
-    ;;
+#   -tn) # -tn: plot topographic contours
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -tn:           plot topographic contours
+# Usage: -tn [[options]]
+#
+#   Plot contours of -t topography.
+#
+#   Options:
+#
+#   int [number | auto]
+#       Contour interval
+#   fontsize [number]
+#       Set font size for contour labels
+#   index [number]
+#       Set specified contour to be a major contour
+#   list [level1,level2,...]
+#       Use the comma-specified list, plot all as major contours
+#   minsize [arg]
+#       Suppresses plotting of small closed contours
+#       specify minimum numbner of points (e.g. 500) or length (e.g. 10k)
+#   smooth [arg]
+#       Smooth contours by a factor (e.g. 3)
+#   major [width] [[color]]
+#       Set appearance of major contours
+#   minor [width] [[color]]
+#       Set appearance of minor contours
+#   trans [percent]
+#       Set transparency of all contours
+#   space [distance]
+#       Set spacing between contour labels (inches, e.g. 0.5i)
+#
+#
+#
+# Example:
+# tectoplot -t -tn 1000 -o example_tn
+# ExampleEnd
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     TOPOCONTOURTRANS=""
+#     TOPOCONTOURSPACE=""
+#     TOPOCONTOURMINSIZE=""
+#     TOPOCONTOURSMOOTH=""
+#     TOPOCONTOURINDEX=0       # Value of an index contour
+#     TOPOCONTOURINT=100       # Default contour interval
+#     TOPOCONTOURFONTSIZE=2    # small labels
+#
+#     topocontourindexflag=0
+#     CONTOURMAJORSPACE=5
+#     TOPOCONTOURSPACE=""
+#     TOPOCONTOURLABELSEP="0.5i"
+#
+#     TOPOCONTOURMINORWIDTH=0.1
+#     TOPOCONTOURMAJORWIDTH=0.25
+#     TOPOCONTOURMINORCOLOR="black"
+#     TOPOCONTOURMAJORCOLOR="black"
+#
+#     while ! arg_is_flag $2; do
+#       case $2 in
+#         fontsize)
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURFONTSIZE="${2}"
+#             shift
+#           else
+#             echo "[-tn]: fontsize option requires positive number argument"
+#             exit 1
+#           fi
+#         ;;
+#         int)
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURINT="${2}"
+#             shift
+#           elif [[ $2 == "auto" ]]; then
+#             topocontourcalcflag=1
+#             shift
+#           else
+#             echo "[-tn]: int option requires positive number argument"
+#             exit 1
+#           fi
+#         ;;
+#         index)
+#           shift
+#           if arg_is_float $2; then
+#             topocontourindexflag=1
+#             TOPOCONTOURINDEX="${2}"
+#             shift
+#           else
+#             echo "[-tn]: index option requires number argument"
+#             exit 1
+#           fi
+#         ;;
+#         list)
+#           shift
+#           if [[ $2 == "" ]]; then
+#             echo "[-tn]: list option requires comma-separated list argument"
+#             exit 1
+#           else
+#             if [[ $2 == *,* ]]; then
+#               TOPOCONTOURLIST="${2}"
+#             else
+#               TOPOCONTOURLIST="${2},"
+#             fi
+#             topocontourlistflag=1
+#             shift
+#           fi
+#           ;;
+#         number)
+#           shift
+#           if arg_is_positive_integer $2; then
+#             TOPOCONTOURNUMDEF=$2
+#             shift
+#           else
+#             echo "[-tn]: number option requires positive integer argument"
+#             exit 1
+#           fi
+#           ;;
+#         minsize)
+#           shift
+#           if ! arg_is_flag $2; then
+#             TOPOCONTOURMINSIZE="-Q${2}"
+#             shift
+#           else
+#             echo "[-tn]: minsize requires argument"
+#             exit 1
+#           fi
+#         ;;
+#         smooth) # int
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURSMOOTH="-S${2}"
+#             shift
+#           else
+#             echo "[-tn]: smooth requires positive float argument"
+#             exit 1
+#           fi
+#         ;;
+#         major) # [width] [[color]]
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURMAJORWIDTH=$2
+#             shift
+#             if ! arg_is_flag $2; then
+#               TOPOCONTOURMAJORCOLOR=$2
+#               shift
+#             fi
+#           else
+#             echo "[-tn]: major requires positive float width argument"
+#             exit 1
+#           fi
+#         ;;
+#         minor) # [width] [[color]]
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURMINORWIDTH=$2
+#             shift
+#             if ! arg_is_flag $2; then
+#               TOPOCONTOURMINORCOLOR=$2
+#               shift
+#             fi
+#           else
+#             echo "[-tn]: minor requires positive float width argument"
+#             exit 1
+#           fi
+#         ;;
+#         trans) # [percent]
+#           shift
+#           if arg_is_positive_float $2; then
+#             TOPOCONTOURTRANS="-t$2"
+#             shift
+#           else
+#             echo "[-tn]: trans requires positive float width argument"
+#             exit 1
+#           fi
+#         ;;
+#         space) # [degrees]
+#           shift
+#           if ! arg_is_flag $2; then
+#             TOPOCONTOURLABELSEP="$2"
+#             shift
+#           else
+#             echo "[-tn]: space requires positive float width argument"
+#             exit 1
+#           fi
+#         ;;
+#         *)
+#           echo "[-tn]: option $2 not recognized"
+#           exit 1
+#         ;;
+#       esac
+#     done
+#
+#     plots+=("contours")
+    # ;;
 
 
 
@@ -9724,6 +9775,11 @@ fi
     shift
     set -- "blank" "$@" "-timg" "img" "sentinel_img.jpg" "${SENTINEL_FACT}"
     ;;
+
+  -tn)
+    shift
+    set -- "blank" "-cn" "topo/dem.tif" "$@"
+  ;;
 
   -tw) # set intensity raster to white
   if [[ $USAGEFLAG -eq 1 ]]; then
@@ -15450,7 +15506,11 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       else
         # REFPLATE now ends in a _X code to accommodate multiple subplates with the same pole.
         # This will break if _X becomes _XX (10 or more sub-plates)
-        RGP=${REFPLATE::${#REFPLATE}-2}
+        if [[ -z $REFPLATE ]]; then
+          REFPLATE=$DEFREF
+        else
+          RGP=${REFPLATE::${#REFPLATE}-2}
+        fi
         if [[ -e ${GPSDIR}"/GPS_${RGP}.gmt" ]]; then
           GPS_FILE=$(echo ${GPSDIR}"/GPS_${RGP}.gmt")
         else
@@ -17033,9 +17093,10 @@ EOF
 
       contours)
 
-        # We want to plot contours intelligently and nicely including major-minor contour thickness and labeling only of major contours, without double plotting of contours.
-
-
+        # We want to plot contours intelligently and nicely including major-minor
+        # contour thickness and labeling only of major contours, without double
+        # plotting of contours. We also want to cut contours to 32,000 points to
+        # allow them to appear in Adobe Illustrator
 
         if [[ $topocontourlistflag -eq 1 ]]; then
           gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${TOPOCONTOURLIST} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} -D > majorcontourlines.dat
@@ -17090,34 +17151,12 @@ EOF
               }
             }
             '
-            # else {
-            #   # If the range does not straddle 0, just make contours
-            #     ismaj=1
-            #     minz=minz-minz%cint
-            #     for(i=minz; i<maxz; i+=cint) {
-            #       if (++ismaj == majorspace) {
-            #         print i, annotateflag, maxwidth "p," maxcolor >> "topo.major.contourdef"
-            #         ismaj=0
-            #       } else {
-            #         print i, "c", minwidth "p," mincolor >> "topo.minor.contourdef"
-            #       }
-            #     }
-            #   }
-            # }
-
-
-          # Exclude options that are contained in the ${CONTOURGRIDVARS[@]} array
-          info_msg "Plotting topographic contours using ${TOPOGRAPHY_DATA} and contour options ${CONTOUROPTSTRING[@]}"
 
           if [[ -s topo.major.contourdef ]]; then
-            echo              gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} \> majorcontourlines.dat
-
              gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.major.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} ${VERBOSE} > majorcontourlines.dat
           fi
 
-
           if [[ -s topo.minor.contourdef ]]; then
-            echo gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} \> minorcontourlines.dat
              gmt grdcontour ${TOPOGRAPHY_DATA} -Ctopo.minor.contourdef -D ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} ${VERBOSE} > minorcontourlines.dat
           fi
         fi
@@ -17182,42 +17221,8 @@ EOF
              gmt psxy splitminorcontourlines.dat ${TOPOCONTOURTRANS} -W${TOPOCONTOURMINORWIDTH},${TOPOCONTOURMINORCOLOR} ${RJOK} >> map.ps
              # gmt psclip -C ${RJOK} >> map.ps
              # gmt psxy minorcontourlines.dat -W${TOPOCONTOURMINORWIDTH},${TOPOCONTOURMINORCOLOR} ${RJOK} >> map.ps
-         fi
-
-
-
-          # split -l 10 topo.contourdef toposplit
-          #
-          # for thissplit in toposplit*; do
-          #   echo "Contouring $thissplit"
-          #   echo gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${thissplit} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE}
-          #   gmt grdcontour ${TOPOGRAPHY_DATA} -A+f2p,Helvetica,black -C${thissplit} ${TOPOCONTOURSMOOTH} ${TOPOCONTOURTRANS} ${TOPOCONTOURSPACE} ${TOPOCONTOURMINSIZE} $RJOK ${VERBOSE} >> map.ps
-          #   rm -f $thissplit
-          # done
-
-  # TOPOCONTOURSPACE="-G${2}d"
+        fi
         ;;
-
-      # countries)
-      #   gmt pscoast -E+l -Vn | gawk -F'\t' '{print $1}' > ${F_MAPELEMENTS}countries.txt
-      #   NUMCOUNTRIES=$(wc -l < ${F_MAPELEMENTS}countries.txt | gawk '{print $1+0}')
-      #   gmt makecpt -N -T0/${NUMCOUNTRIES}/1 -C${COUNTRIESCPT} -Vn  | gawk '{print $2}' | sort -R > ${F_MAPELEMENTS}country_colors.txt
-      #   paste ${F_MAPELEMENTS}countries.txt ${F_MAPELEMENTS}country_colors.txt | gawk '{printf("-E%s+g%s ", $1, $2)}' > ${F_MAPELEMENTS}combined.txt
-      #   string=($(cat ${F_MAPELEMENTS}combined.txt))
-      #   gmt pscoast ${string[@]} ${RJOK} ${VERBOSE} -t${COUNTRIES_TRANS} -Slightblue >> map.ps
-      #   ;;
-      #
-      # countryborders)
-      #   gmt pscoast ${BORDER_QUALITY} -N1/${BORDER_LINEWIDTH},${BORDER_LINECOLOR} $RJOK $VERBOSE >> map.ps
-      #   ;;
-      #
-      # stateborders)
-      #   gmt pscoast ${BORDER_STATE_QUALITY} -N2/${BORDER_STATE_LINEWIDTH},${BORDER_STATE_LINECOLOR} $RJOK $VERBOSE >> map.ps
-      #   ;;
-      #
-      # countrylabels)
-      #   gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}+jLM $RJOK ${VERBOSE} >> map.ps
-      #   ;;
 
       customtopo)
         if [[ $dontplottopoflag -eq 0 ]]; then
@@ -17691,6 +17696,12 @@ EOF
 
       gps)
         info_msg "Plotting GPS"
+
+        # Select by polygon if specified
+        if [[ -s ${POLYGONAOI} ]]; then
+          gmt select $GPS_FILE -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_GPS}gps_aoi.txt
+          GPS_FILE=${F_GPS}gps_aoi.txt
+        fi
   		  ##### Plot GPS velocities if possible (requires Kreemer plate to have same ID as model reference plate, or manual specification)
         if [[ $tdefnodeflag -eq 0 ]]; then
     			if [[ -e $GPS_FILE ]]; then
@@ -17709,6 +17720,7 @@ EOF
 
 
             if [[ $GPS_NOPLOT -ne 1 ]]; then
+
     				  gmt psvelo ${F_GPS}gps.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -G${GPS_FILLCOLOR} -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps 2>/dev/null
             fi
             # generate XY data for reference
@@ -21983,10 +21995,14 @@ done
 #     gmt psimage prerotate.png -Dx0/0+w${PS_WIDTH}i ${RJSTRING[@]} -p${ROTATE_ANGLE} > map.ps
 #   fi
 
-  echo "${COMMAND}" > "$MAPOUT.history"
-  echo "${COMMAND}" >> $OPTDIR"tectoplot.history"
+  echo ${COMMAND} > ${MAPOUT}.history
 
-  grep "%@GMT:" map.ps | sed -e 's/%@GMT: //' >> "$MAPOUT.history"
+  # Save the record to tectoplot.history along with the UTC time it was run
+  thisdate=$(date -u)
+  echo -n "$thisdate: " >> ${OPTDIR}tectoplot.history
+  echo ${COMMAND} >> ${OPTDIR}tectoplot.history
+
+  grep "%@GMT:" map.ps | sed -e 's/%@GMT: //' >> ${MAPOUT}.history
 
   ##### MAKE PDF OF MAP
   if [[ $keepopenflag -eq 0 ]]; then
@@ -22004,7 +22020,7 @@ done
       [[ $openflag -eq 1 ]] && open_pdf "$MAPOUT.pdf"
     else
       mv map.pdf "${THISDIR}/${MAPOUT}.pdf"
-      mv "$MAPOUT.history" $THISDIR"/"$MAPOUT".history"
+      mv ${MAPOUT}.history $THISDIR"/"$MAPOUT".history"
       info_msg "Map is at $THISDIR/$MAPOUT.pdf"
       [[ $openflag -eq 1 ]] && open_pdf "$THISDIR/$MAPOUT.pdf"
     fi
