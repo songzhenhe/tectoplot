@@ -29,6 +29,9 @@
 
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
+
+PROFILE_X_SHIFT=0i
+
 MAPMARGIN=0.5i
 
 ZTEXT_MINMAG=7

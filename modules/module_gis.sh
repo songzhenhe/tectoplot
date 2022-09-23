@@ -566,7 +566,7 @@ function tectoplot_plot_gis() {
     ((module_gis_li_callnum++))
     tt=$module_gis_li_callnum
 
-    info_msg "[-lis]: Plotting line dataset $tt"
+    info_msg "[-li]: Plotting line dataset $tt"
 
     if [[ ${module_gis_li_file[$tt]} == *kml ]]; then
       kml_to_all_xy ${module_gis_li_file[$tt]} module_gis_line_${tt}.txt

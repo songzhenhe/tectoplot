@@ -501,8 +501,8 @@ EOF
   fi
 
   # Now work on the seismicity data
-  if [[ -s ${F_SEIS}eqs.txt && $plydemonlyflag -eq 0 && ${PLY_SEISBALL} -eq 1 ]]; then
-          # gmt grdtrack using the existing DEM
+  if [[ -s ${F_SEIS}eqs.txt && $plydemonlyflag -eq 0 ]]; then
+
           numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
 cat <<-EOF > ${F_3D}tectoplot_header.ply
 ply
@@ -567,13 +567,14 @@ EOF
             print maxdepth > "./eq_maxdepth.txt"
           }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > ${F_3D}tectoplot_vertex.ply
 
-          [[ -s eq_polypts.txt ]] && mv eq_polypts.txt ${F_3D}eq_polypts.txt
+          if [[ ${PLY_SEISBALL} -eq 1 ]]; then
+            [[ -s eq_polypts.txt ]] && mv eq_polypts.txt ${F_3D}eq_polypts.txt
 
-          # Replicate the polyhedra
-          if [[ -s ${F_3D}eq_polypts.txt ]]; then
-            echo "mtllib materials.mtl" > ${F_3D}eq_poly.obj
-            ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}eq_polypts.txt "SphereColor" >> ${F_3D}eq_poly.obj
-          fi
+            # Replicate the polyhedra
+            if [[ -s ${F_3D}eq_polypts.txt ]]; then
+              echo "mtllib materials.mtl" > ${F_3D}eq_poly.obj
+              ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}eq_polypts.txt "SphereColor" >> ${F_3D}eq_poly.obj
+            fi
 
 cat <<-EOF >> ${F_3D}materials.mtl
 newmtl SphereColor
@@ -584,6 +585,8 @@ Tr 1.0
 illum 1
 Ns 0.000000
 EOF
+
+          fi
 
           cat ${F_3D}tectoplot_header.ply ${F_3D}tectoplot_vertex.ply > ${F_3D}tectoplot.ply
 

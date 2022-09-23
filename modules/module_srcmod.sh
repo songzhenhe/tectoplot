@@ -18,7 +18,8 @@ function tectoplot_defaults_srcmod() {
 
   ################################################################################
   ### SRCMOD slip distributions
-  SLIPMINIMUM=1                # SRCMOD minimum slip that is colored (m)
+  SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
+  SLIPMINPCT=10                # SLIPMIN=SLIPMINPCT*SLIP"MAX
   SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
   SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)
 
@@ -284,9 +285,10 @@ function tectoplot_plot_srcmod() {
             }' > temp1sliprake.xyz
         fi
 
+        VERBOSE="-V"
         gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
         gmt triangulate temp.xyz -I"$LONKM"k -Gtemp2.nc -R $VERBOSE
-        gmt surface temp.xyz -I"$LONKM"k -Ll0 -Gtemp.nc -R $VERBOSE
+        gmt surface temp.xyz -Ll0 -Gtemp.nc -Rtemp2.nc $VERBOSE
         gmt grdmath $VERBOSE temp2.nc $SLIPMINIMUM LE 1 NAN = mask.grd
         gmt grdmath $VERBOSE temp.nc mask.grd OR = slipfinal.grd
         if [[ $SRCMOD_NOGRID -eq 0 ]]; then

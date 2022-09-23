@@ -861,6 +861,7 @@ do
   -megadebug)
     PS4=' \e[33m$(date +"%H:%M:%S"): $LINENO ${FUNCNAME[0]} -> \e[0m'
     set -x
+    MEGADEBUGFLAG="-megadebug"
     ;;
 
   -n)
@@ -1625,7 +1626,6 @@ fi
   ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
   shift
   set -- "blank" "-a" "a" "-z" "-c" "-time" "${STARTTIME}" "${ENDTIME}" "$@"
-  echo "$@"
   ;;
 
   -latesteqs)
@@ -2104,6 +2104,25 @@ fi
 
   ;;
 
+  -profopts)
+  cat <<-EOF > profopts
+des -profopts Set options for profile plotting
+opn width PROFILE_TRACK_WIDTH string ${PROFILE_TRACK_WIDTH}
+    line width for profile lines drawn on map
+EOF
+
+  if [[ $USAGEFLAG -eq 1 ]]; then
+    tectoplot_usage_opts profopts
+  else
+    shift
+    tectoplot_get_opts profopts "${@}"
+    # In main script we have to do the shifting ourselves; 1 fewer as we shift
+    # at the end of this case statement
+    [[ $tectoplot_module_shift -gt 0 ]] && shift $(echo "${tectoplot_module_shift} - 1" | bc)
+
+  fi
+  ;;
+
   -aprof) # args: aprofcode1 aprofcode2 ... width res
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -2219,18 +2238,28 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -datareport:   plot footprints of downloaded data
-Usage: -datareport
+Usage: -datareport [[dataset ...]]
 
-  GMRT: red
-  EARTHRELIEF (GMT server): blue
-  Sentinel: green
-  Saved topography: shaded gray
-  Custom DEMs: purple
+  If one or more datasets are specified, only report on them
+
+  GMRT            GMRT cut tiles; blue
+  EARTHRELIEF     Topo tiles from GMT server: reds
+  sentinel        Sentinel cloud free images; green
+  cuttopo         Cut topography tiles; shaded gray
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
   plots+=("datareport")
+
+  while ! arg_is_flag $2; do
+    datareport_ids+=("$2")
+    shift
+  done
+
+  if [[ -z $datareport_ids ]]; then
+    datareport_ids+=("EARTHRELIEF")
+  fi
 
   ;;
 
@@ -4908,6 +4937,7 @@ fi
       shift
     fi
     info_msg "[-mob]: az=$PERSPECTIVE_AZ, inc=$PERSPECTIVE_INC, exag=$PERSPECTIVE_EXAG, res=$PERSPECTIVE_RES"
+
     ;;
 
   -proftopo)
@@ -5883,7 +5913,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pi:           create grid from a file of specified points
-Usage: -pi [file]]
+Usage: -pi [file]
 
 --------------------------------------------------------------------------------
 EOF
@@ -5893,21 +5923,27 @@ fi
     if arg_is_flag "${2}"; then
       info_msg "[-pi]: No file specified"
     else
-      if [[ ! -s "${2}" ]]; then
-        info_msg "[-pi]: File ${2} does not exist"
-      else
-        PI_GRIDFILE=$(abs_path "${2}")
-        shift
+      PI_GRIDFILE=$(abs_path "${2}")
+      shift
 
-        if [[ ${PI_GRIDFILE} == *".kml" ]]; then
-          # echo "KML input file"
-          kml_to_points ${PI_GRIDFILE} kml_points.xy
-          PI_GRIDFILE=$(abs_path kml_points.xy)
-        fi
-
-        makegridflag_gridfile=1
-        makegridflag=1
+      if [[ ${PI_GRIDFILE} == *".kml" ]]; then
+        # echo "KML input file"
+        kml_to_points ${PI_GRIDFILE} kml_points.xy
+        PI_GRIDFILE=$(abs_path kml_points.xy)
       fi
+
+      # if [[ ! -s "${2}" ]]; then
+      #   info_msg "[-pi]: File ${2} does not exist. Assuming it will when plotting happens."
+      #   shift
+      # else
+      #   PI_GRIDFILE=$(abs_path "${2}")
+      #   shift
+
+
+
+      makegridflag_gridfile=1
+      makegridflag=1
+      # fi
     fi
 
     ;;
@@ -12790,62 +12826,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   fi
 
   ################################################################################
-  #####          Manage grid spacing and style                               #####
-  ################################################################################
-
-  ##### Create the grid of lat/lon points to resolve as plate motion vectors
-  # Default is a lat/lon spaced grid
-
-  ##### MAKE FIBONACCI GRID POINTS
-  if [[ $gridfibonacciflag -eq 1 ]]; then
-    FIB_PHI=1.618033988749895
-
-    echo "" | gawk -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
-    @include "tectoplot_functions.awk"
-    # function asin(x) { return atan2(x, sqrt(1-x*x)) }
-    BEGIN {
-      phi=1.618033988749895;
-      pi=3.14159265358979;
-      phi_inv=1/phi;
-      ga = 2 * phi_inv * pi;
-    } END {
-      for (i=-n; i<=n; i++) {
-        longitude = ((ga * i)*180/pi)%360;
-
-        latitude = asin((2 * i)/(2*n+1))*180/pi;
-        # LON EDIT TAG - TEST
-        if ( (latitude <= maxlat) && (latitude >= minlat)) {
-          if (test_lon(minlon, maxlon, longitude)==1) {
-            if (longitude < -180) {
-              longitude=longitude+360;
-            }
-            if (longitude > 180) {
-              longitude=longitude-360
-            }
-            print longitude, latitude
-          }
-        }
-      }
-    }' > gridfile.txt
-    gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
-  fi
-
-  if [[ $makegridflag_gridfile -eq 1 ]]; then
-    cp $PI_GRIDFILE gridfile.txt
-    gawk < $PI_GRIDFILE '{print $2, $1}' > gridswap.txt
-  fi
-
-  ##### MAKE LAT/LON REGULAR GRID
-  if [[ $makelatlongridflag -eq 1 ]]; then
-    for i in $(seq $MINLAT $GRIDSTEP $MAXLAT); do
-    	for j in $(seq $MINLON $GRIDSTEP $MAXLON); do
-    		echo $j $i >> gridfile.txt
-    		echo $i $j >> gridswap.txt
-    	done
-    done
-  fi
-
-  ################################################################################
   ##### Check if the reference point is within the data frame
 
   if [[ $REFPTLAT == "" || $REFPTLON == "" ]]; then
@@ -13240,7 +13220,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     #     info_msg "[-t]: Using custom topography file ${GRIDFILE}"
         if [[ $reprojecttopoflag -eq 1 ]]; then
           info_msg "[-t]: reprojecting source file to WGS1984"
-          gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.tif -of "GTiff" -et 2 -t_srs "+proj=longlat +ellps=WGS84"
+          gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.tif -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -of "GTiff" -et 2 -t_srs "+proj=longlat +ellps=WGS84"
           GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.tif)
         fi
     #   # gmt grdcut sometimes does strange things with DEMs
@@ -13254,8 +13234,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     #     DEM_MAXLAT=${GRDINFO[4]}
     #     BATHY=${F_TOPO}dem.tif
     #     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
-    # #gmt grdcut ${GRIDFILE} -G${name} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         BATHYMETRY="custom_$(basename ${GRIDFILE})"
+        # gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         # We should have a different way of marking these types of files by basename
       fi
 
@@ -13492,22 +13473,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # using -te and -ts seems to fix errors with GMT -R and -I not matching
     gdalwarp -q -if AAIGrid -of GTiff -t_srs EPSG:4326 -s_srs EPSG:3395 -r bilinear -te $demxmin $demymin $demxmax $demymax -ts $demwidth $demheight ${F_TOPO}dem_denoise_DN.asc ${F_TOPO}dem_denoised_ddd.tif
     [[ -s ${F_TOPO}dem_denoised.tif ]] && TOPOGRAPHY_DATA=${F_TOPO}dem_denoised.tif
-  fi
-
-
-  ################################################################################
-  #####          Grid contours                                               #####
-  ################################################################################
-
-  # Contour interval for grid if not specified using -cn
-  if [[ $gridcontourcalcflag -eq 1 ]]; then
-    zrange=$(grid_zrange $CONTOURGRID -R$MINLON/$MAXLON/$MINLAT/$MAXLAT)
-    MINCONTOUR=$(echo $zrange | gawk  '{print $1}')
-    MAXCONTOUR=$(echo $zrange | gawk  '{print $2}')
-    CONTOURINTGRID=$(echo "($MAXCONTOUR - $MINCONTOUR) / $CONTOURNUMDEF" | bc -l)
-    if [[ $(echo "$CONTOURINTGRID > 1" | bc -l) -eq 1 ]]; then
-      CONTOURINTGRID=$(echo "$CONTOURINTGRID / 1" | bc)
-    fi
   fi
 
   ################################################################################
@@ -13954,6 +13919,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       [[ -s ${F_SEIS}eqselected.dat ]] && cp ${F_SEIS}eqselected.dat ${F_SEIS}eqs.txt
     fi
 
+
+
   # Select seismicity based on proximity to Slab2
     ZSLAB2VERT=${CMTSLAB2VERT}
     [[ $cmtslab2filterflag -eq 1 ]] && zslab2filterflag=1
@@ -14111,7 +14078,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       [[ -e ${F_SEIS}eqsort.txt ]] && cp ${F_SEIS}eqsort.txt ${F_SEIS}eqs.txt
     fi
   fi # if [[ $plotseis -eq 1 ]]
-
 
   ################################################################################
   #####           Manage focal mechanisms and hypocenters                    #####
@@ -15150,9 +15116,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     gawk < kin_normal.txt -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
     cd ..
-
-
-
   fi
 
 
@@ -15190,6 +15153,62 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
   fi
 
 
+  ################################################################################
+  #####          Manage grid spacing and style                               #####
+  ################################################################################
+
+  ##### Create the grid of lat/lon points to resolve as plate motion vectors
+  # Default is a lat/lon spaced grid
+
+  ##### MAKE FIBONACCI GRID POINTS
+  if [[ $gridfibonacciflag -eq 1 ]]; then
+    FIB_PHI=1.618033988749895
+
+    echo "" | gawk -v n=$FIB_N  -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
+    @include "tectoplot_functions.awk"
+    # function asin(x) { return atan2(x, sqrt(1-x*x)) }
+    BEGIN {
+      phi=1.618033988749895;
+      pi=3.14159265358979;
+      phi_inv=1/phi;
+      ga = 2 * phi_inv * pi;
+    } END {
+      for (i=-n; i<=n; i++) {
+        longitude = ((ga * i)*180/pi)%360;
+
+        latitude = asin((2 * i)/(2*n+1))*180/pi;
+        # LON EDIT TAG - TEST
+        if ( (latitude <= maxlat) && (latitude >= minlat)) {
+          if (test_lon(minlon, maxlon, longitude)==1) {
+            if (longitude < -180) {
+              longitude=longitude+360;
+            }
+            if (longitude > 180) {
+              longitude=longitude-360
+            }
+            print longitude, latitude
+          }
+        }
+      }
+    }' > gridfile.txt
+    gawk < gridfile.txt '{print $2, $1}' > gridswap.txt
+  fi
+
+  if [[ $makegridflag_gridfile -eq 1 ]]; then
+    echo getting $PI_GRIDFILE
+    cp $PI_GRIDFILE gridfile.txt
+    gawk < $PI_GRIDFILE '{print $2, $1}' > gridswap.txt
+  fi
+
+  ##### MAKE LAT/LON REGULAR GRID
+  if [[ $makelatlongridflag -eq 1 ]]; then
+    for i in $(seq $MINLAT $GRIDSTEP $MAXLAT); do
+    	for j in $(seq $MINLON $GRIDSTEP $MAXLON); do
+    		echo $j $i >> gridfile.txt
+    		echo $i $j >> gridswap.txt
+    	done
+    done
+  fi
 
   ################################################################################
   #####           Calculate plate motions                                    #####
@@ -17306,69 +17325,107 @@ EOF
 
       datareport)
 
-        rm -f range.dat
-        # Plot AOI boxes of GMRT tiles
-        for gmrtfile in ${GMRTDIR}*.tif; do
-          gmt grdinfo -C ${gmrtfile} | gawk '
-            ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5){
-              # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
-              print ">"
-              print $2, $4
-              print $2, $5
-              print $3, $5
-              print $3, $4
-              print $2, $4
-            }' >> range.dat
+        shopt -s nullglob
+
+        for this_id in ${datareport_ids[@]}; do
+          case $this_id in
+            cuttopo)
+              for erfile in ${EARTHRELIEFDIR}*.tif; do
+                this_erfile=$(echo $erfile | gawk -F_ '{print $3}')
+                case $this_erfile in
+                  01m) COLOR=200/200/200 ;;
+                  05m) COLOR=170/170/170 ;;
+                  10m) COLOR=140/140/140 ;;
+                  15s) COLOR=110/110/110 ;;
+                  03s) COLOR=80/80/80 ;;
+                  01s) COLOR=50/50/50 ;;
+                  *) COLOR=10/10/10 ;;
+                esac
+                gmt grdinfo -C ${erfile} | gawk '
+                  ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5 && ($3-$2)<360 && ($4-$5)<180){
+                    # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
+                    print ">"
+                    print $2, $4
+                    print $2, $5
+                    print $3, $5
+                    print $3, $4
+                    print $2, $4
+                  }' | gmt psxy -A -G$COLOR ${RJOK} ${VERBOSE} -t50 >> map.ps
+              done
+            ;;
+            EARTHRELIEF)
+              sequence=(30m 05m 04m 01m 15s 03s 01s)
+              this_color=0
+              for this_seq in ${sequence[@]}; do
+                rm -f range.dat
+                if [[ -d ~/.gmt/server/earth/ ]]; then
+                  search_files=($(find ~/.gmt/server/earth/earth_relief \( -name '*.nc' -or -name '*.grd' \) | grep $this_seq))
+                  for this_search_file in ${search_files[@]}; do
+                    gmt grdinfo -C $this_search_file | gawk '
+                      ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5){
+                        # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
+                        print ">"
+                        print $2, $4
+                        print $2, $5
+                        print $3, $5
+                        print $3, $4
+                        print $2, $4
+                      }' >> range.dat
+                   done
+                fi
+                [[ -s range.dat ]] && gmt psxy range.dat -A -G$this_color/0/0 ${RJOK} ${VERBOSE} >> map.ps
+                ((this_color+=30))
+              done
+            ;;
+            GMRT)
+              rm -f range.dat
+              # Plot AOI boxes of GMRT tiles
+              for gmrtfile in ${GMRTDIR}*.tif; do
+                gmt grdinfo -C ${gmrtfile} | gawk '
+                  ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5){
+                    # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
+                    print ">"
+                    print $2, $4
+                    print $2, $5
+                    print $3, $5
+                    print $3, $4
+                    print $2, $4
+                  }' >> range.dat
+              done
+              [[ -s range.dat ]] && gmt psxy range.dat -A -Gblue -t50 ${RJOK} ${VERBOSE} >> map.ps
+            ;;
+            sentinel)
+              rm -f range.dat
+              # Plot AOI boxes of GMRT tiles
+              for sentinelfile in ${SENT_DIR}*.jpg; do
+                gdalinfo ${sentinelfile} | gawk '
+                  ($1=="Upper" && $2 == "Left") {
+                    split($0, ts, "(")
+                    split(ts[2], tt, ",")
+                    split(tt[2], tu, ")")
+                    minlon=tt[1]
+                    maxlat=tu[1]
+                  }
+                  ($1=="Lower" && $2 == "Right") {
+                    split($0, ts, "(")
+                    split(ts[2], tt, ",")
+                    split(tt[2], tu, ")")
+                    maxlon=tt[1]
+                    minlat=tu[1]
+                  }
+                  END {
+                    print ">"
+                    print minlon, minlat
+                    print minlon, maxlat
+                    print maxlon, maxlat
+                    print maxlon, minlat
+                    print minlon, minlat
+                  }' >> range.dat
+              done
+              [[ -s range.dat ]] && gmt psxy range.dat -A -Ggreen ${RJOK} ${VERBOSE} >> map.ps
+            ;;
+          esac
         done
-        gmt psxy range.dat -W1p,red ${RJOK} ${VERBOSE} >> map.ps
-
-        rm -f range.dat
-        for erfile in ${EARTHRELIEFDIR}*.nc; do
-          gmt grdinfo -C ${erfile} | gawk '
-            ($2+0==$2 && $3+0==$3 && $4+0==$4 && $5+0==$5 && ($3-$2)<360 && ($4-$5)<180){
-              # $1 = filename $2=minlon $3=maxlon $4=minlat $5=maxlat
-              print ">"
-              print $2, $4
-              print $2, $5
-              print $3, $5
-              print $3, $4
-              print $2, $4
-            }' >> range.dat
-        done
-        gmt psxy range.dat -W1p,blue ${RJOK} ${VERBOSE} >> map.ps
-
-        rm -f range.dat
-        # Plot AOI boxes of GMRT tiles
-        for sentinelfile in ${SENT_DIR}*.tif; do
-          gdalinfo ${sentinelfile} | gawk '
-            ($1=="Upper" && $2 == "Left") {
-              split($0, ts, "(")
-              split(ts[2], tt, ",")
-              split(tt[2], tu, ")")
-              minlon=tt[1]
-              maxlat=tu[1]
-            }
-            ($1=="Lower" && $2 == "Right") {
-              split($0, ts, "(")
-              split(ts[2], tt, ",")
-              split(tt[2], tu, ")")
-              maxlon=tt[1]
-              minlat=tu[1]
-            }
-            END {
-              print ">"
-              print minlon, minlat
-              print minlon, maxlat
-              print maxlon, maxlat
-              print maxlon, minlat
-              print minlon, minlat
-            }' >> range.dat
-        done
-        gmt psxy range.dat -W1p,green ${RJOK} ${VERBOSE} >> map.ps
-
-
-
-
         ;;
 
       eqlabel)
@@ -18060,7 +18117,9 @@ EOF
             INSET_ARGS="-t 10m -a -pgo -pss $(echo ${INSET_SIZE} | gawk '{print $1+0}')"
           fi
 
-          tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt ${INSET_LINE_COLOR} ${INSET_LINE_WIDTH}  -tm insetmap
+          echo tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt stroke ${INSET_LINE_WIDTH},${INSET_LINE_COLOR}  -tm insetmap ${MEGADEBUGFLAG}
+
+          tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt stroke ${INSET_LINE_WIDTH},${INSET_LINE_COLOR}  -tm insetmap ${MEGADEBUGFLAG}
 
           gmt psxy -T -O >> insetmap/map.ps
 
@@ -18969,6 +19028,7 @@ EOF
 
         # If using -lprof, plot the track line
 
+
         if [[ -s ${F_PROFILES}lprof_profile.xy ]]; then
           gmt psxy ${F_PROFILES}lprof_profile.xy -W1p,black,- ${RJOK} >> map.ps
         fi
@@ -19024,8 +19084,8 @@ EOF
               echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | gmt psxy $RJOK -W${PROFILE_TRACK_WIDTH},${COLOR} >> map.ps
             fi
 
-            echo $trackline | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W0.5p,${COLOR} -G${COLOR} $RJOK  >> map.ps
-            echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W0.5p,${COLOR} $RJOK  >> map.ps
+            echo $trackline | cut -f 6- -d ' ' | gawk '{print $1, $2}' | gmt psxy -Si0.1i -W${PROFILE_TRACK_WIDTH},${COLOR} -G${COLOR} $RJOK  >> map.ps
+            echo $trackline | cut -f 6- -d ' ' | xargs -n 2 | sed '1d' | gmt psxy -Si0.1i -W${PROFILE_TRACK_WIDTH},${COLOR} $RJOK  >> map.ps
           fi
         done < $TRACKFILE
 
@@ -19077,6 +19137,8 @@ EOF
             echo "${p[0]} ${p[1]}" >> ${F_PROFILES}end_profile_lines.txt
             cat ${F_PROFILES}endpoint2.txt >> ${F_PROFILES}end_profile_lines.txt
             cat ${F_PROFILES}endpoint2.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >> ${F_PROFILES}end_profile_lines.txt
+            gmt psxy ${F_PROFILES}end_profile_lines.txt -W${PROFILE_TRACK_WIDTH},${p[4]} $RJOK $VERBOSE >> map.ps
+            rm -f ${F_PROFILES}end_profile_lines.txt
           done < ${F_PROFILES}end_points.txt
 
           while read d; do
@@ -19096,10 +19158,12 @@ EOF
             echo "${p[0]} ${p[1]}" >> ${F_PROFILES}start_profile_lines.txt
             cat  ${F_PROFILES}startpoint2.txt >>  ${F_PROFILES}start_profile_lines.txt
             cat  ${F_PROFILES}startpoint2.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >>  ${F_PROFILES}start_profile_lines.txt
+            gmt psxy ${F_PROFILES}start_profile_lines.txt -W${PROFILE_TRACK_WIDTH},${p[4]} $RJOK $VERBOSE >> map.ps
+            rm -f ${F_PROFILES}start_profile_lines.txt
           done < ${F_PROFILES}start_points.txt
 
-          gmt psxy ${F_PROFILES}end_profile_lines.txt -W0.5p,black $RJOK $VERBOSE >> map.ps
-          gmt psxy ${F_PROFILES}start_profile_lines.txt -W0.5p,black $RJOK $VERBOSE >> map.ps
+          # gmt psxy ${F_PROFILES}end_profile_lines.txt -W${PROFILE_TRACK_WIDTH},black $RJOK $VERBOSE >> map.ps
+          # gmt psxy ${F_PROFILES}start_profile_lines.txt -W${PROFILE_TRACK_WIDTH},black $RJOK $VERBOSE >> map.ps
         fi
 
         if [[ -e ${F_PROFILES}mid_points.txt ]]; then
@@ -19125,9 +19189,10 @@ EOF
             cat  ${F_PROFILES}midpoint2.txt >>  ${F_PROFILES}mid_profile_lines.txt
             cat  ${F_PROFILES}midpoint2.txt | gmt vector -Tt${FOREAZ}/${SUBWIDTH}d >>  ${F_PROFILES}mid_profile_lines.txt
             cat  ${F_PROFILES}midpoint2.txt | gmt vector -Tt${FOREAZ2}/${SUBWIDTH}d >>  ${F_PROFILES}mid_profile_lines.txt
+            gmt psxy ${F_PROFILES}mid_profile_lines.txt -W${PROFILE_TRACK_WIDTH},${p[4]} $RJOK $VERBOSE >> map.ps
+            rm -f ${F_PROFILES}mid_profile_lines.txt
           done <  ${F_PROFILES}mid_points.txt
 
-          gmt psxy ${F_PROFILES}mid_profile_lines.txt -W0.5p,black $RJOK $VERBOSE >> map.ps
         fi
 
   cleanup ${F_PROFILES}mid_profile_lines.txt ${F_PROFILES}end_profile_lines.txt ${F_PROFILES}start_profile_lines.txt
@@ -19159,7 +19224,7 @@ EOF
 
           # Select the flat profiles
           if [[ $MAKE_OBLIQUE_PROFILES -eq 1 ]]; then
-            grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
+            grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_perspective_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
           else
             grep "^[P]" ${F_PROFILES}control_file.txt | gawk '{printf("%s_flat_profile\n", $2)}' > ${F_PROFILES}profile_filenames.txt
           fi
@@ -19193,7 +19258,7 @@ EOF
                 PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
                 PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
                 PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
-                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${profile_name}.eps $RJOK ${VERBOSE} >> map.ps
+                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${profile_name}.eps -Xa${PROFILE_X_SHIFT} $RJOK ${VERBOSE} >> map.ps
               # fi
             # fi
           done
@@ -20330,14 +20395,28 @@ EOF
         fi  # fasttopoflag = 0
 
         # If we are doing more complex topo visualization, we already have COLORED_RELIEF calculated
+
+        # As of GMT 6.5.0_ffc5eba_2022.09.14, plotting a GDAL TIFF with grdimage
+        # can sometimes fail with an improper -srcwin error. This can be fixed
+        # by recasting the file to PNG and plotting that...!
+
         if [[ $fasttopoflag -eq 0 ]]; then
           if [[ $dontplottopoflag -eq 0 ]]; then
-            gmt grdimage ${COLORED_RELIEF} $RJOK -t$TOPOTRANS ${VERBOSE} >> map.ps
-            # gmt grdimage ${COLORED_RELIEF} $GRID_PRINT_RES -t$TOPOTRANS $RJOK ${VERBOSE} >> map.ps
+            info_msg "Plotting GDAL topo..."
+            #  gmt grdconvert ${COLORED_RELIEF} ${F_TOPO}convert.nc
+            gmt grdimage ${COLORED_RELIEF} $RJOK -t$TOPOTRANS > tmp.ps 2>/dev/null
+            if [ ! -s tmp.ps ]; then
+              gdal_translate -of PNG ${COLORED_RELIEF} ${F_TOPO}convert.png
+              gmt grdimage ${F_TOPO}convert.png $RJOK -t$TOPOTRANS ${VERBOSE} >> map.ps
+            else
+              cat tmp.ps >> map.ps
+              rm -f tmp.ps
+            fi
           fi
         else
         # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
           gmt_init_tmpdir
+            info_msg "Plotting topo to tiff..."
             gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
             # Change the coordinate info to match ${TOPOGRAPHY_DATA}
             gdal_edit.py -a_srs "None" ${F_TOPO}colored_relief.tif
@@ -20348,10 +20427,13 @@ EOF
             # Note that plotting the colored_relief image doesn't work due to strange GMT issues
             # with -srcwin through gdal... so just plot again with grdimage
             # gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
+            info_msg "Plotting GMT topo..."
             gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} ${RJOK} ${VERBOSE} >> map.ps
           fi
         fi
+        info_msg "Done"
         ;;
+
 
       # usergrid)
       #   # Each time usergrid) is called, plot the grid and increment to the next
@@ -22030,7 +22112,7 @@ done
   if [[ $tifflag -eq 1 ]]; then
     # echo gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
     gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
-    rm -f map.tfw
+
 
     # map.tiff is created from map.tif and is smaller, so keep it
 

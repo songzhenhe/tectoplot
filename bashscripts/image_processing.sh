@@ -653,3 +653,121 @@ function grayscale_cpt() {
   }
   '
 }
+
+# merge_cpts() will execute a multiply combine of two CPT files with the same
+# Z levels
+
+function merge_cpts() {
+  local imtype="multiply"
+  if [[ ! -z $4 ]]; then
+    imtype=$4
+  fi
+  gawk -v type=$imtype '
+    BEGIN {
+      count=0
+      categorical_1=0
+      categorical_2=0
+      print "type is", type > "/dev/stderr"
+    }
+    (NR==FNR) {
+      if ($1+0==$1) {
+        zlevel_1[NR]=$1
+        color_1[NR]=$2
+        split($4, tt, "/")
+        if (tt[1]=="") {
+          categorical_1=1
+        } else {
+          zlevel_2[NR]=$3
+          color_2[NR]=$4
+        }
+      }
+    }
+    (NR!=FNR) {
+      if ($1+0==$1) {
+        count++
+        zlevel_3[count]=$1
+        color_3[count]=$2
+        split($4, tt, "/")
+        if (tt[1]=="") {
+          categorical_2=1
+        } else {
+          zlevel_2[NR]=$3
+          color_2[NR]=$4
+        }
+        zlevel_4[count]=$3
+        color_4[count]=$4
+      }
+    }
+    END {
+      for(i=1; i<=count; i++) {
+        if (zlevel_1[i] != zlevel_3[i]) {
+          print "Error: Starting Z-levels do not match between CPTS:", zlevel_1[i], zlevel_3[i] > "/dev/stderr"
+          exit 1
+        }
+        if (categorical_1 == 1 && categorical_2 == 1) {
+          # Multiply combine
+          split(color_1[i], c1, "/")
+          split(color_3[i], c3, "/")
+
+          if (type == "overlay") {
+            for(ind=1; ind<=3; ind++) {
+              if (c1[ind]<128) {
+                r1[ind]=255*int(c1[ind]/255*c3[ind]/255)
+              } else {
+                r1[ind]=255*int((1-2*(1-c1[ind])*(1-c2[ind]))/2)
+              }
+            }
+          } else if (type == "multiply") {
+            # Multiply combine
+            print "MC" > "/dev/stderr"
+            for(ind=1; ind<=3; ind++) {
+              r1[ind]=int(c1[ind]/255*c3[ind]/255*255)
+            }
+          }
+          if (i<count) {
+            print zlevel_1[i], r1[1] "/" r1[2] "/" r1[3], zlevel_1[i+1], r1[1] "/" r1[2] "/" r1[3]
+          } else {
+            print zlevel_1[i], r1[1] "/" r1[2] "/" r1[3], zlevel_1[i]+(zlevel_1[i] - zlevel_1[i-1]), r1[1] "/" r1[2] "/" r1[3]
+          }
+
+        } else if (categorical_1 == 0 && categorical_2 == 0) {
+
+          # Merge two continuous CPTs
+          split(color_1[i], c1, "/")
+          split(color_2[i], c2, "/")
+          split(color_3[i], c3, "/")
+          split(color_4[i], c4, "/")
+
+          if (type == "overlay") {
+            print "OC" > "/dev/stderr"
+            r1[1]=int(c1[1]/255*c3[1]/255*255)
+            r1[2]=int(c1[2]/255*c3[2]/255*255)
+            r1[3]=int(c1[3]/255*c3[3]/255*255)
+
+            r2[1]=int(c2[1]/255*c4[1]/255*255)
+            r2[2]=int(c2[2]/255*c4[2]/255*255)
+            r2[3]=int(c2[3]/255*c4[3]/255*255)
+
+          } else if (type == "multiply") {
+
+            # Multiply combine
+            r1[1]=int(c1[1]/255*c3[1]/255*255)
+            r1[2]=int(c1[2]/255*c3[2]/255*255)
+            r1[3]=int(c1[3]/255*c3[3]/255*255)
+
+            r2[1]=int(c2[1]/255*c4[1]/255*255)
+            r2[2]=int(c2[2]/255*c4[2]/255*255)
+            r2[3]=int(c2[3]/255*c4[3]/255*255)
+          }
+          print zlevel_1[i], r1[1] "/" r1[2] "/" r1[3], zlevel_2[i], r2[1] "/" r2[2] "/" r2[3]
+        } else {
+          print "Error: Cannot merge a categorical and a continuous CPT" > "/dev/stderr"
+          exit 1
+        }
+
+      }
+      print "B 0/0/0"
+      print "F 255/255/255"
+      print "N 128/128/128"
+    }' $1 $2 | tr ' ' '\t' > $3
+}
