@@ -654,8 +654,12 @@ function grayscale_cpt() {
   '
 }
 
-# merge_cpts() will execute a multiply combine of two CPT files with the same
-# Z levels
+# merge_cpts() will combine two CPT files with the same Z levels using several
+# color combination algorithms
+
+# zlevel color1 zlevel color2
+# ...
+# zlevel color3 zlevel color4
 
 function merge_cpts() {
   local imtype="multiply"
@@ -667,7 +671,6 @@ function merge_cpts() {
       count=0
       categorical_1=0
       categorical_2=0
-      print "type is", type > "/dev/stderr"
     }
     (NR==FNR) {
       if ($1+0==$1) {
@@ -712,17 +715,19 @@ function merge_cpts() {
           if (type == "overlay") {
             for(ind=1; ind<=3; ind++) {
               if (c1[ind]<128) {
-                r1[ind]=255*int(c1[ind]/255*c3[ind]/255)
+                r1[ind]=int(255*c1[ind]/255*c3[ind]/255)
               } else {
-                r1[ind]=255*int((1-2*(1-c1[ind])*(1-c2[ind]))/2)
+                r1[ind]=int(255*(1-2*(1-c1[ind])*(1-c3[ind]))/2)
               }
             }
           } else if (type == "multiply") {
             # Multiply combine
-            print "MC" > "/dev/stderr"
             for(ind=1; ind<=3; ind++) {
               r1[ind]=int(c1[ind]/255*c3[ind]/255*255)
             }
+          } else if (type == "average") {
+            # average combine
+            r1[ind]=int(c1[ind]/255*c3[ind]/255*255)
           }
           if (i<count) {
             print zlevel_1[i], r1[1] "/" r1[2] "/" r1[3], zlevel_1[i+1], r1[1] "/" r1[2] "/" r1[3]
@@ -739,18 +744,29 @@ function merge_cpts() {
           split(color_4[i], c4, "/")
 
           if (type == "overlay") {
-            print "OC" > "/dev/stderr"
-            r1[1]=int(c1[1]/255*c3[1]/255*255)
-            r1[2]=int(c1[2]/255*c3[2]/255*255)
-            r1[3]=int(c1[3]/255*c3[3]/255*255)
 
-            r2[1]=int(c2[1]/255*c4[1]/255*255)
-            r2[2]=int(c2[2]/255*c4[2]/255*255)
-            r2[3]=int(c2[3]/255*c4[3]/255*255)
+            # (2 * (A/255.)*(B/255.)*(A<128) + \
+            # (1 - 2 * (1-(A/255.))*(1-(B/255.)) ) * (A>=128))/2 \
+            # ) * 255 )" --outfile="${3}"
 
+
+            for(ind=1; ind<=3; ind++) {
+              print "Combining", c1[1] "/" c1[2] "/" c1[3], "with", c3[1] "/" c3[2] "/" c3[3] > "/dev/stderr"
+
+              if (c1[ind]<128) {
+                print "low" >"/dev/stderr"
+                r1[ind]=int(c1[ind]*c3[ind])/255
+                r2[ind]=int(c2[ind]*c4[ind])/255
+              } else {
+                r1[ind]=int(255*(1-2*(1-c1[ind]/255)*(1-c3[ind]/255)))
+                r2[ind]=int(255*(1-2*(1-c2[ind]/255)*(1-c4[ind]/255)))
+              }
+              print "Result: r1", r1[1] "/" r1[2] "/" r1[3], "r2", r2[1] "/" r2[2] "/" r2[3] > "/dev/stderr"
+            }
           } else if (type == "multiply") {
 
             # Multiply combine
+            # print "Combining", r1[1] "/" r1[2] "/" r1[3], "with", r2[1] "/" r2[2] "/" r2[3] > "/dev/stderr"
             r1[1]=int(c1[1]/255*c3[1]/255*255)
             r1[2]=int(c1[2]/255*c3[2]/255*255)
             r1[3]=int(c1[3]/255*c3[3]/255*255)
@@ -758,6 +774,15 @@ function merge_cpts() {
             r2[1]=int(c2[1]/255*c4[1]/255*255)
             r2[2]=int(c2[2]/255*c4[2]/255*255)
             r2[3]=int(c2[3]/255*c4[3]/255*255)
+          } else if (type == "average") {
+            r1[1]=int(   sqrt( ((c1[1]/255)^2+(c3[1]/255)^2)/2) *255   )
+            r1[2]=int(   sqrt( ((c1[2]/255)^2+(c3[2]/255)^2)/2) *255   )
+            r1[3]=int(   sqrt( ((c1[3]/255)^2+(c3[3]/255)^2)/2) *255   )
+
+            r2[1]=int(   sqrt( ((c2[1]/255)^2+(c4[1]/255)^2)/2) *255   )
+            r2[2]=int(   sqrt( ((c2[2]/255)^2+(c4[2]/255)^2)/2) *255   )
+            r2[3]=int(   sqrt( ((c2[3]/255)^2+(c4[3]/255)^2)/2) *255   )
+
           }
           print zlevel_1[i], r1[1] "/" r1[2] "/" r1[3], zlevel_2[i], r2[1] "/" r2[2] "/" r2[3]
         } else {

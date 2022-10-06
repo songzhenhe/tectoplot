@@ -196,6 +196,26 @@ fi
   tectoplot_module_caught=1
   ;;
 
+  -tissot)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tissot:   plot circles of specified radius at evenly spaced points given by -pf
+Usage: -tissot [[km_width]]
+--------------------------------------------------------------------------------
+EOF
+fi
+  shift
+  TISSOT_WIDTH=100
+  if arg_is_positive_float $1; then
+    TISSOT_WIDTH="${1}"
+    shift
+    ((tectoplot_module_shift++))
+  fi
+  plots+=("tissot")
+  tectoplot_module_caught=1
+
+  ;;
+
   -a) # args: none || string
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -531,6 +551,21 @@ function tectoplot_calculate_geography()  {
 
 function tectoplot_plot_geography() {
   case $1 in
+
+  tissot)
+    if [[ $gridfibonacciflag -eq 1 ]]; then
+      while read p; do
+        p_parse=($p)
+        polelat=${p_parse[0]}
+        polelon=${p_parse[1]}
+
+        TISSOT_STEP=$(echo "${TISSOT_WIDTH} / 600" | bc -l)
+        gmt project -C${polelon}/${polelat} -G${TISSOT_STEP}k+h -Z${TISSOT_WIDTH}k -L-360/0 $VERBOSE | gawk '{print $1, $2}' >> ${F_MAPELEMENTS}tissot.txt
+      done < gridswap.txt
+
+      gmt psxy ${F_MAPELEMENTS}tissot.txt ${RJOK} >> map.ps
+    fi
+  ;;
 
   coasts)
   # -W2/$LAKE_LINEWIDTH,$LAKE_LINECOLOR

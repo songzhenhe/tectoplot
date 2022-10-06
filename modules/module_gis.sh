@@ -173,10 +173,12 @@ opt stroke module_gis_li_stroke string "1p,black"
     line width and color
 opt fill module_gis_li_fill string ""
     polygon fill color (off)
-opt cpt module_gs_li_cpt cpt ""
+opt cpt module_gis_li_cpt cpt ""
     CPT to color lines by attribute
-opt att module_gs_li_att string ""
+opt att module_gis_li_att string ""
     attribute to color lines using cpt option
+opt trans module_gis_li_trans float 0
+    transparency (0-100)
 mes -li can be called multiple times with different input files and options
 mes att option requires field name in shapefile/OGR_GMT file
 mes To fill polygons with CPT values, use cpt [] att [] fill cpt
@@ -578,7 +580,7 @@ function tectoplot_plot_gis() {
     fi
 
     if [[ ! -z ${module_gis_li_fill[$tt]} ]]; then
-      if [[ ! -z ${module_gs_li_cpt[$tt]} && ! -z ${module_gs_li_att[$tt]} ]]; then
+      if [[ ! -z ${module_gis_li_cpt[$tt]} && ! -z ${module_gis_li_att[$tt]} ]]; then
         module_gis_li_fillcmd="-G+z"
       else
         module_gis_li_fillcmd="-G${module_gis_li_fill[$tt]}"
@@ -587,10 +589,12 @@ function tectoplot_plot_gis() {
       module_gis_li_fillcmd=""
     fi
 
-    if [[ ! -z ${module_gs_li_cpt[$tt]} && ! -z ${module_gs_li_att[$tt]} ]]; then
-      gmt psxy ${module_gis_li_file[$tt]} -C${module_gs_li_cpt[$tt]} -aZ=${module_gs_li_att[$tt]} ${module_gis_li_fillcmd} -W${module_gis_li_stroke[$tt]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
+    echo trans is ${module_gis_li_trans[$tt]}
+
+    if [[ ! -z ${module_gis_li_cpt[$tt]} && ! -z ${module_gis_li_att[$tt]} ]]; then
+      gmt psxy ${module_gis_li_file[$tt]} -C${module_gis_li_cpt[$tt]} -aZ=${module_gis_li_att[$tt]} ${module_gis_li_fillcmd} -W${module_gis_li_stroke[$tt]} -t${module_gis_li_trans[$tt]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
     else
-      gmt psxy ${module_gis_li_file[$tt]} ${module_gis_li_fillcmd} -W${module_gis_li_stroke[$tt]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
+      gmt psxy ${module_gis_li_file[$tt]} ${module_gis_li_fillcmd} -W${module_gis_li_stroke[$tt]} -t${module_gis_li_trans[$tt]} --PS_LINE_CAP=${GIS_LINEEND_STYLE} $RJOK $VERBOSE >> map.ps
     fi
     tectoplot_plot_caught=1
   ;;

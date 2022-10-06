@@ -1829,10 +1829,10 @@ EOF
         mv map.png ${F_3D}Textures/${PLY_TEXNAME}
         echo "map_d Textures/"${PLY_TEXNAME} >> ${F_3D}materials.mtl
         echo "d 0.5" >> ${F_3D}materials.mtl
-      elif [[ $plymaptiffflag -eq 1 && -s ./map.tiff ]]; then
+      elif [[ $plymaptiffflag -eq 1 && -s ./map.tif ]]; then
         info_msg "[-makeply]: Converting map to PNG"
         mkdir -p ${F_3D}Textures/
-        gdal_translate -q -of "PNG" map.tiff ${F_3D}Textures/${PLY_TEXNAME}
+        gdal_translate -q -of "PNG" map.tif ${F_3D}Textures/${PLY_TEXNAME}
       elif [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
         mkdir -p ${F_3D}Textures/
         if [[ -s ${F_TOPO}colored_relief.tif ]]; then

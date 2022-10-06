@@ -163,6 +163,8 @@ SVF=${TEXTUREDIR}"svf"
 
 ##### SHADOW is the path to the cast shadows executable
 SHADOW=${TEXTUREDIR}"shadow"
+SHADOW_ROT=${TEXTUREDIR}"shadow_rot"
+
 
 ##### MDENOISE is the path to the mdenoise executable
 MDENOISEDIR=${CSCRIPTDIR}"mdenoise/"

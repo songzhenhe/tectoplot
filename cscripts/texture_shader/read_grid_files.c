@@ -604,7 +604,8 @@ static float *read_flt_file(
               // This commented line of code was original but has been changed to
               // allow shadow.c to work underwater at the map edge. Not sure if it
               // needs to be adjusted to allow some original functionality! KEB 2022
-                // ptr[j] = 0.0;
+              // ptr[j]=0;
+                // ptr[j] = -9999;
                 *has_nulls = 1;
             } else if (*all_ints && ptr[j] != floor( ptr[j] )) {
                 *all_ints = 0;

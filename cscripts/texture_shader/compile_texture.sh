@@ -13,6 +13,7 @@ rm -f texture texture_image shadow svf
 ${CCOMPILER} -DNOMAIN -c *.c
 ${CCOMPILER} ${CFLAGS} *.o texture.c -o texture
 ${CCOMPILER} ${CFLAGS} *.o shadow.c -o shadow
+${CCOMPILER} ${CFLAGS} *.o shadow_rot.c -o shadow_rot
 ${CCOMPILER} ${CFLAGS} *.o svf.c -o svf
 ${CCOMPILER} ${CFLAGS} *.o texture_image.c -o texture_image
 

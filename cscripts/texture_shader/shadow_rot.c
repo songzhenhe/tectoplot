@@ -56,7 +56,6 @@ typedef struct thread_data {
   double sun_y;
   double sun_z;
   float z_max;
-  int fast_flag;
 } tdata_t;
 
 #define LONG ptrdiff_t
@@ -64,6 +63,7 @@ typedef struct thread_data {
 #define deg2rad(angleDegrees) ((angleDegrees) * M_PI / 180.0)
 #define rad2deg(angleRadians) ((angleRadians) * 180.0 / M_PI)
 
+static void* shadow_column();
 
 // CAUTION: This __DATE__ is only updated when THIS file is recompiled.
 // If other source files are modified but this file is not touched,
@@ -75,6 +75,8 @@ static const char sw_date[]    = __DATE__;
 static const char sw_format[] = "%s v%s %s";
 
 static const char *command_name;
+
+
 
 static const char *get_command_name( const char *argv[] )
 {
@@ -128,11 +130,9 @@ static void usage_exit( const char *message )
     fprintf( stderr, "NOTE: Output files will be overwritten if they already exist.\n" );
     fprintf( stderr, "\n" );
     fprintf( stderr, "Available option:\n" );
-    fprintf( stderr, "    -mercator lat1 lat2    \n" );
-    fprintf( stderr, "    -fast    \n" );
+    fprintf( stderr, "    -mercator lat1 lat2    " );
     fprintf( stderr, "input is in normal Mercator projection (not UTM)\n" );
     fprintf( stderr, "Values lat1 and lat2 must be in decimal degrees.\n" );
-    fprintf( stderr, "fast option reduces computation time but is less accurate\n" );
     fprintf( stderr, "\n" );
     exit( EXIT_FAILURE );
 }
@@ -355,353 +355,6 @@ static double fix_azimuth(double az, double xdim, double ydim )
 //     return 0;
 // }
 
-
-//         int  float*  float*
-static void* shadow_row(void *threadarg) {
-  // ptr points to the topography data array
-  tdata_t *my_data;
-  int thread_id;
-  int numthreads;
-  int nrows;
-  int ncols;
-  float* data;
-  float* shadowarray2;
-  double sun_x;
-  double sun_y;
-  double sun_z;
-  float z_max;
-  int fast_flag;
-
-  my_data = (tdata_t *) threadarg;
-
-  thread_id=my_data->thread_id;
-  numthreads=my_data->numthreads;
-  nrows=my_data->nrows;
-  ncols=my_data->ncols;
-  data=my_data->data;
-  shadowarray2=my_data->shadowarray2;
-  sun_x=my_data->sun_x;
-  sun_y=my_data->sun_y;
-  sun_z=my_data->sun_z;
-  z_max=my_data->z_max;
-  fast_flag=my_data->fast_flag;
-
-  float *ptr;
-  float *ptr2;
-  float *ptr3;
-  double x;
-  double y;
-  double zval;
-
-  int x_int;
-  int y_int;
-  int xp_int;
-  int yp_int;
-  int lit;
-  int j;
-
-  double val;
-  double this_z;
-  double this_topoz;
-  double last_topoz;
-
-  int runcount;
-  int i_set;
-  int j_set;
-  int skipval=1;
-
-  int fromnorth;
-  int fromsouth;
-  int fromeast;
-  int fromwest;
-
-  int periodic_boundaries=1;
-
-  float nodata;
-  nodata = -3.40282347e+38;
-
-
-  // Left over from multithreading - will likely only work with numthreads=1
-  // for(int i=thread_id-1;i<nrows;i+=numthreads) {
-if (fast_flag==1) {
-  for(int i=0;i<nrows;i++) {
-    // ptr2 points to the shadowarray which will be output at the end
-    ptr2 = shadowarray2 + (LONG)i * (LONG)ncols;
-    for(int j=0;j<ncols;j++) {
-      ptr2[j]=2;
-    }
-  }
-
-  if (sun_x > 0) {
-    fromeast=1;
-  } else {
-    fromwest=1;
-  }
-
-  if (sun_y > 0) {
-    fromnorth=1;
-  } else {
-    fromsouth=1;
-  }
-
-  int i_val;
-  int j_val;
-  // Do the forward calculation starting either on left or right side
-
-  if (sun_x > 0) {
-    j_val=ncols;
-  } else {
-    j_val=0;
-  }
-
-  if (sun_y > 0) {
-    i_val=nrows;
-  } else {
-    i_val=0;
-  }
-
-  // NORTH ROW: i = 0; j = 0 to ncols
-  // SOUTH ROW: i = nrows-1; j = 0 to ncols
-
-  float sunheight;
-
-  // for each point along the northern and southern edge
-  for(int i=0;i<nrows;i=i+nrows-1) {
-    for(int j=0;j<ncols;j++) {
-
-      sunheight=-9999;
-      // The float coordinates of the projected path (can't be used as index)
-      x=j;
-      y=i;
-
-      // The integer coordinates of the projected path (can be used as index)
-      x_int=j;
-      y_int=i;
-
-      int count=0;
-      // fprintf(stderr, "\n");
-      // traverse the map in the forward direction
-      lit=0;
-
-      while(x_int >= 0 && x_int < ncols && y_int >= 0 && y_int < nrows && sunheight <= z_max) {
-        ptr3 = data + (LONG)y_int * (LONG)ncols;
-        ptr2 = shadowarray2 + (LONG)y_int * (LONG)ncols;
-
-        // fprintf(stderr, "Examining cell %d/%d... ", x_int, y_int);
-        // The x and y coordinates start at the i,j grid position
-
-        // Get the z value of DEM at the current grid location
-        zval=ptr3[x_int];
-        // fprintf(stderr, "%d ", count);
-        if (zval == nodata || zval < -9998) {
-          // lit by default
-          ptr2[x_int]=0;
-          count=0;
-        } else {
-          // If the point is above the sunline, set it as lit and set new horizon zval
-          if (zval >= sunheight) {
-            if (ptr2[x_int]==2) {
-              ptr2[x_int]=0;
-            }
-            count=0;
-            // fprintf(stderr, "zval=%g, sunheight=%g ... SUNNY\n", zval, sunheight);
-            sunheight=zval;
-
-          } else {
-            // If the point is still below the sunline, set it as dark
-            lit=sunheight-zval;
-            count++;
-            if (count>1) {
-              ptr2[x_int]=lit;
-            } else {
-              ptr2[x_int]=0;
-            }
-            // fprintf(stderr, "zval=%g, sunheight=%g... DARK\n", zval, sunheight);
-
-          }
-        }
-        // Move along the sun ray path
-        x=x-sun_x;
-        y=y-sun_y;
-        sunheight=sunheight-sun_z;
-        // Find the integer grid coordinates of the sun beam
-        x_int=(int) x;
-        y_int=(int) y;
-
-        if (periodic_boundaries==1) {
-          // Test whether we have gone off the edge
-          if (x_int < 0) {
-            x_int=ncols-1;
-            x=x_int;
-          } else if (x_int >= ncols) {
-            x_int=0;
-            x=0;
-          }
-        }
-      }
-
-    }
-  }
-
-  // For each point along the western and eastern edges
-
-  if (periodic_boundaries==0) {
-
-    for(int j=0;j<=ncols-1;j=j+ncols-1) {
-      for(int i=0;i<nrows;i++) {
-        sunheight=-9999;
-        // The float coordinates of the projected path (can't be used as index)
-        x=j;
-        y=i;
-
-        // The integer coordinates of the projected path (can be used as index)
-        x_int=j;
-        y_int=i;
-
-        int count=0;
-        // fprintf(stderr, "\n");
-        // traverse the map in the forward direction
-        lit=0;
-
-        while(x_int >= 0 && x_int < ncols && y_int >= 0 && y_int < nrows) {
-          ptr3 = data + (LONG)y_int * (LONG)ncols;
-          ptr2 = shadowarray2 + (LONG)y_int * (LONG)ncols;
-
-          // fprintf(stderr, "Examining cell %d/%d... ", x_int, y_int);
-          // The x and y coordinates start at the i,j grid position
-
-          // Get the z value of DEM at the current grid location
-          zval=ptr3[x_int];
-          // fprintf(stderr, "%d ", count);
-          if (zval == nodata || zval < -9998) {
-            // lit by default
-            ptr2[x_int]=0;
-            count=0;
-          } else {
-            // If the point is above the sunline, set it as lit and set new horizon zval
-            if (zval >= sunheight) {
-              if (ptr2[x_int]==2) {
-                ptr2[x_int]=0;
-              }
-              count=0;
-              // fprintf(stderr, "zval=%g, sunheight=%g ... SUNNY\n", zval, sunheight);
-              sunheight=zval;
-
-            } else {
-              // If the point is still below the sunline, set it as dark
-              lit=sunheight-zval;
-              count++;
-              if (count>1) {
-                ptr2[x_int]=lit;
-              } else {
-                ptr2[x_int]=0;
-              }
-              // fprintf(stderr, "zval=%g, sunheight=%g... DARK\n", zval, sunheight);
-
-            }
-          }
-          // Move along the sun ray path
-          x=x-sun_x;
-          y=y-sun_y;
-          sunheight=sunheight-sun_z;
-          // Find the integer grid coordinates of the sun beam
-          x_int=(int) x;
-          y_int=(int) y;
-        }
-
-      }
-    }
-  }
-} else { // fast_flag==0
-
-  // For each pixel in the image, project a beam of light back toward the sun and add up
-  // the total number of cells falling above that beam of light. Stop when the beam rises
-  // above the level of the highest elevation or moves off of the grid.
-
-  for(int i=0;i<nrows;i++) {
-    // ptr points to the data array
-    ptr = data + (LONG)i * (LONG)ncols;
-    // ptr2 points to the shadowarray which will be output at the end
-    ptr2 = shadowarray2 + (LONG)i * (LONG)ncols;
-
-    // fprintf(stderr, "Processing row %d of %d with thread %d\n", i, nrows, thread_id);
-    for(int j=0;j<ncols;j++) {
-
-      // The x and y coordinates start at the i,j grid position
-      x=j;
-      y=i;
-
-      // If the data point itself is nodata, set a lit value of 1 and break
-      if (ptr[j] == nodata || ptr[j] < -1.0e+38) {
-        ptr2[j]=1;
-        break;
-      }
-
-      // If the current square has been marked already, skip it
-      if (ptr2[j]!=0) {
-        continue;
-      }
-
-
-      zval=ptr[j];   // access the topo value at dataarray[row][column]
-      lit=0;
-
-      // The integer coordinates of the projected path (can be used as index)
-      x_int=x;
-      y_int=y;
-
-      int count=0;
-      // So long as we are still within the grid
-      while(x_int > 0 && x_int < ncols && y_int > 0 && y_int < nrows && zval <= z_max) {
-        ptr3 = data + (LONG)y_int * (LONG)ncols;
-        // zval is the elevation of the sun beam cast by the prior horizon
-
-        // // we can stop the calculation early for massive speed boost
-        // if (count++ > 10) {
-        //   break;
-        // }
-
-        // If the topography at this point is undefined,
-        if (ptr[j] == nodata || ptr[j] < -1.0e+38) {
-          // use the last known topography value
-          this_topoz=last_topoz;
-        } else {
-          // save this topo height, use it as well
-          this_topoz=ptr3[x_int];
-          last_topoz=ptr3[x_int];
-        }
-
-        if (zval < this_topoz) {
-
-          // The topo is above the sun
-          // lit=lit+(ptr3[x_int]-zval);  // Sum the total land height falling above the sun line
-          lit=lit+(this_topoz-zval);  // Sum the total land height falling above the sun line
-
-          // lit=lit+1;  // sum the number of cell positions that are above the sun line
-        }
-
-        // Move the grid coordinate in the direction of the sun beam
-        x=x+sun_x;
-        y=y+sun_y;
-        zval=zval+sun_z;
-        // Find the integer grid coordinates of the sun beam
-        x_int=(int) x;
-        y_int=(int) y;
-      }
-      if (lit==0) {
-        // shadowarray2 value is 0 if the cell is not lit (is shaded)
-        ptr2[j]=0;
-      } else {
-        ptr2[j]=log(lit);  // Use the natural logarithm of the total shading volume
-      }
-    }
-  }
-}
-  free(threadarg);
-  pthread_exit(NULL);
-}
-
-
 #ifndef NOMAIN
 
 int main( int argc, const char *argv[] )
@@ -713,7 +366,6 @@ int main( int argc, const char *argv[] )
     struct Terrain_Progress_Callback progress = { print_progress, &last_count };
 
     int argnum;
-    int fast_flag=0;
 
     const char *thisarg;
     char *endptr;
@@ -819,9 +471,7 @@ int main( int argc, const char *argv[] )
             usage_exit( 0 );
         }
         ++thisarg;
-        if (strncmp( thisarg, "fast", 4 ) == 0 ) {
-          fast_flag=1;
-        } else if (strncmp( thisarg, "mercator", 4 ) == 0 || strncmp( thisarg, "Mercator", 4 ) == 0) {
+        if (strncmp( thisarg, "mercator", 4 ) == 0 || strncmp( thisarg, "Mercator", 4 ) == 0) {
             if (argnum+1 >= argc) {
                 usage_exit( "Option -mercator must be followed by two numeric latitude values." );
             }
@@ -970,50 +620,20 @@ int main( int argc, const char *argv[] )
     //     ncols, nrows, sun_az, sun_el );
     fflush( stdout );
 
-    float *shadowarray2 = (float *)malloc( (LONG)nrows * (LONG)ncols * sizeof( float ) );
-    float z_max=-999999;
+    // The new algorithm will just traverse columns and decide whether we
+    // are below the sun line of the last horizon. It will overwrite the
+    // original data array.
 
-    // Find maximum value to limit shadow search
-    float *ptr;
-    //
-    for (int i=0; i<nrows; ++i) {
-      ptr = data + (LONG)i * (LONG)ncols;
-      for (int j=0; j<ncols; ++j) {
-          if (ptr[j] > z_max) {
-            z_max = ptr[j];
-          }
-      }
-      ptr+=(LONG)ncols;
-    }
 
-    double zval;
-    double x;
-    double y;
-    int lit;
-    int x_int;
-    int y_int;
-    int xp_int;
-    int yp_int;
-    int i_smooth=4;
-
-    double const_deg_m=111132;
-
-    double csa=cos(deg2rad(sun_az));
-    double ssa=sin(deg2rad(sun_az));
-
-    double num_az= deg2rad(fix_azimuth(sun_az, xdim, ydim));
-    // fprintf(stderr, "xdim=%f, ydim=%f, sun_az=%f, fixed sun look angle=%f\n", xdim, ydim, sun_az, fix_azimuth(sun_az+180, xdim, ydim));
     double num_el= deg2rad(sun_el);
-    double sun_x = sin(num_az)*cos(num_el);
-    double sun_y = -cos(num_az)*cos(num_el);
-    double sun_z = sin(num_el)*sqrt(ydim*ydim*csa*csa+xdim*xdim*ssa*ssa);
+
+    double sun_z = sin(num_el)*ydim*111132;
+
+    fprintf(stderr, "ydim is %g and sunz is %g\n", ydim, sun_z);
+
     double xp;
     double yp;
 
-    // fprintf(stderr, "zmax=%f, xdim=%f, ydim=%f, sun_x=%f, sun_y=%f, sun_z=%f\n", z_max, xdim, ydim, sun_x, sun_y, sun_z);
-
-    float nodata;
-    nodata = -3.40282347e+38;
     double val;
     double this_z;
     double this_topoz;
@@ -1026,8 +646,6 @@ int main( int argc, const char *argv[] )
     int runcount;
     int i_set;
     int j_set;
-    // Shadow algorithm
-
 
     int numthreads;
 
@@ -1036,12 +654,10 @@ int main( int argc, const char *argv[] )
     pthread_t* threads;
     threads = (pthread_t *) malloc(sizeof(pthread_t)*numthreads);
 
-
     clock_t start, end;
     double cpu_time_used;
 
     start = clock();
-
 
     for(int thread_id=1; thread_id<=numthreads; ++thread_id) {
 
@@ -1052,14 +668,9 @@ int main( int argc, const char *argv[] )
         this_data->nrows=nrows;
         this_data->ncols=ncols;
         this_data->data=data;
-        this_data->shadowarray2=shadowarray2;
-        this_data->sun_x=sun_x;
-        this_data->sun_y=sun_y;
         this_data->sun_z=sun_z;
-        this_data->z_max=z_max;
-        this_data->fast_flag=fast_flag;
 
-        rc = pthread_create(&threads[thread_id], NULL, shadow_row, (void *) this_data);
+        rc = pthread_create(&threads[thread_id], NULL, shadow_column, (void *) this_data);
 
         if (rc) {
             printf("ERR; pthread_create() ret = %d\n", rc);
@@ -1073,7 +684,7 @@ int main( int argc, const char *argv[] )
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-    // fprintf(stderr, "time with %d threads is %g\n", numthreads, cpu_time_used);
+    fprintf(stderr, "time with %d threads is %g\n", numthreads, cpu_time_used);
 
     if (error) {
         assert( error == TERRAIN_FILTER_MALLOC_ERROR );
@@ -1092,7 +703,7 @@ int main( int argc, const char *argv[] )
     fflush( stdout );
 
     write_flt_hdr_files(
-        out_dat_file, out_hdr_file, nrows, ncols, xmin, xmax, ymin, ymax, shadowarray2, software );
+        out_dat_file, out_hdr_file, nrows, ncols, xmin, xmax, ymin, ymax, data, software );
 
     fclose( out_dat_file );
     fclose( out_hdr_file );
@@ -1125,7 +736,98 @@ int main( int argc, const char *argv[] )
     return EXIT_SUCCESS;
 }
 
-
-
-
 #endif
+
+
+//         int  float*  float*
+static void* shadow_column(void *threadarg) {
+  // ptr points to the topography data array
+  tdata_t *my_data;
+  int thread_id;
+  int numthreads;
+  int nrows;
+  int ncols;
+  float* data;
+  float* shadowarray2;
+  double sun_x;
+  double sun_y;
+  double sun_z;
+  float z_max;
+
+  my_data = (tdata_t *) threadarg;
+
+  thread_id=my_data->thread_id;
+  numthreads=my_data->numthreads;
+  nrows=my_data->nrows;
+  ncols=my_data->ncols;
+  data=my_data->data;
+  sun_z=my_data->sun_z;
+
+  float *ptr;
+  float *ptr2;
+  float *ptr3;
+  double x;
+  double y;
+  double zval;
+
+  int x_int;
+  int y_int;
+  int xp_int;
+  int yp_int;
+  int lit;
+  int j;
+
+  double val;
+  double this_z;
+  double this_topoz;
+  double last_topoz;
+
+  int runcount;
+  int i_set;
+  int j_set;
+  int skipval=1;
+  double sunheight;
+
+  float nodata;
+  nodata = -3.40282347e+38;
+
+
+  for(int j=0;j<ncols;j++) {
+    // fprintf(stderr, "srot column %d\n", j);
+    for(int i=0;i<nrows;i++) {
+      // ptr points to the data array
+      ptr = data + (LONG)i * (LONG)ncols;
+
+      // The x and y coordinates start at the i,j grid position
+      x=j;
+      y=i;
+
+      zval=ptr[j];   // access the topo value at dataarray[row][column]
+
+      if (i==0) {
+        sunheight=ptr[j];
+        continue;
+      }
+
+      // fprintf(stderr, "zval is %g, sunheight is %g\n", zval, sunheight);
+
+      // If the data point itself is nodata, set a lit value of 1
+      if (ptr[j] == nodata || ptr[j] < -9998) {
+        ptr[j]=1;
+      } else {
+        // If the point is above the sunline, set it as lit and set new horizon zval
+        if (zval >= sunheight) {
+          ptr[j]=1;
+          sunheight=zval;
+        } else {
+          // Check adjacent scan lines for points
+          // If the point is below the sunline, set it as dark
+          ptr[j]=0;
+        }
+      }
+      sunheight=sunheight-sun_z;
+    }
+  }
+  free(threadarg);
+  pthread_exit(NULL);
+}

@@ -175,7 +175,7 @@ function tectoplot_post_volcanoes() {
 
         [[ ! -s $depthfile ]] && echo "Slab depth file $depthfile is empty or does not exist"
 
-        sample_grid_360 ${F_VOLC}volcanoes.dat $depthfile $strikefile $dipfile >>  ${F_VOLC}volcano_slab2.txt
+        sample_grid_360 ${F_VOLC}volcanoes.dat $depthfile $strikefile $dipfile | grep -v NaN >>  ${F_VOLC}volcano_slab2.txt
       done
     fi
 }

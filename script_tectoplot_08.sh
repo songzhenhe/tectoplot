@@ -4988,7 +4988,7 @@ fi
   -lprof)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--lprof:       Create N equally spaced profiles locally orthogonal to a polyline
+-lprof:       Create equally spaced profiles locally orthogonal to a polyline
 Usage: -lprof [line_file] [profile_length] [profile_width] [resolution] [distance_sep]
 
   line_file                   file containing at least one polyline (1 used only)
@@ -5555,6 +5555,20 @@ fi
     cat ${GMTCOLORS} | column
     exit 1
     ;;
+
+  -preview)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-preview:     open low-res preview image only
+Usage: -preview
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  openflag=0
+  previewflag=1
+  ;;
 
   -noopen)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -7108,6 +7122,9 @@ Usage: -RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [heigh
 Oblique Mercator: specified by a center point, pole location, width, height
 Usage: -RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
 
+Transverse Mercator:
+Usage -RJ T [central_lon] [central_lat]
+
 Projections with standard parallels:
 Usage: -RJ [projection] [[central_lon] [central_lat] [parallel_1] [parallel_2]]
     Albers|B
@@ -7150,6 +7167,25 @@ fi
         rj+=("-JM${PSSIZE}i")
         RJSTRING="${rj[@]}"
         projname="Mercator"
+      ;;
+      T) # Transverse Mercator
+        CENTRALPARALLEL=0
+        if arg_is_float $2; then   # Specified a central meridian
+          CENTRALMERIDIAN=$2
+          shift
+          if arg_is_float $2; then   # Specified a central meridian
+            CENTRALPARALLEL=$2
+            shift
+          else
+            CENTRALPARALLEL=0
+          fi
+        else
+          CENTRALMERIDIAN=0
+        fi
+        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+        rj+=("-JT${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${PSSIZE}i")
+        RJSTRING="${rj[@]}"
+        projname="Transverse Mercator"
       ;;
       UTM)
         if [[ $2 =~ ^[0-9]+$ ]]; then   # Specified a UTM Zone (positive integer)
@@ -9446,7 +9482,7 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tshad:        add cast shadows to terrain intensity
-Usage: -tshad [[sun_azimuth]] [[sun_elevation]] [[alpha]]
+Usage: -tshad [[sun_azimuth]] [[sun_elevation]] [[alpha]] [[fast]]
 
   Include cast shadows in shaded relief.
 
@@ -9462,6 +9498,7 @@ EOF
 shift && continue
 fi
     fasttopoflag=0
+    SHADOW_FAST=""
     if arg_is_float $2; then   # first arg is a number
       SUN_AZ="$2"
       shift
@@ -9472,6 +9509,10 @@ fi
     fi
     if arg_is_float $2; then
       SHADOW_ALPHA=$2
+      shift
+    fi
+    if [[ $2 == "fast" ]]; then
+      SHADOW_FAST="-fast"
       shift
     fi
     info_msg "[-tshad]: Sun azimuth=${SUN_AZ}; elevation=${SUN_EL}; alpha=${SHADOW_ALPHA}"
@@ -9626,6 +9667,67 @@ fi
     exit
     ;;
 
+  -tmix)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tmix:         Combine two cpt files using spacing of first CPT, then exit
+Usage: -tmix [cpt1] [cpt2] [[type=multiply]]
+
+  Combined CPT is in ${TMP}/mix.cpt
+
+Example:
+tectoplot -t -tmix geo turbo -tcpt mix.cpt -o example_tmix
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  cpt1=$2
+  shift
+  cpt2=$2
+  shift
+  range1=$2
+  shift
+  range2=$2
+  shift
+  step=$2
+  shift
+  mode=$2
+  shift
+
+  gmt makecpt -Fr -C${cpt1} -T${range1}/${range2}/${step} -Vn > ${TMP}mix1.cpt
+  gmt makecpt -Fr -C${cpt2} -T${range1}/${range2}/${step} -Vn > ${TMP}mix2.cpt
+
+  merge_cpts ${TMP}mix1.cpt ${TMP}mix2.cpt ${TMP}mix.cpt ${mode}
+  exit 0
+
+  ;;
+
+  -tcycle)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tcycle:       generate cyclic grayscale CPT
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+tcyclecptnum=10
+
+  if arg_is_float $2; then
+    tcyclecptnum=$2
+    shift
+  fi
+
+  tcyclecptflag=1
+  # for i in $(seq -8000 2000 6000); do
+  #   j=$(echo "$i + 1000" | bc)
+  #   k=$(echo "$i + 2000" | bc)
+  #   gmt makecpt -Cgray -N -Fr -T${i}/${j}/1 -Z >> ${TMP}cyclegray.cpt
+  #   gmt makecpt -Cgray -I -N -Fr -Z -T${j}/${k}/1 >> ${TMP}cyclegray.cpt
+  # done
+  ;;
+
   -tcpt) # -tcpt: specify the CPT file defining topography color stretch
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9658,9 +9760,6 @@ fi
     if get_cpt_path ${2}; then
       info_msg "[-tcpt]: Setting CPT to ${CPT_PATH}"
       TOPO_CPT_DEF=${CPT_PATH}
-    else
-      info_msg "[-tcpt]: $2 is not a valid CPT specification"
-      exit 1
     fi
     shift
   fi
@@ -16040,11 +16139,11 @@ fi # if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 # These are a series of fixed CPT files that we can refer to when we wish. They
 # are not modified and don't need to be copied to tempdir.
 
-[[ ! -e $CPTDIR"grayhs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cgray,gray -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"grayhs.cpt"
-[[ ! -e $CPTDIR"whitehs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cwhite,white -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"whitehs.cpt"
-[[ ! -e $CPTDIR"cycleaz.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cred,green,blue,yellow,red -T-180/180/1 -Z $VERBOSE > $CPTDIR"cycleaz.cpt"
-[[ ! -e $CPTDIR"defaultpt.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Cred,yellow,green,blue,orange,purple,brown -T0/2000/1 -Z $VERBOSE > $CPTDIR"defaultpt.cpt"
-[[ ! -e $CPTDIR"platevel_one.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Chaxby -T0/1/0.05 -Z $VERBOSE > $CPTDIR"platevel_one.cpt"
+[[ ! -e $CPTDIR"grayhs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Fr -Cgray,gray -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"grayhs.cpt"
+[[ ! -e $CPTDIR"whitehs.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Fr -Cwhite,white -T-10000/10000/10000 ${VERBOSE} > $CPTDIR"whitehs.cpt"
+[[ ! -e $CPTDIR"cycleaz.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Fr -Cred,green,blue,yellow,red -T-180/180/1 -Z $VERBOSE > $CPTDIR"cycleaz.cpt"
+[[ ! -e $CPTDIR"defaultpt.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Fr -Cred,yellow,green,blue,orange,purple,brown -T0/2000/1 -Z $VERBOSE > $CPTDIR"defaultpt.cpt"
+[[ ! -e $CPTDIR"platevel_one.cpt" || $remakecptsflag -eq 1 ]] && gmt makecpt -Fr -Chaxby -T0/1/0.05 -Z $VERBOSE > $CPTDIR"platevel_one.cpt"
 
 ################################################################################
 ##### Create required CPT files in the temporary directory
@@ -16056,12 +16155,12 @@ for cptfile in ${cpts[@]} ; do
       if [[ $tomoowncptflag -eq 1 ]]; then
         cp $tomocpt ${F_CPTS}tomography.cpt
       else
-        gmt makecpt -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
+        gmt makecpt -Fr -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
       fi
     ;;
 
     eqtime)
-      gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
+      gmt makecpt -Fr -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
         BEGIN {
           if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
             # Greater than 5 years
@@ -16109,7 +16208,7 @@ for cptfile in ${cpts[@]} ; do
         }' > ${F_CPTS}"eqtime.cpt"
 
         # echo gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE}
-        gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
+        gmt makecpt -Fr -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
           BEGIN {
             OFMT="%.12f"
             if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
@@ -16185,7 +16284,7 @@ for cptfile in ${cpts[@]} ; do
     ;;
 
     # faultslip)
-    #   gmt makecpt -Chot -I -Do -T$SLIPMINIMUM/$SLIPMAXIMUM/0.1 -N $VERBOSE > $FAULTSLIP_CPT
+    #   gmt makecpt -Fr -Chot -I -Do -T$SLIPMINIMUM/$SLIPMAXIMUM/0.1 -N $VERBOSE > $FAULTSLIP_CPT
     #   ;;
 
     # geoage)
@@ -16193,7 +16292,7 @@ for cptfile in ${cpts[@]} ; do
     # ;;
 
     plateid)
-      gmt makecpt -Ccategorical -Ww -T0/100/1 ${VERBOSE} > ${PLATEID_CPT}
+      gmt makecpt -Fr -Ccategorical -Ww -T0/100/1 ${VERBOSE} > ${PLATEID_CPT}
     ;;
 
     grav) # WGM gravity maps
@@ -16206,9 +16305,9 @@ for cptfile in ${cpts[@]} ; do
         GMIN=$(echo $zrange | gawk  '{print int($1/100)*100}')
         GMAX=$(echo $zrange | gawk  '{print int($2/100)*100}')
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
-        gmt makecpt -C$GRAVCPT -T$GMIN/$GMAX $VERBOSE > $GRAV_CPT
+        gmt makecpt -Fr -C$GRAVCPT -T$GMIN/$GMAX $VERBOSE > $GRAV_CPT
       else
-        gmt makecpt -C$GRAVCPT -T$GMIN/$GMAX $VERBOSE > $GRAV_CPT
+        gmt makecpt -Fr -C$GRAVCPT -T$GMIN/$GMAX $VERBOSE > $GRAV_CPT
       fi
       ;;
 
@@ -16225,17 +16324,17 @@ for cptfile in ${cpts[@]} ; do
 
         # GRAVCPT is set by the type of gravity we selected (BG, etc) and is not the same as GRAV_CPT
         info_msg "Rescaling gravity curvature CPT to $MIN/$MAX"
-        gmt makecpt -C$GRAV_CURV_DEF -T$MIN/$MAX $VERBOSE > $GRAV_CURV_CPT
+        gmt makecpt -Fr -C$GRAV_CURV_DEF -T$MIN/$MAX $VERBOSE > $GRAV_CURV_CPT
       else
-        gmt makecpt -C$GRAV_CURV_DEF -T-100/100 $VERBOSE > $GRAV_CURV_CPT
+        gmt makecpt -Fr -C$GRAV_CURV_DEF -T-100/100 $VERBOSE > $GRAV_CURV_CPT
       fi
 
       ;;
 
     litho1)
 
-      gmt makecpt -T${LITHO1_MIN_DENSITY}/${LITHO1_MAX_DENSITY}/10 -C${LITHO1_DENSITY_BUILTIN} -Z $VERBOSE > $LITHO1_DENSITY_CPT
-      gmt makecpt -T${LITHO1_MIN_VELOCITY}/${LITHO1_MAX_VELOCITY}/10 -C${LITHO1_VELOCITY_BUILTIN} -Z $VERBOSE > $LITHO1_VELOCITY_CPT
+      gmt makecpt -Fr -T${LITHO1_MIN_DENSITY}/${LITHO1_MAX_DENSITY}/10 -C${LITHO1_DENSITY_BUILTIN} -Z $VERBOSE > $LITHO1_DENSITY_CPT
+      gmt makecpt -Fr -T${LITHO1_MIN_VELOCITY}/${LITHO1_MAX_VELOCITY}/10 -C${LITHO1_VELOCITY_BUILTIN} -Z $VERBOSE > $LITHO1_VELOCITY_CPT
       ;;
 
     # oceanage)
@@ -16245,17 +16344,17 @@ for cptfile in ${cpts[@]} ; do
     #     printf "B\twhite\n" >> ./oceanage_cut.cpt
     #     printf "F\tblack\n" >> ./oceanage_cut.cpt
     #     printf "N\t128\n" >> ./oceanage_cut.cpt
-    #     gmt makecpt -C./oceanage_cut.cpt -T0/$OC_MAXAGE/10 $VERBOSE > ./oceanage.cpt
+    #     gmt makecpt -Fr -C./oceanage_cut.cpt -T0/$OC_MAXAGE/10 $VERBOSE > ./oceanage.cpt
     #     OC_AGE_CPT="./oceanage.cpt"
     #   fi
     #   ;;
 
     platevelgrid)
-      gmt makecpt -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVELGRID_CPT
+      gmt makecpt -Fr -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVELGRID_CPT
       ;;
 
     platerelvel)
-      gmt makecpt -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVEL_CPT
+      gmt makecpt -Fr -T0/100/1 -C$CPTDIR"platevel_one.cpt" -Z ${VERBOSE} > $PLATEVEL_CPT
     # Don't do anything until we move the calculation from the plotting section to above
       ;;
 
@@ -16266,7 +16365,7 @@ for cptfile in ${cpts[@]} ; do
     #   ;;
 
     slipratedeficit)
-      gmt makecpt -Cseis -Do -I -T0/1/0.01 -N > $SLIPRATE_DEF_CPT
+      gmt makecpt -Fr -Cseis -Do -I -T0/1/0.01 -N > $SLIPRATE_DEF_CPT
       ;;
 
     topo)
@@ -16288,7 +16387,6 @@ for cptfile in ${cpts[@]} ; do
         cp $CUSTOM_TOPO_CPT $TOPO_CPT
       else
 
-
 # Criteria for generating a topography CPT file from a standard OR custom CPT
 # 1. Respect hinge at Z=0
 # 2. Exceed the range [zmin, zmax] of the dataset only through rounding
@@ -16305,7 +16403,7 @@ for cptfile in ${cpts[@]} ; do
         fi
 
         # Check and see if the CPT has a zero slice
-        CPT_HAS_ZERO=$(gmt makecpt -C${TOPO_CPT_DEF} | gawk '
+        CPT_HAS_ZERO=$(gmt makecpt -Fr -C${TOPO_CPT_DEF} -Vn | gawk '
           BEGIN {
             endval=0
           }
@@ -16321,19 +16419,19 @@ for cptfile in ${cpts[@]} ; do
 
         if [[ $rescaletopoflag -ne 1 ]]; then
 
-          gmt makecpt -C${TOPO_CPT_DEF} -T-11000/9000 -Frgb >> ${F_CPTS}topo_prep.cpt
+          gmt makecpt -C${TOPO_CPT_DEF} -T-11000/9000 -Fr -Vn >> ${F_CPTS}topo_prep.cpt
 
           # Make the new CPT by truncating the prep CPT to the data range
-          gmt makecpt -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z > ${F_CPTS}topo_temp.cpt
+          gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn > ${F_CPTS}topo_temp.cpt
         else
           [[ $rescaletopominflag -eq 1 ]] && TMIN=${RESCALE_TMIN}
           [[ $rescaletopomaxflag -eq 1 ]] && TMAX=${RESCALE_TMAX}
 
           # If we ARE rescaling the CPT, make a hard hinge CPT from -1 to 1
-          gmt makecpt -C${TOPO_CPT_DEF} -T-1/1 -Frgb >> ${F_CPTS}topo_prep.cpt
+          gmt makecpt -C${TOPO_CPT_DEF} -T-1/1 -Fr -Vn >> ${F_CPTS}topo_prep.cpt
 
           # Then resample it to rescale
-          gmt makecpt -C${F_CPTS}topo_prep.cpt -T${TMIN}/${TMAX} -Frgb > ${F_CPTS}topo_temp.cpt
+          gmt makecpt -C${F_CPTS}topo_prep.cpt -T${TMIN}/${TMAX} -Fr -Vn > ${F_CPTS}topo_temp.cpt
 
         fi
         cleanup ${F_CPTS}topo_prep.cpt
@@ -16397,7 +16495,28 @@ for cptfile in ${cpts[@]} ; do
         }')
 
       # Finalize the CPT
-      cp ${F_CPTS}topo_temp.cpt ${TOPO_CPT}
+tcyclecptcpt=gray
+# tcyclecptnum=10
+tcyclestepval=1000
+
+      if [[ $tcyclecptflag -eq 1 ]]; then
+
+        tcyclecptnummul=$(echo "(${tcyclecptnum} - 1) * ${tcyclestepval}" | bc -l)
+        rm -f cyclegray.cpt
+        for i in $(seq 0 ${tcyclestepval} ${tcyclecptnummul}); do
+          j=$(echo "$i + 0.5*${tcyclestepval}" | bc)
+          k=$(echo "$i + 1*${tcyclestepval}" | bc)
+
+          gmt makecpt -C${tcyclecptcpt} -N -Fr -Z -T${i}/${j}/1 >> cyclegray.cpt
+          gmt makecpt -C${tcyclecptcpt} -I -N -Fr -Z -T${j}/${k}/1 >> cyclegray.cpt
+        done
+
+        tectoplot -tmix ${F_CPTS}topo_temp.cpt ./cyclegray.cpt ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} 1 average
+        cp tempfiles_to_delete/mix.cpt .
+        TOPO_CPT=mix.cpt
+      else
+        cp ${F_CPTS}topo_temp.cpt ${TOPO_CPT}
+      fi
       cleanup ${F_CPTS}topo_temp.cpt
     ;;
 
@@ -16406,7 +16525,7 @@ for cptfile in ${cpts[@]} ; do
       touch $SEISDEPTH_CPT
       # Make a constant color CPT
       if [[ $seisfillcolorflag -eq 1 ]]; then
-        gmt makecpt -C${ZSFILLCOLOR} -Do -T0/6371 -Z $VERBOSE > $SEISDEPTH_CPT
+        gmt makecpt -Fr -C${ZSFILLCOLOR} -Do -T0/6371 -Z $VERBOSE > $SEISDEPTH_CPT
       else
         # Make a color stretch CPT
         SEISDEPTH_CPT=$(abs_path $SEISDEPTH_CPT)
@@ -17742,7 +17861,7 @@ EOF
         ;;
 
       gebcotid)
-        gmt makecpt -Ccategorical -T1/100/1 ${VERBOSE} > ${F_CPTS}gebco_tid.cpt
+        gmt makecpt -Fr -Ccategorical -T1/100/1 ${VERBOSE} > ${F_CPTS}gebco_tid.cpt
         gmt grdimage $GEBCO20_TID $GRID_PRINT_RES -t50 -C${F_CPTS}gebco_tid.cpt $RJOK $VERBOSE >> map.ps
 
         ;;
@@ -17949,13 +18068,13 @@ EOF
         fi
 
         if [[ $GG_PLOT_MAX_SHEAR -eq 1 ]]; then
-          gmt makecpt -T0/300/0.1 -Z -Cjet > shear.cpt
+          gmt makecpt -Fr -T0/300/0.1 -Z -Cjet > shear.cpt
           gmt grdimage max_shear.grd -t50 -Q -Cjet ${RJOK} ${VERBOSE} >> map.ps
         fi
 
 
         if [[ $GG_PLOT_2INV -eq 1 ]]; then
-          gmt makecpt -T1/2000/1+l -Q -Z -D -Cjet > ${F_CPTS}secinv.cpt
+          gmt makecpt -Fr -T1/2000/1+l -Q -Z -D -Cjet > ${F_CPTS}secinv.cpt
           gmt grdimage second_inv.grd -t50 -Q -C${F_CPTS}secinv.cpt ${RJOK} ${VERBOSE} >> map.ps
           legendbarwords+=("secinv")
         fi
@@ -18959,7 +19078,7 @@ EOF
           if [[ -e ${F_VOLC}volcanoes.dat ]]; then
             # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
             info_msg "Adding volcanoes to sprof as xyz"
-            echo "X ${F_VOLC}volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black -Gred" >> sprof.control
+            echo "X ${F_VOLC}volcanoes.dat ${SPROFWIDTH} 0.001 -St0.1i -W0.1p,black" >> sprof.control
           fi
 
           if [[ -e ${F_PROFILES}profile_labels.dat ]]; then
@@ -19293,7 +19412,7 @@ EOF
 
       plateedgecolor)
 
-        gmt makecpt -Ccyclic -D -T-180/180/1 > ${F_CPTS}az.cpt
+        gmt makecpt -Fr -Ccyclic -D -T-180/180/1 > ${F_CPTS}az.cpt
         if [[ -s ${F_PLATES}segment_obliquity.txt ]]; then
           gmt psxy ${F_PLATES}segment_obliquity.txt -W${PLATELINE_WIDTH}+cl -C${F_CPTS}az.cpt ${RJOK} ${VERBOSE} >> map.ps
         fi
@@ -19407,7 +19526,7 @@ EOF
 
       eulerpoles)
 
-        gmt makecpt -Croma -T0/2/0.01 -Z > ${F_CPTS}polerate.cpt
+        gmt makecpt -Fr -Croma -T0/2/0.01 -Z > ${F_CPTS}polerate.cpt
 
         if [[ ${#PP_SELECT[@]} -gt 0 ]]; then
           echo "Plotting only selected poles"
@@ -19437,7 +19556,7 @@ EOF
         # Plot edges of plates
 
         # gmt psxy $EDGES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
-        gmt psxy $PLATES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
+        [[ -s $PLATES ]] && gmt psxy $PLATES -W$PLATELINE_WIDTH,$PLATELINE_COLOR@$PLATELINE_TRANS $RJOK $VERBOSE >> map.ps
 
         ;;
 
@@ -19486,7 +19605,7 @@ EOF
       platepolycolor_all)
           plate_files=($(ls ${F_PLATES}*.pldat 2>/dev/null))
           if [[ ${#plate_files} -gt 0 ]]; then
-            gmt makecpt -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor_pre.dat
+            gmt makecpt -Fr -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor_pre.dat
             randomize_lines 2 ${F_PLATES}platecolor_pre.dat ${F_PLATES}platecolor.dat
             P_COLORLIST=($(cat ${F_PLATES}platecolor.dat))
             this_index=0
@@ -20112,7 +20231,7 @@ EOF
                 # Project from WGS1984 to Mercator / HDF format
                 # The -dstnodata option is a kluge to get around unknown NaNs in dem_flt.flt even if ${TOPOGRAPHY_DATA} has NaNs filled.
 
-                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
                 # texture the DEM. Pipe output to /dev/null to silence the program
                 if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -20133,7 +20252,7 @@ EOF
 
                 # Need to convert to NC for some reason
                 gdal_translate -of NetCDF ${F_TOPO}texture_merc.tif ${F_TOPO}texture_merc.nc > /dev/null 2>&1
-                gdalwarp -if NetCDF -of GTiff -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.nc ${F_TOPO}texture_2byte.tif -q > /dev/null 2>&1
+                gdalwarp -if NetCDF -of GTiff -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}texture_merc.nc ${F_TOPO}texture_2byte.tif -q > /dev/null 2>&1
 
                 # Change to 8 bit unsigned format
                 gdal_translate -of GTiff -ot Byte -scale 0 65535 0 255 ${F_TOPO}texture_2byte.tif ${F_TOPO}texture.tif -q > /dev/null 2>&1
@@ -20177,7 +20296,7 @@ EOF
 
                 info_msg "Creating sky view factor"
 
-                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
 
                 # texture the DEM. Pipe output to /dev/null to silence the program
                 if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -20195,7 +20314,7 @@ EOF
                 ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
                 # echo run time is $(expr `date +%s` - $start_time) s
                 # project back to WGS1984
-                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -r bilinear  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
+                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
 
                 zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
                 gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
@@ -20215,9 +20334,55 @@ EOF
                 demymin=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $4}')
                 demymax=$(gmt grdinfo -C ${TOPOGRAPHY_DATA} ${VERBOSE} | gawk '{print $5}')
 
+
+# echo "Test"
+# gdal_translate -of GTiff -co profile=baseline -co tfw=yes ${TOPOGRAPHY_DATA} ${F_TOPO}shadow_baseline.tif
+# gawk < ${F_TOPO}shadow_baseline.tfw -v angle=${SUN_AZ} '
+# function getpi()       { return atan2(0,-1)             }
+# function deg2rad(deg)  { return (getpi() / 180) * deg   }
+#
+# BEGIN {
+#   rads=deg2rad(angle)
+# }
+# (NR==1) {
+#   A=$1
+# }
+# (NR==2) {
+#   B=$1
+# }
+# (NR==3) {
+#   C=$1
+# }
+# (NR==4) {
+#   D=$1
+# }
+# (NR==5) {
+#   E=$1
+# }
+# (NR==6) {
+#   F=$1
+# }
+# END {
+#   print A*cos(rads)
+#   print A*sin(rads)
+#   print -D*sin(rads)
+#   print D*sin(rads)
+#   print E
+#   print F
+# }
+# ' > ${F_TOPO}shadow_baseline_new.tfw
+#
+# mv ${F_TOPO}shadow_baseline.tif ${F_TOPO}shadow_baseline_new.tif
+#
+# echo
+#
+# gdalwarp -dstnodata -9999 -r bilinear -if GTiff -of EHdr -ot Float32 ${F_TOPO}shadow_baseline_new.tif ${F_TOPO}dem_flt_rot.flt  -q
+#
+# echo "End test"
+
                 # echo filling flt file
                 # gdal_fillnodata.py ${TOPOGRAPHY_DATA} -of GTiff ${F_TOPO}dem_prefill.tif
-                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -r cubic -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -r bilinear -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
                 #
                 # gdal_fillnodata [-q] [-md max_distance] [-si smooth_iterations]
                 #   [-o name=value] [-b band]
@@ -20239,30 +20404,72 @@ EOF
                 # gdalinfo ${F_TOPO}dem.tif
                 # echo "DEMFLT"
                 # gdalinfo ${F_TOPO}dem_flt.flt
+                SUN_AZ_M1=$(echo "${SUN_AZ} - 2" | bc -l)
+                SUN_AZ_M05=$(echo "${SUN_AZ} - 1" | bc -l)
+                SUN_AZ_P05=$(echo "${SUN_AZ} + 1" | bc -l)
+                SUN_AZ_P1=$(echo "${SUN_AZ} + 2" | bc -l)
 
-                ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-                # project back to WGS1984
+                SHADOW_START_TIME="$(date -u +%s)"
 
-                # bilinear interpolation was really messing up the output resolution... removed
-                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
-                MAX_SHADOW=$(grep "max_value" ${F_TOPO}shadow.hdr | gawk '{print $2}')
+shadowalldirflag=0
+
+                if [[ $shadowalldirflag -eq 1 ]]; then
+                #  This code creates a kind of 'shadow map from all direction'
+                  for this_az in $(seq 1 5 360); do
+                    echo doing azimuth $this_az
+                    ${SHADOW} ${this_az} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow_360.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+                    gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow_360.flt ${F_TOPO}shadow_360.tif -q
+                    if [[ -s ${F_TOPO}shadow_360_sum.tif ]]; then
+                      gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${F_TOPO}shadow_360.tif -B ${F_TOPO}shadow_360_sum.tif --calc="A+B" --outfile=${F_TOPO}shadow_360_sum_2.tif
+                      mv ${F_TOPO}shadow_360_sum_2.tif ${F_TOPO}shadow_360_sum.tif
+                      rm -f ${F_TOPO}shadow_360.tif
+                    else
+                      mv ${F_TOPO}shadow_360.tif ${F_TOPO}shadow_360_sum.tif
+                    fi
+                  done
+                  mv ${F_TOPO}shadow_360_sum.tif ${F_TOPO}shadow_back_add.tif
+                else
+
+                  ${SHADOW} ${SUN_AZ_M1} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow_m1.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+                  ${SHADOW} ${SUN_AZ_M05} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow_m05.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+                  ${SHADOW} ${SUN_AZ} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+                  ${SHADOW} ${SUN_AZ_P05} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow_p05.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+                  ${SHADOW} ${SUN_AZ_P1} ${SUN_EL} ${F_TOPO}dem_flt.flt ${F_TOPO}shadow_p1.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} ${SHADOW_FAST} > /dev/null
+
+                  # bilinear interpolation was really messing up the output resolution... removed
+                  gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow_m1.flt ${F_TOPO}shadow_back_m1.tif -q
+                  gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow_m05.flt ${F_TOPO}shadow_back_m05.tif -q
+                  gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow.flt ${F_TOPO}shadow_back.tif -q
+                  gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow_p1.flt ${F_TOPO}shadow_back_p1.tif -q
+                  gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326  -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}shadow_p05.flt ${F_TOPO}shadow_back_p05.tif -q
+
+                  gdal_calc.py --overwrite --type=Float32 --format=GTiff --quiet -A ${F_TOPO}shadow_back.tif -B ${F_TOPO}shadow_back_p1.tif -C ${F_TOPO}shadow_back_m1.tif -D ${F_TOPO}shadow_back_m05.tif -E ${F_TOPO}shadow_back_p05.tif --calc="(((A>0)*1+(B>0)*1+(C>0)*1+(D>0)*1+(E>0)*1)==5)*log(A*A+B*B+C*C+D*D+E*E+1)" --outfile=${F_TOPO}shadow_back_add.tif
+
+                fi
+                MAX_SHADOW=$(gmt grdinfo -C ${F_TOPO}shadow_back_add.tif | gawk '{print $7}')
 
                 # Change to 8 bit unsigned format
-                gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back.tif ${F_TOPO}shadowed.tif -q
+                gdal_translate -r cubic -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back_add.tif ${F_TOPO}shadowed.tif -q
 
-                gdal_fillnodata.py -q -md 10000 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
+                # cp ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
+                gmt grdmath ${F_TOPO}shadowed.tif ISNAN 254 ${F_TOPO}shadowed.tif IFELSE = ${F_TOPO}shadowed_fixed.tif
+                # gdal_calc.py -A ${F_TOPO}shadowed.tif --outfile=${F_TOPO}shadowed_fixed.tif --calc="nan_to_num(A, nan=254)" --NoDataValue=254
+                # gdal_fillnodata.py -q -md 5 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
                 # gdal_calc.py --overwrite --type=Byte --format=GTiff --quiet -A ${F_TOPO}shadowed.tif --calc="((A==127)*254 + (A!=127)*A)" --outfile=${F_TOPO}shadowed_fixed.tif
 
                 # gdalbuildvrt -srcnodata 255 -vrtnodata 0 /vsistdout/ ${F_TOPO}shadowed.tif | gdal_translate -a_nodata 1 /vsistdin/ ${F_TOPO}shadowed_fixed.tif
+                SHADOW_END_TIME="$(date -u +%s)"
+                elapsed="$(($SHADOW_END_TIME - $SHADOW_START_TIME))"
+                echo "Shadow run time was $elapsed seconds"
 
 
 
                 # echo "SHADOW"
                 # gdalinfo ${F_TOPO}shadow.tif
-                smoothshadowsflag=0
+                smoothshadowsflag=1
                 if [[ $smoothshadowsflag -eq 1 ]]; then
                   info_msg Smoothing shadow map
-                  gmt grdfilter -Fg5 ${F_TOPO}shadowed_fixed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -Dp
+                  gmt grdfilter -fg -Fg3 ${F_TOPO}shadowed_fixed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -D2
                   shadowtoplot=${F_TOPO}shadow_smoothed.tif
                 else
                   shadowtoplot=${F_TOPO}shadowed_fixed.tif
@@ -20275,7 +20482,6 @@ EOF
 
                 multiply_combine ${F_TOPO}shadow_alpha.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
               ;;
-
               # Rescale and gamma correct the intensity layer
               g)
                 info_msg "Rescale stretching and gamma correcting intensity layer"
@@ -21502,12 +21708,12 @@ if [[ $makelegendflag -eq 1 ]]; then
         if [[ $dontplottopoflag -ne 1 ]]; then
           topotranslevel=$(echo "$DEM_ALPHA * 100" | bc -l)
           if [[ $fasttopoflag -eq 0 ]]; then
-            gmt makecpt -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
+            gmt makecpt -Fr -C${TOPO_CPT} -A$topotranslevel > ${F_CPTS}topotrans.cpt
             echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
             echo "B ${F_CPTS}topotrans.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
           else
             echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-            echo "B ${TOPO_CPT} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}f1+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
+            echo "B ${TOPO_CPT} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxa${BATHYXINC}+l\"Elevation (km)\"" -W0.001 >> ${LEGENDDIR}legendbars.txt
           fi
           barplotcount=$barplotcount+1
         fi
@@ -22123,6 +22329,11 @@ done
     mv map.tiff map.tif
     [[ $openflag -eq 1 ]] && open_pdf "map.tif"
   fi
+
+if [[ $previewflag -eq 1 ]]; then
+  gmt psconvert map.ps -Fpreview -Tt -A+m${MAPMARGIN} -W+g -E30 ${VERBOSE}
+  open_pdf preview.tiff
+fi
 
 # fi
 ##### Copy QGIS project into temporary directory
