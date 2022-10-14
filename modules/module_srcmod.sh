@@ -285,7 +285,7 @@ function tectoplot_plot_srcmod() {
             }' > temp1sliprake.xyz
         fi
 
-        VERBOSE="-V"
+        # VERBOSE="-V"
         gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
         gmt triangulate temp.xyz -I"$LONKM"k -Gtemp2.nc -R $VERBOSE
         gmt surface temp.xyz -Ll0 -Gtemp.nc -Rtemp2.nc $VERBOSE

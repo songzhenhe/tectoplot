@@ -17746,7 +17746,6 @@ EOF
         # else
 
         if [[ ${USERGPSNOPLOT_arr[$current_usergpsfilenumber]} -ne 1 ]]; then
-          echo extra ${RJSTRING}
           gawk < ${USERGPSDATAFILE[$current_usergpsfilenumber]} -v minsig=${GPS_MINSIG} '
           {
             $5 = ($5+0 < minsig) ? minsig : $5
