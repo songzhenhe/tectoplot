@@ -1893,10 +1893,16 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             # What is the resolution we want from gmt surface? Calculate it from
             # the input data using the difference between the first two unique
             # sorted coordinates
-            gridresolutionX=$(cut -f 1 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
-            gridresolutionY=$(cut -f 2 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
 
-            # change resolution here
+            if [[ ${gridresautoflag} -eq 1 ]]; then
+              gridresolutionX=$(cut -f 1 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
+              gridresolutionY=$(cut -f 2 -d ' ' ${F_PROFILES}finaldist_${FNAME} | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
+            fi
+
+            # change resolution by subsampling factor here
+            gridsubsampleX=1
+            gridsubsampleY=1
+
             gridresolutionX=$(echo "${gridresolutionX} / ${gridsubsampleX}" | bc -l)
             gridresolutionY=$(echo "${gridresolutionY} / ${gridsubsampleY}" | bc -l)
 
@@ -1916,7 +1922,7 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
 
             # PLOT ON THE FLAT SECTION PS
             echo "gmt grdimage xyzgrid_${FNAME}.nc ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-            echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -Sc0.01i -Gblack -R -J -O -K >> ${PSFILE}" >> plot.sh
+            # echo "gmt psxy ${F_PROFILES}finaldist_${FNAME} -Sc0.01i -Gblack -R -J -O -K >> ${PSFILE}" >> plot.sh
 
             # PLOT ON THE OBLIQUE SECTION PS
             [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt grdimage xyzgrid_${FNAME}.nc -p ${interp} -C${CPTSTRING} -R -J -O -K  -Vn >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh

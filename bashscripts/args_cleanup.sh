@@ -223,9 +223,9 @@ function abs_dir() {
 
 # The variables are stored in associative arrays keyed by the number of times
 # the given option is called: OPT_VAR[1] vs OPT_VAR[2] etc. This allows the
-# plotting section to handle multiple calls to the same command.
+# plotting section of modules to handle multiple calls to the same command.
 
-# Optional variables are initialized using default values
+# Optional variables are initialized using specified default values
 
 # Arguments: [function_name]
 # Expects a file with the same name as [function_name] in the local directory
@@ -248,6 +248,7 @@ function tectoplot_get_opts() {
   local tectoplot_opts_type
   local tectoplot_opts_default
   tectoplot_options_count=0
+  # tectoplot_module_shift=0
 
   # Get the name of the correct variable; reference using ${!}
   local tectoplot_opts_exp
@@ -258,9 +259,19 @@ function tectoplot_get_opts() {
   variable_list="${variable_list} ${call}_opt_count"
 
   # This is necessary to activate the [N] suffix for variables in multi-call
-  # scenarios
+  # scenarios.
   bracketstr="[${!tectoplot_opts_exp}]"
-  # But required arguments
+
+
+  # ren creates a single variable referenced by its name only
+  # req creates a new entry in a variable array, referenced by name[n], where [n]
+  #  is the number of times get_opts has been called on this function
+
+  # opn creates a single optional variable
+  # opt creates an entry in an array of optional variables
+
+  # des defines the description of the module
+
 
   # Read in required parameters while loading optional parameter list
   while IFS= read -r p <&3 || [ -n "$p" ] ; do
@@ -351,6 +362,8 @@ function tectoplot_get_opts() {
     esac
   done 3< $call
 
+  # Shift away the option
+  shift
 
   # Read in optional parameters
   while ! arg_is_flag $1; do
@@ -524,7 +537,6 @@ function tectoplot_get_opts() {
     # ((tectoplot_module_shift++))
   done
 
-
   info_msg "[tectoplot_get_opts -$call]: set variables: ${variable_list}"
 }
 
@@ -552,10 +564,10 @@ function tectoplot_usage_opts() {
       printf("%s\n", substr($0, length($1)+length($2)+3))
       printf("%s ", nam)
     }
-    ($1=="req") {
+    ($1=="req"||$1=="ren") {
       printf("[%s] ", $3)
     }
-    ($1=="opt") {
+    ($1=="opt"||$1=="opn") {
       optflag=1
     }
     END {
@@ -569,7 +581,7 @@ function tectoplot_usage_opts() {
     BEGIN {
       doneopts=0
     }
-    ($1=="req") {
+    ($1=="req"||$1=="ren") {
       if (doneopts==0) {
         printf("\n\n")
         print "Required arguments:"
@@ -595,7 +607,7 @@ function tectoplot_usage_opts() {
     BEGIN {
       doneopts=0
     }
-    ($1=="opt") {
+    ($1=="opt"||$1=="opn") {
       if (doneopts==0) {
         print ""
         print "Optional arguments:"

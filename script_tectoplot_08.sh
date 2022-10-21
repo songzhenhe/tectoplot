@@ -7,6 +7,7 @@ shopt -s nullglob
 
 
 
+
 # Rules for legend items:
 # If items are flexible then their parameters must be specifiable in advance
 # so that parallel instances can match with a fast legend
@@ -857,6 +858,10 @@ do
    shift
    info_msg "[-ips]: Plotting over previous PS file: $PLOTFILE"
    ;;
+
+  -debug)
+    trap 'printf "%3d\n" "$LINENO"' DEBUG
+  ;;
 
   -megadebug)
     PS4=' \e[33m$(date +"%H:%M:%S"): $LINENO ${FUNCNAME[0]} -> \e[0m'
@@ -2114,7 +2119,6 @@ EOF
   if [[ $USAGEFLAG -eq 1 ]]; then
     tectoplot_usage_opts profopts
   else
-    shift
     tectoplot_get_opts profopts "${@}"
     # In main script we have to do the shifting ourselves; 1 fewer as we shift
     # at the end of this case statement
@@ -4861,6 +4865,19 @@ fi
     cpts+=("litho1")
     plots+=("litho1_depth")
     ;;
+
+  -debug)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-debug:    print line numbers as they are executed
+Usage: -debug
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  ;;
 
   -megadebug)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -8267,8 +8284,10 @@ Usage: -profgrid [file] [[options]]
 
   Options:
   cpt [file | cptname]     CPT for interpolated grid
-  subx [value]             grid subsampling factor, X coordinate
-  suby [value]             grid subsampling factor, Y coordinate
+  resx [value]             resolution, X' coordinate (km)
+  resy [value]             resolution, Z coordinate (km)
+  subx [value]             grid subsampling factor, X' coordinate
+  suby [value]             grid subsampling factor, Z coordinate
 
   Notes:
     Data file has format X Y Z V
@@ -8285,10 +8304,12 @@ fi
     profgridflag=1
     shift
   else
-    echo "[-profgrid]: Input file ${2} does not exist or is empty"
-    exit 1
+    profgridfile=$2
+    shift
+    # echo "[-profgrid]: Input file ${2} does not exist or is empty"
+    # exit 1
   fi
-
+  gridresautoflag=1
   while ! arg_is_flag $2; do
     case $2 in
       cpt)
@@ -8299,6 +8320,28 @@ fi
           profgridcpt="${2}"
         fi
         shift
+      ;;
+      resx)
+        shift
+        gridresautoflag=0
+        if arg_is_positive_float $2; then
+          gridresolutionX=$2
+          shift
+        else
+          echo "[-profgrid]: X' resolution should be a positive float"
+          exit 1
+        fi
+      ;;
+      resy)
+        shift
+        gridresautoflag=0
+        if arg_is_positive_float $2; then
+          gridresolutionY=$2
+          shift
+        else
+          echo "[-profgrid]: Z resolution should be a positive float"
+          exit 1
+        fi
       ;;
       subx)
         shift
@@ -9705,27 +9748,31 @@ fi
   ;;
 
   -tcycle)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--tcycle:       generate cyclic grayscale CPT
---------------------------------------------------------------------------------
+  cat <<-EOF > tcycle
+des -tcycle Add cyclicity saturation to CPT
+opn num tcyclecptnum float 10
+    number of saturation cycles
+opn low tcycle_cptlow float 0
+    low cut for input saturation CPT
+opn high tcycle_cpthigh float 0.5
+    high cut for input saturation CPT
+opn cpt tcyclecptcpt cpt gray
+    CPT used to generate cyclic saturation
+opn step tcyclestepval float 1000
+    step used in generating cycle
+opn method tcyclemethod string average
+    method used to comine CPTs (average, multiply)
 EOF
-shift && continue
-fi
-tcyclecptnum=10
 
-  if arg_is_float $2; then
-    tcyclecptnum=$2
-    shift
+  if [[ $USAGEFLAG -eq 1 ]]; then
+    tectoplot_usage_opts tcycle
+  else
+    tectoplot_get_opts tcycle "${@}"
+    [[ $tectoplot_module_shift -gt 0 ]] && shift ${tectoplot_module_shift} || shift
   fi
 
   tcyclecptflag=1
-  # for i in $(seq -8000 2000 6000); do
-  #   j=$(echo "$i + 1000" | bc)
-  #   k=$(echo "$i + 2000" | bc)
-  #   gmt makecpt -Cgray -N -Fr -T${i}/${j}/1 -Z >> ${TMP}cyclegray.cpt
-  #   gmt makecpt -Cgray -I -N -Fr -Z -T${j}/${k}/1 >> ${TMP}cyclegray.cpt
-  # done
+
   ;;
 
   -tcpt) # -tcpt: specify the CPT file defining topography color stretch
@@ -15392,19 +15439,19 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     # Stupid tests for longitude range because gmt spatial has problem cutting everywhere
     if [[ $(echo "$MINLON < -180 && $MAXLON > -180" | bc) -eq 1 ]]; then
-      echo "Also cutting on other side of dateline neg:"
+      # echo "Also cutting on other side of dateline neg:"
       MINLONCUT=$(echo "${MINLON}+360" | bc -l)
-      echo gmt spatial $PLATES -R${MINLONCUT}/180/$MINLAT/$MAXLAT -C
+      # echo gmt spatial $PLATES -R${MINLONCUT}/180/$MINLAT/$MAXLAT -C
       gmt spatial $PLATES -R${MINLONCUT}/180/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}map_plates_clip_a.txt
     elif [[ $(echo "$MINLON < 180 && $MAXLON > 180" | bc) -eq 1 ]]; then
-      echo "Also cutting on other side of dateline pos:"
+      # echo "Also cutting on other side of dateline pos:"
       MAXLONCUT=$(echo "${MAXLON}-360" | bc -l)
-      echo gmt spatial $PLATES -R-180/${MAXLONCUT}/$MINLAT/$MAXLAT -C
+      # echo gmt spatial $PLATES -R-180/${MAXLONCUT}/$MINLAT/$MAXLAT -C
       gmt spatial $PLATES -R-180/${MAXLONCUT}/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}map_plates_clip_a.txt
     elif [[ $(echo "$MINLON >= 180 && $MAXLON > 180 && $MAXLON <= 360" | bc) -eq 1 ]]; then
       MINLONFIX=$(echo "${MINLON} - 360" | bc -l)
       MAXLONFIX=$(echo "${MAXLON} - 360" | bc -l)
-      echo gmt spatial $PLATES -R${MINLONFIX}/${MAXLONFIX}/$MINLAT/$MAXLAT -C
+      # echo gmt spatial $PLATES -R${MINLONFIX}/${MAXLONFIX}/$MINLAT/$MAXLAT -C
       gmt spatial $PLATES -R${MINLONFIX}/${MAXLONFIX}/$MINLAT/$MAXLAT -C $VERBOSE | gawk  '{print $1, $2}' >> ${F_PLATES}map_plates_clip_a.txt
     fi
 
@@ -15689,10 +15736,19 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
   		    	AS = AS + (J[i]);
   			}
   			AS = 1/2*AS;
-  			CX = 1/(6*AS)*SXS;
-  			CY = 1/(6*AS)*SYS;
-  			print CX "," CY
+
+        # If AS is 0 which happens for degenerate polygons, return the first
+        # coordinate. Otherwise, calculate and return the center point
+        if (AS==0) {
+          print x[1] "," y[1]
+        } else {
+          CX = 1/(6*AS)*SXS;
+          CY = 1/(6*AS)*SYS;
+          print CX "," CY
+        }
+
   		}' > "${F_PLATES}${v[$i]}.centroid"
+
       cat "${F_PLATES}${v[$i]}.centroid" >> ${F_PLATES}map_centroids.txt
 
       # Calculate Euler poles relative to reference plate
@@ -16155,7 +16211,7 @@ for cptfile in ${cpts[@]} ; do
       if [[ $tomoowncptflag -eq 1 ]]; then
         cp $tomocpt ${F_CPTS}tomography.cpt
       else
-        gmt makecpt -Fr -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D > ${F_CPTS}tomography.cpt
+        gmt makecpt -Fr -C${CPTDIR}tomography.cpt -I -T-1/1/0.1 -D -Z > ${F_CPTS}tomography.cpt
       fi
     ;;
 
@@ -16495,23 +16551,24 @@ for cptfile in ${cpts[@]} ; do
         }')
 
       # Finalize the CPT
-tcyclecptcpt=gray
-# tcyclecptnum=10
-tcyclestepval=1000
+
+
+      # Create a cyclic CPT and merge with the input CPT
 
       if [[ $tcyclecptflag -eq 1 ]]; then
 
         tcyclecptnummul=$(echo "(${tcyclecptnum} - 1) * ${tcyclestepval}" | bc -l)
         rm -f cyclegray.cpt
+
         for i in $(seq 0 ${tcyclestepval} ${tcyclecptnummul}); do
           j=$(echo "$i + 0.5*${tcyclestepval}" | bc)
           k=$(echo "$i + 1*${tcyclestepval}" | bc)
 
-          gmt makecpt -C${tcyclecptcpt} -N -Fr -Z -T${i}/${j}/1 >> cyclegray.cpt
-          gmt makecpt -C${tcyclecptcpt} -I -N -Fr -Z -T${j}/${k}/1 >> cyclegray.cpt
+          gmt makecpt -C${tcyclecptcpt} -N -Fr -Z -T${i}/${j}/1 -G${tcycle_cptlow}/${tcycle_cpthigh} >> cyclegray.cpt
+          gmt makecpt -C${tcyclecptcpt} -I -N -Fr -Z -T${j}/${k}/1 -G${tcycle_cptlow}/${tcycle_cpthigh} >> cyclegray.cpt
         done
 
-        tectoplot -tmix ${F_CPTS}topo_temp.cpt ./cyclegray.cpt ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} 1 average
+        tectoplot -tmix ${F_CPTS}topo_temp.cpt ./cyclegray.cpt ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} 1 ${tcyclemethod}
         cp tempfiles_to_delete/mix.cpt .
         TOPO_CPT=mix.cpt
       else
@@ -22060,12 +22117,15 @@ function close_legend_item() {
       esac
     done
 
-    numsources=$(wc -l < datasourceslegend.txt)
-    if [[ $numsources -gt 1 ]]; then
-      init_legend_item "datasources"
-      echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
-      gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
-      close_legend_item "datasources"
+
+    if [[ -s datasourceslegend.txt ]]; then
+      numsources=$(wc -l < datasourceslegend.txt)
+      if [[ $numsources -gt 1 ]]; then
+        init_legend_item "datasources"
+        echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+        gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
+        close_legend_item "datasources"
+      fi
     fi
 
     gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
