@@ -1,13 +1,10 @@
 
 TECTOPLOT_MODULES+=("bvalue")
 
-# EXPECTS THESE VARIABLES TO BE SET
-# zcclusterflag : flag to plot colors by cluster ID
-# SEIS_CPT      : CPT for plotting seismicity
+# UPDATED
 
 function tectoplot_defaults_bvalue() {
-  BVALUE_MC=4       # Default Mc value for b-value calculation
-  BVALUE_USEMCFLAG=0   # If 1, use default or specified Mc value
+  m_bvalue_usemc=0
 }
 
 function tectoplot_args_bvalue()  {
@@ -19,46 +16,42 @@ function tectoplot_args_bvalue()  {
   case "${1}" in
 
   -bvalue)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_bvalue.sh
-
--bvalue:     plot cumulative frequency number distribution of seismicity
--bvalue [[Mc]]
-
-  Mc is the magnitude of completeness of the input catalog, which is set to be
-  the earthquake bin with highest event count, if not specified directly.
-
-  Uses only seismicity - "b" careful if using CMTs with culling!
-
-Example: None
---------------------------------------------------------------------------------
+  cat <<-EOF > bvalue
+des -bvalue Plot cumulative frequency number distribution of seismicity
+opn mc m_bvalue_mc float 4.0
+  magnitude of completeness for earthquake catalog
+mes mc is the magnitude of completeness of the input catalog, which is set to be
+mes the earthquake bin with highest event count, if not specified directly.
+mes Note: -bvalue plots only seismicity; be careful if using CMTs with culling!
+exa tectoplot -z -bvalue mc 5
 EOF
-fi
 
-    shift
-    if arg_is_float "${1}"; then
-      BVALUE_USEMC=1
-      BVALUE_MC=${1}
-      shift
-      ((tectoplot_module_shift++))
+    if [[ $USAGEFLAG -eq 1 ]]; then
+      tectoplot_usage_opts bvalue
+    else
+      tectoplot_get_opts bvalue "${@}"
+
+      if [[ $(echo "${m_bvalue_mc} != 4.0" | bc -l) -eq 1 ]]; then
+        m_bvalue_usemc=1
+      fi
+
+      tectoplot_module_caught=1
     fi
 
-    tectoplot_module_caught=1
     ;;
   esac
 }
 
 function tectoplot_post_bvalue() {
-  
+
   if [[ -s ${F_SEIS}eqs.txt ]]; then
 
-    mkdir "module_stereonet"
+    mkdir "module_bvalue"
 
     # Non-cumulative data
     # Bin centers using -F
 
-    gmt pshistogram ${F_SEIS}eqs.txt -F -IO -i3 -T0.2 > ./module_stereonet/histdata.txt
+    gmt pshistogram ${F_SEIS}eqs.txt -F -IO -i3 -T0.2 > ./module_bvalue/histdata.txt
 
     # Calculate cumulative histogram and year span of data per bin.
     # gawk < histdata.txt '
@@ -128,13 +121,13 @@ function tectoplot_post_bvalue() {
         }
 
       }
-      ' ./module_stereonet/histdata.txt ${F_SEIS}eqs.txt > ./module_stereonet/histcalcs.txt
+      ' ./module_bvalue/histdata.txt ${F_SEIS}eqs.txt > ./module_bvalue/histcalcs.txt
 
     maxcumval=$(cat cumsum_max.txt)
     rm -f cumsum_max.txt
 
     # Aki-Bender algorithm for b value and uncertainty
-    b_aki=($(gawk < ./module_stereonet/histcalcs.txt -v usemc=${BVALUE_USEMC} -v mcval=${BVALUE_MC} '
+    b_aki=($(gawk < ./module_bvalue/histcalcs.txt -v usemc=${m_bvalue_usemc} -v mcval=${m_bvalue_mc} '
     function floor(x) { return (x==int(x))?x:sprintf("%.f", x-0.5)}
     {
         fmag[NR]=$1
@@ -193,13 +186,13 @@ function tectoplot_post_bvalue() {
     }'))
 
 
-    gmt psxy ./module_stereonet/histcalcs.txt -i0,1 -Ss0.1i -R1.5/10.0/1/${maxcumval} -JX6i/2il -Gblack -BSWtr -Bpaf -Bx+l"Magnitude" -By+l"Binned frequency" -K > ./module_stereonet/bvalue.ps
-    gmt psxy ./module_stereonet/histcalcs.txt -i0,2 -Ss0.1i -W1p,red -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_stereonet/bvalue.ps
+    gmt psxy ./module_bvalue/histcalcs.txt -i0,1 -Ss0.1i -R1.5/10.0/1/${maxcumval} -JX6i/2il -Gblack -BSWtr -Bpaf -Bx+l"Magnitude" -By+l"Binned frequency" -K > ./module_bvalue/bvalue.ps
+    gmt psxy ./module_bvalue/histcalcs.txt -i0,2 -Ss0.1i -W1p,red -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_bvalue/bvalue.ps
 
-    echo ">" > ./module_stereonet/mc_line.txt
-    echo "${b_aki[0]} 1" >> ./module_stereonet/mc_line.txt
-    echo "${b_aki[0]} ${maxcumval}" >> ./module_stereonet/mc_line.txt
-    gmt psxy ./module_stereonet/mc_line.txt -W1p,black,- -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_stereonet/bvalue.ps
+    echo ">" > ./module_bvalue/mc_line.txt
+    echo "${b_aki[0]} 1" >> ./module_bvalue/mc_line.txt
+    echo "${b_aki[0]} ${maxcumval}" >> ./module_bvalue/mc_line.txt
+    gmt psxy ./module_bvalue/mc_line.txt -W1p,black,- -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_bvalue/bvalue.ps
 
     # Mc NMc Mmax b sigmab
     echo "${b_aki[0]} ${b_aki[1]} ${b_aki[2]} ${b_aki[3]} ${b_aki[4]}" | gawk '{
@@ -235,16 +228,16 @@ function tectoplot_post_bvalue() {
 
       print a > "a_value.txt"
 
-    }' > ./module_stereonet/b_line.txt
+    }' > ./module_bvalue/b_line.txt
 
-    gmt psxy ./module_stereonet/b_line.txt -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_stereonet/bvalue.ps
+    gmt psxy ./module_bvalue/b_line.txt -R1.5/10.0/1/${maxcumval} -JX6i/2il -O -K >> ./module_bvalue/bvalue.ps
     A_VAL=$(cat a_value.txt)
     rm -f a_value.txt
 
-    printf "Mc=%0.2f, a=%0.2f, b=%0.2f+-%0.2f" ${b_aki[0]} ${A_VAL} ${b_aki[3]} ${b_aki[4]} | gmt pstext -D-4p/-4p -R -J -F+cTR -O >> ./module_stereonet/bvalue.ps
+    printf "Mc=%0.2f, a=%0.2f, b=%0.2f+-%0.2f" ${b_aki[0]} ${A_VAL} ${b_aki[3]} ${b_aki[4]} | gmt pstext -D-4p/-4p -R -J -F+cTR -O >> ./module_bvalue/bvalue.ps
 
     # gmt psxy histcalcs.txt -i0,3 -St0.1i -Ggreen -R -J -O >> bvalue.ps
 
-    gmt psconvert ./module_stereonet/bvalue.ps -Tf -A+m0.5i
+    gmt psconvert ./module_bvalue/bvalue.ps -Tf -A+m0.5i
   fi
 }

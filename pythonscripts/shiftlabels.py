@@ -12,7 +12,7 @@
 # toward =   BL   CL   TL  BM    TM   BR   CR   TR
 
 import math, random, matplotlib, sys, csv
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
 # labelmy.py [file] [image_width] [image_height] [label_offset] [font_size]
@@ -31,8 +31,8 @@ if len(sys.argv) == 6:
     label_offset=float(sys.argv[4])
     font_size=float(sys.argv[5])
 else:
-    print len(sys.argv)
-    print "Usage: shiftlabels.py filename image_width image_height label_offset font_size"
+    print(len(sys.argv))
+    print("Usage: shiftlabels.py filename image_width image_height label_offset font_size")
     quit()
 
 with open(label_file) as f:
@@ -168,7 +168,7 @@ def mutate(rects, gene, prob):
     rectlist = [gen_rect(rect, code) for rect, code in zip(rects, gene)]
     # Directed mutation where two rectangles intersect
     for i in range(len(rectlist)):
-	for j in range(i):
+        for j in range(i):
             if rect_intersect(rectlist[i], rectlist[j]):
                 newgene[i] = biased_random()
     # And a bit of random mutation, too
@@ -221,15 +221,16 @@ random.seed()
 # and not the box relative to the point!
 
 gmtcodes=('TR','MR','BR','TC','BC','TL','ML','BL','TR','MR','BR','TC','BC','TL','ML','BL')
-
-# (L, C, R) and a vertical (T, M, B)
-
-fig, ax = plt.subplots()
-
-ax.add_patch(Rectangle((0, 0), image_width, image_height, facecolor='none'))
-
+#
+# # (L, C, R) and a vertical (T, M, B)
+#
+# fig, ax = plt.subplots()
+#
+# ax.add_patch(Rectangle((0, 0), image_width, image_height, facecolor='none'))
+#
 rects=[]
 points=[]
+
 for i in range(n_labels):
     x=float(d[i][0])
     y=float(d[i][1])
@@ -237,9 +238,9 @@ for i in range(n_labels):
     gmtcode=gmtcodes.index(d[i][6])
     width=0.5*font_size*len(text)
     height=1*font_size
-    ax.scatter(x,y)
+#     ax.scatter(x,y)
     newrect=(x-width/2.0, y-height/2.0, x+width/2.0, y+height/2.0)
-    addpatch_Rectangle_lbtr_code(newrect, gmtcode, ax, 'black')
+#     addpatch_Rectangle_lbtr_code(newrect, gmtcode, ax, 'black')
     points.append((x,y))
     rects.append(newrect)
 
@@ -288,12 +289,12 @@ for i in range(15):
     # At each stage, we breed the best genes with one another
     genes = bestgenes + [mutate(rects, crossbreed(g1, g2), prob) for g1 in bestgenes for g2 in bestgenes]
 
-for thisrect in rects:
-    addpatch_Rectangle_lbtr(thisrect, ax, 'blue')
+# for thisrect in rects:
+#     addpatch_Rectangle_lbtr(thisrect, ax, 'blue')
 
 newrectlist = [gen_rect(rect, code) for rect, code in zip(rects, bestgene)]
-for thisrect in newrectlist:
-    addpatch_Rectangle_lbtr(thisrect, ax, 'red')
+# for thisrect in newrectlist:
+#     addpatch_Rectangle_lbtr(thisrect, ax, 'red')
 
 # We now have the best fitting gene codes but we do have a preference for code 7
 # So test each point and if code 7 doesn't have any overlap, change to 7
@@ -336,7 +337,7 @@ with open('newlabels.txt', 'w') as f:
     original_stdout = sys.stdout
     sys.stdout=f
     for thisrect in fixedrectlist:
-        addpatch_Rectangle_lbtr(thisrect, ax, 'green')
+        # addpatch_Rectangle_lbtr(thisrect, ax, 'green')
         if bestgene[index] > 7:
             fileind=2
         else:

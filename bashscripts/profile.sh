@@ -1575,6 +1575,8 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             echo "LINERANGE=(\$(gawk < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt 'BEGIN { getline; minz=\$2; maxz=\$2 } { minz=(\$2<minz)?\$2:minz; maxz=(\$2>maxz)?\$2:maxz } END { print minz-(maxz-minz)/10, maxz+(maxz-minz)/10 }'))" >> ${LINEID}_temp_profiletop.sh
             echo "gmt psxy -T -R\${line_min_x}/\${line_max_x}/\${LINERANGE[0]}/\${LINERANGE[1]} -Y\${PROFILE_HEIGHT_IN} -JX\${PROFILE_WIDTH_IN}/\${PROFILE_TOPPER_HEIGHT_IN} -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
             echo "if [[ \$(echo \"\${LINERANGE[0]} < 0 && \${LINERANGE[1]} > 0\" | bc) -eq 1 ]]; then echo \"\${line_min_x} 0T\${line_max_x} 0T\${line_max_x} \${LINERANGE[0]}T\${line_max_x} \${LINERANGE[0]}T\${line_min_x} \${LINERANGE[0]}T\${line_min_x} 0\" | tr 'T' '\n' | gmt psxy -Vn -L+yb -Glightblue -R -J -O -K -W0.25p,0/0/0 >> ${F_PROFILES}${LINEID}_flat_profile.ps; fi" >> ${LINEID}_temp_profiletop.sh
+            echo "if [[ \$(echo \"\${LINERANGE[0]} < 0 && \${LINERANGE[1]} < 0\" | bc) -eq 1 ]]; then echo \"\${line_min_x} \${LINERANGE[1]}T\${line_max_x} \${LINERANGE[1]}T\${line_max_x} \${LINERANGE[0]}T\${line_max_x} \${LINERANGE[0]}T\${line_min_x} \${LINERANGE[0]}T\${line_min_x} \${LINERANGE[1]}\" | tr 'T' '\n' | gmt psxy -Vn -L+yb -Glightblue -R -J -O -K -W0.25p,0/0/0 >> ${F_PROFILES}${LINEID}_flat_profile.ps; fi" >> ${LINEID}_temp_profiletop.sh
+
             echo "gmt psxy -Vn -L+yb -Gtan -R -J -O -K -W0.25p,0/0/0 ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledatamedian.txt >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
             echo "gmt psbasemap -J -R -BWEb -O -K -Byaf --MAP_FRAME_PEN=thinner,black --FONT_ANNOT_PRIMARY=\"6p,Helvetica,black\" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_profiletop.sh
           echo "fi" >> ${LINEID}_temp_profiletop.sh
@@ -2528,7 +2530,10 @@ EOF
     echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)" >> ${LINEID}_temp_plot.sh
 
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z}' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
-    echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z, \"${LINEID}\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBL -D8p/0 -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    plotlineidflag=0
+    if [[ $plotlineidflag -eq 1 ]]; then
+      echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + $XOFFSET_NUM, z, \"${LINEID}\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBL -D8p/0 -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+    fi
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+$XOFFSET_NUM, z; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR}>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
     # ON THE OBLIQUE PLOTS

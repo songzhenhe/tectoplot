@@ -1,32 +1,21 @@
 
 TECTOPLOT_MODULES+=("cities")
 
+# UPDATED
+
 function tectoplot_defaults_cities() {
 
-  CITIES_SOURCESTRING="City data from geonames (CC-BY)"
-  CITIES_SHORT_SOURCESTRING="geonames"
+  m_cities_sourcestring="City data from geonames (CC-BY)"
+  m_cities_short_sourcestring="geonames"
 
-  CITIESDIR=$DATAROOT"WorldCities/"
-  CITIES500=$CITIESDIR"cities500.txt"
-  CITIES=$CITIESDIR"geonames_cities_500.txt"
-  CITIES_SOURCEURL="http://download.geonames.org/export/dump/cities500.zip"
-  CITIES_ZIP_BYTES="10353983"
-  CITIES500_BYTES="31818630"
+  m_cities_dir=$DATAROOT"WorldCities/"
+  m_cities_500=$m_cities_dir"cities500.txt"
+  CITIES=$m_cities_dir"geonames_cities_500.txt"
+  m_cities_sourceurl="http://download.geonames.org/export/dump/cities500.zip"
+  m_cities_zip_bytes="10353983"
+  m_cities_bytes="31818630"
 
-  CITIES_SYMBOL="c"
-  CITIES_SYMBOL_SIZE="0.1i"
-  CITIES_SYMBOL_LINEWIDTH="0.25p"
-  CITIES_SYMBOL_LINECOLOR="black"
-  CITIES_SYMBOL_FILLCOLOR="white"
-  CITIES_MINPOP=5000
-  CITIES_CPT="gray"
-  CITIES_LABEL_MINPOP=100000
-  CITIES_LABEL_FONTSIZE="8p"
-  CITIES_LABEL_FONT="Helvetica"
-  CITIES_LABEL_FONTCOLOR="black"
-
-  POPULATION_CPT=${F_CPTS}"population.cpt"
-  
+  m_cities_default_minpop=500000
 }
 
 function tectoplot_args_cities()  {
@@ -37,76 +26,44 @@ function tectoplot_args_cities()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-    -pp|--cities)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_cities.sh
--pp:           plot populated places above a specified population
--pp [[population=${CITIES_MINPOP}]]
-
-  Source data is from Geonames.
-  Label populated places using -ppl
-
-Example:
-  tectoplot -r =EU -a -pp 500000
---------------------------------------------------------------------------------
+  -pp)
+  cat <<-EOF > pp
+des -pp plot locations of populated places (cities)
+opt min m_cities_minpop float ${m_cities_default_minpop}
+    minimum population of plotted cities
+opt max m_cities_maxpop float 0
+    maximum population of plotted cities
+opt cpt m_cities_cpt cpt gray
+    CPT for coloring city shapes
+opt label m_cities_labelmin float 10000000000
+    label cities larger than specified population
+opt font m_cities_font string "8p,Helvetica,black"
+    font for city labels
+opt symbol m_cities_symbol string "c"
+    symbol code for city points
+opt size m_cities_size string "0.1i"
+    size of city points
+opt fill m_cities_fill string "none"
+    color for symbol fill if CPT not used
+opt string m_cities_stroke string "0.25p,black"
+    stroke definition for city symbols
+mes Populated places data
+mes URL: ${m_cities_sourceurl}
+exa tectoplot -r =EU -a -pp min 500000
 EOF
-  fi
-
-      shift
-      if arg_is_flag $1; then
-        info_msg "[-pp]: No minimum population specified. Using ${CITIES_MINPOP}"
-      else
-        CITIES_MINPOP="${1}"
-        shift
-        ((tectoplot_module_shift++))
-      fi
-      if ! arg_is_flag $1; then
-        CITIES_CPT="${1}"
-        shift
-        ((tectoplot_module_shift++))
-      fi
-
-      plots+=("cities")
-      cpts+=("cities")
-
-      echo $CITIES_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      echo $CITIES_SOURCESTRING >> ${LONGSOURCES}
-
-      tectoplot_module_caught=1
-
-      ;;
-
-    -ppl)
-
-    tectoplot_module_shift=0
-    tectoplot_module_caught=0
 
   if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--ppl:          label populated places above a specified population
--ppl [[population=${CITIES_LABEL_MINPOP}]]
+    tectoplot_usage_opts pp
+  else
+    tectoplot_get_opts pp "${@}"
 
-  Use -pp to plot cities.
-  Source data is from Geonames
+    plots+=("m_cities_pp")
+    cpts+=("m_cities_pp")
 
-Example:
-  tectoplot -r =EU -pp 500000 -ppl 500000
---------------------------------------------------------------------------------
-EOF
+    tectoplot_module_caught=1
   fi
-      shift
-      if arg_is_flag $1; then
-        info_msg "[-pp]: No minimum population for labeling specified. Using ${CITIES_LABEL_MINPOP}"
-      else
-        CITIES_LABEL_MINPOP="${1}"
-        shift
-        ((tectoplot_module_shift++))
-      fi
-      citieslabelflag=1
 
-      tectoplot_module_caught=1
-      ;;
+  ;;
 
   esac
 }
@@ -122,9 +79,9 @@ function tectoplot_calculate_cities()  {
 
     case $response in
       Y|y|yes|"")
-        if check_and_download_dataset "Geonames-Cities" $CITIES_SOURCEURL "yes" $CITIESDIR $CITIES500 $CITIESDIR"data.zip" "none" "none"; then
+        if check_and_download_dataset "Geonames-Cities" $m_cities_sourceurl "yes" $m_cities_dir $m_cities_500 $m_cities_dir"data.zip" "none" "none"; then
           info_msg "Processing cities data to correct format"
-          gawk  < $CITIESDIR"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
+          gawk  < $m_cities_dir"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
         else
           info_msg "Cities data could not be downloaded"
           return 0
@@ -137,30 +94,33 @@ function tectoplot_calculate_cities()  {
 
   fi
 
-  gawk < $CITIES -F, -v minpop=${CITIES_MINPOP} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  '
-    BEGIN{OFS=","}
-    # LON EDIT TEST
-    ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat && $4>=minpop) {
-        print $1, $2, $3, $4
-    }' > cities.dat
-
-  # Map region select
-  select_in_gmt_map cities.dat ${RJSTRING[@]}
-
-  if [[ $polygonselectflag -eq 1 ]]; then
-    # GMT accepts comma delimited but only splits first few fields...
-    gmt select cities.dat -F${POLYGONAOI} ${VERBOSE} | tr '\t' ',' > selected_cities.dat
-    mv selected_cities.dat cities.dat
-  fi
-
 }
 
 function tectoplot_cpt_cities() {
   case $1 in
-  cities)
-    touch $POPULATION_CPT
-    POPULATION_CPT=$(abs_path $POPULATION_CPT)
-    gmt makecpt -C${CITIES_CPT} -I -Do -T0/1000000/100000 -N $VERBOSE > $POPULATION_CPT
+  m_cities_pp)
+
+    m_cities_maxcpt=${m_cities_maxpop[$tt]}
+    if [[ $(echo "(${m_cities_minpop[$tt]} == ${m_cities_default_minpop}) && (${m_cities_maxpop[$tt]} != 0)" | bc -l) -eq 1 ]]; then
+      m_cities_minpop[$tt]=0
+    elif [[ $(echo "(${m_cities_minpop[$tt]} > ${m_cities_maxpop[$tt]})" | bc -l) -eq 1 ]]; then
+      m_cities_maxpop[$tt]=100000000
+      m_cities_maxcpt=1000000
+    elif [[ $(echo "(${m_cities_minpop[$tt]} == 0) && (${m_cities_maxpop[$tt]} == 0)" | bc -l) -eq 1 ]]; then
+      m_cities_maxpop[$tt]=100000000
+      m_cities_maxcpt=1000000
+    fi
+
+    gmt makecpt -C${m_cities_cpt[$tt]} -I -Do -T${m_cities_minpop[$tt]}/${m_cities_maxcpt} -Z -N $VERBOSE > ${F_CPTS}population_${tt}.cpt
+    m_cities_cpt_used[$tt]=${F_CPTS}population_${tt}.cpt
+
+    if [[ ${m_cities_fill[$tt]} != "none" ]]; then
+       m_cities_fillcmd[$tt]="-G${m_cities_fill[$tt]}"
+       m_cities_cpt[$tt]="none"
+    else
+      m_cities_fillcmd[$tt]="-C${m_cities_cpt_used[$tt]}"
+    fi
+
     tectoplot_cpt_caught=1
     ;;
   esac
@@ -168,29 +128,58 @@ function tectoplot_cpt_cities() {
 
 function tectoplot_plot_cities() {
   case $1 in
-    cities)
-      info_msg "Plotting cities with minimum population ${CITIES_MINPOP}"
+    m_cities_pp)
 
-      # We curate the cities plot by choosing the largest city within a given
-      # map distance to avoid overlaying many cities.
+    info_msg "[-pp]: Plotting cities with minimum population ${m_cities_minpop[$tt]} and maximum population ${m_cities_maxpop[$tt]}"
 
-      # Sort the cities so that dense areas plot on top of less dense areas
-      # Could also do some kind of symbol scaling
-      gawk < cities.dat -F, '{print $1, $2, $4}' | sort -n -k 3 | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> map.ps
-      if [[ $citieslabelflag -eq 1 ]]; then
-        gawk < cities.dat -F, -v minpop=${CITIES_LABEL_MINPOP} '($4>=minpop){print $1, $2, $3}' | sort -n -k 3 | gmt pstext -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM $RJOK $VERBOSE >> map.ps
-      fi
-      tectoplot_plot_caught=1
+    gawk < $CITIES -F, -v minpop=${m_cities_minpop[$tt]} -v maxpop=${m_cities_maxpop[$tt]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  '
+      BEGIN {
+        OFS=","
+        maxpop=(maxpop==0)?100000000:maxpop
+      }
+      ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat && $4>=minpop && $4<=maxpop) {
+          print $1 "\t" $2 "\t" $3 "\t" $4
+      }' > cities_${tt}.dat
+
+    # Select cities within actual map region
+
+    # tab delimited with spaces in city names
+    tr ' ' '_' < cities_${tt}.dat > cities_${tt}_pre.dat
+    # tab delimited with _ in names
+    select_in_gmt_map cities_${tt}_pre.dat ${RJSTRING[@]}
+    # space delimited with _ in names
+    tr ' ' '\t' < cities_${tt}_pre.dat > cities_${tt}_post.dat
+    # tab delimited with _ in names
+
+    tr '_' ' ' < cities_${tt}_post.dat > cities_${tt}.dat
+    # tab delimited with space in names
+
+    # Sort the cities so that dense areas plot on top of less dense areas
+    # Could also do some kind of symbol scaling
+    # gmt set PS_CHAR_ENCODING Standard1+
+
+    gawk < cities_${tt}.dat -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
+    gawk < cities_${tt}.dat -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
+       | sort -n -k 3  \
+       | gmt pstext -DJ${m_cities_size[$tt]}/${m_cities_size[$tt]} -F+f${m_cities_font[$tt]}+jLM  $RJOK $VERBOSE >> map.ps
+
+    echo $m_cities_short_sourcestring >> ${SHORTSOURCES}
+    echo $m_cities_sourcestring >> ${LONGSOURCES}
+
+    tectoplot_plot_caught=1
     ;;
   esac
 }
 
 function tectoplot_legendbar_cities() {
   case $1 in
-    cities)
-      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-      echo "B $POPULATION_CPT 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
-      barplotcount=$barplotcount+1
+    m_cities_pp)
+      if [[ ${m_cities_cpt[$tt]} != "none" ]]; then
+
+        echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${m_cities_cpt_used[$tt]} 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
+        barplotcount=$barplotcount+1
+      fi
       tectoplot_legendbar_caught=1
       ;;
   esac
@@ -198,14 +187,24 @@ function tectoplot_legendbar_cities() {
 
 function tectoplot_legend_cities() {
   case $1 in
-  cities)
-    init_legend_item "cities"
+  m_cities_pp)
 
-    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE -X.175i >> ${LEGFILE}
-    echo "${CENTERLON} ${CENTERLAT} City with population > ${CITIES_MINPOP}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} $VERBOSE >> ${LEGFILE}
+    init_legend_item "cities_${tt}"
+
+    if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
+      m_cities_legendstring="City with population <= ${m_cities_maxpop[$tt]}"
+    elif [[ ${m_cities_maxpop[$tt]} -eq 0 ]]; then
+      m_cities_legendstring="City with population >= ${m_cities_minpop[$tt]}"
+    else
+      m_cities_legendstring="City with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"
+    fi
+
+    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE -X.175i >> ${LEGFILE}
+    echo "${CENTERLON} ${CENTERLAT} ${m_cities_legendstring}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} $VERBOSE >> ${LEGFILE}
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-    close_legend_item "cities"
+    close_legend_item "cities_${tt}"
+    tectoplot_legend_caught=1
   ;;
   esac
 }

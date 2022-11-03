@@ -1,10 +1,7 @@
 
 TECTOPLOT_MODULES+=("gcdm")
 
-# Calculate residual grid by removing along-line average, using da-dt formulation
-# Builtin support for gravity grids
-
-# Variables needed:
+# UPDATED
 
 
 function tectoplot_defaults_gcdm() {
@@ -19,7 +16,6 @@ function tectoplot_defaults_gcdm() {
   GCDM_BYTES="123810173"
 
   GCDM_CPT=${F_CPTS}"gcdm.cpt"
-
 }
 
 function tectoplot_args_gcdm()  {
@@ -31,35 +27,24 @@ function tectoplot_args_gcdm()  {
   case "${1}" in
 
   -gcdm)
+  cat <<-EOF > gcdm
+des -gcdm plot gridded earthquake slip model (or any grid...) with clipping
+opt cpt m_gcdm_cpt cpt "seis"
+    CPT used to color grid
+EOF
 
   if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gcdm.sh
--gcdm:         plot Global Curie Depth Map
--gcdm
+    tectoplot_usage_opts gcdm
+  else
+    tectoplot_get_opts gcdm "${@}"
 
-  Data are from Li et al., 2017
-  The Curie depth is the depth at which magnetic minerals lose their permanent
-  remanence and is sensitive to both mineral composition and temperature.
+    plots+=("m_gcdm")
+    cpts+=("m_gcdm")
 
-Example: Plot GCDM of Greece and Turkey
-  tectoplot -r GR,TR -gcdm -a f -acb
---------------------------------------------------------------------------------
-EOF
+    # Signal to tectoplot that the current command was processed by this module
+    tectoplot_module_caught=1
   fi
-
-      shift
-
-      plots+=("gcdm")
-      cpts+=("gcdm")
-
-      echo $GCDM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-      echo $GCDM_SOURCESTRING >> ${LONGSOURCES}
-
-      # Signal to tectoplot that the current command was processed by this module
-      tectoplot_module_caught=1
-
-  	  ;;
+  ;;
 
   esac
 }
@@ -89,13 +74,22 @@ function tectoplot_calculate_gcdm()  {
 }
 
 function tectoplot_cpt_gcdm() {
-  gmt makecpt -Cseis -T$GCDMMIN/$GCDMMAX -Z ${VERBOSE} > $GCDM_CPT
+  case $1 in
+    m_gcdm)
+      gmt makecpt -C${m_gcdm_cpt[$tt]} -T$GCDMMIN/$GCDMMAX -Z ${VERBOSE} > ${F_CPTS}gcdm_${tt}.cpt
+    ;;
+  esac
 }
 
 function tectoplot_plot_gcdm() {
+
   case $1 in
-    gcdm)
-      gmt grdimage $GCDMDATA $GRID_PRINT_RES -C$GCDM_CPT $RJOK $VERBOSE >> map.ps
+    m_gcdm)
+      gmt grdimage ${GCDMDATA} $GRID_PRINT_RES -C${F_CPTS}gcdm_${tt}.cpt $RJOK $VERBOSE >> map.ps
+
+      echo $GCDM_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+      echo $GCDM_SOURCESTRING >> ${LONGSOURCES}
+
       tectoplot_plot_caught=1
     ;;
   esac
@@ -103,11 +97,11 @@ function tectoplot_plot_gcdm() {
 
 function tectoplot_legendbar_gcdm() {
   case $1 in
-  gcdm)
-    echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-    echo "B $GCDM_CPT 0.2i 0.1i+malu -Bxa10f2+l\"Curie Depth (km)\"" >> ${LEGENDDIR}legendbars.txt
-    barplotcount=$barplotcount+1
-    tectoplot_legendbar_caught=1
+    m_gcdm)
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}gcdm_${tt}.cpt 0.2i 0.1i+malu -Bxa10f2+l\"Curie Depth (km)\"" >> ${LEGENDDIR}legendbars.txt
+      barplotcount=$barplotcount+1
+      tectoplot_legendbar_caught=1
     ;;
   esac
 }

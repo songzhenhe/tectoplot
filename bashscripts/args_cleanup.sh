@@ -34,6 +34,7 @@
 ################################################################################
 # Messaging and debugging routines
 
+# args_DEBUG=1
 
 # Returns true if argument is empty or starts with a hyphen but is not a float;
 # else returns false. Not sure this is the best way to code this test... bash...
@@ -218,6 +219,15 @@ function abs_dir() {
     fi
 }
 
+# Compares the first word to a list of other words, returns yes if the
+# first word is in the list OR if the first word starts with "-"
+
+function is_arg() {
+  local arg1=$1
+  shift
+  [[ " ${@} " =~ " $arg1 " || ${arg1:0:1} == [-] || -z ${1} ]] && return
+}
+
 # tectoplot_get_opts uses a simple control file to set variables from the
 # command line arguments, including required and optional variables.
 
@@ -272,10 +282,48 @@ function tectoplot_get_opts() {
 
   # des defines the description of the module
 
+  [[ $args_DEBUG -eq 1 ]] && echo "Before shifting args are $@"
 
-  # Read in required parameters while loading optional parameter list
+
+  # Shift away the -XXXX option
+  if [[ ${1:0:1} != "-" ]]; then
+    echo "Expected command starting with -, instead found: $1; exiting"
+    exit 1
+  else
+    shift
+  fi
+
+  [[ $args_DEBUG -eq 1 ]] && echo "args before reading options are $@"
+
+  unset optstr
+  # Read in the optional parameters list
+
   while IFS= read -r p <&3 || [ -n "$p" ] ; do
     d=($(echo $p))
+    [[ $args_DEBUG -eq 1 ]] && echo "Read p string ${p}"
+    [[ $args_DEBUG -eq 1 ]] && echo "Preload args are $@"
+    # d[0] is the command type: req/ren/opt/opn
+
+    case ${d[0]} in
+      opt)
+        eval "m_${call}_opts+=(\"${d[1]}\")"
+        optstr=" ${optstr} ${d[1]} "
+      ;;
+      opn)
+        eval "m_${call}_opns+=(\"${d[1]}\")"
+        optstr=" ${optstr} ${d[1]} "
+      ;;
+    esac
+  done 3< $call
+
+  # Read in required parameters while loading optional parameter list at
+  # the same time.
+
+  while IFS= read -r p <&3 || [ -n "$p" ] ; do
+    d=($(echo $p))
+    [[ $args_DEBUG -eq 1 ]] && echo "Read p string ${p}"
+    [[ $args_DEBUG -eq 1 ]] && echo "Preload args are $@"
+    # d[0] is the command type: req/ren/opt/opn
     case ${d[0]} in
       req|ren)
         if [[ ${d[0]} == "ren" ]]; then
@@ -283,6 +331,7 @@ function tectoplot_get_opts() {
         else
           bracketstr="[${!tectoplot_opts_exp}]"
         fi
+        eval "m_${call}_reqs+=(\"${d[1]}\")"
         case ${d[2]} in
           file)
             if ! arg_is_flag $1; then
@@ -319,10 +368,21 @@ function tectoplot_get_opts() {
           ;;
           string)
             if arg_is_string ${1}; then
-              eval "${d[1]}${bracketstr}=${1}"
-              variable_list=$(echo "${variable_list} ${d[1]}${bracketstr}")
-              shift
-              ((tectoplot_module_shift++))
+              unset argstring
+              while ! is_arg $1 ${optstr}; do
+
+                if [[ -z $argstring ]]; then
+                  argstring=$1
+                else
+                  argstring="${argstring} ${1}"
+                fi
+                ((tectoplot_module_shift++))
+                shift
+              done
+                eval "${d[1]}${bracketstr}=\"${argstring}\""
+                variable_list=$(echo "${variable_list} ${d[1]}${bracketstr}")
+              # shift
+              # ((tectoplot_module_shift++))
             else
               echo "[-$call]: required string argument not found; found $1 instead."
               exit 1
@@ -350,7 +410,7 @@ function tectoplot_get_opts() {
         tectoplot_opts_type[${tectoplot_options_count}]=${d[3]}
         tectoplot_opts_default[${tectoplot_options_count}]=${d[4]}
       #  Add to the list of created variables
-        variable_list=$(echo "${variable_list} ${d[2]}")
+        variable_list=$(echo "${variable_list} ${d[1]}")
         eval "${d[2]}=${d[4]}"
       ;;
       nam|des)
@@ -362,11 +422,10 @@ function tectoplot_get_opts() {
     esac
   done 3< $call
 
-  # Shift away the option
-  shift
-
   # Read in optional parameters
   while ! arg_is_flag $1; do
+    [[ $args_DEBUG -eq 1 ]] && echo "loading optional parameter $1"
+
     # We have remaining arguments
     if [[ $tectoplot_options_count -gt 0 ]]; then
       opts_found=0
@@ -508,11 +567,27 @@ function tectoplot_get_opts() {
               fi
             ;;
             # string is anything that is not an arg_is_flag flag (-c, -t, etc)
+            # or another control code
             string)
               if arg_is_string ${1}; then
-                eval "${tectoplot_opts_variable[$opt_i]}${bracketstr}=${1}"
-                shift
-                ((tectoplot_module_shift++))
+
+                unset argstring
+                while ! is_arg $1 ${tectoplot_opts_argument[@]}; do
+                  if [[ -z $1 ]]; then
+                    break
+                  fi
+                  if [[ -z $argstring ]]; then
+                    argstring=$1
+                  else
+                    argstring="${argstring} ${1}"
+                  fi
+                  ((tectoplot_module_shift++))
+                  shift
+                done
+
+                eval "${tectoplot_opts_variable[$opt_i]}${bracketstr}=\"${argstring}\""
+                # shift
+                # ((tectoplot_module_shift++))
               else
                 echo "[-$call]: required string argument not found; found $1 instead."
                 exit 1
@@ -560,16 +635,21 @@ function tectoplot_usage_opts() {
   gawk < $call '
     ($1=="des") {
       nam=$2
+      # Print the name of the function
       printf("%-15s", nam)
+      # followed by the description string
       printf("%s\n", substr($0, length($1)+length($2)+3))
+      # start a new line with the function name
       printf("%s ", nam)
     }
+    # store the arguments list, print required arguments in order
     ($1=="req"||$1=="ren") {
       printf("[%s] ", $3)
     }
     ($1=="opt"||$1=="opn") {
       optflag=1
     }
+    # Print if we have optional arguments
     END {
       if (optflag==1) {
         print "[[options ...]]"

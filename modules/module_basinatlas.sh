@@ -2,7 +2,9 @@
 # Commands for plotting GIS datasets like points, lines, and grids
 # To add: polygons
 
-# Rebasinatlaster the module with tectoplot
+# UPDATED
+
+# Register the module with tectoplot
 TECTOPLOT_MODULES+=("basinatlas")
 
 function getmonth() {
@@ -25,14 +27,14 @@ function getmonth() {
 function tectoplot_defaults_basinatlas() {
 
     BASINATLASDIR=${DATAROOT}"BasinATLAS_Data_v10_shp/BasinATLAS_v10_shp/"
-    BASINATLASDATA=${BASINATLASDIR}"BasinATLAS_v10_lev01.shp"
-    BASINATLAS_TRANS=0
-    basinatlascptflag=0
-    basinatlas_slurped=0
-    BASINATLAS_CPTLABEL="BasinAtlas dataset"
-    BASINATLAS_DIM="snw_pc"
-    BASINATLAS_RES=300
-    basinatlas_noplot=0
+    m_basinatlas_datapath=${BASINATLASDIR}"BasinATLAS_v10_lev01.shp"
+
+    # m_basinatlas_trans=0
+    # basinatlascptflag=0
+    m_basinatlas_cptLABEL="BasinAtlas dataset"
+    # m_basinatlas_data="snw_pc"
+    # m_basinatlas_res=300
+    # m_basinatlas_noplot=0
 }
 
 #############################################################################
@@ -47,157 +49,76 @@ function tectoplot_args_basinatlas()  {
   case "${1}" in
 
   -basinatlas)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--basinatlas:          plot datasets from BasinAtlas
--basinatlas [[options]]
 
-  BasinAtlas is a collection of Earth surface variables discretized by drainage
-  basin, distributed under HydroATLAS (https://hydrosheds.org/page/hydroatlas).
-
-  Data level indicates the number of drainage subidivision steps. The higher
-  the data level number [1-12], the more polygons there are and the longer a
-  plot will take.
-
-  Options:
-  level [number]              Data level [0-12]
-  data [id_code]              Plot data dimension specified by ID code
-  trans [number]              Percent transparency [0-100]
-  cpt [filename] [[string]]   Use a custom CPT file with specified legend string
-  res [number]                Resolution of rendered image (dpi)
-  noplot                      Make GeoTIFF but don't plot to map
-
-  Common suffixes:
-      syr       sub-basin annual average
-      smx       sub-basen annual maximum
-      s01-s12   sub-basin monthly average
-      uyr       annual average in watershed above sub-basin pour point
-      sse       in sub-basin
-      use       in watershed above sub-basin pour point
-      sav       in sub-basin average
-      uav       in watershed above sub-basin pour point average
-
-  Available datasets:
-  >>> Climate Moisture Index (index value x 100) <<<
-    cmi_ix_[suf]
-      syr | s01-s12 | uyr
-  >>> Population Density (people/square km)
-    ppd_pk_[suf]
-      sav | uav
-  >>> Snow Cover (percent area) <<<
-    snw_pc_[suf]
-      syr | smx | s01-s12 | uyr
-  >>> Soil Water Content (percent of max SWC) <<<
-    swc_pc_[suf]
-      syr | s01-s12 | uyr
-  >>> Urban Cover (percent area) <<<
-    urb_pc_[suf]
-      sse | use
-
-
---------------------------------------------------------------------------------
+  cat <<-EOF > basinatlas
+des -basinatlas plot datasets from BasinAtlas
+opt level m_basinatlas_datalevel int 6
+    data level [0-12]
+opt data m_basinatlas_data string ppd_pk_uav
+    data dimension specified by ID code
+opt trans m_basinatlas_trans float 0
+    transparency level [0-100]
+opt cpt m_basinatlas_cpt cpt cpts/ppd_pk.cpt
+    CPT for displaying data
+opt log m_basinatlas_cptlog flag 0
+    plot CPT scale bar with logarithmic intervals
+opt res m_basinatlas_res float 300
+    resolution of rendered image (dpi)
+opt noplot m_basinatlas_noplot flag 0
+    make GeoTIFF but do not plot to the map
+opt psplot m_basinatlas_psplot flag 0
+    plot SHP directly to map PS file (can be very large)
+mes BasinAtlas is a collection of Earth surface variables discretized by drainage
+mes basin, distributed under HydroATLAS (https://hydrosheds.org/page/hydroatlas).
+mes
+mes Data level indicates the number of drainage subidivision steps. The higher
+mes the data level number [1-12], the more polygons there are and the longer a
+mes plot will take.
+mes
+mes Common suffixes:
+mes     syr       sub-basin annual average
+mes     smx       sub-basen annual maximum
+mes     s01-s12   sub-basin monthly average
+mes     uyr       annual average in watershed above sub-basin pour point
+mes     sse       in sub-basin
+mes     use       in watershed above sub-basin pour point
+mes     sav       in sub-basin average
+mes     uav       in watershed above sub-basin pour point average
+mes
+mes Available datasets:
+mes >>> Climate Moisture Index (index value x 100) <<<
+mes   cmi_ix_[suf]
+mes     syr | s01-s12 | uyr
+mes >>> Population Density (people/square km)
+mes   ppd_pk_[suf]
+mes     sav | uav
+mes >>> Snow Cover (percent area) <<<
+mes   snw_pc_[suf]
+mes     syr | smx | s01-s12 | uyr
+mes >>> Soil Water Content (percent of max SWC) <<<
+mes   swc_pc_[suf]
+mes     syr | s01-s12 | uyr
+mes >>> Urban Cover (percent area) <<<
+mes   urb_pc_[suf]
+mes     sse | use
+exa tectoplot -r IT -basinatlas level 6
 EOF
-fi
-    shift
 
-    if [[ ! -s ${BASINATLASDATA} ]]; then
-      echo "[-basinatlas]: BasinAtlas data not found at ${BASINATLASDATA}. Use tectoplot -getdata."
-    else
-      while ! arg_is_flag $1; do
-        case $1 in
-          cpt)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_flag $1; then
-              echo "[-basinatlas]: cpt option requires filename argument"
-              exit 1
-            else
-              BASINATLAS_CPT=$(abs_path $1)
-              basinatlascptflag=1
-              shift
-              ((tectoplot_module_shift++))
-              while ! arg_is_flag $1; do
-                basinatlas_slurped=1
-                BASINATLAS_LABELSLURP+=("$1")
-                shift
-                ((tectoplot_module_shift++))
-              done
-              if [[ $basinatlas_slurped -eq 1 ]]; then
-                BASINATLAS_CPTLABEL="${BASINATLAS_LABELSLURP[@]}"
-              fi
-            fi
-            ;;
-          data)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_flag $1; then
-              echo "[-basinatlas]: data option requires argument"
-              exit 1
-            else
-              BASINATLAS_DIM=$1
-              shift
-              ((tectoplot_module_shift++))
-            fi
-            ;;
-          level)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_positive_float $1; then
-              BASINATLAS_LEVEL=$(printf "%02d" $1)
-              BASINATLASDATA="${BASINATLASDIR}BasinATLAS_v10_lev${BASINATLAS_LEVEL}.shp"
-              shift
-              ((tectoplot_module_shift++))
-            else
-              echo "[-basinatlas]: level option requires positive number argument"
-              exit 1
-            fi
-            ;;
-          noplot)
-            shift
-            ((tectoplot_module_shift++))
-            basinatlas_noplot=1
-            ;;
-          res)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_positive_float $1; then
-              BASINATLAS_RES="${1}"
-              shift
-              ((tectoplot_module_shift++))
-            else
-              echo "[-basinatlas]: res option requires positive integer argument"
-              exit 1
-            fi
-            ;;
-          trans)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_positive_float $1; then
-              BASINATLAT_TRANS=$1
-              shift
-              ((tectoplot_module_shift++))
-            else
-              echo "[-basinatlas]: trans option requires positive number argument"
-              exit 1
-            fi
-           ;;
+  if [[ $USAGEFLAG -eq 1 ]]; then
+    tectoplot_usage_opts basinatlas
+  else
+    tectoplot_get_opts basinatlas "${@}"
 
-          *)
-            echo "[-basinatlas]: Argument $1 not recognized"
-            exit 1
-            ;;
-        esac
-      done
+    [[ -s ${m_basinatlas_cpt} ]] && basinatlascptflag=1
 
-      plots+=("basinatlas")
-      cpts+=("basinatlas")
-      echo "BasinAtlas: Linke, S., Lehner, B., Ouellet Dallaire, C., Ariwi, J., Grill, G., Anand, M., Beames, P., Burchard-Levine, V., Maxwell, S., Moidu, H., Tan, F., Thieme, M. (2019). Global hydro-environmental sub-basin and river reach characteristics at high spatial resolution. Scientific Data 6: 283. DOI: 10.1038/s41597-019- 0300-6" >> ${LONGSOURCES}
-      echo "HydroAtlas: http://www.hydrosheds.org/page/hydroatlas" >> ${LONGSOURCES}
-      echo "BasinAtlas" >> ${SHORTSOURCES}
-    fi
+    plots+=("basinatlas")
+    cpts+=("basinatlas")
+
     tectoplot_module_caught=1
+  fi
 
-    ;;
+  ;;
+
   esac
 }
 
@@ -206,34 +127,34 @@ fi
 
 function tectoplot_cpt_basinatlas() {
 
-    # echo "making cpt for ${BASINATLAS_DIM}"
-
-    if [[ $basinatlascptflag -eq 1 ]]; then
-      cp ${BASINATLAS_CPT} ${F_CPTS}${BASINATLAS_DIM}.cpt
-      BASINATLAS_LEGENDLABEL=${BASINATLAS_CPTLABEL}
+    if [[ -s ${m_basinatlas_used_cpt[$tt]} ]]; then
+      # cp ${m_basinatlas_cpt[$tt]} ${F_CPTS}${m_basinatlas_data[$tt]}.cpt
+      m_basinatlas_legendlabel[$tt]=${m_basinatlas_cptLABEL}
+      m_basinatlas_used_cpt[$tt]=${m_basinatlas_cpt[$tt]}
     else
-      BASINPREFIX=${BASINATLAS_DIM:0:6}
-      BASINSUFFIX=${BASINATLAS_DIM:7:3}
-      case ${BASINPREFIX} in
+      m_basinatlas_prefix[$tt]=${m_basinatlas_data[$tt]:0:6}
+      m_basinatlas_suffix[$tt]=${m_basinatlas_data[$tt]:7:3}
+
+      case ${m_basinatlas_prefix[$tt]} in
         cmi_ix) # syr | s01-s12 | uyr
-          gmt makecpt -T-100/100 -Cturbo -I > ${F_CPTS}${BASINPREFIX}.cpt
-          # BASINATLAS_LEGENDLABEL="Climate Moisture Index (x100)"
-          case ${BASINSUFFIX} in
+          gmt makecpt -T-100/100 -Cturbo -I > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+          # m_basinatlas_legendlabel[$tt]="Climate Moisture Index (x100)"
+          case ${m_basinatlas_suffix[$tt]} in
             s01|s02|s03|s04|s05|s06|s07|s08|s09|s10|s11|s12)
-              BASINATLAS_LEGENDLABEL="Climate Moisture Index - basin mean for $(getmonth ${BASINSUFFIX}) (x100)"
+              m_basinatlas_legendlabel[$tt]="Climate Moisture Index - basin mean for $(getmonth ${m_basinatlas_suffix[$tt]}) (x100)"
             ;;
             syr)
-              BASINATLAS_LEGENDLABEL="Climate Moisture Index - basin annual mean (x100)"
+              m_basinatlas_legendlabel[$tt]="Climate Moisture Index - basin annual mean (x100)"
             ;;
             uyr)
-              BASINATLAS_LEGENDLABEL="Climate Moisture Index - above-pour point annual mean (x100)"
+              m_basinatlas_legendlabel[$tt]="Climate Moisture Index - above-pour point annual mean (x100)"
             ;;
           esac
         ;;
         ppd_pk)
 
-cat<<-EOF > ${F_CPTS}${BASINPREFIX}.cpt
-0     023/012/101       5  023/012/101  L
+cat<<-EOF > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+0.01     023/012/101       5  023/012/101  L
 5     087/083/177      10  087/083/177  L
 10    136/133/204      50  136/133/204  L
 50    202/195/243     100  202/195/243  L
@@ -246,44 +167,47 @@ F     255/255/255
 N     127/127/127
 EOF
 
-          BASINATLAS_LEGENDLABEL="Population density (people/square km)"
+          m_basinatlas_legendlabel[$tt]="Population density (people/square km)"
+          m_basinatlas_cptlog[$tt]=1
         ;;
         snw_pc)
-          gmt makecpt -T0/100 -Cdevon -I > ${F_CPTS}${BASINPREFIX}.cpt
-          case ${BASINSUFFIX} in
+          gmt makecpt -T0/100 -Cdevon -I > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+          case ${m_basinatlas_suffix[$tt]} in
             s01|s02|s03|s04|s05|s06|s07|s08|s09|s10|s11|s12)
-              BASINATLAS_LEGENDLABEL="Snow Cover - basin mean for $(getmonth ${BASINSUFFIX}) (%)"
+              m_basinatlas_legendlabel[$tt]="Snow Cover - basin mean for $(getmonth ${m_basinatlas_suffix[$tt]}) (%)"
             ;;
             syr)
-              BASINATLAS_LEGENDLABEL="Snow Cover - basin annual mean (%)"
+              m_basinatlas_legendlabel[$tt]="Snow Cover - basin annual mean (%)"
             ;;
             smx)
-              BASINATLAS_LEGENDLABEL="Snow Cover - basin annual max (%)"
+              m_basinatlas_legendlabel[$tt]="Snow Cover - basin annual max (%)"
             ;;
             uyr)
-              BASINATLAS_LEGENDLABEL="Snow Cover - above-pour point annual mean (%)"
+              m_basinatlas_legendlabel[$tt]="Snow Cover - above-pour point annual mean (%)"
             ;;
           esac
         ;;
         swc_pc)
-          gmt makecpt -T0/100 -Cseis > ${F_CPTS}${BASINPREFIX}.cpt
-          case ${BASINSUFFIX} in
+          gmt makecpt -T0/100 -Cseis > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+          case ${m_basinatlas_suffix[$tt]} in
             s01|s02|s03|s04|s05|s06|s07|s08|s09|s10|s11|s12)
-              BASINATLAS_LEGENDLABEL="Soil Water Content - basin mean for $(getmonth ${BASINSUFFIX}) (% of max SWC)"
+              m_basinatlas_legendlabel[$tt]="Soil Water Content - basin mean for $(getmonth ${m_basinatlas_suffix[$tt]}) (% of max SWC)"
             ;;
             syr)
-              BASINATLAS_LEGENDLABEL="Soil Water Content - basin annual mean (% of max SWC)"
+              m_basinatlas_legendlabel[$tt]="Soil Water Content - basin annual mean (% of max SWC)"
             ;;
             uyr)
-              BASINATLAS_LEGENDLABEL="Soil Water Content - above-pour point annual mean (% of max SWC)"
+              m_basinatlas_legendlabel[$tt]="Soil Water Content - above-pour point annual mean (% of max SWC)"
             ;;
           esac
         ;;
         urb_pc)
-          gmt makecpt -T0/100 -Chot -I > ${F_CPTS}${BASINPREFIX}.cpt
-          BASINATLAS_LEGENDLABEL="Urban Cover (percent area)"
+          gmt makecpt -T0/100 -Chot -I > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+          m_basinatlas_legendlabel[$tt]="Urban Cover (percent area)"
         ;;
       esac
+      m_basinatlas_used_cpt[$tt]=${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
+
     fi
 }
 
@@ -294,33 +218,42 @@ function tectoplot_plot_basinatlas() {
 
   basinatlas)
 
-    # Create a raster image of the polygon data to avoid nasty polygon edges and YUUUUGE PDF files
-    gmt_init_tmpdir
-      # X and Y spacing are uniform
-      BASINATLAS_PSSIZE_ALT=$(gawk -v size=${PSSIZE} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
-        BEGIN {
-          print size*(minlat-maxlat)/(minlon-maxlon)
-        }')
+    m_basinatlas_thislevel=$(printf %02d ${m_basinatlas_datalevel[$tt]})
+    m_basinatlas_datapath[$tt]="${BASINATLASDIR}BasinATLAS_v10_lev${m_basinatlas_thislevel}.shp"
 
-      # echo selecting data
-      # gmt spatial ${BASINATLASDATA} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} > basinsel.shp
+    if [[ $m_basinatlas_psplot -eq 0 ]]; then
+      # Create a raster image of the polygon data to avoid nasty polygon edges and large PDF files
+      gmt_init_tmpdir
+        # X and Y spacing are uniform
+        BASINATLAS_PSSIZE_ALT=$(gawk -v size=${PSSIZE} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+          BEGIN {
+            print size*(minlat-maxlat)/(minlon-maxlon)
+          }')
 
-      echo done
-      basinatlas_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-      basinatlas_rj+=("-JX${PSSIZE}i/${BASINATLAS_PSSIZE_ALT}id")
-      # Plot the map in Cartesian coordinates
-      gmt psxy ${BASINATLASDATA} -G+z -C${F_CPTS}${BASINPREFIX}.cpt -t${BASINATLAS_TRANS} -aZ=${BASINATLAS_DIM} ${basinatlas_rj[@]} --PS_MEDIA=${PSSIZE}ix${BASINATLAS_PSSIZE_ALT}i -fg -Bxaf -Byaf -Btlrb -Xc -Yc --GMT_HISTORY=false  > basin.ps 2>/dev/null
-      # Convert to a TIFF file at specified resolution
-      gmt psconvert basin.ps -Tt -E${BASINATLAS_RES} -W+g ${VERBOSE}
-      # Update the coordinates in basin.tif to be correct
-      gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} basin.tif
+        # echo selecting data
+        # gmt spatial ${m_basinatlas_datapath} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} > basinsel.shp
 
-    gmt_remove_tmpdir
+        basinatlas_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+        basinatlas_rj+=("-JX${PSSIZE}i/${BASINATLAS_PSSIZE_ALT}id")
+        # Plot the map in Cartesian coordinates
+        gmt psxy ${m_basinatlas_datapath[$tt]} -G+z -C${m_basinatlas_used_cpt[$tt]} -t${m_basinatlas_trans[$tt]} -aZ=${m_basinatlas_data[$tt]} ${basinatlas_rj[@]} --PS_MEDIA=${PSSIZE}ix${BASINATLAS_PSSIZE_ALT}i -fg -Bxaf -Byaf -Btlrb -Xc -Yc --GMT_HISTORY=false  > basin.ps 2>/dev/null
+        # Convert to a TIFF file at specified resolution
+        gmt psconvert basin.ps -A+m0i -Tt -E${m_basinatlas_res[$tt]} -W+g ${VERBOSE}
+        # Update the coordinates in basin.tif to be correct
+        gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} basin.tif
 
-    [[ $basinatlas_noplot -ne 1 ]] && gmt grdimage basin.tif ${RJOK} ${VERBOSE} >> map.ps
+      gmt_remove_tmpdir
 
-    # This plots the polygon data directly making YUUUGE TIFF file
-    # gmt psxy ${BASINATLASDATA} -G+z -C${F_CPTS}${BASINPREFIX}.cpt -t${BASINATLAS_TRANS} -aZ=${BASINATLAS_DIM} ${RJOK} -Vn >> map.ps 2>/dev/null
+      [[ ${m_basinatlas_noplot[$tt]} -ne 1 ]] && gmt grdimage basin.tif ${RJOK} ${VERBOSE} >> map.ps
+    else
+    # This plots the polygon data directly making a potentially very large PS file
+      gmt psxy ${m_basinatlas_datapath} -G+z -C${m_basinatlas_used_cpt[$tt]} -t${m_basinatlas_trans} -aZ=${m_basinatlas_data} ${RJOK} -Vn >> map.ps 2>/dev/null
+    fi
+
+    echo "BasinAtlas: Linke, S., Lehner, B., Ouellet Dallaire, C., Ariwi, J., Grill, G., Anand, M., Beames, P., Burchard-Levine, V., Maxwell, S., Moidu, H., Tan, F., Thieme, M. (2019). Global hydro-environmental sub-basin and river reach characteristics at high spatial resolution. Scientific Data 6: 283. DOI: 10.1038/s41597-019- 0300-6" >> ${LONGSOURCES}
+    echo "HydroAtlas: http://www.hydrosheds.org/page/hydroatlas" >> ${LONGSOURCES}
+    echo "BasinAtlas" >> ${SHORTSOURCES}
+
     tectoplot_plot_caught=1
     ;;
   esac
@@ -333,9 +266,14 @@ function tectoplot_plot_basinatlas() {
 function tectoplot_legendbar_basinatlas() {
   case $1 in
     basinatlas)
+      if [[ ${m_basinatlas_cptlog[$tt]} -eq 1 ]]; then
+        m_basinatlas_logcmd="-Q"
+      else
+        m_basinatlas_logcmd=""
+      fi
 
       echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-      echo "B ${F_CPTS}${BASINPREFIX}.cpt 0.2i 0.1i+malu -Bxaf+l\"${BASINATLAS_LEGENDLABEL}\"" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${m_basinatlas_used_cpt[$tt]} 0.2i 0.1i+malu ${m_basinatlas_logcmd} -Bxaf+l\"${m_basinatlas_legendlabel[$tt]}\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
       ;;

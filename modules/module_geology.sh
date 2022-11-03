@@ -691,6 +691,7 @@ gawk < blob.txt -v date=30 -v scale=${scale} -v xshift=0.3 -v clon=${CENTERLON} 
       close_legend_item "tectonic_fabrics_${this_fabric}"
 
     done
+    tectoplot_legend_caught=1
     ;;
   esac
 

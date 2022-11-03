@@ -1,18 +1,12 @@
 
 TECTOPLOT_MODULES+=("gpwv4")
 
-# Plotting of Global Strain Rate Model data (Kreemer et al., 2014)
-# Source data is distributed with tectoplot under platemodels/GSRM/
+# Plotting of Gridded Population of the World v 4
 
-# Variables expected:
-# GSRMDATA = full path to GSRM data file
+# UPDATED
 
 function tectoplot_defaults_gpwv4() {
     # Thicknesses are in points
-    GPWV4_TRANS=0
-    GPWV4_LOWCUT=1
-    GPWV4_DPI=1200   # Default DPI of the plotted grid
-    gpwv4_noplot=0
 
     GPWV4DIR=${DATAROOT}"gpw-v4-population-density-rev11_2020_30_sec_nc/"
     GPWV4DATA=${GPWV4DIR}"gpw_v4_population_density_rev11_2020_30_sec.nc"
@@ -30,112 +24,73 @@ function tectoplot_args_gpwv4()  {
   case "${1}" in
 
   -popdens)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gpwv4.sh
--popdens:    Plot global population density raster at 30s resolution
--popdens [[options]]
 
-Options:
-
-lowcut [number=${GPWV4_LOWCUT}]   Minimum population density; lower is transparent
-trans [number=${GPWV4_TRANS}]      Transparency
-res [number=${GPWV4_DPI}]      Grid resolution
-
-Example: None
---------------------------------------------------------------------------------
+    cat <<-EOF > popdens
+des -popdens plot river channels from GLORIC database
+opt lowcut m_gpwv4_popdens_lowcut float 0
+    minimum population density; lower is transparent
+opt trans m_gpwv4_popdens_trans float 0
+    transparency
+opt res m_gpwv4_popdens_res posinteger 150
+    plotted grid resolution (dpi)
+opt noplot m_gmwv4_popdens_noplot flag 0
+    do not plot the population grid
 EOF
-fi
 
-    shift
+  if [[ $USAGEFLAG -eq 1 ]]; then
+    tectoplot_usage_opts popdens
+  else
+    tectoplot_get_opts popdens "${@}"
 
-    if [[ ! -s ${GPWV4DATA} ]]; then
-      echo "[-popdens]: GPWV4 data not found at ${GPWV4DATA}. Use tectoplot -getdata dropbox"
-    else
-      while ! arg_is_flag $1; do
-        case $1 in
-          lowcut)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_positive_float $1; then
-              GPWV4_LOWCUT=$1
-              shift
-              ((tectoplot_module_shift++))
-            else
-              echo "[-popdens]: lowcut option requires argument"
-              exit 1
-            fi
-            ;;
-          trans)
-            shift
-            ((tectoplot_module_shift++))
-            if arg_is_flag $1; then
-              echo "[-popdens]: trans option requires argument"
-              exit 1
-            else
-              GPWV4_TRANS=$1
-              shift
-              ((tectoplot_module_shift++))
-            fi
-            ;;
-          noplot)
-            shift
-            ((tectoplot_module_shift++))
-            gpwv4_noplot=1
-            ;;
-          res)
-            shift
-            if ! arg_is_positive_float $1; then
-              echo "[-popdens]: res option requires number argument"
-              exit 1
-            else
-              GPWV4_DPI=$1
-              shift
-              ((tectoplot_module_shift++))
-            fi
-            ;;
-          *)
-            echo "[-popdens]: Argument $1 not recognized"
-            exit 1
-            ;;
-        esac
-      done
+    plots+=("m_gpwv4_popdens")
+    cpts+=("m_gpwv4_popdens")
 
-      plots+=("gpwv4")
-
-      echo ${GPWV4_SOURCESTRING} >> ${LONGSOURCES}
-      echo ${GPWV4_SHORT_SOURCESTRING} >> ${SHORTSOURCES}
-    fi
     tectoplot_module_caught=1
+  fi
+  ;;
+  esac
+}
+
+function tectoplot_calculate_gpwv4()  {
+  GPWV4_PSSIZE_ALT=$(gawk -v size=${PSSIZE} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+    BEGIN {
+      print size*(minlat-maxlat)/(minlon-maxlon)
+    }')
+}
+
+
+
+function tectoplot_cpt_gpwv4()  {
+  case $1 in
+    m_gpwv4_popdens)
+      gmt makecpt -Chot -T1/175000/1+l -Z -I --COLOR_BACKGROUND="white" --COLOR_FOREGROUND="white" --COLOR_NAN="white" > ${F_CPTS}gpwv4_${tt}.cpt
     ;;
   esac
 }
 
-# function tectoplot_calculate_gpwv4()  {
-#   echo "Doing stereonet calculations"
-# }
-#
+
 function tectoplot_plot_gpwv4() {
   case $1 in
-  gpwv4)
-    gmt makecpt -Chot -T1/175000/1+l -Z -I --COLOR_BACKGROUND="white" --COLOR_FOREGROUND="white" --COLOR_NAN="white" > ${F_CPTS}gpwv4.cpt
-
+  m_gpwv4_popdens)
 
     RSTRING=$(echo ${RJSTRING[@]} | gawk '{print $1}')
 
     gpwv4_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-    gpwv4_rj+=("-JX${PSSIZE}i/${BASINATLAS_PSSIZE_ALT}id")
+    gpwv4_rj+=("-JX${PSSIZE}i/${GPWV4_PSSIZE_ALT}id")
 
     gmt_init_tmpdir
-    gmt grdclip ${GPWV4DATA} -Sb${GPWV4_LOWCUT}/NaN -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} -Gpopdens.nc
-    gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -t${GPWV4_TRANS} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Apopdensity.tif ${VERBOSE}
-    gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} popdensity.tif
+    gmt grdclip ${GPWV4DATA} -Sb${m_gpwv4_popdens_lowcut[$tt]}/NaN -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} -Gpopdens_${tt}.nc
+    gmt grdimage popdens_${tt}.nc -E${m_gpwv4_popdens_res[$tt]} -C${F_CPTS}gpwv4_${tt}.cpt -t${m_gpwv4_popdens_trans[$tt]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Apopdensity_${tt}.tif ${VERBOSE}
+    gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} popdensity_${tt}.tif
     gmt_remove_tmpdir
 
-    [[ $gpwv4_noplot -eq 0 ]] && gmt grdimage popdens.nc -E${GPWV4_DPI} -C${F_CPTS}gpwv4.cpt -Q -t${GPWV4_TRANS} ${RJOK} ${VERBOSE} >> map.ps
+    if [[ ${m_gpwv4_popdens_noplot[$tt]} -eq 0 ]]; then
+      gmt grdimage popdens_${tt}.tif -E${m_gpwv4_popdens_res[$tt]} -C${F_CPTS}gpwv4_${tt}.cpt -Q -t${m_gpwv4_popdens_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+      echo ${GPWV4_SOURCESTRING} >> ${LONGSOURCES}
+      echo ${GPWV4_SHORT_SOURCESTRING} >> ${SHORTSOURCES}
+    fi
 
     tectoplot_plot_caught=1
-
   ;;
   esac
 }
@@ -146,9 +101,9 @@ function tectoplot_plot_gpwv4() {
 
 function tectoplot_legendbar_gpwv4() {
   case $1 in
-    gpwv4)
-      echo "G 0.2i" >> legendbars.txt
-      echo "B ${F_CPTS}gpwv4.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"Population density (people/km^2)\"" >> ${LEGENDDIR}legendbars.txt
+    m_gpwv4_popdens)
+      echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}gpwv4_${tt}.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Q -Bxaf+l\"Population density (people/km^2)\"" >> ${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

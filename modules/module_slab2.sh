@@ -90,8 +90,6 @@ EOF
     legendbarwords+=("slab2")
 
     makeplyslab2meshflag=1
-    echo $SLAB2_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-    echo $SLAB2_SOURCESTRING >> ${LONGSOURCES}
 
     tectoplot_module_caught=1
     ;;
@@ -150,6 +148,11 @@ function tectoplot_plot_slab2() {
   case $1 in
 
   slab2)
+
+    if [[ $numslab2inregion -gt 0 ]]; then
+      echo $SLAB2_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+      echo $SLAB2_SOURCESTRING >> ${LONGSOURCES}
+    fi
 
     if [[ ${SLAB2STR} =~ .*d.* ]]; then
       info_msg "Plotting SLAB2 depth grids"

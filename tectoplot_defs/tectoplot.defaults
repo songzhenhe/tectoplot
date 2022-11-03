@@ -30,6 +30,8 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+TOPO_DPI=150i
+
 PROFILE_X_SHIFT=0i
 
 MAPMARGIN=0.5i
@@ -341,7 +343,11 @@ COMMAND_FONTCOLOR="black"
 MAXLAT=-4.5                  # default region, Solomon Islands
 MAXLON=162                   # default region, Solomon Islands
 MINLAT=-12                   # default region, Solomon Islands
-MINLON=154                   # default region, Solomon Islands
+MINLON=154                  # default region, Solomon Islands
+#MAXLAT=-7.5                  # default region, Solomon Islands
+#MAXLON=157.5                   # default region, Solomon Islands
+#MINLAT=-9                 # default region, Solomon Islands
+#MINLON=156                   # default region, Solomon Islands
 #REFPTLAT=-6                  # reference point latitude
 #REFPTLON=160                 # reference point longitude
 
@@ -414,6 +420,7 @@ PLATEVEC_TRANS=10            # plate rotation vector, transparency
 LATSTEPS=0.5                 # colatitude increment for small circles
 PLATELABEL_COLOR="black"     # color of plate label
 PLATELABEL_SIZE="6p"         # size of plate label
+PLATELABEL_FONT=${PLATELABEL_SIZE},Helvetica,${PLATELABEL_COLOR}
 PLATEVELRES="0.05d"          # resolution of plate velocity grid
 PLATEVEC_TEXT_SIZE="5p"      # plate velocity label size
 PLATEVEC_TEXT_COLOR="black"  # plate velocity label color

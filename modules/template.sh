@@ -192,8 +192,8 @@ function tectoplot_legend_example() {
 function tectoplot_legendbar_example() {
     case $1 in
       example)
-        echo "G 0.2i" >> legendbars.txt
-        echo "B $EXAMPLE_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"Example units (100k)\"" >> legendbars.txt
+        echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+        echo "B $EXAMPLE_CPT 0.2i 0.1i+malu -W0.00001 -Bxa10f1+l\"Example units (100k)\"" >> ${LEGENDDIR}legendbars.txt
         barplotcount=$barplotcount+1
         tectoplot_legendbar_caught=1
         ;;
