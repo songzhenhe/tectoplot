@@ -85,7 +85,7 @@ function tectoplot_plot_gpwv4() {
     gmt_remove_tmpdir
 
     if [[ ${m_gpwv4_popdens_noplot[$tt]} -eq 0 ]]; then
-      gmt grdimage popdens_${tt}.tif -E${m_gpwv4_popdens_res[$tt]} -C${F_CPTS}gpwv4_${tt}.cpt -Q -t${m_gpwv4_popdens_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+      gmt grdimage popdensity_${tt}.tif -E${m_gpwv4_popdens_res[$tt]} -C${F_CPTS}gpwv4_${tt}.cpt -Q -t${m_gpwv4_popdens_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
       echo ${GPWV4_SOURCESTRING} >> ${LONGSOURCES}
       echo ${GPWV4_SHORT_SOURCESTRING} >> ${SHORTSOURCES}
     fi
