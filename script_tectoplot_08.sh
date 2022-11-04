@@ -4682,7 +4682,7 @@ Usage: -legend [width_in=${LEGEND_WIDTH}] [[onmap just=${LEGEND_JUST}]] [[notext
       --------------
    LT |            | RT
       |            |
-   LM |            | RM
+   LC |            | RC
       |            |
    LB |            | RB
       --------------
@@ -18746,23 +18746,35 @@ EOF
               esac
             else
               # Place inside the map frame
+
+
+              # TR|RT) shifth=10; shiftv=10 ;;
+              # CR|RC) shifth=10;  shiftv=0  ;;
+              # BR|RB) shifth=10;  shiftv=10  ;;
+              # TM|MT) shifth=0;  shiftv=10  ;;
+              # CM|MC) shifth=0; shiftv=0 ;;
+              # BM|MB) shifth=0;  shiftv=10  ;;
+              # TL|LT) shifth=10;  shiftv=10  ;;
+              # CL|LC) shifth=10;  shiftv=0  ;;
+              # BL|LB) shifth=10;  shiftv=10  ;;
+
               case ${INSET_JUST_CODE} in
                 TR|RT) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
-                MR|RM|CR|RC) INSET_JUST_CODE="CR"
+                CR|RC) INSET_JUST_CODE="CR"
                        shifth=${INSET_DH};  shiftv=0   ;;
                 BR|RB) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
-                TM|MT|TC|CT) INSET_JUST_CODE="CT"
+                TM|MT) INSET_JUST_CODE="CT"
                        shifth=0;   shiftv=${INSET_DV}  ;;
-                M|MM|CM|MC)  INSET_JUST_CODE="CM"
+                CM|MC)  INSET_JUST_CODE="CM"
                        shifth=0;   shiftv=0   ;;
-                BM|MB|BC|CB) INSET_JUST_CODE="CB"
+                BM|MB) INSET_JUST_CODE="CB"
                        shifth=0;   shiftv=${INSET_DV}  ;;
                 TL|LT) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
-                ML|LM|CL|LC) INSET_JUST_CODE="LC"
+                CL|LC) INSET_JUST_CODE="LC"
                        shifth=${INSET_DH};  shiftv=0   ;;
                 BL|LB) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
                 *)
-                echo "Outside justification ${INSET_JUST_CODE} not recognized. Using BL"
+                echo "Inside justification ${INSET_JUST_CODE} not recognized. Using BL"
                   INSET_JUST_CODE="BL"; shifth=${INSET_DH};  shiftv=${INSET_DV}
                 ;;
               esac
@@ -22135,15 +22147,19 @@ function close_legend_item() {
         esac
       else
         # Place inside the map frame
+
         case ${LEGEND_JUST} in
+
+
+
           TR|RT) shifth=10; shiftv=10 ;;
-          CR|RC) shifth=10;  shiftv=0  ;;
+          CR|RC) LEGEND_JUST="CR"; shifth=10;  shiftv=0  ;;
           BR|RB) shifth=10;  shiftv=10  ;;
-          TC|CT) shifth=0;  shiftv=10  ;;
+          TM|MT) LEGEND_JUST="CT"; shifth=0;  shiftv=10  ;;
           CM|MC) shifth=0; shiftv=0 ;;
-          BC|CB) shifth=0;  shiftv=10  ;;
+          BM|MB) LEGEND_JUST="CB"; shifth=0;  shiftv=10  ;;
           TL|LT) shifth=10;  shiftv=10  ;;
-          CL|LC) shifth=10;  shiftv=0  ;;
+          CL|LC) LEGEND_JUST="LC"; shifth=10;  shiftv=0  ;;
           BL|LB) shifth=10;  shiftv=10  ;;
           *)
           echo "Inside justification ${LEGEND_JUST} not recognized. Using BL"
