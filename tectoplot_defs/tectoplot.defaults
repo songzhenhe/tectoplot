@@ -404,10 +404,10 @@ GRIDSTEP=0.5                 # grid increment
 PLATEARROW_COLOR="orange"    # differential plate motion arrow, fill
 PLATEARROW_TRANS=40          # differential plate motion arrow, transparency
 
-PLATEARROW_NORMAL_COLOR="red"
-PLATEARROW_THRUST_COLOR="blue"
-PLATEARROW_SS_COLOR1="yellow"
-PLATEARROW_SS_COLOR2="orange"
+PLATEARROW_NORMAL_COLOR="darkred"
+PLATEARROW_THRUST_COLOR="darkblue"
+PLATEARROW_SS_COLOR1="darkbrown"
+PLATEARROW_SS_COLOR2="darkbrown"
 
 PLATELINE_COLOR="black"      # plate edge color
 PLATELINE_WIDTH="1.0p"       # plate edge width

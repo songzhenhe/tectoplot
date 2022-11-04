@@ -4,7 +4,8 @@ TESTBOXCMD="-F+p+c0"
 
 shopt -s nullglob
 
-
+SCRIPT_START_TIME="$(date -u +%s)"
+last=0
 
 
 
@@ -860,7 +861,7 @@ do
    ;;
 
   -debug)
-    trap 'printf "%3d\n" "$LINENO"' DEBUG
+    trap 'now=$SECONDS; dur=$(echo "$now - $last" | bc -l); printf "Line $LINENO, time: $dur\n";' DEBUG
     DEBUGFLAG="-debug"
   ;;
 
@@ -1793,13 +1794,13 @@ fi
       set -- "blank" "-r" "eq" "${EQID}" "750k" "-RJ" "UTM" "-rect" \
             "-t" "-t0" "-aosm" "fixdem" "noplot" \
             "-b" \
-            "-p" "MORVEL" "-pe" "-pf" "150" "-i" "3" \
-            "-z" "-zline" "0" "-zcat" "ANSS" "GHEC" "ISC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
+            "-p" "MORVEL" "-pf" "150" "-i" "3" \
+            "-z" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
             "-time" "eq" "${EQID}" "30" \
             "-seistimeline_c" "${start_time}" "today" "4" "-noframe" "right" \
             "-legend" "onmap" "BR" "BL" "horiz" "bars" \
             "-inset" "country" "offmap" "BR" "xoff" "9.5" "yoff" "-1" "degw" "90" "size" "2.7i" "args" "\"-z -eqlist { ${EQID} } -eqselect -zhigh ${EQID} \"" \
-            "-pa" "-pl" "12p,Bookman-Demi,black=0.2p,white" \
+            "-pe" "-pa" "notext" "-pl" "13p,Bookman-Demi,black=0.2p,white" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
             "-cprof" "eq" "eq" "90" "1000" "50k" "2k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
@@ -7383,7 +7384,7 @@ fi
         else
           CENTRALMERIDIAN=0
         fi
-        rj+=("-Rg")
+        rj+=("-R-180/180/-90/90")
         case $ARG1 in
           Eckert4|Kf)      rj+=("-JKf${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert4" ;;
           Eckert6|Ks)      rj+=("-JKs${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert6" ;;
@@ -9082,7 +9083,6 @@ Usage: -timeme
 EOF
 shift && continue
 fi
-    SCRIPT_START_TIME="$(date -u +%s)"
     scripttimeflag=1
     ;;
 
@@ -12417,43 +12417,73 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
         case ${this_catalog} in
           ANSS)
           info_msg "[-r eq]: Looking for event ${REGION_EQ}"
-
           # COMEBACK
           # This also has to be rethought - how to search ANSS catalog? Must look in tiles.
           EQ_SEARCH=$(grep -h -m 1 ${REGION_EQ} -r ${ANSS_TILEDIR} | head -1)
-          echo EQ_SEARCH is now ${EQ_SEARCH}
+          echo ANSS EQ_SEARCH is now ${EQ_SEARCH}
+
+          # 1991-10-11T02:26:29.000Z, 21.926, 105.213, 10, 4.1, mb,,,,1.4,us,usp0004xnq,2014-11-07T00:49:23.288Z,"11 km N of Tuyên Quang, Vietnam",earthquake,,,,2,reviewed,us,us
+
           if [[ $EQ_SEARCH != "" ]]; then
-            info_msg "[-r eq]: Found event in new data: ${EQ_SEARCH}"
+            info_msg "[-r eq]: Found event in ANSS tile data: ${EQ_SEARCH}"
             # echo "Found EQ region hypocenter $REGION_EQ"
             REGION_EQ_LON=$(echo $EQ_SEARCH | gawk -F, '{print $3}')
             REGION_EQ_LAT=$(echo $EQ_SEARCH | gawk -F, '{print $2}')
-            # Remove quotation marks before getting title
-            PLOTTITLE="Event $REGION_EQ, $(echo $EQ_SEARCH | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $EQ_SEARCH | gawk -F, '{print $4}') km"
-          # else
-          #   EQ_SEARCH=$(zipgrep $REGION_EQ ${ANSS_TILEOLDZIP})
-          #   if [[ $EQ_SEARCH != "" ]]; then
-          #     info_msg "[-r eq]: Found event in old data: ${EQ_SEARCH}"
-          #     # echo "Found EQ region hypocenter $REGION_EQ"
-          #     REGION_EQ_LON=$(echo $EQ_SEARCH | gawk -F, '{print $3}')
-          #     REGION_EQ_LAT=$(echo $EQ_SEARCH | gawk -F, '{print $2}')
-          #     # Remove quotation marks before getting title
-          #     PLOTTITLE="Event $REGION_EQ, $(echo $EQ_SEARCH | gawk -F'"' -v OFS='' '{ for (i=2; i<=NF; i+=2) gsub(",", "", $i) } 1' | gawk -F, '{print $14}'), Depth=$(echo $EQ_SEARCH | gawk -F, '{print $4}') km"
-          #   else
-          #     info_msg "[-r eq]: Earthquake ${REGION_EQ} not found in a catalog."
-          #     exit 1
-          #   fi
+            REGION_EQ_DEPTH=$(echo $EQ_SEARCH | gawk -F, '{print $4}')
+            REGION_EQ_MAG=$(echo $EQ_SEARCH | gawk -F, '{print $5}')
+            REGION_EQ_MAGTYPE=$(echo $EQ_SEARCH | gawk -F, '{print $6}')
+            REGION_EQ_AUTHOR=$(echo $EQ_SEARCH | gawk -F, '{print $11}')
+            REGION_EQ_TIME=$(echo $EQ_SEARCH | gawk -F, '{ print substr($1,1,19)}')
+            REGION_EQ_TYPE="ANSS"
+            break
           fi
           ;;
         ISC)
           echo "ISC grep for event"
+          EQ_SEARCH=$(grep -h -m 1 ${REGION_EQ} -r ${ISC_TILE_DIR} | head -1)
+          echo ISC EQ_SEARCH is now ${EQ_SEARCH}
+          if [[ $EQ_SEARCH != "" ]]; then
+            info_msg "[-r eq]: Found event in ISC tile data: ${EQ_SEARCH}"
+            # echo "Found EQ region hypocenter $REGION_EQ"
+            REGION_EQ_LON=$(echo $EQ_SEARCH | gawk -F, '{print $7}')
+            REGION_EQ_LAT=$(echo $EQ_SEARCH | gawk -F, '{print $6}')
+            REGION_EQ_DEPTH=$(echo $EQ_SEARCH | gawk -F, '{print $8}')
+            REGION_EQ_MAG=$(echo $EQ_SEARCH | gawk -F, '{print $12}')
+            REGION_EQ_MAGTYPE=$(echo $EQ_SEARCH | gawk -F, '{print $11}')
+            REGION_EQ_AUTHOR=$(echo $EQ_SEARCH | gawk -F, '{print $10}')
+            REGION_EQ_TIME=$(echo $EQ_SEARCH | gawk -F, '{print $4 "T" $5}')
+            REGION_EQ_TYPE="ISC"
+            break
+          fi
           ;;
-
         GHEC)
           echo "GHEC grep for event"
+# 109.700 34.500 10 8.25 1556-02-02T01:01:01 1556.0202000 -1
+          EQ_SEARCH=$(gawk < ${GEMGHEC_DATA} -v id=${REGION_EQ} '($6 == id) { print }')
+          # grep -h -m 1 ${REGION_EQ} ${GEMGHEC_DATA} | head -1)
+          echo GHEC EQ_SEARCH is now ${EQ_SEARCH}
+          if [[ $EQ_SEARCH != "" ]]; then
+            info_msg "[-r eq]: Found event in GHEC data: ${EQ_SEARCH}"
+            # echo "Found EQ region hypocenter $REGION_EQ"
+            REGION_EQ_LON=$(echo $EQ_SEARCH | gawk '{print $1}')
+            REGION_EQ_LAT=$(echo $EQ_SEARCH | gawk '{print $2}')
+            REGION_EQ_DEPTH=$(echo $EQ_SEARCH | gawk '{print $3}')
+            REGION_EQ_MAG=$(echo $EQ_SEARCH | gawk '{print $4}')
+            REGION_EQ_MAGTYPE="Historic"
+            REGION_EQ_AUTHOR="GHEC"
+            REGION_EQ_TIME=$(echo $EQ_SEARCH | gawk '{print $5}')
+            REGION_EQ_TYPE="GHEC"
+            break
+          fi
+
+          break
           ;;
         esac
+
       # fi
       done
+      echo time is ${REGION_EQ_TIME}
+
     fi
 
     # Check if width is in km or in degrees
@@ -12486,7 +12516,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     echo "Resetting time based on earthquake"
     echo ${EQ_SEARCH}
 
-    STARTTIME=$(echo $EQ_SEARCH | gawk -F, -v shiftyear=${TIME_BEFORE_BUFFER} '{
+    STARTTIME=$(echo $REGION_EQ_TIME| gawk -v shiftyear=${TIME_BEFORE_BUFFER} '{
       split($1, a, "-")
       printf("%04d-%s",a[1]-shiftyear,substr($1, 6, length($1)-5))
     }')
@@ -14073,6 +14103,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
         # lon, lat, depth, mag, timestring, id, epoch, type
         # type = "mw" or "ms" or "mb"
+        echo looking at ${GEMGHEC_DATA} from ${STARTTIME} to ${ENDTIME}
           gawk < ${GEMGHEC_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
             @include "tectoplot_functions.awk"
             {
@@ -14088,7 +14119,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                 }
               }
             }
-          ' >> ${F_SEIS}eqs.txt
+          ' >> ${F_SEIS}GHEC.txt
+          cat ${F_SEIS}GHEC.txt >> ${F_SEIS}eqs.txt
           ((NUMEQCATS+=1))
           ((customseisindex+=1))
           echo "${GEMGHEC_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
@@ -20211,66 +20243,59 @@ EOF
       ;;
 
       zbox)
-          # Find the relevant item in ANSS catalog
+          # Find the relevant item in seismicity catalogs
           ZBOX_WIDTH=3
-
-          grep ${zbox_id} ${F_SEIS}anss_extract_tiles.cat | head -n 1 > zbox.cat
-# 1991-10-11T02:26:29.000Z, 21.926, 105.213, 10, 4.1, mb,,,,1.4,us,usp0004xnq,2014-11-07T00:49:23.288Z,"11 km N of Tuyên Quang, Vietnam",earthquake,,,,2,reviewed,us,us
-
           just="BL"
 
-          if [[ -s zbox.cat ]]; then
 
-            # Get lon, lat, time
-            zboxloc=($(gawk -F, < zbox.cat '{print $3, $2, $1}'))
 
-            zboxorigtime=$(echo ${zboxloc[2]} | gawk '
-            {
-              split($1, a, "T")
-              print a[1] "%20" substr(a[2],1, 8)
-            }')
+# 1991-10-11T02:26:29.000Z, 21.926, 105.213, 10, 4.1, mb,,,,1.4,us,usp0004xnq,2014-11-07T00:49:23.288Z,"11 km N of Tuyên Quang, Vietnam",earthquake,,,,2,reviewed,us,us
 
-            curl -s --location --request GET "https://api.ipgeolocation.io/timezone/convert?apiKey=8abdd7316f2548969bafbb7866741a8b&lat_from=0&long_from=0&lat_to=${zboxloc[1]}&long_to=${zboxloc[0]}&time=${zboxorigtime}" > zbox.time
+          zboxorigtime=$(echo ${REGION_EQ_TIME} | gawk '
+          {
+            split($1, a, "T")
+            print a[1] "%20" substr(a[2],1, 8)
+          }')
 
-            loctime=$(cat zbox.time | tr ',' '\n' | grep converted_time | gawk -F\" '{print $4}' | tr ' ' 'T')
+          curl -s --location --request GET "https://api.ipgeolocation.io/timezone/convert?apiKey=8abdd7316f2548969bafbb7866741a8b&lat_from=0&long_from=0&lat_to=${REGION_EQ_LAT}&long_to=${REGION_EQ_LON}&time=${zboxorigtime}" > zbox.time
 
-            gawk -F, < zbox.cat -v loctime=${loctime} -v source="USGS" '
-            BEGIN {
-                month["01"]="January"
-                month["02"]="February"
-                month["03"]="March"
-                month["04"]="April"
-                month["05"]="May"
-                month["06"]="June"
-                month["07"]="July"
-                month["08"]="August"
-                month["09"]="September"
-                month["10"]="October"
-                month["11"]="November"
-                month["12"]="December"
-            }
-            {
-              split($1, a, "T")
+          loctime=$(cat zbox.time | tr ',' '\n' | grep converted_time | gawk -F\" '{print $4}' | tr ' ' 'T')
+
+          gawk -v id=${REGION_EQ} -v origtime=${REGION_EQ_TIME} -v lon=${REGION_EQ_LON} -v lat=${REGION_EQ_LAT} -v loctime=${loctime} -v source=${REGION_EQ_AUTHOR} -v depth=${REGION_EQ_DEPTH} -v mag=${REGION_EQ_MAG} -v magtype=${REGION_EQ_MAGTYPE} '
+          BEGIN {
+              month["01"]="January"
+              month["02"]="February"
+              month["03"]="March"
+              month["04"]="April"
+              month["05"]="May"
+              month["06"]="June"
+              month["07"]="July"
+              month["08"]="August"
+              month["09"]="September"
+              month["10"]="October"
+              month["11"]="November"
+              month["12"]="December"
+
+              split(origtime, a, "T")
               split(a[1], b, "-")
 
               split(loctime, a2, "T")
               split(a2[1], b2, "-")
 
               print "L 12p,AvantGarde-Book L @%15%" b[3] " " month[b[2]] " " b[1] " " substr(a[2],1,8) " (UTC)@%%"
-              print "L 12p,AvantGarde-Book L @%15%Magnitude: " $5 " (" $6 ")@%%"
+              print "L 12p,AvantGarde-Book L @%15%Magnitude: " mag " (" magtype ")@%%"
 
               print "G 0.1i"
               print "L 10p,Times-Roman L Local time: " b2[3] " " month[b2[2]] " " b2[1] " " substr(a2[2],1,8)
-              print "L 10p,Times-Roman L Longitude: " $3 "@.  Latitude: " $2 "@."
-              print "L 10p,Times-Roman L Depth: " $4 " km"
-              print "L 10p,Times-Roman L Event ID: " $12 "(" $11 ")"
+              print "L 10p,Times-Roman L Longitude: " lon "@.  Latitude: " lat "@."
+              print "L 10p,Times-Roman L Depth: " depth " km"
+              print "L 10p,Times-Roman L Event ID: " id " (source: " toupper(source) ")"
 
-            }' > zbox.box
+          }' > zbox.box
 
-            # echo "${zboxloc[0]} ${zboxloc[1]} 10p,Helvetica,black 0 ${just} " | gmt pstext -Dj0.5i+v0.7p,black -F+f+a+j ${RJOK} ${VERBOSE} >> map.ps
-            # gmt pslegend zbox.box -F+gwhite+s+p -Dg${zboxloc[0]}/${zboxloc[1]}+o0.5i+j${just} -C0.05i/0.05i --FONT_ANNOT_PRIMARY=10p,Helvetica,black ${RJOK} ${VERBOSE} >> map.ps
-            gmt pslegend zbox.box -F+gwhite+p -DjTL -C0.1i/0.1i --FONT_ANNOT_PRIMARY=10p,Helvetica,black ${RJOK} ${VERBOSE} >> map.ps
-          fi
+          # echo "${REGION_EQ_LON} ${REGION_EQ_LAT} 10p,Helvetica,black 0 ${just} " | gmt pstext -Dj0.5i+v0.7p,black -F+f+a+j ${RJOK} ${VERBOSE} >> map.ps
+          # gmt pslegend zbox.box -F+gwhite+s+p -Dg${REGION_EQ_LON}/${REGION_EQ_LAT}+o0.5i+j${just} -C0.05i/0.05i --FONT_ANNOT_PRIMARY=10p,Helvetica,black ${RJOK} ${VERBOSE} >> map.ps
+          gmt pslegend zbox.box -F+gwhite+p -DjTL -C0.1i/0.1i --FONT_ANNOT_PRIMARY=10p,Helvetica,black ${RJOK} ${VERBOSE} >> map.ps
       ;;
 
       seis)
@@ -21163,7 +21188,7 @@ shadowalldirflag=0
         # If we are doing fast topo visualization, calculate COLORED_RELIEF and plot it
           gmt_init_tmpdir
             info_msg "[-t]: Plotting GMT topo from ${TOPOGRAPHY_DATA}"
-            gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
+            gmt grdimage ${TOPOGRAPHY_DATA} ${ILLUM} -C${TOPO_CPT} -R${TOPOGRAPHY_DATA} -JQ5i ${VERBOSE} -A${F_TOPO}colored_relief.tif
             # Change the coordinate info to match ${TOPOGRAPHY_DATA}
             gdal_edit.py -a_srs "None" ${F_TOPO}colored_relief.tif
             COLORED_RELIEF=$(abs_path ${F_TOPO}colored_relief.tif)
@@ -21176,7 +21201,7 @@ shadowalldirflag=0
             # echo "Plotting GMT topo..."
             # gdal_translate -of NetCDF ${TOPOGRAPHY_DATA} ${F_TOPO}convert.nc
 
-            gmt grdimage ${COLORED_RELIEF} ${ILLUM} -t$TOPOTRANS -C${TOPO_CPT} ${RJOK} ${VERBOSE} >> map.ps
+            gmt grdimage ${COLORED_RELIEF} -t$TOPOTRANS ${RJOK} ${VERBOSE} >> map.ps
 
             # > tmp.ps 2>/dev/null
             # gdal_translate -of PNG ${TOPOGRAPHY_DATA} ${F_TOPO}convert.png

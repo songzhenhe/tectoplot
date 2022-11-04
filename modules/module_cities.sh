@@ -130,6 +130,8 @@ function tectoplot_plot_cities() {
   case $1 in
     m_cities_pp)
 
+
+
     info_msg "[-pp]: Plotting cities with minimum population ${m_cities_minpop[$tt]} and maximum population ${m_cities_maxpop[$tt]}"
 
     gawk < $CITIES -F, -v minpop=${m_cities_minpop[$tt]} -v maxpop=${m_cities_maxpop[$tt]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  '
@@ -141,6 +143,8 @@ function tectoplot_plot_cities() {
           print $1 "\t" $2 "\t" $3 "\t" $4
       }' > cities_${tt}.dat
 
+
+    # gmt psxy cities_bin_${tt}.txt -Sc0.05i -Gblack ${RJOK} >> map.ps
     # Select cities within actual map region
 
     # tab delimited with spaces in city names
@@ -154,12 +158,47 @@ function tectoplot_plot_cities() {
     tr '_' ' ' < cities_${tt}_post.dat > cities_${tt}.dat
     # tab delimited with space in names
 
+
+    griddist=4
+
+    gawk < cities_${tt}.dat -F$'\t' '{printf("%s\t%s\t%d\t%s\n", $1, $2, $4, $3)}' > cities_prep_${tt}.dat
+
+    gmt binstats cities_prep_${tt}.dat ${rj[0]} -Th -I${griddist} -Cu > cities_bin_${tt}.txt
+
+    gawk -v dist=${griddist} -F$'\t' '
+    function abs(v) { return (v>0)?v:-v }
+    # Load the gridded data with maximum population in each grid cell
+    (NR==FNR) {
+      lon[NR]=$1
+      lat[NR]=$2
+      pop[NR]=$3
+    }
+    # Load the original city data including name
+    (NR!=FNR) {
+      lond[FNR]=$1
+      latd[FNR]=$2
+      popd[FNR]=$3
+      name[FNR]=$4
+    }
+    END {
+      # For each grid center location
+      for (i=1; i<=length(lon);i++) {
+        # For each candidate city
+        for (j=1; j<=length(lond);j++) {
+          # If the populations match and the city
+          if (pop[i] == popd[j] && abs(lon[i]-lond[j]) <= dist && abs(lat[i]-latd[j]) <= dist) {
+            print lond[j] "\t" latd[j] "\t" name[j] "\t" popd[j]
+          }
+        }
+      }
+    }' cities_bin_${tt}.txt cities_prep_${tt}.dat > cities_sel_${tt}.dat
+
     # Sort the cities so that dense areas plot on top of less dense areas
     # Could also do some kind of symbol scaling
     # gmt set PS_CHAR_ENCODING Standard1+
 
-    gawk < cities_${tt}.dat -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
-    gawk < cities_${tt}.dat -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
+    gawk < cities_sel_${tt}.dat -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
+    gawk < cities_sel_${tt}.dat -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
        | sort -n -k 3  \
        | gmt pstext -DJ${m_cities_size[$tt]}/${m_cities_size[$tt]} -F+f${m_cities_font[$tt]}+jLM  $RJOK $VERBOSE >> map.ps
 
