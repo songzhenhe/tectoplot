@@ -1801,10 +1801,11 @@ fi
             "-legend" "onmap" "BR" "BL" "horiz" "bars" \
             "-inset" "country" "offmap" "BR" "xoff" "9.5" "yoff" "-1" "degw" "90" "size" "2.7i" "args" "\"-z -eqlist { ${EQID} } -eqselect -zhigh ${EQID} \"" \
             "-pe" "-pa" "notext" "-pl" "13p,Bookman-Demi,black=0.2p,white" \
+            "-pp" "bin" "3" "label" "1" "fill" "black" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
             "-cprof" "eq" "eq" "90" "1000" "50k" "2k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
-            "-tcycle" "num" "10"
+            # "-tcycle" "num" "10"
     ;;
 
   -eventmap)
@@ -12987,6 +12988,22 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   cd "${TMP}"
 
+  ### Set up font names from the fonts/ directory
+  gawk '{print $1, 0.700, 0}' <<- EOF > PSL_custom_fonts.txt
+LinBiolinumO
+LinBiolinumOI
+LinBiolinumOB
+LinLibertineOB
+Unifont
+EOF
+
+  # Add the included fonts directory
+  # gmt set GS_FONTPATH="$(dirname $0)/fonts"
+  gmt set PS_CONVERT="C-sFONTPATH=$(dirname $0)/fonts"
+  gmt set PS_CHAR_ENCODING="ISOLatin1+"
+  # gmt set PS_CHAR_ENCODING ISO-8859-5
+  export LC_CTYPE="en_US.UTF-8"
+
   echo "${RJSTRING[@]}" > ${F_MAPELEMENTS}rjstring.txt
 
   #### Adjust selection polygon file to conform to gmt select requirements (split
@@ -14447,7 +14464,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     fi
 
 
-    # Select seismicity from eqlist
+    # Select seismicity / focal mechanisms from eqlist
     if [[ $eqlistselectflag -eq 1 ]]; then
       echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_SEIS}eqselectlist.txt
       gawk '
@@ -14459,8 +14476,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         }' ${F_SEIS}eqselectlist.txt ${F_SEIS}eqs.txt > ${F_SEIS}eqselected.dat
       [[ -s ${F_SEIS}eqselected.dat ]] && cp ${F_SEIS}eqselected.dat ${F_SEIS}eqs.txt
     fi
-
-
 
   # Select seismicity based on proximity to Slab2
     ZSLAB2VERT=${CMTSLAB2VERT}
@@ -14855,6 +14870,20 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     fi
 
     CMTFILE=${F_CMT}cmt_global_aoi.dat
+
+    if [[ $eqlistselectflag -eq 1 ]]; then
+      echo ${eqlistarray[@]} | tr ' ' '\n' > ${F_SEIS}eqselectlist.txt
+
+      gawk '
+        NR==FNR {
+          A[$1]=1 ; next
+        }
+        $2 in A {
+          print
+        }' ${F_SEIS}eqselectlist.txt ${CMTFILE} > ${F_CMT}cmtselected.dat
+        [[ -s ${F_CMT}cmtselected.dat ]] && CMTFILE=${F_CMT}cmtselected.dat
+    fi
+
 
     gawk < $CMTFILE -v dothrust=$cmtthrustflag -v donormal=$cmtnormalflag -v doss=$cmtssflag '{
       if (substr($1,2,1) == "T" && dothrust == 1) {
