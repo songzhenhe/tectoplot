@@ -23305,9 +23305,9 @@ done
   ##### MAKE PDF OF MAP
   if [[ $keepopenflag -eq 0 ]]; then
      if [[ $epsoverlayflag -eq 1 ]]; then
-       gmt psconvert -Tf -A+m${MAPMARGIN} -Mf${EPSOVERLAY} $VERBOSE map.ps
+       gmt psconvert -C-dALLOWPSTRANSPARENCY -Tf -A+m${MAPMARGIN} -Mf${EPSOVERLAY} $VERBOSE map.ps
      else
-       gmt psconvert -Tf -A+m${MAPMARGIN} $VERBOSE map.ps
+       gmt psconvert -C-dALLOWPSTRANSPARENCY -Tf -A+m${MAPMARGIN} $VERBOSE map.ps
     fi
 
     if [[ $outputdirflag -eq 1 ]]; then
@@ -23327,7 +23327,7 @@ done
   ##### MAKE GEOTIFF OF MAP
   if [[ $tifflag -eq 1 ]]; then
     # echo gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
-    gmt psconvert map.ps -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
+    gmt psconvert map.ps -C-dALLOWPSTRANSPARENCY -Tt -A -W+g -E${GEOTIFFRES} ${VERBOSE}
 
 
     # map.tiff is created from map.tif and is smaller, so keep it
