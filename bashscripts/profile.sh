@@ -615,7 +615,7 @@ while read thisline; do
 
     if [[ $profilematchmaplengthflag -eq 1 ]]; then
       # Project the trackfile into document coordinates
-      gmt mapproject ${F_PROFILES}${LINEID}_trackfile.txt ${RJSTRING[@]} > ${F_PROFILES}${LINEID}_projected_trackfile.txt
+      gmt mapproject ${F_PROFILES}${LINEID}_trackfile.txt ${RJSTRING} > ${F_PROFILES}${LINEID}_projected_trackfile.txt
 
       # Calculate the incremental length along profile between points
       PROFILE_LEN_IN=$(gawk < ${F_PROFILES}${LINEID}_projected_trackfile.txt '

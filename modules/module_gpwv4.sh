@@ -73,7 +73,7 @@ function tectoplot_plot_gpwv4() {
   case $1 in
   m_gpwv4_popdens)
 
-    RSTRING=$(echo ${RJSTRING[@]} | gawk '{print $1}')
+    RSTRING=$(echo ${RJSTRING} | gawk '{print $1}')
 
     gpwv4_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
     gpwv4_rj+=("-JX${PSSIZE}i/${GPWV4_PSSIZE_ALT}id")

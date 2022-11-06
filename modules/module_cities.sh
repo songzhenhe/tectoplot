@@ -47,6 +47,8 @@ opt fill m_cities_fill string "none"
     color for symbol fill if CPT not used
 opt string m_cities_stroke string "0.25p,black"
     stroke definition for city symbols
+opt bin m_cities_bin float 0
+    hexagonal bin size for plotting only largest cities within cells
 mes Populated places data
 mes URL: ${m_cities_sourceurl}
 exa tectoplot -r =EU -a -pp min 500000
@@ -144,61 +146,64 @@ function tectoplot_plot_cities() {
       }' > cities_${tt}.dat
 
 
-    # gmt psxy cities_bin_${tt}.txt -Sc0.05i -Gblack ${RJOK} >> map.ps
+    # gmt psxy cities_bin_${tt}.dat -Sc0.05i -Gblack ${RJOK} >> map.ps
     # Select cities within actual map region
 
     # tab delimited with spaces in city names
     tr ' ' '_' < cities_${tt}.dat > cities_${tt}_pre.dat
     # tab delimited with _ in names
-    select_in_gmt_map cities_${tt}_pre.dat ${RJSTRING[@]}
+    select_in_gmt_map cities_${tt}_pre.dat ${RJSTRING}
     # space delimited with _ in names
     tr ' ' '\t' < cities_${tt}_pre.dat > cities_${tt}_post.dat
     # tab delimited with _ in names
 
     tr '_' ' ' < cities_${tt}_post.dat > cities_${tt}.dat
     # tab delimited with space in names
+    m_cities_toplotfile[$tt]=cities_${tt}.dat
 
+    if [[ ${m_cities_bin[$tt]} -gt 0 ]]; then
+      gawk < cities_${tt}.dat -F$'\t' '{printf("%s\t%s\t%d\t%s\n", $1, $2, $4, $3)}' > cities_prep_${tt}.dat
 
-    griddist=4
+      gmt binstats cities_prep_${tt}.dat ${rj[0]} -Th -I${m_cities_bin[$tt]} -Cu ${VERBOSE} > cities_bin_${tt}.dat
 
-    gawk < cities_${tt}.dat -F$'\t' '{printf("%s\t%s\t%d\t%s\n", $1, $2, $4, $3)}' > cities_prep_${tt}.dat
-
-    gmt binstats cities_prep_${tt}.dat ${rj[0]} -Th -I${griddist} -Cu > cities_bin_${tt}.txt
-
-    gawk -v dist=${griddist} -F$'\t' '
-    function abs(v) { return (v>0)?v:-v }
-    # Load the gridded data with maximum population in each grid cell
-    (NR==FNR) {
-      lon[NR]=$1
-      lat[NR]=$2
-      pop[NR]=$3
-    }
-    # Load the original city data including name
-    (NR!=FNR) {
-      lond[FNR]=$1
-      latd[FNR]=$2
-      popd[FNR]=$3
-      name[FNR]=$4
-    }
-    END {
-      # For each grid center location
-      for (i=1; i<=length(lon);i++) {
-        # For each candidate city
-        for (j=1; j<=length(lond);j++) {
-          # If the populations match and the city
-          if (pop[i] == popd[j] && abs(lon[i]-lond[j]) <= dist && abs(lat[i]-latd[j]) <= dist) {
-            print lond[j] "\t" latd[j] "\t" name[j] "\t" popd[j]
+      gawk -v dist=${m_cities_bin[$tt]} -F$'\t' '
+      function abs(v) { return (v>0)?v:-v }
+      # Load the gridded data with maximum population in each grid cell
+      (NR==FNR) {
+        lon[NR]=$1
+        lat[NR]=$2
+        pop[NR]=$3
+      }
+      # Load the original city data including name
+      (NR!=FNR) {
+        lond[FNR]=$1
+        latd[FNR]=$2
+        popd[FNR]=$3
+        name[FNR]=$4
+      }
+      END {
+        # For each grid center location
+        for (i=1; i<=length(lon);i++) {
+          # For each candidate city
+          for (j=1; j<=length(lond);j++) {
+            # If the populations match and the city
+            if (pop[i] == popd[j] && abs(lon[i]-lond[j]) <= dist && abs(lat[i]-latd[j]) <= 2*dist) {
+              print lond[j] "\t" latd[j] "\t" name[j] "\t" popd[j]
+            }
           }
         }
-      }
-    }' cities_bin_${tt}.txt cities_prep_${tt}.dat > cities_sel_${tt}.dat
+      }' cities_bin_${tt}.dat cities_prep_${tt}.dat > cities_sel_${tt}.dat
+      m_cities_toplotfile[$tt]=cities_sel_${tt}.dat
+    fi
+
+
 
     # Sort the cities so that dense areas plot on top of less dense areas
     # Could also do some kind of symbol scaling
     # gmt set PS_CHAR_ENCODING Standard1+
 
-    gawk < cities_sel_${tt}.dat -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
-    gawk < cities_sel_${tt}.dat -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
+    gawk < ${m_cities_toplotfile[$tt]} -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
+    gawk < ${m_cities_toplotfile[$tt]} -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
        | sort -n -k 3  \
        | gmt pstext -DJ${m_cities_size[$tt]}/${m_cities_size[$tt]} -F+f${m_cities_font[$tt]}+jLM  $RJOK $VERBOSE >> map.ps
 

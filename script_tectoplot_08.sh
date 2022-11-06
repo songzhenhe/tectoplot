@@ -1028,7 +1028,7 @@ do
   #   if [[ ! $USAGEFLAG -eq 1 ]]; then
   #
   #     if arg_is_flag $2; then
-  #       gawk -F, < $COUNTRY_CODES '{ print $2, $3, $4 }' | gmt select ${RJSTRING[@]}
+  #       gawk -F, < $COUNTRY_CODES '{ print $2, $3, $4 }' | gmt select ${RJSTRING}
   #     else
   #       while ! arg_is_flag $2; do
   #         gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
@@ -1794,14 +1794,14 @@ fi
       set -- "blank" "-r" "eq" "${EQID}" "750k" "-RJ" "UTM" "-rect" \
             "-t" "-t0" "-aosm" "fixdem" "noplot" \
             "-b" \
-            "-p" "MORVEL" "-pf" "150" "-i" "3" \
+            "-p" "MORVEL" "-pf" "300" "-i" "2" \
             "-z" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
             "-time" "eq" "${EQID}" "30" \
             "-seistimeline_c" "${start_time}" "today" "4" "-noframe" "right" \
             "-legend" "onmap" "BR" "BL" "horiz" "bars" \
             "-inset" "country" "offmap" "BR" "xoff" "9.5" "yoff" "-1" "degw" "90" "size" "2.7i" "args" "\"-z -eqlist { ${EQID} } -eqselect -zhigh ${EQID} \"" \
             "-pe" "-pa" "notext" "-pl" "13p,Bookman-Demi,black=0.2p,white" \
-            "-pp" "bin" "3" "label" "1" "fill" "black" \
+            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
             "-cprof" "eq" "eq" "90" "1000" "50k" "2k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
@@ -4164,6 +4164,7 @@ Usage: -inset [[options]]
   proj [args]          quoted string with -r and -RJ tectoplot arguments for inset
   dh [number]          horizontal offset of inset, points [${INSET_DH}]
   dv [number]          vertical offset of inset, points [${INSET_DV}]
+  frame [size] [color] plot a thick frame line behind inset frame
 
 Example:
 tectoplot -a -inset size 2i onmap TR -o example_inset
@@ -4194,6 +4195,26 @@ fi
 
     while ! arg_is_flag $2; do
       case $2 in
+        frame)
+          shift
+          INSET_WHITEFRAME_SIZE=10p
+          INSET_WHITEFRAME_COLOR="white"
+          if ! arg_is_flag $2; then
+            INSET_WHITEFRAME_SIZE="${2}"
+            shift
+          else
+            echo "[-inset]: option frame requires size argument (e.g. 10p)"
+            exit 1
+          fi
+          if ! arg_is_flag $2; then
+            INSET_WHITEFRAME_COLOR="${2}"
+            shift
+          else
+            echo "[-inset]: option frame requires color argument (e.g. white)"
+            exit 1
+          fi
+          INSET_ARGS="${INSET_ARGS} -whiteframe ${INSET_WHITEFRAME_SIZE} ${INSET_WHITEFRAME_COLOR}"
+        ;;
         onmap|offmap)
           insetplacedflag=1
           offmapflag=0
@@ -6115,6 +6136,7 @@ fi
 
   -whiteframe)
   WHITEFRAME_WIDTH=10p
+  WHITEFRAME_COLOR="white"
   whiteframeflag=0
 
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -6134,7 +6156,25 @@ fi
     WHITEFRAME_WIDTH=$2
     shift
   fi
+  if ! arg_is_flag $2; then
+    WHITEFRAME_COLOR=$2
+    shift
+  fi
   whiteframeflag=1
+  ;;
+
+  -navticks)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-navticks:     plot navigation ticks
+Usage: -navticks
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  plots+=("navticks")
+
   ;;
 
   -noframe) # -noframe: do not plot coordinate grid or map frame
@@ -7249,11 +7289,28 @@ fi
     OBFRAMECMD="--MAP_ANNOT_OBLIQUE=anywhere,lon_horizontal"
   ;;
 
+  -projlegend)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-projlegend:        print projection/scale info in legend
+Usage: -projlegend
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    plots+=("projlegend")
+  ;;
+
   -RJ) # -RJ: set map projection
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -RJ:           set map projection
+
+Set a map scale rather than specifying map width (-pss).
+Scale is given in the format 1:scalefactor (e.g. 1:100 or 1:250000)
+Usage: -RJ [scale] [[projection code and other options]]
 
 Set UTM projection for AOI given by -r
 Usage: -RJ UTM [[utmzone]]
@@ -7280,19 +7337,25 @@ Region should be minlon:maxlon;minlat:maxlat depending on view location and dist
 If circle contains north (south) pole, then minlon (maxlon) is 90-view latitude? and
 longitude is -180:180. If circle does not contain a pole, then range is
 viewlon-angle:viewlon+angle;viewlat-angle:viewlat+angle
-Usage: -RJ [projection] [[central_meridian]] [[central_latitude]] [[degree_horizon]]
+Usage: -RJ [projection] [[central_meridian]] [[central_parallel]] [[degree_horizon]]
     Gnomonic|F
     Orthographic|G
     Stereo|S
 
+Cassini: specified by center point and scale
+Usage: -RJ Cassini|C [[central_meridian]] [[central_parallel]]
+
+Cylindrical Stereographic: specified by central meridian and standard parallel
+Usage: -RJ CylStereo|CS [[central_meridian]] [[standard_parallel]]
+
 Mercator:
-Usage: -RJ M
+Usage: -RJ Mercator|M [[central_meridian]] [[central_parallel]]
 
 Oblique Mercator: specified by center point, azimuth, width and height
-Usage: -RJ ObMercA or OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
+Usage: -RJ ObMercA|OA [central_lon] [central_lat] [azimuth] [width_km] [height_km]
 
 Oblique Mercator: specified by a center point, pole location, width, height
-Usage: -RJ ObMercC or OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
+Usage: -RJ ObMercC|OC [central_lon] [central_lat] [pole_lon] [pole_lat] [width_km] [height_km]
 
 Transverse Mercator:
 Usage -RJ T [central_lon] [central_lat]
@@ -7318,10 +7381,86 @@ EOF
 shift && continue
 fi
 
-    # We need to shift the automatic UTM zone section to AFTER other arguments are processed
+#  done -Ja|A<lon0>/<lat0>[/<horizon>]/<scale>|<width> (Lambert Azimuthal Equal Area). <lon0>/<lat0> is the center of the projection, and <horizon> is max distance from center
+#     of the projection (<= 180, default 90). The <scale> can also be given as <radius>/<lat>, where <radius> is the distance in cm to the oblique parallel <lat>.
+#  done -Jb|B<lon0>/<lat0>/<lat1>/<lat2>/<scale>|<width> (Albers Equal-Area Conic). Give origin, two standard parallels, and true <scale>.
+#  done -Jc|C<lon0>/<lat0>/<scale>|<width> (Cassini). Give central point and <scale>.
+#  done -Jcyl_stere|Cyl_stere/[<lon0>/[<lat0>/]]<scale>|<width> (Cylindrical Stereographic). Optionally give central meridian and standard parallel and <scale>. Common
+#     parallels: <lat0> = 66.159467 (Miller's modified Gall), 55 (Kamenetskiy's First), 45 (Gall Stereographic), 30 (Bolshoi Sovietskii Atlas Mira), and 0 (Braun)
+#     [Default].
+#  done -Jd|D<lon0>/<lat0>/<lat1>/<lat2>/<scale>|<width> (Equidistant Conic). Give origin, two standard parallels, and true <scale>.
+#  done -Je|E<lon0>/<lat0>[/<horizon>]/<scale>|<width> (Azimuthal Equidistant). <lon0>/<lat0> is the center of the projection, and <horizon> is max distance from center of the
+#     projection (<= 180, default 180). The <scale> can also be given as <radius>/<lat>, where <radius> is the distance in cm to the oblique parallel <lat0>.
+#  done -Jf|F<lon0>/<lat0>[/<horizon>]/<scale>|<width> (Gnomonic). <lon0>/<lat0> is the center of the projection, and <horizon> is max distance from center of the projection
+#     (< 90, default 60). The <scale> can also be given as <radius>/<lat>, where <radius> is distance in cm to the oblique parallel <lat0>.
+#  done -Jg|G<lon0>/<lat0>/<scale>|<width> (Orthographic). <lon0>/<lat0> is the center of the projection. <scale> can also be given as <radius>/<lat>, where <radius> is
+#     distancein cm to the oblique parallel <lat>.
+#  -Jg|G<lon0>/<lat0>/<scale>|<width>[+a<azimuth>][+t<tilt>][+v<vwidth>/<vheight>][+w<twist>][+z<altitude>[r|R]|g] (General Perspective). <lon0>/<lat0> is the center of
+#    the projection. The <scale> can also be given as <radius>/<lat>, where <radius> is distance in cm to the oblique parallel <lat0>. Several optional modifiers control
+#    the perspective:
+#    +a Append <azimuth> east of North of view [0].
+#    +t Append the upward <tilt> of the plane of projection; if <tilt> < 0 then viewpoint is centered on the horizon [0].
+#    +v Append restricted view: <vwidth> is width of the viewpoint in degree, and <vheight> is the height of the viewpoint in degrees [unrestricted].
+#    +w Append the CW <twist> of the viewpoint in degree [0].
+#    +z Append <altitude> (in km) of viewpoint above local sea level [infinity]. Alternatively, append r to give radius from center of Earth to viewpoint (in km); use R
+#       instead if radius is given in Earth radii, or set <altitude> = g to use the altitude of the geosynchronous orbit.
+#  done -Jh|H[<lon0>/]<scale>|<width> (Hammer-Aitoff). Give optional central meridian and <scale>.
+#  done-Ji|I[<lon0>/]<scale>|<width> (Sinusoidal). Give optional central meridian and <scale>.
+#  -Jj|J[<lon0>/]<scale>|<width> (Miller). Give optional central meridian and <scale>.
+#  done -Jkf|Kf[<lon0>/]<scale>|<width> (Eckert IV). Give optional central meridian and <scale>).
+#  done -Jk|K[s][<lon0>/]<scale>|<width> (Eckert VI). Give optional central meridian and <scale>.
+#  done -Jl|L<lon0>/<lat0>/<lat1>/<lat2>/<scale>|<width> (Lambert Conformal Conic). Give origin, 2 standard parallels, and true scale.
+#  done -Jm|M[<lon0>/[<lat0>/]]<scale>|<width> (Mercator). Give optional central meridian and true scale parallel, and <scale>.
+#  done -Jn|N[<lon0>/]<scale>|<width> (Robinson projection). Give optional central meridian and <scale>.
+#  done -Jo|O<parameters>[+v] (Oblique Mercator). Specify one of three definitions:
+#    -Jo|O[a|A]<lon0>/<lat0>/<azimuth>/<scale>|<width>. Give origin, azimuth of oblique equator, and scale at oblique equator
+#    -Jo|O[b|B]<lon0>/<lat0>/<lon1>/<lat1>/<scale>|<width>. Give origin, second point on oblique equator, and scale at oblique equator.
+#    -Jo|Oc|C<lon0>/<lat0>/<lonp>/<latp>/<scale>|<width>.Give origin, pole of projection, and scale at oblique equator.
+#    Specify region in oblique degrees OR use -R<...>+r. Uppercase A|B|C removes enforcement of a northern hemisphere pole. Append +v to make the oblique Equator the y-
+#    axis [x-axis].
+#  -Jp|P<scale>|<width>[+a][+f[e|p|<radius>]][+r<offset>][+t<origin>][+z[p|<radius>]] (Polar (theta,radius)). Linear scaling for polar coordinates. Give <scale> in cm/⏎
+#    …units. Optional modifiers:
+#    +a Use azimuths (CW from North) instead of directions (CCW from East) [Default].
+#    +f Flip radial direction so south is on the outside and north is at the center. Append e to indicate data are elevations in degrees (s/n must be in 0-90 range).
+#       Append p to set r = current planetary radius to be the center. Append <radius> to indicate the radius at the center.
+#    +r Offset the radial values [0].
+#    +t Set <origin> value for angles or azimuths [0].
+#    +z Annotate depths rather than radius [Default]. Alternatively, if you provided depths then append p (planetary radius) or <radius> to annotate r = radius - z
+#       instead.
+#  done -Jpoly|Poly/[<lon0>/[<lat0>/]]<scale>|<width> ((American) Polyconic). Give optional central meridian and reference parallel [Default is equator], and <scale>.
+#  -Jq|Q[<lon0>/[<lat0>/]]<scale>|<width> (Equidistant Cylindrical). Give optional central meridian and standard parallel, and <scale>. Common parallels: <lat0> = 61.7
+#    (Min. linear distortion), 50.5 (R. Miller equirectangular), 45 (Gall isographic), 43.5 (Min. continental distortion), 42 (Grafarend & Niermann), 37.5 (Min. overall
+#    distortion), and 0 (Plate Carree [Default]).
+#  done -Jr|R[<lon0>/]<scale>|<width> (Winkel Tripel). Give optional central meridian and <scale>.
+#  done -Js|S<lon0>/<lat0>[/<horizon>]/<scale>|<width> (Stereographic). <lon0>/<lat0> is the center or the projection, <horizon> is max distance from center of the projection
+#    (< 180, default 90), and <scale> is either <1:xxxx> (true at pole) or <slat>/<1:xxxx> (true at <slat>) or <radius>/<lat> (distance in cm to the (oblique) parallel
+#    <lat0>.
+#  done -Jt|T<lon0>/[<lat0>/]<scale>|<width> (Transverse Mercator). Give central meridian and scale. Optionally, also give the central parallel [Default is equator].
+#  done -Ju|U<zone>/<scale>|<width> (UTM). Give zone (A,B,Y,Z, or 1-60 (negative for S hemisphere) or append code C-X) and <scale>. Or, give -Ju|U<scale>|<width> to have the
+#    UTM zone determined from the region.
+#  done -Jv|V[<lon0>/]<scale>|<width> (van der Grinten). Give optional central meridian and <scale>.
+#  done -Jw|W[<lon0>/]<scale>|<width> (Mollweide). Give optional central meridian and <scale>.
+#  -Jy|Y[<lon0>/[<lat0>/]]<scale>|<width> (Cylindrical Equal-area). Give optional central meridian and standard parallel, and <scale>. Common parallels: <lat0> = 50
+#    (Balthasart), 45 (Gall), 37.5 (Hobo-Dyer), 37.4 (Trystan Edwards), 37.0666 (Caster), 30 (Behrmann), and 0 (Lambert [Default])
+#  done -Jx|X<x-scale|<width>[/<y-scale|height>] (Linear, log, power scaling). <scale> in cm/units (or 1:xxxx). Optionally, append to <x-scale> and/or <y-scale> one of d for
+#    Geographic coordinate (in degrees), l for Log10 projection, p<power> for x^power projection, t for calendar time projection using relative time coordinates, or T for
+#    Calendar time projection using absolute time coordinates. Use / to specify separate x/y scaling (e.g., -Jx0.5c/0.3c). If 1:xxxxx is used it implies -R is in meters.
+#    If -JX is used then give axes lengths rather than scales.
+
+# We need to shift the automatic UTM zone section to AFTER other arguments are processed
 
     ARG1="${2}"
     shift
+
+    if [[ $ARG1 == "scale" ]]; then
+      if [[ $2 == *:* ]]; then
+       rjmapscale=$2
+       rjmapscaleflag=1
+      fi
+      shift  # argument
+      ARG1="$2"
+      shift
+    fi
 
     case $ARG1 in
       {)
@@ -7334,12 +7473,110 @@ fi
       shift
       RJSTRING="${rj[@]}"
       ;;
-      M) # Mercator
-        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-        rj+=("-JM${PSSIZE}i")
+      # Projections that take optional <lon0>/[<lat0>/]]<scale>
+      Mercator|M) # Mercator
+         # -Jm|M[<lon0>/[<lat0>/]]<scale>|<width> (Mercator). Give optional central meridian and true scale parallel, and <scale>.
+
+         CENTRALPARALLEL=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
+         CENTRALMERIDIAN=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+
+         if arg_is_float $2; then   # Specified a central meridian
+           CENTRALMERIDIAN=$2
+           shift
+           if arg_is_float $2; then   # Specified a central meridian
+             CENTRALPARALLEL=$2
+             shift
+           fi
+         fi
+
+        if [[ $(echo "$MAXLAT == 90" | bc -l) -eq 1 ]]; then
+          MAXLAT=89.9
+        fi
+        if [[ $(echo "$MINLAT == -90" | bc -l) -eq 1 ]]; then
+          MINLAT=-89.9
+        fi
+
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          rj[1]="-Jm${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${rjmapscale}"
+          projname="Mercator ${rjmapscale}"
+        else
+          rj[1]="-JM${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${PSSIZE}i"
+          projname="Mercator"
+        fi
+
         RJSTRING="${rj[@]}"
-        projname="Mercator"
       ;;
+      Cassini|C)
+        CENTRALPARALLEL=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
+        CENTRALMERIDIAN=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          rj[1]="-Jc${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${rjmapscale}"
+          projname="Cassini ${rjmapscale}"
+        else
+          echo "[-RJ]: Cassini projection requires scale: -RJ scale 1:XXX C and region defined by -r"
+          exit 1
+        fi
+        RJSTRING="${rj[@]}"
+      ;;
+      Poly|JP)
+        CENTRALMERIDIAN=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+        STANDARDPARALLEL=45 # Gall by default
+
+        if arg_is_float $2; then   # Specified a central meridian
+          CENTRALMERIDIAN=$2
+          shift
+          if arg_is_float $2; then   # Specified a central meridian
+            STANDARDPARALLEL=$2
+            shift
+          fi
+        fi
+
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          rj[1]="-Jpoly/${CENTRALMERIDIAN}/${STANDARDPARALLEL}/${rjmapscale}"
+          getpssizeflag=1
+          projname="Polyconic ${rjmapscale}"
+        else
+          rj[1]="-JPoly/${CENTRALMERIDIAN}/${STANDARDPARALLEL}/${PSSIZE}i"
+          projname="Polyconic"
+        fi
+        RJSTRING="${rj[@]}"
+      ;;
+      CylStereo|CS) # -Jcyl_stere|Cyl_stere/[<lon0>/[<lat_nodist>/]]<scale>|<width>
+        CENTRALMERIDIAN=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
+        STANDARDPARALLEL=45 # Gall by default
+
+        if arg_is_float $2; then   # Specified a central meridian
+          CENTRALMERIDIAN=$2
+          shift
+          if arg_is_float $2; then   # Specified a central meridian
+            STANDARDPARALLEL=$2
+            shift
+          fi
+        fi
+
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          rj[1]="-Jcyl_stere/${CENTRALMERIDIAN}/${STANDARDPARALLEL}/${rjmapscale}"
+          getpssizeflag=1
+          projname="Cylindrical Stereographic ${rjmapscale}"
+
+        else
+          rj[1]="-JCyl_stere/${CENTRALMERIDIAN}/${STANDARDPARALLEL}/${PSSIZE}i"
+          projname="Cylindrical Stereographic"
+
+        fi
+        RJSTRING="${rj[@]}"
+      ;;
+      # <lon0>/<lat0>/<central parallel>/<scale>
       T) # Transverse Mercator
         CENTRALPARALLEL=0
         if arg_is_float $2; then   # Specified a central meridian
@@ -7349,15 +7586,23 @@ fi
             CENTRALPARALLEL=$2
             shift
           else
-            CENTRALPARALLEL=0
+            CENTRALPARALLEL=$(echo "($MINLAT + $MAXLAT) / 2" | bc -l)
           fi
         else
-          CENTRALMERIDIAN=0
+          CENTRALMERIDIAN=$(echo "($MINLON + $MAXLON) / 2" | bc -l)
         fi
-        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-        rj+=("-JT${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${PSSIZE}i")
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          rj[1]="-Jt${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${rjmapscale}"
+          projname="Transverse Mercator ${rjmapscale}"
+          getpssizeflag=1
+        else
+          rj[1]="-JT${CENTRALMERIDIAN}/${CENTRALPARALLEL}/${PSSIZE}i"
+          projname="Transverse Mercator"
+        fi
+
         RJSTRING="${rj[@]}"
-        projname="Transverse Mercator"
       ;;
       UTM)
         if [[ $2 =~ ^[0-9]+$ ]]; then   # Specified a UTM Zone (positive integer)
@@ -7385,17 +7630,33 @@ fi
         else
           CENTRALMERIDIAN=0
         fi
-        rj+=("-R-180/180/-90/90")
-        case $ARG1 in
-          Eckert4|Kf)      rj+=("-JKf${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert4" ;;
-          Eckert6|Ks)      rj+=("-JKs${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Eckert6" ;;
-          Hammer|H)        rj+=("-JH${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Hammer" ;;
-          Mollweide|W)     rj+=("-JW${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Mollweide" ;;
-          Robinson|N)      rj+=("-JN${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Robinson" ;;
-          Sinusoidal|I)    rj+=("-JI${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Sinusoidal" ;;
-          VanderGrinten|V) rj+=("-JV${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Van der Grinten" ;;
-          Winkel|R)        rj+=("-JR${CENTRALMERIDIAN}/${PSSIZE}i"); projname="Winkel" ;;
-        esac
+        rj[0]="-R-180/180/-90/90"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          case $ARG1 in
+            Eckert4|Kf)      rj[1]="-Jkf${CENTRALMERIDIAN}/${rjmapscale}"; projname="Eckert4" ;;
+            Eckert6|Ks)      rj[1]="-Jks${CENTRALMERIDIAN}/${rjmapscale}"; projname="Eckert6" ;;
+            Hammer|H)        rj[1]="-Jh${CENTRALMERIDIAN}/${rjmapscale}"; projname="Hammer" ;;
+            Mollweide|W)     rj[1]="-Jw${CENTRALMERIDIAN}/${rjmapscale}"; projname="Mollweide" ;;
+            Robinson|N)      rj[1]="-Jn${CENTRALMERIDIAN}/${rjmapscale}"; projname="Robinson" ;;
+            Sinusoidal|I)    rj[1]="-Ji${CENTRALMERIDIAN}/${rjmapscale}"; projname="Sinusoidal" ;;
+            VanderGrinten|V) rj[1]="-Jv${CENTRALMERIDIAN}/${rjmapscale}"; projname="Van der Grinten" ;;
+            Winkel|R)        rj[1]="-Jr${CENTRALMERIDIAN}/${rjmapscale}"; projname="Winkel" ;;
+          esac
+        else
+          case $ARG1 in
+            Eckert4|Kf)      rj[1]="-JKf${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Eckert4" ;;
+            Eckert6|Ks)      rj[1]="-JKs${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Eckert6" ;;
+            Hammer|H)        rj[1]="-JH${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Hammer" ;;
+            Mollweide|W)     rj[1]="-JW${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Mollweide" ;;
+            Robinson|N)      rj[1]="-JN${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Robinson" ;;
+            Sinusoidal|I)    rj[1]="-JI${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Sinusoidal" ;;
+            VanderGrinten|V) rj[1]="-JV${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Van der Grinten" ;;
+            Winkel|R)        rj[1]="-JR${CENTRALMERIDIAN}/${PSSIZE}i"; projname="Winkel" ;;
+          esac
+        fi
+
         RJSTRING="${rj[@]}"
         recalcregionflag_lonlat=0
       ;;
@@ -7416,15 +7677,25 @@ fi
           CENTRALMERIDIAN=0
           CENTRALLATITUDE=0
         fi
-        rj+=("-Rg")
-        case $ARG1 in
-          Hemisphere|A) rj+=("-JA${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${PSSIZE}i")   ;;
-        esac
+        rj[0]="-Rg"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          case $ARG1 in
+            Hemisphere|A) rj[1]="-Ja${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${rjmapscale}"; projname="Hemisphere ${rjmapscale}" ;;
+
+          esac
+        else
+          case $ARG1 in
+            Hemisphere|A) rj[1]="-JA${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${PSSIZE}i"; projname="Hemisphere" ;;
+          esac
+        fi
+
         RJSTRING="${rj[@]}"
-        projname="Hemisphere"
         recalcregionflag_lonlat=0
       ;;
-      Gnomonic|Fg|F|Orthographic|Gg|G|Stereo|Sg|S)
+      # Projections that take <lon0>/<lat0>/<range>/<scale>
+      Gnomonic|Fg|F|Orthographic|Gg|G|Stereo|Sg|S|AzimEq|E)
         MINLON=-180; MAXLON=180; MINLAT=-90; MAXLAT=90
         globalextentflag=1
 
@@ -7449,19 +7720,43 @@ fi
           CENTRALLATITUDE=0
           DEGRANGE=90
         fi
-        rj+=("-Rg")
-        case $ARG1 in
-          Gnomonic|Fg|F)      [[ $DEGRANGE -ge 90 ]] && DEGRANGE=60   # Gnomonic can't have default degree range
-                              rj+=("-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
-                              projname="Gnomonic"
-                              ;;
-          Orthographic|Gg|G)  rj+=("-JG${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
-                              projname="Orthographic"
-                              ;;
-          Stereo|Sg|S)        rj+=("-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i")
-                              projname="Stereo"
-                              ;;
-        esac
+        rj[0]="-Rg"
+
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          case $ARG1 in
+            Gnomonic|Fg|F)      [[ $DEGRANGE -ge 90 ]] && DEGRANGE=60   # Gnomonic can't have default degree range
+                                rj[1]="-Jf${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${rjmapscale}"
+                                projname="Gnomonic ${rjmapscale}"
+                                ;;
+            Orthographic|Gg|G)  rj[1]="-Jg${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${rjmapscale}"
+                                projname="Orthographic ${rjmapscale}"
+                                ;;
+            Stereo|Sg|S)        rj[1]="-Js${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${rjmapscale}"
+                                projname="Stereo ${rjmapscale}"
+                                ;;
+            AzimEq|E)           rj[1]="-Je${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${rjmapscale}"
+                                ;;
+          esac
+        else
+          case $ARG1 in
+            Gnomonic|Fg|F)      [[ $DEGRANGE -ge 90 ]] && DEGRANGE=60   # Gnomonic can't have default degree range
+                                rj[1]="-JF${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i"
+                                projname="Gnomonic"
+                                ;;
+            Orthographic|Gg|G)  rj[1]="-JG${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i"
+                                projname="Orthographic"
+                                ;;
+            Stereo|Sg|S)        rj[1]="-JS${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i"
+                                projname="Stereo"
+                                ;;
+            AzimEq|E)           rj[1]="-JE${CENTRALMERIDIAN}/${CENTRALLATITUDE}/${DEGRANGE}/${PSSIZE}i"
+                                ;;
+
+          esac
+        fi
+
         RJSTRING="${rj[@]}"
 
         if [[ ${ARG1:1:2} == "g" ]]; then
@@ -7509,15 +7804,25 @@ fi
         else
           OAvert=""
         fi
-        rj+=("-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk")
-        rj+=("-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i${OAvert}")
+
+        rj[0]="-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          rj[1]="-Joa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${rjmapscale}${OAvert}"
+          projname"Oblique Mercator Azimuthal ${rjmapscale}"
+
+        else
+          rj[1]="-JOa${CENTRALLON}/${CENTRALLAT}/${ORIENTAZIMUTH}/${PSSIZE}i${OAvert}"
+          projname"Oblique Mercator"
+        fi
+
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1
       ;;
       # Lon Lat lonpole latPole widthkm heightkm
       ObMercC|OC)
-        projname="Oblique Mercator (pole)"
         # Set up default values
         CENTRALLON=0
         CENTRALLAT=0
@@ -7569,12 +7874,25 @@ fi
         MAPWIDTH=$(echo $MAPWIDTH | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
         MAPHEIGHT=$(echo $MAPHEIGHT | gawk -v circ=${SMALLC_CIRC} '{print ($1+0)*38921.6/circ }')
 
-        rj+=("-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk")
-        rj+=("-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/$POLELAT/${PSSIZE}i")
+        rj[0]="-R-${MAPWIDTH}/${MAPWIDTH}/-${MAPHEIGHT}/${MAPHEIGHT}+uk"
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+          rj[1]="-Joc${CENTRALLON}/${CENTRALLAT}/${POLELON}/${POLELAT}/${rjmapscale}"
+          projname="Oblique Mercator (pole) ${rjmapscale}"
+
+        else
+          rj[1]="-JOc${CENTRALLON}/${CENTRALLAT}/${POLELON}/${POLELAT}/${PSSIZE}i"
+          projname="Oblique Mercator (pole)"
+        fi
+
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
         projcoordsflag=1
       ;;
+
+      # Projections that take <lon0>/<lat0>/<parallel1>/<parallel2><scale>
+
       Albers|B|Lambert|L|Equid|D)
 
         if [[ ! $called_r_flag -eq 1 ]]; then
@@ -7605,19 +7923,35 @@ fi
           STANDARD_PARALLEL_2=${MAXLAT}
         fi
 
-        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
 
-        case $ARG1 in
-          Albers|B)      rj+=("-JB${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
-                         projname="Albers"
-                         ;;
-          Lambert|L)     rj+=("-JL${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
-                         projname="Lambert"
-                         ;;
-          Equid|D)       rj+=("-JD${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i")
-                         projname="Equidistant"
-                         ;;
-        esac
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          getpssizeflag=1
+
+          case $ARG1 in
+            Albers|B)      rj[1]="-Jb${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${rjmapscale}"
+                           projname="Albers ${rjmapscale}"
+                           ;;
+            Lambert|L)     rj[1]="-Jl${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${rjmapscale}"
+                           projname="Lambert ${rjmapscale}"
+                           ;;
+            Equid|D)       rj[1]="-Jd${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${rjmapscale}"
+                           projname="Equidistant ${rjmapscale}"
+                           ;;
+          esac
+        else
+          case $ARG1 in
+            Albers|B)      rj[1]="-JB${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i"
+                           projname="Albers"
+                           ;;
+            Lambert|L)     rj[1]="-JL${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i"
+                           projname="Lambert"
+                           ;;
+            Equid|D)       rj[1]="-JD${CENTRALLON}/${CENTRALLAT}/${STANDARD_PARALLEL_1}/${STANDARD_PARALLEL_2}/${PSSIZE}i"
+                           projname="Equidistant"
+                           ;;
+          esac
+        fi
 
         RJSTRING="${rj[@]}"
         recalcregionflag_bounds=1
@@ -7631,8 +7965,15 @@ fi
             print size*(minlat-maxlat)/(minlon-maxlon)
           }')
 
-        rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-        rj+=("-JX${PSSIZE}i/${PSSIZE_ALT}id")
+        rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+        rj[1]="-JX${PSSIZE}i/${PSSIZE_ALT}id"
+
+
+        if [[ $rjmapscaleflag -eq 1 ]]; then
+          echo "[-RJ]: scale option 1:XXX cannot be used with Cartesian (X) projection. Ignoring scale."
+        fi
+
+
         RJSTRING="${rj[@]}"
         projname="Cartesian"
       ;;
@@ -7643,6 +7984,17 @@ fi
     esac
 
     usecustomrjflag=1
+
+    if [[ $getpssizeflag -eq 1 ]]; then
+      gmt psbasemap ${rj[0]} ${rj[1]} -Btlbr --PS_MEDIA=0.01ix0.01i 1> rjtest.ps 2> cat.txt
+      plotsize=($(grep WxH cat.txt | gawk '{print $7/2.54, $9/2.54}'))
+      PSSIZE=${plotsize[0]}
+      info_msg "[-RJ]: Calculated PSSIZE = ${PSSIZE} inches"
+    fi
+    # echo args ar $@
+    # echo rj0 is ${rj[0]}
+    # echo rj1 is ${rj[1]}
+    # echo RJSTRING is ${RJSTRING}
 
     # Need to calculate the AOI using the RJSTRING. Otherwise, have to specify a
     # region manually using -r which may not be so obvious.
@@ -12546,10 +12898,8 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     }'
 
   if [[ ! $usecustomrjflag -eq 1 ]]; then
-    rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
-    # rj+=("-JQ${CENTERLON}/${PSSIZE}i")
-    # rj+=("-JX${PSSIZE}id")
-    rj+=("-JQ${CENTERLON}/${PSSIZE}i")
+    rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+    rj[1]="-JQ${CENTERLON}/${PSSIZE}i"
 
     RJSTRING="${rj[@]}"
     # echo "Basic RJSTRING is $RJSTRING"
@@ -12573,49 +12923,74 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   # It is important that if MAKERECTMAP is set to 1, then also
   # rj[0] contains the -R string and rj[1] contains the -J string
 
+  if [[ $calcutmzonelaterflag -eq 1 ]]; then
+    # This breaks terribly if the average longitude is not between -180 and 180
+    UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
+    AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
+    UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
+    info_msg "Using UTM Zone $UTMZONE"
+    projname="UTM zone ${UTMZONE}"
+
+    rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+
+    if [[ ${rjmapscaleflag} -eq 1 ]]; then
+      rj[1]="-JU${UTMZONE}/${rjmapscale}"
+    else
+      rj[1]="-JU${UTMZONE}/${INCH}i"
+    fi
+    RJSTRING="${rj[@]}"
+  fi
+
+
+
   if [[ $MAKERECTMAP -eq 1 && ${rj[0]} == -R* && ${rj[1]} == -J* ]]; then
     rj[0]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
     RJSTRING="${rj[@]}"
+
+    NEWRANGE=($(gmt mapproject ${RJSTRING} -Wr))
+
+    if [[ $(echo "${NEWRANGE[0]} > 180 && ${NEWRANGE[1]} >= 180" | bc) -eq 1 ]]; then
+      NEWRANGE[0]=$(echo "${NEWRANGE[0]} - 360" | bc -l)
+      NEWRANGE[1]=$(echo "${NEWRANGE[1]} - 360" | bc -l)
+    fi
+
+    MINLON=${NEWRANGE[0]}
+    MAXLON=${NEWRANGE[1]}
+    MINLAT=${NEWRANGE[2]}
+    MAXLAT=${NEWRANGE[3]}
+
   fi
   # We have to set the RJ flag after setting the plot size (INCH)
 
-  if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
-
-    if [[ $calcutmzonelaterflag -eq 1 ]]; then
-      # This breaks terribly if the average longitude is not between -180 and 180
-      UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
-      AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
-      UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
-    fi
-    info_msg "Using UTM Zone $UTMZONE"
-
-    if [[ $MAKERECTMAP -eq 1 ]]; then
-      rj[1]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
-      rj[2]="-JU${UTMZONE}/${INCH}i"
-      RJSTRING="${rj[@]}"
-
-      # echo "Making map outline"
-      # echo     gmt psbasemap -A $RJSTRING ${VERBOSE}
-      NEWRANGE=($(gmt mapproject ${RJSTRING[@]} -Wr))
-
-      if [[ $(echo "${NEWRANGE[0]} > 180 && ${NEWRANGE[1]} >= 180" | bc) -eq 1 ]]; then
-        NEWRANGE[0]=$(echo "${NEWRANGE[0]} - 360" | bc -l)
-        NEWRANGE[1]=$(echo "${NEWRANGE[1]} - 360" | bc -l)
-      fi
-
-      MINLON=${NEWRANGE[0]}
-      MAXLON=${NEWRANGE[1]}
-      MINLAT=${NEWRANGE[2]}
-      MAXLAT=${NEWRANGE[3]}
-
-    else
-      rj[1]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-      rj[2]="-JU${UTMZONE}/${INCH}i"
-    fi
-    rj[2]="-JU${UTMZONE}/${INCH}i"
-    RJSTRING="${rj[@]}"
-    info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING[@]}"
-  fi
+  # if [[ $setutmrjstringfromarrayflag -eq 1 ]]; then
+  #
+  #
+  #   if [[ $MAKERECTMAP -eq 1 ]]; then
+  #     rj[0]="-R${MINLON}/${MINLAT}/${MAXLON}/${MAXLAT}r"
+  #     rj[1]="-JU${UTMZONE}/${INCH}i"
+  #     RJSTRING="${rj[@]}"
+  #
+  #     # echo "Making map outline"
+  #     # echo     gmt psbasemap -A $RJSTRING ${VERBOSE}
+  #     NEWRANGE=($(gmt mapproject ${RJSTRING} -Wr))
+  #
+  #     if [[ $(echo "${NEWRANGE[0]} > 180 && ${NEWRANGE[1]} >= 180" | bc) -eq 1 ]]; then
+  #       NEWRANGE[0]=$(echo "${NEWRANGE[0]} - 360" | bc -l)
+  #       NEWRANGE[1]=$(echo "${NEWRANGE[1]} - 360" | bc -l)
+  #     fi
+  #
+  #     MINLON=${NEWRANGE[0]}
+  #     MAXLON=${NEWRANGE[1]}
+  #     MINLAT=${NEWRANGE[2]}
+  #     MAXLAT=${NEWRANGE[3]}
+  #
+  #   else
+  #     rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+  #     rj[1]="-JU${UTMZONE}/${INCH}i"
+  #   fi
+  #   RJSTRING="${rj[@]}"
+  #   info_msg "[-RJ]: Custom region and projection string is: ${RJSTRING}"
+  # fi
 
 
   # Estimate the AOI by sampling a grid of lon/lat points
@@ -12642,7 +13017,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
             print j, i
           }
         }
-      }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} | gawk '{ if ($1>180) { $1=$1-360 } else if ($1<-180) { $1=$1+360}; print }'> selectbounds.txt
+      }' | gmt gmtselect ${RJSTRING} ${VERBOSE} | gawk '{ if ($1>180) { $1=$1-360 } else if ($1<-180) { $1=$1+360}; print }'> selectbounds.txt
 
       NEWRANGE=($(gawk < selectbounds.txt -v buffer_d=1 '
         BEGIN {
@@ -12756,7 +13131,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   # echo ${MINLON} ${MINLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
   # echo ${MINLON} ${MAXLAT}>> ${TMP}${F_MAPELEMENTS}bounds.txt
 
-  gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+  gmt psbasemap ${RJSTRING} -A ${VERBOSE} | gawk '
     ($1!="NaN") {
       while ($1>180) { $1=$1-360 }
       while ($1<-180) { $1=$1+360 }
@@ -12832,10 +13207,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       MAXLAT=${MAPEDGERANGE[3]}
     fi
     rj[0]="-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
-    unset RJSTRING
-
-    RJSTRING+=("${rj[0]}")
-    RJSTRING+=("${rj[1]}")
+    RJSTRING="${rj[@]}"
   fi
 
   # If we read the RJ string from the custom regions file, set it here before we
@@ -12848,21 +13220,21 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       RJSTRING+=("${CUSTOMREGIONRJSTRING[$ind]}")
       ind=$(echo "$ind+1" | bc)
     done
-    info_msg "[-r]: Using customID RJSTRING: ${RJSTRING[@]}"
+    info_msg "[-r]: Using customID RJSTRING: ${RJSTRING}"
   fi
 
   # This section is needed to determine the region and bounding box for oblique Mercator type projections
   # Not yet tested for maps crossing the dateline!
 
   if [[ $recalcregionflag_bounds -eq 1 ]]; then
-      NEWRANGE=($(gmt mapproject ${RJSTRING[@]} -Wr))
+      NEWRANGE=($(gmt mapproject ${RJSTRING} -Wr))
       info_msg "Updating AOI to new map extent: ${NEWRANGE[0]}/${NEWRANGE[1]}/${NEWRANGE[2]}/${NEWRANGE[3]}"
       MINLON=${NEWRANGE[0]}
       MAXLON=${NEWRANGE[1]}
       MINLAT=${NEWRANGE[2]}
       MAXLAT=${NEWRANGE[3]}
 
-      gmt psbasemap ${RJSTRING[@]} -A ${VERBOSE} | gawk '
+      gmt psbasemap ${RJSTRING} -A ${VERBOSE} | gawk '
         ($1!="NaN") {
           while ($1>180) { $1=$1-360 }
           while ($1<-180) { $1=$1+360 }
@@ -12874,15 +13246,15 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
   # Find the center point of the map
 
-  NEWRANGECM=($(gmt mapproject ${RJSTRING[@]} -WjCM ${VERBOSE}))
+  NEWRANGECM=($(gmt mapproject ${RJSTRING} -WjCM ${VERBOSE}))
   CENTERLON=${NEWRANGECM[0]}
   CENTERLAT=${NEWRANGECM[1]}
 
-  info_msg "RJSTRING: ${RJSTRING[@]}; CENTERLON/CENTERLAT=${CENTERLON}/${CENTERLAT} MINLON/MAXLON/MINLAT/MAXLAT= ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
+  info_msg "RJSTRING: ${RJSTRING}; CENTERLON/CENTERLAT=${CENTERLON}/${CENTERLAT} MINLON/MAXLON/MINLAT/MAXLAT= ${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}"
 
   # Convert the bounding box to projected coordinates
 
-  gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING[@]} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
+  gmt mapproject ${TMP}${F_MAPELEMENTS}bounds.txt ${RJSTRING} ${VERBOSE} > ${TMP}${F_MAPELEMENTS}projbounds.txt
 
   ##### Define the output filename for the map, in PDF
   if [[ $outflag == 0 ]]; then
@@ -12908,7 +13280,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     else
       touch ./regions.tmp
     fi
-    echo "${REGIONTOADD} ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${RJSTRING[@]}" >> ./regions.tmp
+    echo "${REGIONTOADD} ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${RJSTRING}" >> ./regions.tmp
     mv ./regions.tmp ${CUSTOMREGIONS}
     cp ${TMP}${F_MAPELEMENTS}bounds.txt ${CUSTOMREGIONSDIR}${REGIONTOADD}.xy
   fi
@@ -12932,7 +13304,7 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     fi
 
     # query GMT server for data type
-    topo_auto_res=$(gmt grdcut ${EARTHRELIEFPREFIX} ${RJSTRING[@]} -D -Vq --GMT_GRAPHICS_DPU=${TOPO_DPI} | gawk '{print $5}')
+    topo_auto_res=$(gmt grdcut ${EARTHRELIEFPREFIX} ${RJSTRING} -D -Vq --GMT_GRAPHICS_DPU=${TOPO_DPI} | gawk '{print $5}')
 
     case ${topo_auto_res} in
       0.000277777*) TOPOTYPE=01s  ;;
@@ -12941,15 +13313,15 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       0.008333333*) TOPOTYPE=15s  ;;   # 30s is not working in a lot of cases!
       0.016666666*) TOPOTYPE=01m  ;;
       0.033333333*) TOPOTYPE=02m  ;;
-      0.050000000*) TOPOTYPE=03m  ;;
+      0.050000000*|0.05) TOPOTYPE=03m  ;;
       0.066666666*) TOPOTYPE=04m  ;;
       0.083333333*) TOPOTYPE=05m  ;;
-      0.100000000*) TOPOTYPE=06m  ;;
+      0.100000000*|0.1) TOPOTYPE=06m  ;;
       0.166666666*) TOPOTYPE=10m  ;;
       0.333333333*) TOPOTYPE=20m  ;;
-      0.250000000*) TOPOTYPE=15m  ;;
-      0.500000000*) TOPOTYPE=30m  ;;
-      1.000000000*) TOPOTYPE=01d  ;;
+      0.250000000*|0.25) TOPOTYPE=15m  ;;
+      0.500000000*|0.5) TOPOTYPE=30m  ;;
+      1.000000000*|1|1.0) TOPOTYPE=01d  ;;
     esac
 
     info_msg "[-t]: Automatically selected remote dataset ${EARTHRELIEFPREFIX}_${TOPOTYPE}"
@@ -13004,7 +13376,7 @@ EOF
   # gmt set PS_CHAR_ENCODING ISO-8859-5
   export LC_CTYPE="en_US.UTF-8"
 
-  echo "${RJSTRING[@]}" > ${F_MAPELEMENTS}rjstring.txt
+  echo "${RJSTRING}" > ${F_MAPELEMENTS}rjstring.txt
 
   #### Adjust selection polygon file to conform to gmt select requirements (split
   # at dateline and have correct -180/180 longitude for the given polygon)
@@ -13127,16 +13499,16 @@ EOF
   fi
 
   if [[ $plottitleflag -eq 1 ]]; then
-    gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE -K > base_fake.ps
+    gmt psbasemap ${RJSTRING} "${BSTRING[@]}" $VERBOSE -K > base_fake.ps
     gmt psbasemap "-B+t\"${PLOTTITLE}\"" -R -J $VERBOSE -O >> base_fake.ps
   else
-    gmt psbasemap ${RJSTRING[@]} "${BSTRING[@]}" $VERBOSE > base_fake.ps
+    gmt psbasemap ${RJSTRING} "${BSTRING[@]}" $VERBOSE > base_fake.ps
   fi
 
   # Turn of the axis labels and make a map, then read its dimensions from the PS file
   # directly. Units are in points, so we multiply by 2.54in/72pts to get inches
 
-  gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
+  gmt psbasemap ${RJSTRING} $VERBOSE -Btlbr > base_fake_nolabels.ps
 
   PROJDIM=($(grep GMTBoundingBox base_fake_nolabels.ps | gawk '{print $4/72*2.54, $5/72*2.54}'))
 
@@ -13202,7 +13574,7 @@ EOF
   }' > ${F_MAPELEMENTS}aprof_database_proj.txt
 
   # Project aprof_database.txt back to geographic coordinates and rearrange
-  gmt mapproject ${F_MAPELEMENTS}aprof_database_proj.txt ${RJSTRING[@]} -I ${VERBOSE} | tr '\t' ' ' | gawk '($1!="NaN"){print}' > ${F_MAPELEMENTS}aprof_database.txt
+  gmt mapproject ${F_MAPELEMENTS}aprof_database_proj.txt ${RJSTRING} -I ${VERBOSE} | tr '\t' ' ' | gawk '($1!="NaN"){print}' > ${F_MAPELEMENTS}aprof_database.txt
 
   # Extract the aprof list to make the profiles
   for code in ${aproflist[@]}; do
@@ -13801,7 +14173,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       info_msg "[-t]: Using grid file $GRIDFILE"
 
       if [[ $BATHYMETRY == "auto" ]]; then
-        projection=$(echo "${RJSTRING[@]}" | gawk '{print $(NF)}')
+        projection=$(echo "${RJSTRING}" | gawk '{print $(NF)}')
         res=$(gmt grdcut ${EARTHRELIEFPREFIX} -D+t -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} ${projection} --GMT_GRAPHICS_DPU=${TOPO_DPI} -Vq | gawk -F/ '{print $(NF)}')
 
         case $res in
@@ -14120,7 +14492,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
         # lon, lat, depth, mag, timestring, id, epoch, type
         # type = "mw" or "ms" or "mb"
-        echo looking at ${GEMGHEC_DATA} from ${STARTTIME} to ${ENDTIME}
           gawk < ${GEMGHEC_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
             @include "tectoplot_functions.awk"
             {
@@ -14416,7 +14787,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     fi
 
     # Retain only the seismicity falling within the map region
-    select_in_gmt_map ${F_SEIS}eqs.txt "${RJSTRING[@]}"
+    select_in_gmt_map ${F_SEIS}eqs.txt "${RJSTRING}"
 
     ##############################################################################
     # Select seismicity that falls within a specified polygon.
@@ -14730,10 +15101,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     case $CMTTYPE in
       CENTROID)
-          select_in_gmt_map_by_columns 5 6 ${F_CMT}cmt_global_aoi.dat ${RJSTRING[@]}
+          select_in_gmt_map_by_columns 5 6 ${F_CMT}cmt_global_aoi.dat ${RJSTRING}
         ;;
       ORIGIN)
-          select_in_gmt_map_by_columns 8 9 ${F_CMT}cmt_global_aoi.dat ${RJSTRING[@]}
+          select_in_gmt_map_by_columns 8 9 ${F_CMT}cmt_global_aoi.dat ${RJSTRING}
         ;;
     esac
 
@@ -17091,7 +17462,7 @@ done
   # Page options
   # Just make a giant page and trim it later using gmt psconvert -A+m
 
-  gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 100ix100i
+  gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 1000ix1000i
 
   # Map frame options
 
@@ -17180,25 +17551,25 @@ done
   cleanup base_fake.ps base_fake.eps base_fake_nolabels.ps base_fake_nolabels.eps
 
   # gmt psbasemap ${BSTRING[@]} ${SCALECMD} $RJOK $VERBOSE >> map.ps
-  # gmt psbasemap ${RJSTRING[@]} $VERBOSE -Btlbr > base_fake_nolabels.ps
+  # gmt psbasemap ${RJSTRING} $VERBOSE -Btlbr > base_fake_nolabels.ps
 
 
 
-  gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING[@]} >> map.ps
+  gmt psxy -T -X$PLOTSHIFTX -Y$PLOTSHIFTY $OVERLAY $VERBOSE -K ${RJSTRING} >> map.ps
 
   if [[ $whiteframeflag -eq 1 ]]; then
-    gmt psbasemap "${BSTRING[@]}+gwhite" --MAP_FRAME_PEN=${WHITEFRAME_WIDTH},white $RJOK $VERBOSE >> map.ps
+    gmt psbasemap "${BSTRING[@]}+gwhite" --MAP_FRAME_PEN=${WHITEFRAME_WIDTH},${WHITEFRAME_COLOR} $RJOK $VERBOSE >> map.ps
   fi
 
   # We can just use cp instead of running GMT so many times...
 
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > kinsv.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > plate.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > mecaleg.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > seissymbol.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > eqlabel.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velarrow.ps
-  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > velgps.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > kinsv.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > plate.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > mecaleg.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > seissymbol.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > eqlabel.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > velarrow.ps
+  gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > velgps.ps
 
   cleanup kinsv.ps
   cleanup eqlabel.ps
@@ -17340,8 +17711,15 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
-      pstrain)
+      projlegend)
+        echo "" > /dev/null
+      ;;
+      navticks)
+        gmt psbasemap -Bg ${RJOK} >> map.ps
+        gmt psbasemap -Bsg5d -Bpg1d --MAP_GRID_CROSS_SIZE_PRIMARY=-3p --MAP_GRID_CROSS_SIZE_SECONDARY=+5p --MAP_GRID_PEN_PRIMARY=default,blue --MAP_GRID_PEN_SECONDARY=default,red ${RJOK} >> map.ps
+      ;;
 
+      pstrain)
         PSTRAIN_MAXSTR=($(gawk < ${PSTRAIN_FILE} '
         BEGIN {
           max=0
@@ -18103,8 +18481,8 @@ EOF
             uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite -F+f+a+j -W0.5p,black $RJOK $VERBOSE >> map.ps
           else
             # Create a 'labels only' map for easier editing
-            gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > cmtlabel_map.ps
-            uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING[@]} -O $VERBOSE >> cmtlabel_map.ps
+            gmt psbasemap "${BSTRING[@]}" ${RJSTRING} $VERBOSE -K  > cmtlabel_map.ps
+            uniq -u ${F_CMT}cmt.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING} -O $VERBOSE >> cmtlabel_map.ps
           fi
         fi
 
@@ -18157,7 +18535,7 @@ EOF
               # output the X and Y page coordinates of the labeled points
 
               #
-              # gmt mapproject ${F_SEIS}eq.labels ${RJSTRING[@]} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > eq.labels.xy
+              # gmt mapproject ${F_SEIS}eq.labels ${RJSTRING} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > eq.labels.xy
               # LABEL_WIDTH_P=$(echo "${MAP_PS_WIDTH_NOLABELS_IN} * 72" | bc -l)
               # LABEL_HEIGHT_P=$(echo "${MAP_PS_HEIGHT_NOLABELS_IN} * 72" | bc -l)
               # paste eq.labels.xy ${F_SEIS}eq.labels > eq.labels.combined
@@ -18205,8 +18583,8 @@ EOF
 
           else
               # Create a 'labels only' map for easier editing
-              gmt psbasemap "${BSTRING[@]}" ${RJSTRING[@]} $VERBOSE -K  > eqlabel_map.ps
-              uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING[@]} -O $VERBOSE >> eqlabel_map.ps
+              gmt psbasemap "${BSTRING[@]}" ${RJSTRING} $VERBOSE -K  > eqlabel_map.ps
+              uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING} -O $VERBOSE >> eqlabel_map.ps
           fi
         fi
         ;;
@@ -18814,7 +19192,7 @@ EOF
               shiftv=0.01
             fi
 
-            gmt psimage -D${INSET_ONOFFCODE}${INSET_JUST_CODE}+o${shifth}p/${shiftv}p+w${INSET_SIZE}i/0${thisJ} inset.png ${INSET_FILL} ${RJSTRING[@]} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -O -K ${VERBOSE} >> map.ps
+            gmt psimage -D${INSET_ONOFFCODE}${INSET_JUST_CODE}+o${shifth}p/${shiftv}p+w${INSET_SIZE}i/0${thisJ} inset.png ${INSET_FILL} ${RJSTRING} -Xa${INSET_XOFF} -Ya${INSET_YOFF} -O -K ${VERBOSE} >> map.ps
           fi
 
           ;;
@@ -18902,12 +19280,12 @@ EOF
         if [[ $scalebarbywidthflag -eq 1 ]]; then
         # Plot a scale bar with a given width in inches, place on map as PS file.
 
-          MAPXY=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING[@]}))
+          MAPXY=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING}))
           # echo "MapXY is ${MAPXY[@]}"
           # inches to CM
           MAPXY_END[0]=$(echo "${MAPXY[0]} + $SCALE_MAPLENGTH*2.54" | bc -l)
           MAPXY_END[1]=${MAPXY[1]}
-          SCALE_END=($(echo "${MAPXY_END[@]}" | gmt mapproject -I ${RJSTRING[@]}))
+          SCALE_END=($(echo "${MAPXY_END[@]}" | gmt mapproject -I ${RJSTRING}))
 
           # Calculate the new scale length that is rounded for nice internal divisions
           SCALE_LENGTH=$(echo ${SCALE_END[@]} | gmt mapproject -G${SCALEREFLON}/${SCALEREFLAT} ${RJSTRINGp[@]} | gawk -v nd=${SCALE_NUMDIVS} -v ni=${SCALE_MAPLENGTH_DIVISIBLE} '
@@ -18949,7 +19327,7 @@ EOF
         # Origpoint is the lon lat coords of the reference point
         Origpoint[0]=${SCALEREFLON}
         Origpoint[1]=${SCALEREFLAT}
-        # XYpoint=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING[@]}))
+        # XYpoint=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING}))
 
         # # American unit names (meter vs metre)
         # geodunit=$(geod -lu | gawk -v unit=${scaleunit} '($1==unit) {
@@ -19188,7 +19566,7 @@ EOF
         # bigticks/smallticks.txt are lines
         # scaletext.txt are text locations and strings
 
-        # If the scale bar is done in geographic coordinates, plotting is in ${RJSTRING[@]} space
+        # If the scale bar is done in geographic coordinates, plotting is in ${RJSTRING} space
         # If the scale bar is done in Cartesian coordinates, ploggins is in -R -JX space
 
         # Plot the frame
@@ -20387,7 +20765,6 @@ EOF
           fi
 
           if [[ $SCALEEQS -eq 1 ]]; then
-            echo plotting scaled
             # the -Cwhite option here is so that we can pass the removed EQs in the same file format as the non-scaled events
             [[ $REMOVE_DEFAULTDEPTHS_WITHPLOT -eq 1 ]] && [[ -e ${F_SEIS}removed_eqs_scaled.txt ]] && gmt psxy ${F_SEIS}removed_eqs_scaled.txt -Cwhite ${EQWCOM} -i0,1,2,3+s${SEISSCALE} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
             gmt psxy ${F_SEIS}eqs_scaled.txt -C$SEIS_CPT ${SEIS_INPUTORDER1} ${EQWCOM} -S${SEISSYMBOL} -t${SEISTRANS} $RJOK $VERBOSE >> map.ps
@@ -20423,13 +20800,13 @@ EOF
           # Use a magnitude of 4 for all events
           gawk < ${F_SEIS}eqs.txt '{print $1, $2, 1}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
           gmt grd2cpt -Qo -I -Chot ${F_SEIS}seissum.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
-          gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
+          gmt grdimage ${F_SEIS}seissum.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
         else
           # Use the true magnitude for all events
           gawk < ${F_SEIS}eqs.txt '{print $1, $2, 10^(($4+10.7)*3/2)}' | gmt blockmean -Ss -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I${SSRESC} -G${F_SEIS}seissum.nc ${VERBOSE}
           gmt grdmath ${VERBOSE} ${F_SEIS}seissum.nc LOG10 = ${F_SEIS}seisout.nc
           gmt grd2cpt -Qo -I -Chot ${F_SEIS}seisout.nc ${VERBOSE} > ${F_CPTS}seissum.cpt
-          gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING[@]} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
+          gmt grdimage ${F_SEIS}seisout.nc -C${F_CPTS}seissum.cpt -Q ${RJSTRING} -O -K ${VERBOSE} -t${SSTRANS} >> map.ps
         fi
 
         ;;
@@ -20533,8 +20910,8 @@ EOF
           gmt_init_tmpdir
 
           gmt grdmath -Rd -I${IMBLUE_RES} -r $(gmt solar -C -o0:1 -I+d2000-06-22T24:00+z-10) 2 DAYNIGHT = w.grd
-          gmt grdcut @earth_day_${IMBLUE_RES} -Gearthday_pct.tif ${RJSTRING[@]} ${VERBOSE}
-          gmt grdcut @earth_night_${IMBLUE_RES} -Gearthnight_pct.tif ${RJSTRING[@]} ${VERBOSE}
+          gmt grdcut @earth_day_${IMBLUE_RES} -Gearthday_pct.tif ${RJSTRING} ${VERBOSE}
+          gmt grdcut @earth_night_${IMBLUE_RES} -Gearthnight_pct.tif ${RJSTRING} ${VERBOSE}
 
           gmt grdcut w.grd -Rearthnight_pct.tif -Gwout.grd
 
@@ -21502,7 +21879,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 
   info_msg "Plotting legend in its own file"
   COLORBARLEGEND=${LEGENDDIR}colorbars.ps
-  gmt psxy -T ${RJSTRING[@]} -X$PLOTSHIFTX -Y$PLOTSHIFTY -K $VERBOSE > ${COLORBARLEGEND}
+  gmt psxy -T ${RJSTRING} -X$PLOTSHIFTX -Y$PLOTSHIFTY -K $VERBOSE > ${COLORBARLEGEND}
 
   # Add the plot commands to the legend color bar command list
 
@@ -21728,7 +22105,7 @@ if [[ $makelegendflag -eq 1 ]]; then
 #
 function init_legend_item() {
   # $1 = ID
-  gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}${1}.ps
+  gmt psxy -T ${RJSTRING} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}${1}.ps
   LEGFILE="${LEGENDDIR}${1}.ps"
 }
 
@@ -21766,12 +22143,18 @@ function close_legend_item() {
     # Offset origin to above the legend bar plots and offset X so left side of box
     # is around the start of the rectangular bar plot
     # Initialize the non-colorbar legend
-    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
+    gmt psxy -T ${RJSTRING} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
 
     info_msg "Plotting non-colorbar legend items: ${plots[@]}"
 
     for legend_plot in ${plots[@]} ; do
     	case $legend_plot in
+        projlegend)
+          init_legend_item "projlegend"
+          echo "$CENTERLON $CENTERLAT Projection: ${projname}" | gmt pstext -F+f6p,Helvetica,black+jRB -D-32p/2p $VERBOSE -J -R -O -K >> ${LEGFILE}
+          close_legend_item "projlegend"
+
+        ;;
         pstrain)
         info_msg "Legend: pstrain"
         init_legend_item "pstrain"
@@ -22035,7 +22418,7 @@ function close_legend_item() {
       fi
     fi
 
-    gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
+    gmt psxy -T ${RJSTRING} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
     LEG2_X=0
     LEG2_Y=0
     OLD_LEG2_X=0
@@ -22047,7 +22430,7 @@ function close_legend_item() {
       # Assemble the final legend either horizontally or vertically
       # Create the legend separator
 
-      gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}separator.ps
+      gmt psxy -T ${RJSTRING} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}separator.ps
       lat2=$(echo "${CENTERLAT}+1"| bc -l)
       echo "${CENTERLON} ${CENTERLAT}t${CENTERLON} ${lat2}" | tr 't' '\n' | gmt psxy -W0.2p,black $VERBOSE -J -R -O -K >> ${LEGENDDIR}separator.ps
       gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}separator.ps
@@ -22107,7 +22490,7 @@ function close_legend_item() {
         SHIFT_LEG_NONCOLOR=0
       fi
 
-      gmt psxy -T ${RJSTRING[@]} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
+      gmt psxy -T ${RJSTRING} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}maplegend.ps
       [[ -s ${LEGENDDIR}colorbars.eps ]] && gmt psimage -Dx0/0+w${LEG_COLOR_WIDTH_IN}i -Xa${SHIFT_LEG_COLOR}i ${LEGENDDIR}colorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
       [[ -s ${LEGENDDIR}noncolorbars.eps ]] && gmt psimage -Dx0/${LEG_COLOR_HEIGHT_IN}i+w${LEG_NONCOLOR_WIDTH_IN}i -Xa${SHIFT_LEG_NONCOLOR}i ${LEGENDDIR}noncolorbars.eps ${RJOK} ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
       gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}maplegend.ps
@@ -22134,7 +22517,7 @@ function close_legend_item() {
     # Plot the cutframe as we have skipped the PLOT section
 
     gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i -Bltrb --MAP_FRAME_PEN=0.1p,black -O -K >> map.ps
-    gmt psxy -T ${RJSTRING[@]} -K -O ${VERBOSE} >> map.ps
+    gmt psxy -T ${RJSTRING} -K -O ${VERBOSE} >> map.ps
 
     # Create the PDF and name it after the current temporary folder, move to ../
     # thisname=$(pwd | gawk -F/ '{print $(NF)}')
@@ -22249,7 +22632,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
   if [[ -s $EQSTOPLOT ]]; then
     seistimeline_plotted=1
     # Project the earthquake data
-    gmt mapproject ${RJSTRING[@]} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gmt mapproject ${RJSTRING} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
 
     # Match the scaled earthquakes to the projected coordinates and print time, Yval as X,Y coordinates
     gawk '
@@ -22350,7 +22733,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
 
     if [[ $cmtthrustflag -eq 1 ]]; then
 
-      gmt mapproject ${RJSTRING[@]} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
+      gmt mapproject ${RJSTRING} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22375,7 +22758,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
     fi
 
     if [[ $cmtnormalflag -eq 1 ]]; then
-      gmt mapproject ${RJSTRING[@]} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
+      gmt mapproject ${RJSTRING} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22401,7 +22784,7 @@ if [[ $plotseistimeline -eq 1 ]]; then
     fi
 
     if [[ $cmtssflag -eq 1 ]]; then
-      gmt mapproject ${RJSTRING[@]} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
+      gmt mapproject ${RJSTRING} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22460,7 +22843,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
 
   if [[ -s $EQSTOPLOT ]]; then
     # Project the earthquake data
-    gmt mapproject ${RJSTRING[@]} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gmt mapproject ${RJSTRING} $EQSTOPLOT -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
 
     # Match the scaled earthquakes to the projected coordinates and print time, Yval as X,Y coordinates
     gawk '
@@ -22518,7 +22901,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
 
     if [[ $cmtthrustflag -eq 1 ]]; then
 
-      gmt mapproject ${RJSTRING[@]} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
+      gmt mapproject ${RJSTRING} ${CMT_THRUSTPLOT} -i0,1 > ${F_CMT}proj_cmt_thrust.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22538,7 +22921,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
     fi
 
     if [[ $cmtnormalflag -eq 1 ]]; then
-      gmt mapproject ${RJSTRING[@]} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
+      gmt mapproject ${RJSTRING} ${CMT_NORMALPLOT} -i0,1 > ${F_CMT}proj_cmt_normal.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22557,7 +22940,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
     fi
 
     if [[ $cmtssflag -eq 1 ]]; then
-      gmt mapproject ${RJSTRING[@]} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
+      gmt mapproject ${RJSTRING} ${CMT_STRIKESLIPPLOT} -i0,1 > ${F_CMT}proj_cmt_strikeslip.txt
       # Match the CMTs to the projected coordinates and print time, Yval as X,Y coordinates
       # 1   2   3     4   5   6   7   8   9   10  11     12     13       14       15    16        17
       # lon lat depth mrr mtt mff mrt mrf mtf exp altlon altlat event_id altdepth epoch clusterid timecode
@@ -22649,7 +23032,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
       OLD_FORMAT_FLOAT_OUT=$(gmt gmtget FORMAT_FLOAT_OUT -Vn)
       gmt gmtset FORMAT_FLOAT_OUT ${MAP_FORMAT_FLOAT_OUT}
       echo gmt psbasemap "${BSTRING[@]}" -Xa${PANEL_WIDTH}i -BE ${OBFRAMECMD} $RJOK $VERBOSE
-      gmt psbasemap -Bxa -Bya -Xa${PANEL_WIDTH}i -BE ${OBFRAMECMD} ${RJSTRING[@]} -O -K $VERBOSE --MAP_TICK_LENGTH_PRIMARY=6p >> map.ps
+      gmt psbasemap -Bxa -Bya -Xa${PANEL_WIDTH}i -BE ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --MAP_TICK_LENGTH_PRIMARY=6p >> map.ps
       gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
 
     fi
@@ -22684,8 +23067,8 @@ if [[ $plotseisprojflag_x -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
       print -(maxdepth+range/20), -(mindepth-range/10)
     }'))
 
-    echo gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1
-    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    echo gmt mapproject ${RJSTRING} ${F_SEIS}eqs.txt -i0,1
+    gmt mapproject ${RJSTRING} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
 
     gawk '
       (NR==FNR) {
@@ -22786,7 +23169,7 @@ fi
 #     echo Data range is ${GRID_RANGE[@]}
 #
 #   # Project the data points into the Cartesian XY space
-#   gmt mapproject ${RJSTRING[@]} proj_pts.txt > proj_xy.txt
+#   gmt mapproject ${RJSTRING} proj_pts.txt > proj_xy.txt
 #
 #   paste proj_xy.txt proj_stats.txt | tr '\t' ' ' > proj_box.txt
 #   # X Y min q1 median q3 max
@@ -22830,7 +23213,7 @@ if [[ $plotseisprojflag_y -eq 1 && -s ${F_SEIS}eqs_scaled.txt ]]; then
     info_msg "[-seisproj Y]: ${depth_range[0]}/${depth_range[1]}/${MINPROJ_Y}/${MAXPROJ_Y}"
 
 
-    gmt mapproject ${RJSTRING[@]} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
+    gmt mapproject ${RJSTRING} ${F_SEIS}eqs.txt -i0,1 | gawk '{print $1, $2}' > ${F_SEIS}proj_eqs.txt
     gawk '
       (NR==FNR) {
         projx[NR]=$1
@@ -22907,7 +23290,7 @@ done
 #     echo w is ${PS_WIDTH}
 #
 # # -D${LEGEND_ONOFFCODES[$i]}${LEGEND_JUST}+o${shifth}p/${shiftv}p+w${LEG_WIDTH_IN}i${thisJ}
-#     gmt psimage prerotate.png -Dx0/0+w${PS_WIDTH}i ${RJSTRING[@]} -p${ROTATE_ANGLE} > map.ps
+#     gmt psimage prerotate.png -Dx0/0+w${PS_WIDTH}i ${RJSTRING} -p${ROTATE_ANGLE} > map.ps
 #   fi
 
   echo ${COMMAND} > ${MAPOUT}.history
@@ -23030,7 +23413,7 @@ BEGIN {
   print "-R" minlonnew "/" maxlonnew "/" minlatnew "/" maxlatnew
 }')
 
-OBJSTRING=\$(echo ${RJSTRING[@]} | gawk '
+OBJSTRING=\$(echo ${RJSTRING} | gawk '
 {
   for(i=1;i<=NF;i++) {
     if (substr(\$(i),1,2) == "-J") {
@@ -23045,11 +23428,11 @@ DELTAZ_IN=\$(echo "\${OBLIQUE_VEXAG} * ${PSSIZENUM} * (${zrange[1]} - ${zrange[0
 
 if [[ -s map.tif ]]; then
   gmt grdview -Xc -Yc ${TOPOGRAPHY_DATA} -Gmap.tif \${OBRSTRING} \${OBJSTRING} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${GEOTIFFRES} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps
-  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING[@]} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE  ${VERBOSE} > oblique_grid.ps
+  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE  ${VERBOSE} > oblique_grid.ps
   gmt psconvert oblique_tiff.ps -Tf -A+m0.5i --GMT_HISTORY=false ${VERBOSE}
 else
   gmt grdview -Xc -Yc ${TOPOGRAPHY_DATA} -G${COLORED_RELIEF} \${OBRSTRING} \${OBJSTRING} -JZ\${DELTAZ_IN}i ${OBBOXCMD} -Qi\${OBLIQUERES} -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --GMT_HISTORY=false --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique.ps
-  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING[@]} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique_grid.ps
+  [[ "${OBBCOMMAND}" != "" ]] && gmt psbasemap -Xc -Yc ${RJSTRING} ${OBBCOMMAND} -JZ\${DELTAZ_IN}i -p\${OBLIQUEAZ}/\${OBLIQUEINC} --PS_MEDIA=100ix100i --MAP_FRAME_TYPE=$OBBAXISTYPE ${VERBOSE} > oblique_grid.ps
   gmt psconvert oblique.ps -Tf -A+m0.5i --GMT_HISTORY=false ${VERBOSE}
 fi
 
@@ -23064,8 +23447,6 @@ fi
 
 ##### MAKE KML OF MAP
 if [[ $kmlflag -eq 1 ]]; then
-
-  echo RJSTRING="${RJSTRING[@]}"
 
   echo "Creating tiled kml"
 
@@ -23100,13 +23481,6 @@ if [[ $kmlflag -eq 1 ]]; then
       mv $p.new $p
     fi
   done < kmlfiles.txt
-  #
-  # echo "($MAXLON - $MINLON) / $ncols" | bc -l > map.tfw
-  # echo "0" >> map.tfw
-  # echo "0" >> map.tfw
-  # echo "- ($MAXLAT - $MINLAT) / $nrows" | bc -l >> map.tfw
-  # echo "$MINLON" >> map.tfw
-  # echo "$MAXLAT" >> map.tfw
 fi
 
 
@@ -23143,9 +23517,9 @@ fi
 #
 # # data_project.sh lon_col_num lat_col_num
 # echo "#!/bin/bash" > ${F_MAPELEMENTS}data_project.sh
-# for element in ${RJSTRING[@]}; do
+# for element in ${RJSTRING}; do
 #   echo "RJSTRING+=(\"$element\")" >> ${F_MAPELEMENTS}data_project.sh
 # done
-# echo "echo \${RJSTRING[@]}"  >> ${F_MAPELEMENTS}data_project.sh
+# echo "echo \${RJSTRING}"  >> ${F_MAPELEMENTS}data_project.sh
 # echo ""
 exit 0

@@ -98,25 +98,25 @@ function project_point_parallel_wgs84() {
 # args: 1=lon 2=lat 3=xoffset 4=yoffset
 
 function point_map_offset() {
-  echo "$1 $2" | gmt mapproject ${RJSTRING[@]} | gawk -v xoffset=$3 -v yoffset=$4 '{print $1+xoffset/72, $2+yoffset/72}' |  gmt mapproject -I ${RJSTRING[@]}
+  echo "$1 $2" | gmt mapproject ${RJSTRING} | gawk -v xoffset=$3 -v yoffset=$4 '{print $1+xoffset/72, $2+yoffset/72}' |  gmt mapproject -I ${RJSTRING}
 }
 
 # Same as before but rotate by theta degrees, clockwise
 function point_map_offset_rotate_m90() {
-  echo "$1 $2" | gmt mapproject ${RJSTRING[@]} | gawk -v xoffset=$3 -v yoffset=$4 -v theta=$5 '
+  echo "$1 $2" | gmt mapproject ${RJSTRING} | gawk -v xoffset=$3 -v yoffset=$4 -v theta=$5 '
     @include "tectoplot_functions.awk"
     {
       xoff=xoffset*cos(deg2rad(0-theta+90))-yoffset*sin(deg2rad(0-theta+90))
       yoff=xoffset*sin(deg2rad(0-theta+90))+yoffset*cos(deg2rad(0-theta+90))
       print $1+xoff/72, $2+yoff/72
-    }' |  gmt mapproject -I ${RJSTRING[@]}
+    }' |  gmt mapproject -I ${RJSTRING}
 }
 
 # return the azimuth on the map (projected units) between two geographic points
 # args: 1=lon1 2=lat1 3=lon2 4=lat2
 function onmap_angle_between_points() {
-  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING[@]}))
-  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING[@]}))
+  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING}))
+  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING}))
 
   echo ${mapcoords1[@]} ${mapcoords2[@]} | gawk '
   @include "tectoplot_functions.awk"
@@ -127,8 +127,8 @@ function onmap_angle_between_points() {
 
 # args: 1=lon1 2=lat1 3=lon2 4=lat2
 function onmap_distance_between_points() {
-  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING[@]}))
-  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING[@]}))
+  mapcoords1=($(echo "$1 $2" | gmt mapproject ${RJSTRING}))
+  mapcoords2=($(echo "$3 $4" | gmt mapproject ${RJSTRING}))
 
   echo ${mapcoords1[@]} ${mapcoords2[@]} | gawk '
   @include "tectoplot_functions.awk"

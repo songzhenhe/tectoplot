@@ -618,7 +618,7 @@ function tectoplot_plot_gis() {
 
   m_gis_im)
 
-    gmt grdimage ${m_gis_im_file[$tt]} ${m_gis_im_args[$tt]} -Q ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+    gmt grdimage ${m_gis_im_file[$tt]} ${m_gis_im_args[$tt]} -Q ${RJSTRING} -O -K $VERBOSE >> map.ps
 
     tectoplot_plot_caught=1
   ;;

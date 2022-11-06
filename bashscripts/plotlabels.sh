@@ -40,7 +40,7 @@ fi
 if [[ $shiftlabelsflag -eq 1 ]]; then
 
 
-  gmt mapproject ${LABEL_FILE} ${RJSTRING[@]} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > labels.xy
+  gmt mapproject ${LABEL_FILE} ${RJSTRING} -Dp -i0,1 | gawk 'BEGIN{OFS="\t"} { print $1, $2 }' > labels.xy
   paste labels.xy ${LABEL_FILE} > labels.combined
 
   python ${SHIFTLABELS} labels.combined ${LABEL_WIDTH_P} ${LABEL_HEIGHT_P} ${LABEL_DIST_P} ${LABEL_FONTSIZE_P}

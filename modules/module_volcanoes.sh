@@ -121,7 +121,7 @@ function tectoplot_calculate_volcanoes()  {
     # }' >> ${F_VOLC}volcanoes.dat
 
     # Map region select
-    select_in_gmt_map ${F_VOLC}volcanoes.dat ${RJSTRING[@]}
+    select_in_gmt_map ${F_VOLC}volcanoes.dat ${RJSTRING}
 
     # Polygon select
     if [[ $polygonselectflag -eq 1 ]]; then

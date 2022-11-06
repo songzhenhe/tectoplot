@@ -72,7 +72,7 @@ if [[ $makeplyflag -eq 1 ]]; then
           #   print longitude, latitude
           # }
         }
-      }' | gmt gmtselect ${RJSTRING[@]} ${VERBOSE} > ${F_3D}ply_gridfile.txt
+      }' | gmt gmtselect ${RJSTRING} ${VERBOSE} > ${F_3D}ply_gridfile.txt
 
   numsurfpts=$(wc -l < ${F_3D}ply_gridfile.txt | gawk '{print $1}')
 cat <<-EOF > ${F_3D}tectoplot_surface.ply

@@ -21,7 +21,6 @@ function tectoplot_defaults_srcmod() {
   SLIPMINIMUM=3                # SRCMOD minimum slip that is colored (m)
   SLIPMINPCT=10                # SLIPMIN=SLIPMINPCT*SLIP"MAX
   SLIPMAXIMUM=25               # SRCMOD maximum slip that is colored (m)
-  SLIPCONTOURINTERVAL=2        # SRCMOD contour interval (m)
 
   SLIPRESOL=300
   SRCMOD_TRANS=40
@@ -36,83 +35,42 @@ function tectoplot_args_srcmod()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-    -s) # args: none
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--s:            plot earthquake slip data from SRCMOD
--s [[arguments]]
+  -s)
 
-  arguments:
-  update        Try to update SRCMOD catalog of events
-  all           Plot all events within AOI
-  nogrid        Only plot slip contours
-  *             Any other strings are used to filter events based on ID info
-
-  This function has not been tested in a loooooong time!
-
-Example: None
---------------------------------------------------------------------------------
+  cat <<-EOF > s
+des -s plot earthquake slip data from SRCMOD
+opn update m_srcmod_s_update flag 0
+    try to update SRCMOD catalog
+opt all m_srcmod_s_all flag 0
+    plot all SRCMOD events within AOI
+opt nogrid m_srcmod_s_nogrid flag 0
+    do not plot the grid raster
+opt id m_srcmod_s_filter string "none"
+    strings that are used to filter events based on ID info
+opt strike m_srcmod_s_strike float -9999
+    plot slip vectors relative to the specified strike direction
+opt strike m_srcmod_s_dip float -9999
+    plot slip vectors relative to the specified dip value
+opt int m_srcmod_s_int float 2
+    contour interval for drawn contours
+opt min m_srcmod_s_min float 3
+    minimum slip magnitude that is considered for plotting contours/grid
+opt max m_srcmod_s_max float 25
+    maximum slip magnitude that is considered for CPT
+exa tectoplot -r JP -s
 EOF
-  fi
 
-    shift
+  if [[ $USAGEFLAG -eq 1 ]]; then
+    tectoplot_usage_opts s
+  else
+    tectoplot_get_opts s "${@}"
 
-    updatesrcmod=0
-
-    while ! arg_is_flag $1; do
-      case $1 in
-        update)
-          updatesrcmod=1
-          shift
-          ((tectoplot_module_shift++))
-          ;;
-        all)
-          allsrcmod=1
-          shift
-          ((tectoplot_module_shift++))
-          ;;
-        vec)
-          srcmodrakeflag=1
-          shift
-          ((tectoplot_module_shift++))
-          if ! arg_is_float $1; then
-            echo "[-s]: option vec requires strike/dip values to interpret rake data. This will apply to all selected earthquakes!"
-            exit 1
-          else
-            SRCMOD_STRIKE=$1
-            shift
-            ((tectoplot_module_shift++))
-            if ! arg_is_float $1; then
-              echo "[-s]: option vec requires strike/dip values to interpret rake data. This will apply to all selected earthquakes!"
-              exit 1
-            else
-              SRCMOD_DIP=$1
-              shift
-              ((tectoplot_module_shift++))
-            fi
-          fi
-          ;;
-        nogrid)
-          shift
-          ((tectoplot_module_shift++))
-          SRCMOD_NOGRID=1
-          ;;
-        *)
-          # Assume this is a grep target
-          srcmodgrep+=("$1")
-          shift
-          ((tectoplot_module_shift++))
-          ;;
-        esac
-    done
-
-		info_msg "[-s]: Plotting SRCMOD fused slip data"
-		plots+=("srcmod")
-    cpts+=("srcmod")
-    echo $SRCMOD_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-    echo $SRCMOD_SOURCESTRING >> ${LONGSOURCES}
+    plots+=("m_srcmod_s")
+    cpts+=("m_srcmod_s")
 
     tectoplot_module_caught=1
+  fi
+
     ;;
 
   esac
@@ -125,7 +83,7 @@ function tectoplot_calculate_srcmod()  {
 
   # SRCMOD updates with a new ZIP file name every time.... yaaay
 
-  if [[ $updatesrcmod -eq 1 ]]; then
+  if [[ $m_srcmod_s_update -eq 1 ]]; then
 
     if URL="http://equake-rc.info"$(curl http://equake-rc.info/SRCMOD/download/ | grep ">FSP files " | gawk -F\" '{print $2}'); then
       local oldurl=$(head -n 1 ${SRCMODFSPFOLDER}oldurl.txt)
@@ -169,15 +127,19 @@ function tectoplot_calculate_srcmod()  {
 }
 
 function tectoplot_cpt_srcmod() {
-  touch $FAULTSLIP_CPT
-  FAULTSLIP_CPT=$(abs_path $FAULTSLIP_CPT)
-  gmt makecpt -Chot -I -Do -T0/$SLIPMAXIMUM/0.1 -N $VERBOSE > $FAULTSLIP_CPT
+  gmt makecpt -Chot -I -Do -T0/${m_srcmod_s_max[$tt]}/0.1 -N $VERBOSE > ${F_CPTS}faultslip.cpt
 }
 
 function tectoplot_plot_srcmod() {
 
   case $1 in
-  srcmod)
+  m_srcmod_s)
+
+    if [[ ${m_srcmod_s_strike[$tt]} -ne -9999 && ${m_srcmod_s_dip[$tt]} -ne -9999 ]]; then
+      srcmodrakeflag=1
+    else
+      srcmodrakeflag=0
+    fi
 
     ##########################################################################################
     # Calculate and plot a 'fused' large earthquake slip distribution from SRCMOD events
@@ -204,7 +166,7 @@ function tectoplot_plot_srcmod() {
       gawk < $SRCMODFSPLOCATIONS -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" '
       @include "tectoplot_functions.awk"
       {
-        if (test_lon(minlon, maxlon, $1) && ($2 < maxlat-1) && ($2 > minlat+1)) {
+        if (test_lon(minlon, maxlon, $1) && ($2 < maxlat) && ($2 > minlat)) {
           print $3
         }
       }' > srcmod_eqs.txt
@@ -228,7 +190,7 @@ function tectoplot_plot_srcmod() {
     if [[ ${#v[@]} -gt 0 ]]; then
 
       # If we are plotting all, populate the array
-      if [[ $allsrcmod -eq 1 ]]; then
+      if [[ ${m_srcmod_s_all[$tt]} -eq 1 ]]; then
         responsearr=($(seq 0 $(echo "${#v[@]}-1" | bc)))
       else
         # Otherwise, check each potential earthquake for match to a grepstring
@@ -269,7 +231,7 @@ function tectoplot_plot_srcmod() {
         grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk  '{print $2, $1, $6}' > temp1.xyz
 
         if [[ $srcmodrakeflag -eq 1 ]]; then
-          grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk -v strike=${SRCMOD_STRIKE} -v dip=${SRCMOD_DIP} '
+          grep "^[^%;]" "$SRCMODFSPFOLDER"${v[$thiseq]} | gawk -v strike=${m_srcmod_s_strike[$tt]} -v dip=${m_srcmod_s_dip[$tt]} '
             @include "tectoplot_functions.awk"
             {
               rake=$7
@@ -289,31 +251,19 @@ function tectoplot_plot_srcmod() {
         gmt blockmean temp1.xyz -I"$LONKM"k $VERBOSE -R > temp.xyz
         gmt triangulate temp.xyz -I"$LONKM"k -Gtemp2.nc -R $VERBOSE
         gmt surface temp.xyz -Ll0 -Gtemp.nc -Rtemp2.nc $VERBOSE
-        gmt grdmath $VERBOSE temp2.nc $SLIPMINIMUM LE 1 NAN = mask.grd
+        gmt grdmath $VERBOSE temp2.nc ${m_srcmod_s_min[$tt]} LE 1 NAN = mask.grd
         gmt grdmath $VERBOSE temp.nc mask.grd OR = slipfinal.grd
-        if [[ $SRCMOD_NOGRID -eq 0 ]]; then
-          gmt grdimage slipfinal.grd ${RJSTRING[@]} -C$FAULTSLIP_CPT -t${SRCMOD_TRANS} -Q -O -K $VERBOSE >> map.ps
+        if [[ ${m_srcmod_s_nogrid[$tt]} -eq 0 ]]; then
+          gmt grdimage slipfinal.grd ${RJSTRING} -C${F_CPTS}faultslip.cpt -t${SRCMOD_TRANS} -Q -O -K $VERBOSE >> map.ps
         fi
-        gmt grdcontour slipfinal.grd -A5 -S3 -C$SLIPCONTOURINTERVAL ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+        gmt grdcontour slipfinal.grd -A5 -S3 -C${m_srcmod_s_int[$tt]} ${RJSTRING} -O -K $VERBOSE >> map.ps
         if [[ $srcmodrakeflag -eq 1 ]]; then
-          gmt psxy temp1sliprake.xyz -Gblack -SV0.05i+jb+e -W0.5p,black ${RJSTRING[@]} -O -K $VERBOSE >> map.ps
+          gmt psxy temp1sliprake.xyz -Gblack -SV0.05i+jb+e -W0.5p,black ${RJSTRING} -O -K $VERBOSE >> map.ps
         fi
-      done
+        echo $SRCMOD_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+        echo $SRCMOD_SOURCESTRING >> ${LONGSOURCES}
 
-      # Leftovers from the old 'fused' style
-      # if [[ -e slip2.nc ]]; then
-      #   gmt grdmath $VERBOSE slip.nc $SLIPMINIMUM GT slip.nc MUL = slipfinal.grd
-      #   gmt grdmath $VERBOSE slip.nc $SLIPMINIMUM LE 1 NAN = mask.grd
-      #   #This takes the logical grid file from the previous step (mask.grd)
-      #   #and replaces all of the 1s with the original conductivities from interpolated.grd
-      #   gmt grdmath $VERBOSE slip.nc mask.grd OR = slipfinal.grd
-      #   gmt grdimage slipfinal.grd -R$MINLON/$MAXLON/$MINLAT/$MAXLAT -C$FAULTSLIP_CPT -t40 -Q -J -O -K $VERBOSE >> map.ps
-      #   gmt grdcontour slipfinal.grd -C$SLIPCONTOURINTERVAL $RJOK $VERBOSE >> map.ps
-      # fi
-      #
-      # gmt grdmath $VERBOSE temp.nc ISNAN 0 temp.nc IFELSE = slip2.nc
-      # gmt grdmath $VERBOSE slip2.nc slip.nc MAX = slip3.nc
-      # mv slip3.nc slip.nc
+      done
 
     fi
     tectoplot_plot_caught=1
@@ -324,9 +274,9 @@ function tectoplot_plot_srcmod() {
 
 function tectoplot_legendbar_srcmod() {
   case $1 in
-    srcmod)
+    m_srcmod_s)
       echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
-      echo "B $FAULTSLIP_CPT 0.2i 0.1i+malu -Bxa5f1+l\"Slip (m)\"" >>${LEGENDDIR}legendbars.txt
+      echo "B ${F_CPTS}faultslip.cpt 0.2i 0.1i+malu -Bxa5f1+l\"Slip (m)\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;
@@ -335,7 +285,7 @@ function tectoplot_legendbar_srcmod() {
 
 # function tectoplot_legend_srcmod() {
 #   # Create a new blank map with the same -R -J as our main map
-#   gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > srcmod.ps
+#   gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > srcmod.ps
 #
 #   echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -Xa0.35i -S${CITIES_SYMBOL}${CITIES_SYMBOL_SIZE} -W${CITIES_SYMBOL_LINEWIDTH},${CITIES_SYMBOL_LINECOLOR} -C$POPULATION_CPT $RJOK $VERBOSE >> srcmod.ps
 #   echo "${CENTERLON} ${CENTERLAT} City > ${CITIES_MINPOP}" | gmt pstext -Y0.15i -F+f${CITIES_LABEL_FONTSIZE},${CITIES_LABEL_FONT},${CITIES_LABEL_FONTCOLOR}+jLM -R -J -O $VERBOSE >> srcmod.ps

@@ -160,7 +160,7 @@ function tectoplot_legend_example() {
   case $1 in
   example)
     # Create a new blank map with the same -R -J as our main map
-    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING[@]} > volcanoes.ps
+    gmt psxy -T -X0i -Yc $OVERLAY $VERBOSE -K ${RJSTRING} > volcanoes.ps
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
     echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> volcanoes.ps
