@@ -43,9 +43,9 @@ cur_vertex=0
 cur_x=0
 kern=0.1
 
+# Letters are output from Blender but I forgot what I did!
 
-echo "textobj.sh ${FONT_OBJ_DIR} ${OUTPUT_FILE} ${TEXTSTRING}"
-
+# echo "textobj.sh ${FONT_OBJ_DIR} ${OUTPUT_FILE} ${TEXTSTRING}"
 
 for (( i=0; i<${#TEXTSTRING}; i++ )); do
   thisletter="${TEXTSTRING:$i:1}"
@@ -62,6 +62,9 @@ for (( i=0; i<${#TEXTSTRING}; i++ )); do
     [:])
       objfile="colon.obj"
       ;;
+    [.])
+      objfile="period.obj"
+      ;;
     [-])
       objfile="dash.obj"
       ;;
@@ -70,6 +73,12 @@ for (( i=0; i<${#TEXTSTRING}; i++ )); do
     ;;
     [\ ])
       objfile="space.obj"
+      ;;
+    [\(])
+      objfile="leftparen.obj"
+      ;;
+    [\)])
+      objfile="rightparen.obj"
       ;;
   esac
   case $thisletter in
@@ -113,6 +122,9 @@ for (( i=0; i<${#TEXTSTRING}; i++ )); do
     /) width=0.274 ;;
     -) width=0.283 ;;
     [\ ]) width=0.3 ;;
+    [\)]) width=0.298826 ;;
+    [\(]) width=0.311000 ;;
+    [\.]) width=0.169000 ;;
     a) width=0.411000 ;;
     b) width=0.466000 ;;
     c) width=0.403000 ;;
@@ -151,15 +163,35 @@ for (( i=0; i<${#TEXTSTRING}; i++ )); do
       rm -f ./cur_vertex.txt
       # echo  "gawk \< ${FONT_OBJ_DIR}${objfile} -v cur_x=${cur_x} -v cur_vertex=${cur_vertex}"
 
-      gawk < ${FONT_OBJ_DIR}${objfile} -v cur_x=${cur_x} -v cur_vertex=${cur_vertex} '
+      gawk < ${FONT_OBJ_DIR}${objfile} -v cur_x=${cur_x} -v cur_vertex=${cur_vertex} -v thetarot=-90 '
+      @include "tectoplot_functions.awk"
       BEGIN {
+        OFMT="%.12f"
         this_index=0
+        thetarad=deg2rad(thetarot)
       }
       {
         if ($1=="v") {
+
+          # letters have yval=0
+
           this_index++
-          $2=$2+cur_x
-          print $0
+          xval=$2
+          yval=$4*sin(thetarad)
+          zval=$4*cos(thetarad)
+
+          # xoff=depth*sin(theta)*cos(phi)
+          # yoff=depth*sin(theta)*sin(phi)
+          # zoff=depth*cos(theta)
+
+          # Offset the letter in space
+          # $2=xval+cur_x
+
+
+          # print $0
+          # print "v", $2+cur_x, $4, $3
+
+          print "v", xval+cur_x, yval, zval
         } else if ($1=="f") {
           split($2,f1,"/")
           split($3,f2,"/")

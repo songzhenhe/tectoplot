@@ -3,9 +3,10 @@ TECTOPLOT_MODULES+=("kostrov")
 
 # Geological data (ocean age, transform fault, etc.)
 
+# NEW OPTS
 
 function tectoplot_defaults_kostrov() {
-  KOSTOROV_WIDTH=1   # Width/height of cells
+  KOSTROV_WIDTH=1   # Width/height of cells
 }
 
 function tectoplot_args_kostrov()  {
@@ -17,25 +18,12 @@ function tectoplot_args_kostrov()  {
   case "${1}" in
 
   -kostrov)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--kostrov:         Do Kostorov summation of focal mechanisms
--kostrov [[cell_width=${KOSTOROV_WIDTH}]]
-
-  Replaces focal mechanisms with Kostorov sum located at bin center
-
-Example:
---------------------------------------------------------------------------------
-EOF
-fi
-  shift
-
-  if arg_is_positive_float $1; then
-    KOSTOROV_WIDTH=${1}
-    shift
-    ((tectoplot_module_shift++))
-  fi
-  tectoplot_module_caught=1
+  tectoplot_get_opts_inline '
+des -kostrov perform Kostrov summation of focal mechanisms
+opt width m_kostrov_width float 1
+  width/height of each cell (degrees)
+mes results are stored in ${F_CMT}kostrov_final.txt in psmeca -Sm format
+' "${@}" || return
   ;;
   esac
 
@@ -47,8 +35,7 @@ function tectoplot_calculate_kostrov()  {
 
   if [[ -s ${CMTFILE} ]]; then
 
-    echo "Doing Kostorov sum:"
-    gawk < ${CMTFILE} -v gridsize=${KOSTOROV_WIDTH} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v cmttype=${CMTTYPE} '
+    gawk < ${CMTFILE} -v gridsize=${KOSTROV_WIDTH} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} -v cmttype=${CMTTYPE} '
       @include "tectoplot_functions.awk"
       {
         if (cmttype=="ORIGIN") {
@@ -104,9 +91,6 @@ function tectoplot_calculate_kostrov()  {
         CMTSWITCH=""
       fi
       ${CMTSLURP} ${F_CMT}kostrov_moment.txt m K ${CMTSWITCH} > ${F_CMT}kostrov_final.txt
-      if [[ -s ${F_CMT}custom_cmt_${this_customcmtnum}.txt ]]; then
-        CMTFILE=$(abs_path ${F_CMT}kostrov_final.txt)
-      fi
     fi
   fi
 

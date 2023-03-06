@@ -1,15 +1,12 @@
 
 TECTOPLOT_MODULES+=("seistime")
 
-# EXPECTS THESE VARIABLES TO BE SET
-# zcclusterflag : flag to plot colors by cluster ID
-# SEIS_CPT      : CPT for plotting seismicity
+# NEW OPTS
 
 function tectoplot_defaults_seistime() {
-  SEISTIME_H_SIZE="7i"
-  SEISTIME_V_SIZE="2i"
+  m_seistime_width="7i"
+  m_seistime_height="2i"
 }
-
 
 function tectoplot_args_seistime()  {
   # The following line is required for all modules
@@ -18,91 +15,27 @@ function tectoplot_args_seistime()  {
 
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
+
   -seistime)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_seistime.sh
--seistime:     create a seismicity vs. time plot, colored by depth OR cluster
--seistime
-
-  plotdim [h_inch] [v_inch]             Set dimension of plot
-  magrange [min_mag] [max_mag]          Use fixed magnitude range
-  timerange [min_time] [max_time]       Use fixed time range
-
-
-  Output is seistime.pdf
-  fixscale: use fixed 0 to 10 magnitude scale
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-    shift
-
-    while ! arg_is_flag "${1}"; do
-      case "${1}" in
-        onmap)
-          shift
-          ((tectoplot_module_shift++))
-          seistime_onmap=1
-        ;;
-        plotdim)
-          shift
-          ((tectoplot_module_shift++))
-
-          if ! arg_is_flag "${1}"; then
-            SEISTIME_H_SIZE="${1}"
-            shift
-            ((tectoplot_module_shift++))
-          fi
-          if ! arg_is_flag "${1}"; then
-            SEISTIME_V_SIZE="${1}"
-            shift
-            ((tectoplot_module_shift++))
-          fi
-        ;;
-        magrange)
-          shift
-          ((tectoplot_module_shift++))
-
-          if arg_is_float "${1}"; then
-            seistimefixminz=1
-            seistimeminz="${1}"
-            ((tectoplot_module_shift++))
-            shift
-          fi
-          if arg_is_float "${1}"; then
-            seistimefixmaxz=1
-            seistimemaxz="${1}"
-            ((tectoplot_module_shift++))
-            shift
-          fi
-        ;;
-
-        timerange)
-          shift
-          ((tectoplot_module_shift++))
-          if ! arg_is_flag "${1}"; then
-            seistimefixminx=1
-            seistimeminx="${1}"
-            ((tectoplot_module_shift++))
-            shift
-          fi
-          if ! arg_is_flag "${1}"; then
-            seistimefixmaxx=1
-            seistimemaxx="${1}"
-            ((tectoplot_module_shift++))
-            shift
-          fi
-        ;;
-        addcmt)
-          echo "Adding CMT data"
-        ;;
-      esac
-    done
+  tectoplot_get_opts_inline '
+des -seistime create a seismicity vs time plot
+opn width m_seistime_width word "7i"
+  width of plot in inches
+opn height m_seistime_height word "2i"
+  height of plot in inches
+opn minmag m_seistime_minmag word "auto"
+  minimum magnitude
+opn maxmag m_seistime_maxmag word "auto"
+  maximum magnitude
+opn mintime m_seistime_mintime word "auto"
+  start time, ISO8601 format
+opn maxtime m_seistime_maxtime word "auto"
+  end time, ISO8601 format
+opn onmap m_seistime_onmapflag flag 0
+  place timeline onto map below map frame
+' "${@}" || return
+  echo here
     doseistimeflag=1
-    tectoplot_module_caught=1
-
     ;;
   esac
 }
@@ -146,61 +79,54 @@ function tectoplot_post_seistime() {
       # Default source file
       SEISTIMEFILE=${F_SEIS}eqs.txt
 
-      if [[ $SCALEEQS -eq 1 ]]; then
-
-        # We actually need to combine the eqs.txt and eqs_scaled.txt so
-        # we can plot the true magnitude on the y-axis but scale the same
-        # as the map.
-
-
-        if [[ $zctimeflag -eq 1 ]]; then
-          SEIS_INPUTORDER="-i4,3,6,3+s0.015"
-          SEIS_CPT=${F_CPTS}"eqtime.cpt"
-
-        elif [[ $zcclusterflag -eq 1 ]]; then
-          SEIS_INPUTORDER="-i4,3,7,3+s0.015"
-          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
-        else
-          # SEIS_INPUTORDER="-i4,3,2,3+s0.015"
-          SEIS_CPT=$SEISDEPTH_CPT
-          gawk < ${F_SEIS}eqs.txt '{ print $5, $4, $3 }' > seistime.cut1
-          gawk < ${F_SEIS}eqs_scaled.txt '{ print $4 }' > seistime.cut2
-          paste seistime.cut1 seistime.cut2 > seistime.merged
-          SEISTIMEFILE="seistime.merged"
-          SEIS_INPUTORDER="-i0,1,2,3+s0.03"
-
-        fi
-      else
-        if [[ $zctimeflag -eq 1 ]]; then
-          SEIS_INPUTORDER="-i4,3,6"
-          SEIS_CPT=${F_CPTS}"eqtime.cpt"
-        elif [[ $zcclusterflag -eq 1 ]]; then
-          SEIS_INPUTORDER="-i4,3,7"
-          SEIS_CPT=${F_CPTS}"eqcluster.cpt"
-        else
-          SEIS_INPUTORDER="-i4,3,2"
-          SEIS_CPT=$SEISDEPTH_CPT
-        fi
+      if [[ $m_seistime_minmag == "auto" ]]; then
+        m_seistime_minmag=${date_and_mag_range[2]}
+      fi
+      if [[ $m_seistime_maxmag == "auto" ]]; then
+        m_seistime_maxmag=${date_and_mag_range[3]}
+      fi
+      if [[ $m_seistime_mintime == "auto" ]]; then
+        m_seistime_mintime=${date_and_mag_range[0]}
+      fi
+      if [[ $m_seistime_maxtime == "auto" ]]; then
+        m_seistime_maxtime=${date_and_mag_range[1]}
+      elif [[ $m_seistime_maxtime == "now" ]]; then
+        m_seistime_maxtime=$(date -u +%s)
       fi
 
-      [[ $seistimefixminx -eq 1 ]] && date_and_mag_range[0]=$seistimeminx
-      [[ $seistimefixmaxx -eq 1 ]] && date_and_mag_range[1]=$seistimemaxx
 
-      [[ $seistimefixminz -eq 1 ]] && date_and_mag_range[2]=$seistimeminz
-      [[ $seistimefixmaxz -eq 1 ]] && date_and_mag_range[3]=$seistimemaxz
+      cp ${F_SEIS}eqs.txt ${F_SEIS}seistimeline.txt
 
-      # gmt gmtset PS_MEDIA 100ix100i
-      if [[ $SCALEEQS -eq 1 ]]; then
-        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} ${VERBOSE} --GMT_HISTORY=false -K > seistime.ps
-      else
-        gmt psxy ${SEISTIMEFILE} ${SEIS_INPUTORDER} -t${SEISTRANS} -R${date_and_mag_range[0]}/${date_and_mag_range[1]}/${date_and_mag_range[2]}/${date_and_mag_range[3]} ${EQWCOM} -Sc${SEISSCALE}  -C${SEIS_CPT} -JX${SEISTIME_H_SIZE}T/${SEISTIME_V_SIZE} --GMT_HISTORY=false -K ${VERBOSE} > seistime.ps
+      if [[ -s ${F_CMT}usgs_foc.cat ]]; then
+        gawk < ${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3}' >> ${F_SEIS}seistimeline.txt
+        # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> seistime.ps
+      fi
+      if [[ -s ${F_CMT}cmt_global_aoi.dat ]]; then
+        gawk < ${F_CMT}cmt_global_aoi.dat -v cent=${CENTROIDFLAG} '
+          {
+            if (cent==1) {
+              lon=$5
+              lat=$6
+              depth=$7
+            } else {
+              lon=$8
+              lat=$9
+              depth=$10
+            }
+            print lon, lat, depth, $13, $3, $2, $4
+          }' >> ${F_SEIS}seistimeline.txt
+        # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> seistime.ps
       fi
 
-      gmt psbasemap -R -J -Bpaf -BtrSW -Bx+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p --GMT_HISTORY=false >>  seistime.ps
+      cat ${F_SEIS}seistimeline.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > seistime.ps
+
+
+      gmt psbasemap -R -J -Bpxa6Hf1h -Bsxa1D -BtrSW -Bxaf -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=12p --FORMAT_DATE_MAP="o dd" --FORMAT_CLOCK_MAP="hh:mm" --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  seistime.ps
+      # gmt psbasemap -R -J -Bxaf+sD -BtrSW -Bxaf+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p --GMT_HISTORY=false >>  seistime.ps
 
       gmt psconvert seistime.ps -Tf -A+m0.5i
 
-      if [[ $seistime_onmap -eq 1 ]]; then
+      if [[ ${m_seistime_onmapflag} -eq 1 ]]; then
 
         # Expects the variable PS_HEIGHT_IN to contain the current vertical offset below the map
         # origin to allow concatenation of figure parts below the map.
@@ -214,7 +140,6 @@ function tectoplot_post_seistime() {
         # Set PS_HEIGHT_IN so another module can concatenate a panel
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
-
   fi
 
 }

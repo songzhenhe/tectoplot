@@ -2,19 +2,16 @@
 TECTOPLOT_MODULES+=("cities")
 
 # UPDATED
+# DOWNLOAD
+# NEW OPT
 
 function tectoplot_defaults_cities() {
 
-  m_cities_sourcestring="City data from geonames (CC-BY)"
-  m_cities_short_sourcestring="geonames"
-
-  m_cities_dir=$DATAROOT"WorldCities/"
-  m_cities_500=$m_cities_dir"cities500.txt"
-  CITIES=$m_cities_dir"geonames_cities_500.txt"
-  m_cities_sourceurl="http://download.geonames.org/export/dump/cities500.zip"
-  m_cities_zip_bytes="10353983"
-  m_cities_bytes="31818630"
-
+  m_cities_sourcestring="City data from OpenStreetmap (CC-BY)"
+  m_cities_short_sourcestring="OSM"
+  m_cities_dir="${DATAROOT}OpenStreetmap/"
+  m_cities_osm="${m_cities_dir}osm_places.gpkg"
+  m_cities_font="Arial,bold"
   m_cities_default_minpop=500000
 }
 
@@ -27,80 +24,79 @@ function tectoplot_args_cities()  {
   case "${1}" in
 
   -pp)
-  cat <<-EOF > pp
+  tectoplot_get_opts_inline '
 des -pp plot locations of populated places (cities)
 opt min m_cities_minpop float ${m_cities_default_minpop}
     minimum population of plotted cities
 opt max m_cities_maxpop float 0
     maximum population of plotted cities
-opt cpt m_cities_cpt cpt gray
+opt cpt m_cities_cpt cpt "none"
     CPT for coloring city shapes
 opt label m_cities_labelmin float 10000000000
     label cities larger than specified population
-opt font m_cities_font string "8p,Helvetica,black"
-    font for city labels
+opt font m_cities_font string "Helvetica"
+    font for city labels, as a name recognizable by fontconfig
+opt fontscale m_cities_psfontscale float 1
+    set scale factor for city labels
 opt symbol m_cities_symbol string "c"
     symbol code for city points
 opt size m_cities_size string "0.1i"
     size of city points
 opt fill m_cities_fill string "none"
     color for symbol fill if CPT not used
-opt string m_cities_stroke string "0.25p,black"
+opt stroke m_cities_stroke string "0.25p,black"
     stroke definition for city symbols
+opt trans m_cities_trans float 0
+    transparency of labels (text OR tiff)
 opt bin m_cities_bin float 0
     hexagonal bin size for plotting only largest cities within cells
-mes Populated places data
+opt plaintext m_cities_plaintext flag 0
+    use GMT pstext to plot ASCII city names, if available
+opt gmtfont m_cities_gmtfont string "8p,Helvetica,black"
+    font for tiff rendering
+opt noclip m_cities_noclip flag 0
+    do not clip city labels at map boundaries (GMT text only)
+opt tiff m_cities_tiffflag flag 0
+    use gnuplot to plot UTF8 names, rendered as a transparent GeoTIFF overlay
+opt lang m_cities_language word "none"
+    select an alternative name based on a language string (e.g. el for Modern Greek)
+opt only m_cities_langonlyflag flag 0
+    only select cities that have a name in the specified language (lang option)
+opt just m_cities_just word "left"
+    set justification for tiff map labels (left, right, center)
+mes By default, uses gnuplot to create an EPS layer with UTF8 fonts that GMT
+mes does not support. For plain GMT text, use the plaintext option which will
+mes filter cities that (hopefully) have ASCII names plottable by GMT.
 mes URL: ${m_cities_sourceurl}
 exa tectoplot -r =EU -a -pp min 500000
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts pp
-  else
-    tectoplot_get_opts pp "${@}"
-
-    plots+=("m_cities_pp")
-    cpts+=("m_cities_pp")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_cities_pp")
+  cpts+=("m_cities_pp")
   ;;
 
   esac
 }
 
-# We download the relevant data in the _calculate_ function as this is the first time we should
-# be accessing the data itself.
+function tectoplot_download_cities() {
 
-function tectoplot_calculate_cities()  {
-
-  if [[ ! -s $CITIES ]]; then
-
-    read -r -p "Geonames city data not downloaded: download now? (enter for y) [y|n] " response
-
-    case $response in
-      Y|y|yes|"")
-        if check_and_download_dataset "Geonames-Cities" $m_cities_sourceurl "yes" $m_cities_dir $m_cities_500 $m_cities_dir"data.zip" "none" "none"; then
-          info_msg "Processing cities data to correct format"
-          gawk  < $m_cities_dir"cities500.txt" -F'\t' '{print $6 "," $5 "," $2 "," $15}' > $CITIES
-        else
-          info_msg "Cities data could not be downloaded"
-          return 0
-        fi
-      ;;
-      N|n|*)
-        return 0
-      ;;
-    esac
-
-  fi
+  check_and_download_dataset "${m_cities_sourceurl}" "${m_cities_dir}" "${m_cities_checkfile}"
 
 }
 
+# function tectoplot_calculate_cities()  {
+#
+#
+# }
+
 function tectoplot_cpt_cities() {
+
   case $1 in
   m_cities_pp)
+
+    if [[ ${m_cities_cpt[$tt]} == "none" && ${m_cities_fill[$tt]} == "none" ]]; then
+      m_cities_fill[$tt]="white"
+    fi
 
     m_cities_maxcpt=${m_cities_maxpop[$tt]}
     if [[ $(echo "(${m_cities_minpop[$tt]} == ${m_cities_default_minpop}) && (${m_cities_maxpop[$tt]} != 0)" | bc -l) -eq 1 ]]; then
@@ -113,14 +109,14 @@ function tectoplot_cpt_cities() {
       m_cities_maxcpt=1000000
     fi
 
-    gmt makecpt -C${m_cities_cpt[$tt]} -I -Do -T${m_cities_minpop[$tt]}/${m_cities_maxcpt} -Z -N $VERBOSE > ${F_CPTS}population_${tt}.cpt
-    m_cities_cpt_used[$tt]=${F_CPTS}population_${tt}.cpt
 
     if [[ ${m_cities_fill[$tt]} != "none" ]]; then
        m_cities_fillcmd[$tt]="-G${m_cities_fill[$tt]}"
        m_cities_cpt[$tt]="none"
     else
       m_cities_fillcmd[$tt]="-C${m_cities_cpt_used[$tt]}"
+      gmt makecpt -C${m_cities_cpt[$tt]} -I -Do -T${m_cities_minpop[$tt]}/${m_cities_maxcpt} -Z -N $VERBOSE > ${F_CPTS}population_${tt}.cpt
+      m_cities_cpt_used[$tt]=${F_CPTS}population_${tt}.cpt
     fi
 
     tectoplot_cpt_caught=1
@@ -130,82 +126,441 @@ function tectoplot_cpt_cities() {
 
 function tectoplot_plot_cities() {
   case $1 in
+    # m_cities_pd)
+    # echo "[-pd]: Plotting cities and place names downloaded from geonames"
+    #
+    # echo curl "http://api.geonames.org/citiesJSON?north=${MAXLAT}&south=${MINLAT}&east=${MAXLON}&west=${MINLON}&lang=en&username=tectoplot"
+    # curl "http://api.geonames.org/citiesJSON?north=${MAXLAT}&south=${MINLAT}&east=${MAXLON}&west=${MINLON}&lang=en&username=tectoplot" > geonames.json
+    # tectoplot_plot_caught=1
+    #
+    # ;;
+    #
+
     m_cities_pp)
-
-
 
     info_msg "[-pp]: Plotting cities with minimum population ${m_cities_minpop[$tt]} and maximum population ${m_cities_maxpop[$tt]}"
 
-    gawk < $CITIES -F, -v minpop=${m_cities_minpop[$tt]} -v maxpop=${m_cities_maxpop[$tt]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON"  '
-      BEGIN {
-        OFS=","
-        maxpop=(maxpop==0)?100000000:maxpop
-      }
-      ((($1 <= maxlon && $1 >= minlon) || ($1+360 <= maxlon && $1+360 >= minlon)) && $2 >= minlat && $2 <= maxlat && $4>=minpop && $4<=maxpop) {
-          print $1 "\t" $2 "\t" $3 "\t" $4
-      }' > cities_${tt}.dat
+    # select all populated places within area, over the minimum population, sorted by population with largest cities last
 
+    if [[ -s ${m_cities_osm} ]]; then
+      ogr2ogr -f "GPKG" -dialect sqlite -spat ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} osm_selected.gpkg ${m_cities_osm}
+      ogr2ogr -f "CSV" -dialect sqlite -lco SEPARATOR=TAB -sql "SELECT lon, lat, name, englishname, CAST(allnames as VARCHAR), population FROM osm_places WHERE population >= '${m_cities_minpop[$tt]}' AND population <= '${m_cities_maxpop[$tt]}' ORDER BY population" osm_selected.csv osm_selected.gpkg
+    else
+      echo "City data file ${m_cities_osm} not found... attempting to download data from overpass-api.de" 
+        # echo "Trying to get OSM populated place data"
+      # curl --output textcities.csv  "https://overpass-api.de/api/interpreter?data=%5Bout%3Acsv%28%3A%3Alon%2C%3A%3Alat%2C%22name%22%2C%20%22name%3Aen%22%2C%20%22int_name%22%2C%20%22population%22%3B%20false%3B%20%22%5Ct%22%29%5D%5Btimeout%3A300%5D%3B%0A%28%0Anode%5Bname%5D%5Bpopulation%5D%5Bplace~%22city%7Ctown%7Cvillage%7Chamlet%22%5D%28${MINLAT}%2C${MINLON}%2C${MAXLAT}%2C${MAXLON}%29%3B%0A%29%3B%0Aout%3B"
 
-    # gmt psxy cities_bin_${tt}.dat -Sc0.05i -Gblack ${RJOK} >> map.ps
-    # Select cities within actual map region
-
-    # tab delimited with spaces in city names
-    tr ' ' '_' < cities_${tt}.dat > cities_${tt}_pre.dat
-    # tab delimited with _ in names
-    select_in_gmt_map cities_${tt}_pre.dat ${RJSTRING}
-    # space delimited with _ in names
-    tr ' ' '\t' < cities_${tt}_pre.dat > cities_${tt}_post.dat
-    # tab delimited with _ in names
-
-    tr '_' ' ' < cities_${tt}_post.dat > cities_${tt}.dat
-    # tab delimited with space in names
-    m_cities_toplotfile[$tt]=cities_${tt}.dat
-
-    if [[ ${m_cities_bin[$tt]} -gt 0 ]]; then
-      gawk < cities_${tt}.dat -F$'\t' '{printf("%s\t%s\t%d\t%s\n", $1, $2, $4, $3)}' > cities_prep_${tt}.dat
-
-      gmt binstats cities_prep_${tt}.dat ${rj[0]} -Th -I${m_cities_bin[$tt]} -Cu ${VERBOSE} > cities_bin_${tt}.dat
-
-      gawk -v dist=${m_cities_bin[$tt]} -F$'\t' '
-      function abs(v) { return (v>0)?v:-v }
-      # Load the gridded data with maximum population in each grid cell
-      (NR==FNR) {
-        lon[NR]=$1
-        lat[NR]=$2
-        pop[NR]=$3
-      }
-      # Load the original city data including name
-      (NR!=FNR) {
-        lond[FNR]=$1
-        latd[FNR]=$2
-        popd[FNR]=$3
-        name[FNR]=$4
-      }
-      END {
-        # For each grid center location
-        for (i=1; i<=length(lon);i++) {
-          # For each candidate city
-          for (j=1; j<=length(lond);j++) {
-            # If the populations match and the city
-            if (pop[i] == popd[j] && abs(lon[i]-lond[j]) <= dist && abs(lat[i]-latd[j]) <= 2*dist) {
-              print lond[j] "\t" latd[j] "\t" name[j] "\t" popd[j]
-            }
-          }
-        }
-      }' cities_bin_${tt}.dat cities_prep_${tt}.dat > cities_sel_${tt}.dat
-      m_cities_toplotfile[$tt]=cities_sel_${tt}.dat
+        # if [[ -s textcities.csv ]]; then
+        #   val=$(gawk < textcities.csv -F'\t' '(NR==1) {print $1 > "/dev/stderr"; print ($1+0==$1)?"yes":"no"}')
+        #   echo val is ${val}
+        #   if [[ $val == "yes" ]]; then
+        #     echo got at least one city
+        #     gawk -F'\t' < textcities.csv '{print $1 "\t" $2 "\t" $3 "\t" $6 "\t" NR }' > osmresult_${tt}.txt
+        #     m_cities_toplotfile[$tt]=osmresult_${tt}.txt
+        #   else
+        #     echo "no cities obtained"
+        #   fi
+        # fi
+        echo "failed to download OSM city data from overpass"
+        return
     fi
 
+    if [[ ${m_cities_plaintext[$tt]} -eq 1 ]]; then
+      # If we are not plotting with a UTF8-aware method, accept only places with an English/International name
+      gawk -F'\t' < osm_selected.csv '(NR>1){ if ($4 != "null") { print $1 "\t" $2 "\t" $4 "\t" $6 }}' > cities_${tt}.dat
+    elif [[ ${m_cities_language[$tt]} == "none" ]]; then
+      # If we haven't asked for a specific language, then use the OSM local name
+      gawk -F'\t' < osm_selected.csv '(NR>1){ print $1 "\t" $2 "\t" $3 "\t" $6}' > cities_${tt}.dat
+    else
+      # If we ask for a specific language, then get that. If we are asking for only cities with a name
+      # in that language, return those; otherwise return all cities, preferring that language and
+      # substituting the OSM local name if that language doesn't exist
+      # echo "selecting language ${m_cities_language[$tt]}"
+      gawk -F'\t' < osm_selected.csv '
+      (NR>1) { 
+        # Split out the different comma-delimited entries
+        split($5,langarray,",")
+        # If we are willing to plot a name NOT in a requested language, initialize it
+        if ('${m_cities_langonlyflag[$tt]}'==0) {
+          langname=$3
+        }
+        for (key in langarray) {
+          # Split the language ID and the name
+          split(langarray[key], a, ":")
+          if (a[1]=="'${m_cities_language[$tt]}'") {
+            langname=a[2]
+            break
+          }
+        }
+        if (langname != "") {
+          print $1 "\t" $2 "\t" langname "\t" $6
+        }
+      }' > cities_${tt}.dat
+    fi
+
+    if [[ -s cities_${tt}.dat ]]; then
+
+      # Note that RTL text (Arabic) will appear strangely in files (column order
+      # flipped, etc) but that the files themselves are fine.
+      select_in_gmt_map_tab cities_${tt}.dat ${RJSTRING}
+
+      m_cities_toplotfile[$tt]=cities_${tt}.dat
+
+      # If reqeusted, cull the cities by proximity, keeping largest cities
+      if [[ $(echo "${m_cities_bin[$tt]} > 0" | bc -l) -eq 1 ]]; then
+        gawk < ${m_cities_toplotfile[$tt]} -F$'\t' '{
+          # We want to ensure unique population values for all cities
+          # so that we can uniquely join the binstats result back to the cities.
+          # So add an increasing decimal to each population value
+          printf("%s\t%s\t%d\n", $1, $2, NR)
+        }' | gmt binstats ${rj[0]} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2 ${VERBOSE} > cities_bin_${tt}.dat 2>/dev/null
+
+        gawk -F$'\t' '
+        function abs(v) { return (v>0)?v:-v }
+        # Load the binstats data with maximum population in each bin
+        (NR==FNR) {
+          line[$3]=1
+        }
+        # Load the original city data including name
+        (NR!=FNR) {
+          if (line[FNR]==1) {
+            print
+          }
+        }' cities_bin_${tt}.dat cities_${tt}.dat > cities_sel_${tt}.dat
+
+        # Based on the exact location of corner tiles, we can have cities that are
+        # too close to each other to plot comfortably. So, knockout any city
+        # that is closer to another than some fraction of the bin distance, retaining
+        # the larger city
+
+        # We actually want to knock out cities where labels overlap, so closeness in y
+        # is less important than closeness in X. But we need a heuristic to estimate
+        # how wide a label will be.
+
+        gawk < cities_sel_${tt}.dat -F'\t' '
+        @include "tectoplot_functions.awk"
+        {
+          data[NR]=$0
+          lon[NR]=$1
+          lat[NR]=$2
+          pop[NR]=$4
+        } 
+        END {
+          for(i=1; i<=NR; ++i) {
+            for(j=i+1; j<=NR; ++j) {
+              # Do not knockout points based on already knocked out points
+              if (knockout[i] != 1 && knockout[j] != 1) {
+                dist=angulardistance_m(lon[i],lat[i],lon[j],lat[j])
+                # print "Dist between", lon[i], lat[i], "and", lon[j], lat[j], "is", dist > "/dev/stderr"
+                if (dist < '${m_cities_bin[$tt]}'/4) {
+                  if (pop[i]>pop[j]) {
+                    knockout[j]=1
+                  } else {
+                    knockout[i]=1
+                  }
+                }
+              }
+            }
+          }
+          for(i=1;i<=NR;++i) {
+            if (knockout[i]!=1) {
+              printf("%s\n", data[i])
+            } else {
+              printf("%s\n", data[i]) >> "./knockout.txt"
+            }
+          }
+        }' > cities_sel_knockout_${tt}.dat
+
+        m_cities_toplotfile[$tt]=cities_sel_knockout_${tt}.dat
+      fi
+
+      # Plot the city symbols, largest cities on top
+      if [[ "${m_cities_size[$tt]}" != "0" ]]; then      
+        gawk < ${m_cities_toplotfile[$tt]} -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
+      fi
+
+      # Plot city labels using gnuplot to enable UTF8 text
+      if [[ ${m_cities_plaintext[$tt]} -eq 0 ]]; then
+
+        # # Get the bounding box of the rectangle encompassing the map area - different from minlon/etc if we have an oblique projection
+        llcoord_map=($(gmt mapproject -R -J -We --FORMAT_FLOAT_OUT="%.12f" | gmt mapproject -R -J -i0,2 --FORMAT_FLOAT_OUT="%.12f"))
+        urcoord_map=($(gmt mapproject -R -J -We --FORMAT_FLOAT_OUT="%.12f" | gmt mapproject -R -J -i1,3 --FORMAT_FLOAT_OUT="%.12f"))
+        lrcoord_map=($(gmt mapproject -R -J -We --FORMAT_FLOAT_OUT="%.12f" | gmt mapproject -R -J -i1,2 --FORMAT_FLOAT_OUT="%.12f"))
+        ulcoord_map=($(gmt mapproject -R -J -We --FORMAT_FLOAT_OUT="%.12f" | gmt mapproject -R -J -i0,3 --FORMAT_FLOAT_OUT="%.12f"))
+
+        max_xcoord=$(echo ${urcoord_map[0]} ${lrcoord_map[0]} | gawk '{
+          print ($1 < $2)?$1:$2
+        }')
+        min_xcoord=$(echo ${ulcoord_map[0]} ${llcoord_map[0]} | gawk '{
+          print ($1 > $2)?$1:$2
+        }')
+        max_ycoord=$(echo ${urcoord_map[1]} ${lrcoord_map[1]} | gawk '{
+          print ($1 < $2)?$1:$2
+        }')
+        min_ycoord=$(echo ${ulcoord_map[1]} ${llcoord_map[1]} | gawk '{
+          print ($1 > $2)?$1:$2
+        }')
+
+        max_cutoff_xcoord=$(echo ${max_xcoord} ${min_xcoord} | gawk '{print ($1-$2)*0.8+$2}')
+        min_cutoff_xcoord=$(echo ${max_xcoord} ${min_xcoord} | gawk '{print ($1-$2)*0.2+$2}')
+        min_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.9+$2}')
+        max_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.1+$2}')
+
+        # echo max_ycoord is ${max_ycoord} min_ycoord is ${min_ycoord} max_cutoff is ${max_cutoff_xcoord} min_cutoff is ${min_cutoff_xcoord} max_cutoffy is ${max_cutoff_ycoord} min_cutoffy is ${min_cutoff_ycoord}
+
+        gmt mapproject -R -J ${m_cities_toplotfile[$tt]} -i0,1,t -f0x,1y,s | gawk -F'\t' -v pssize=${m_cities_size[$tt]} -v scale=${m_cities_psfontscale[$tt]} '
+          ($4>='${m_cities_labelmin[$tt]}') {
+              if (pssize+0==0) {
+                yoffset=0
+                if ($2 > '${max_cutoff_ycoord}') {
+                  yoffset=0-'${m_cities_psfontscale[$tt]}'*1/10
+                }
+              } else {
+                yoffset='${m_cities_psfontscale[$tt]}'*2/10
+                if ($2 > '${max_cutoff_ycoord}') {
+                  yoffset=0-'${m_cities_psfontscale[$tt]}'*2/10
+                }
+              }
+              if ($1 > '${max_cutoff_xcoord}') {
+                print $3 "\t" $5 "\t" $4 "\t" $1-0.1 "\t" $2+yoffset > "cities.right.dat"
+              } else if ($1 < '${min_cutoff_xcoord}') {
+                print $3 "\t" $5 "\t" $4 "\t" $1+0.1 "\t" $2+yoffset > "cities.left.dat"
+              } else {
+                print $3 "\t" $5 "\t" $4 "\t" $1 "\t" $2+yoffset > "cities.dat"
+              }
+          }' 
+
+        # Use the range of the points to establish the range of plot
+
+        projrange=($(cat cities.dat cities.left.dat cities.right.dat | gawk -F'\t' '
+          BEGIN {
+              getline;
+              minX=$4; maxX=$4; minY=$5; maxY=$5
+          }
+          {
+            minX=($4<minX)?$4:minX;
+            maxX=($4>maxX)?$4:maxX;
+            minY=($5<minY)?$5:minY;
+            maxY=($5>maxY)?$5:maxY
+          }
+          END {
+            print minX, maxX, minY, maxY
+          }'))
+
+        llcoord[0]=${projrange[0]}
+        urcoord[0]=${projrange[1]}
+        llcoord[1]=${projrange[2]}
+        urcoord[1]=${projrange[3]}
 
 
-    # Sort the cities so that dense areas plot on top of less dense areas
-    # Could also do some kind of symbol scaling
-    # gmt set PS_CHAR_ENCODING Standard1+
+  # We want to right justify any points that are too far to the right of the figure
+  # 
+  # lon1 lat2    lon2 lat2            0 3      1 3
+  #
+  #
+  #
+  # lon1 lat1    lon2 lat1         0 2               1 2
+  #
+  #
+  #
 
-    gawk < ${m_cities_toplotfile[$tt]} -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
-    gawk < ${m_cities_toplotfile[$tt]} -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
-       | sort -n -k 3  \
-       | gmt pstext -DJ${m_cities_size[$tt]}/${m_cities_size[$tt]} -F+f${m_cities_font[$tt]}+jLM  $RJOK $VERBOSE >> map.ps
+        # Add a buffer around this box (in page coordinates) so that we don't chop off labels at the map boundary
+        llcoordP[0]=$(echo "${llcoord[0]} - 0.2*(${urcoord[0]} - ${llcoord[0]})" | bc -l)
+        urcoordP[0]=$(echo "${urcoord[0]} + 0.2*(${urcoord[0]} - ${llcoord[0]})" | bc -l)
+
+        llcoordP[1]=$(echo "${llcoord[1]} - 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
+        urcoordP[1]=$(echo "${urcoord[1]} + 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
+
+        # Set the width in pixels of the PNG containing the label text
+        labelres=10000
+
+        # Calculate the height in pixels of the PNG, given the shape of the AOI
+        ypix=$(echo "${labelres}*(${urcoordP[1]} - ${llcoordP[1]})/(${urcoordP[0]} - ${llcoordP[0]})" | bc)
+
+         # echo ypix is $ypix
+
+        cat <<-EOF > cities.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal pngcairo background "0xffffff" font "${m_cities_font[$tt]}" fontscale 8 size ${labelres}, ${ypix}
+set output 'cities.1.png'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# set colorbox vertical origin screen 0, 0 size screen 0.05, 0.6 front  noinvert bdefault
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "red"
+EOF
+
+        cat <<-EOF > cities_eps.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities.1.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "black"
+EOF
+
+        cat <<-EOF > cities_eps_right.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities.right.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities.right.dat' using 4:5:(CityName(1,3)) with labels right tc "black"
+EOF
+
+        cat <<-EOF > cities_eps_left.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities.left.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities.left.dat' using 4:5:(CityName(1,3)) with labels left tc "black"
+EOF
+        gnuplot cities.dem
+        gnuplot cities_eps.dem
+        gnuplot cities_eps_left.dem
+        gnuplot cities_eps_right.dem
+        gmt_init_tmpdir
+
+          # convert cities.1.png  \( +clone -alpha extract -morphology edge square:5 -threshold 50% -fill red -opaque white -transparent black \) -composite result.png
+          # gmt grdfilter -Fg9 cities.1.png -Gcities.filter.nc -D2
+
+          # We need to plot the image over the map, but in an XY coordinate system matching the page size and shifted to make the origin fall at 0,0
+          if [[ ${m_cities_tiffflag} -eq 1 ]]; then
+             gmt grdimage cities.1.png -R${llcoordP[0]}/${urcoordP[0]}/${llcoordP[1]}/${urcoordP[1]} -JX$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l) -Xa${llcoordP[0]} -Ya${llcoordP[1]} -t${m_cities_trans[$tt]} -O -K >> map.ps
+          else
+            [[ -s cities.1.eps ]] && gmt psimage cities.1.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
+            [[ -s cities.left.eps ]] && gmt psimage cities.left.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
+            [[ -s cities.right.eps ]] && gmt psimage cities.right.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
+          fi
+        gmt_remove_tmpdir        fi
+
+      else
+        if [[ ${m_cities_noclip[$tt]} -eq 1 ]]; then
+          local citiesclip="-N"
+        else
+          local citiesclip=""
+        fi
+        local citiesjust
+        case ${m_cities_just[$tt]} in
+          left) citiesjust="LM" ;;
+          right) citiesjust="RM" ;;
+          center) citiesjust="CM" ;;
+        esac
+
+        gawk < ${m_cities_toplotfile[$tt]} -F'\t' -v minpop=${m_cities_labelmin[$tt]} '($4>=minpop){print $1 "\t" $2 "\t" $3}' \
+          | sort -n -k 3  \
+          | gmt pstext -DJ${m_cities_size[$tt]}/${m_cities_size[$tt]} -F+f${m_cities_gmtfont[$tt]}+j${citiesjust} ${citiesclip} $RJOK $VERBOSE >> map.ps
+      fi
+    fi
 
     echo $m_cities_short_sourcestring >> ${SHORTSOURCES}
     echo $m_cities_sourcestring >> ${LONGSOURCES}
@@ -237,7 +592,7 @@ function tectoplot_legend_cities() {
 
     if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
       m_cities_legendstring="City with population <= ${m_cities_maxpop[$tt]}"
-    elif [[ ${m_cities_maxpop[$tt]} -eq 0 ]]; then
+    elif [[ ${m_cities_maxpop[$tt]} -eq 100000000 ]]; then
       m_cities_legendstring="City with population >= ${m_cities_minpop[$tt]}"
     else
       m_cities_legendstring="City with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"

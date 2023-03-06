@@ -77,47 +77,74 @@ function date_shift_utc() {
 
 function iso8601_to_epoch() {
   TZ=UTC
-   gawk '{
-     # printf("%s ", $0)
-     for(i=1; i<=NF; i++) {
-       done=0
-       timecode=substr($(i), 1, 19)
-       split(timecode, a, "-")
-       year=a[1]
-       if (year < 1900) {
-         print -2209013725
-         done=1
-       }
-       month=a[2]
-       split(a[3],b,"T")
-       day=b[1]
-       split(b[2],c,":")
+   gawk '
+   @include "/Users/kylebradley/Dropbox/scripts/tectoplot/awkscripts/tectoplot_functions.awk"
+   BEGIN {
+     ENVIRON["TZ"] = "UTC"
+     print iso8601_to_epoch("'$1'")
+   }'
+}
 
-       hour=c[1]
-       minute=c[2]
-       second=c[3]
+# Report the local time, including daylight savings, for a given UTC date and time zone
+# Input date is in ISO8601 format YYYY-MM-DDTHH-MM-SS.sss
 
-       if (year == 1982 && month == 01 && day == 01) {
-         printf("%s ", 378691200 + second + 60*minute * 60*60*hour)
-         done=1
-       }
-       if (year == 1941 && month == 09 && day == 01) {
-         printf("%s ", -895153699 + second + 60*minute * 60*60*hour)
-         done=1
+function utc_from_localtime() {
+  TZ=$1 gawk '{
+    split($0,a,"-")
+    if (a[1]+0<1970) {
+      shiftyear=1
+      oldyear=a[1]+0
+      datestring=sprintf("2000%s", substr($1,5, length($1)-4))
+    } else {
+      datestring=$1
+    }
+    # remove whitespace and then replace -, :, T with spaces
+    dt=gensub(/\s+\S+$/,"",1,datestring); gsub(/[-:T]/," ", dt)
+    epochsecs=mktime(dt)
+    ENVIRON["TZ"] = "UTC"
+    outstring=strftime("%FT%T\n", epochsecs)
+    if (shiftyear==1) {
+      newyear=substr(outstring, 1, 4)+0
+      if (newyear==2000) {
+        print outstring
+      } else if (newyear == 1999) {
+        printf("%4d%s", oldyear-1, substr(outstring,5, length(outstring)-4))
+      } else if (newyear == 2001) {
+        printf("%4d%s", oldyear+1substr(outstring,5, length(outstring)-4))
+      }
+    }
+ }'
+}
 
-       }
-       if (year == 1941 && month == 09 && day == 01) {
-         printf("%s ", -879638400 + second + 60*minute * 60*60*hour)
-         done=1
-       }
+# Note that mktime uses epoch seconds starting at 1970, so we need to use 2000
+# as a substitute year for anything prior to 1970.
 
-       if (done==0) {
-         the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
-         # print the_time > "/dev/stderr"
-         epoch=mktime(the_time);
-         printf("%s ", epoch)
-       }
-     }
-     printf("\n")
-  }'
+function localtime_from_utc() {
+  TZ=UTC gawk -v tz=${1} '{
+    split($0,a,"-")
+    if (a[1]+0<1970) {
+      shiftyear=1
+      oldyear=a[1]+0
+      datestring=sprintf("2000%s", substr($1,5, length($1)-4))
+    } else {
+      datestring=$1
+    }
+    # remove whitespace and then replace -, :, T with spaces
+    dt=gensub(/\s+\S+$/,"",1,datestring); gsub(/[-:T]/," ", dt)
+    epochsecs=mktime(dt)
+    ENVIRON["TZ"] = tz
+    outstring=strftime("%FT%T", epochsecs)
+    if (shiftyear==1) {
+      newyear=substr(outstring, 1, 4)+0
+      if (newyear==2000) {
+        printf("%4d%s\n", oldyear, substr(outstring,5, length(outstring)-4))
+      } else if (newyear == 1999) {
+        printf("%4d%s\n", oldyear-1, substr(outstring,5, length(outstring)-4))
+      } else if (newyear == 2001) {
+        printf("%4d%s\n", oldyear+1substr(outstring,5, length(outstring)-4))
+      }
+    } else {
+      print outstring
+    }
+ }'
 }

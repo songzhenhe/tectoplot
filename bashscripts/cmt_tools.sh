@@ -566,11 +566,13 @@ BEGIN {
       second=tstring[3];
 
       # convert to seconds since epoch
-      the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-      secs = mktime(the_time);
+      # the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+      # secs = mktime(the_time);
 
       # tectoplot uses this event ID/timecode format: YYYY-MM-DD:HH-MM-SS
       id=make_tectoplot_id(sprintf("%04d-%02d-%02dT%02d:%02d:%02d",year,month,day,hour,minute,second))
+
+      secs=iso8601_to_epoch(id)
 
       # The origin location
       lat_origin=sprintf("%lf",substr($0,28,6));
@@ -1207,30 +1209,30 @@ BEGIN {
 
       if (calc_epoch==1) {
         # printf "%s-", "calc_epoch"
-
-        split_num=split(id, epoch_a1, "-")
-        if (split_num!=3) {
-          epoch=0
-        } else {
-          year=epoch_a1[1]
-          month=epoch_a1[2]
-          split_num=split(epoch_a1[3],epoch_b1,"T")
-          if (split_num!=2) {
-            epoch=0
-          } else {
-            day=epoch_b1[1]
-            split_num=split(epoch_b1[2],epoch_c1,":")
-            if (split_num!=3) {
-              epoch=0
-            } else {
-              hour=epoch_c1[1]
-              minute=epoch_c1[2]
-              second=epoch_c1[3]
-              the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
-              epoch=mktime(the_time);
-            }
-          }
-        }
+        epoch=iso8601_to_epoch(id)
+        # split_num=split(id, epoch_a1, "-")
+        # if (split_num!=3) {
+        #   epoch=0
+        # } else {
+        #   year=epoch_a1[1]
+        #   month=epoch_a1[2]
+        #   split_num=split(epoch_a1[3],epoch_b1,"T")
+        #   if (split_num!=2) {
+        #     epoch=0
+        #   } else {
+        #     day=epoch_b1[1]
+        #     split_num=split(epoch_b1[2],epoch_c1,":")
+        #     if (split_num!=3) {
+        #       epoch=0
+        #     } else {
+        #       hour=epoch_c1[1]
+        #       minute=epoch_c1[2]
+        #       second=epoch_c1[3]
+        #       the_time=sprintf("%i %i %i %i %i %i",year,month,day,hour,minute,int(second+0.5));
+        #       epoch=mktime(the_time);
+        #     }
+        #   }
+        # }
       }
 
       # Always calculate the type of focal mechanism and append to ID code

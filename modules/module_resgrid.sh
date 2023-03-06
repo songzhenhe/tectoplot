@@ -1,18 +1,19 @@
-
 TECTOPLOT_MODULES+=("resgrid")
 
-# Calculate residual grid by removing along-line average, using da-dt formulation
-# Builtin support for gravity grids
+# Calculate residual grid by removing along-line and across-line averages,
+# using a da-dt formulation
+# da is the distance along the path of the closest point on the path to any
+# point of the grid
+# dt is the distance from that closest point to the grid point
 
 # Variables needed:
 # GRID_PRINT_RES
-# GRAVCPT
 
 function tectoplot_defaults_resgrid() {
   SWATH=${BASHSCRIPTDIR}"swath.sh"
   GRAVCPT=${CPTDIR}"grav2.cpt"
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
-  RESGRID_CPTRANGE=400
+  VRES_CPTRANGE=400
   RESGRID_TRANS=0
   calcvresflag=0
 }
@@ -47,108 +48,62 @@ fi
   ;;
 
   -vres)  # Calculate residual gravity or other grid within specified distance of a provided XY line
+  tectoplot_get_opts_inline '
+des -vres create grid swath profile residual using signed distance method
+ren m_vres_data word
+  source data, file or default data string
+ren m_vres_xy file
+  XY line file
+ren m_vres_width word
+  profile width in km
+ren m_vres_alongave word
+  along-profile averaging distance
+ren m_vres_acrossave word
+  across-profile averaging distance
+opn trans m_vres_trans float 0
+  transparency of plotted rasters
+opn contour m_vres_contourflag flag 0
+  plot contours of the smoothed average grid
+opn path m_vres_pathflag flag 0
+  plot the profile path
+opn relief m_vres_reliefflag flag 0
+  plot shaded relief of residual grid
+opn plotave m_vres_plotaveflag flag 0
+  plot the average grid rather than the residual grid; contour residual
+opn res m_vres_res float 0.1
+  resolution of subsampled grid, in degrees without unit
+opn outline m_vres_outlineflag flag 0
+  plot the outline of the swath
+mes This function takes as input a grid file or gravity model, and an XY line.
+mes It calculates an along-profile and across-profile running average, where data
+mes are projected into a da-dt space (da=distance along profile of nearest point,
+mes dt=distance from nearest point on profile). This projection avoids artifacts
+mes from kinks in profiles. The along-profile smoothing is done over a running
+mes window with a specified along-profile width, and across-profile smoothing is
+mes done in dt space.
+mes
+mes The input grid is first subsampled at a specified along-and-cross profile
+mes interval using GMT grdtrack. The resulting XY points are projected into da-dt
+mes space where the smoothing is applied. The resulting data are projected back
+mes into XY space where a smoothed raster is interpolated from the points. This
+mes raster is then subtracted from the original grid at the original resolution,
+mes producing a residual data grid.
+mes Default datasets
+mes     BG        WGM2012 Bouguer gravity
+mes     FA        WGM2012 Free Air gravity
+mes     IS        WGM2012 Isostatic gravity
+mes     SW        Sandwell 2019 Free Air gravity
+mes     CV        Sandwell 2019 Free Air gravity curvature
+mes     TP        Topography created with -t
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_resgrid.sh
--vres:         create grid swath profile residual using signed distance method
--vres [file or modelID] [xy_file] [width_km] [along_ave_km] [across_ave_km] [[flag1]] ...
-
-  This function takes as input a grid file or gravity model, and an XY line.
-  It calculates an along-profile and across-profile running average, where data
-  are projected into a da-dt space (da=distance along profile of nearest point,
-  dt=distance from nearest point on profile). This projection avoids artifacts
-  from kinks in profiles. The along-profile smoothing is done over a running
-  window with a specified along-profile width, and across-profile smoothing is
-  done in dt space.
-
-  The input grid is first subsampled at a specified along-and-cross profile
-  interval using GMT grdtrack. The resulting XY points are projected into da-dt
-  space where the smoothing is applied. The resulting data are projected back
-  into XY space where a smoothed raster is interpolated from the points. This
-  raster is then subtracted from the original grid at the original resolution,
-  producing a residual data grid.
-
-  flags: specified as strings
-    contour   Plot contours of the smoothed average grid
-    path      Plot the profile path
-    relief    Plot shaded relief of residual grid
-    plotave   Plot the average grid rather than the residual grid; contour resid
-
-  Gravity models:
-    BG        WGM2012 Bouguer
-    FA        WGM2012 Free Air
-    IS        WGM2012 Isostatic
-    SW        Sandwell 2019 Free Air
-    CV        Sandwell 2019 Free Air curvature
-
-  TOPOGRAPHY:
-    TP        Use topography file created with -t
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-  fi
-
-    # Check the number of arguments
-    if [[ ! $(number_nonflag_args "${@}") -ge 5 ]]; then
-      echo "[-vres]: Requires 5-7 arguments. tectoplot usage -vres"
-      exit 1
-    fi
-
-    shift
-
-    GRAVMODEL="${1}"
-    GRAVXYFILE=$(abs_path "${2}")
-    GRAVWIDTHKM="${3}"
-    GRAVALONGAVKM="${4}"
-    GRAVACROSSAVKM="${5}"
-    shift 5
-    ((tectoplot_module_shift+=5))
-
-    if ! arg_is_positive_float $GRAVWIDTHKM; then
-      echo "[-vres]: Argument ${GRAVWIDTHKM} should be a positive number without unit character."
-      exit 1
-    fi
-    if ! arg_is_positive_float $GRAVALONGAVKM; then
-      echo "[-vres]: Argument ${GRAVALONGAVKM} should be a positive number without unit character."
-      exit 1
-    fi
-    if ! arg_is_positive_float $GRAVACROSSAVKM; then
-      echo "[-vres]: Argument ${GRAVACROSSAVKM} should be a positive number without unit character."
-      exit 1
-    fi
-
-    while ! arg_is_flag $1; do
-      case "${1}" in
-        contour)
-          GRAVCONTOURFLAG=1
-        ;;
-        path)
-          GRAVPATHFLAG=1
-        ;;
-        relief)
-          GRAVRELIEFFLAG=1
-          echo setting here ${GRAVRELIEFFLAG}
-        ;;
-        plotave)
-          PLOTAVGRID=1
-        ;;
-        *)
-          info_msg "[-vres]: Unknown option ${1}... skipping"
-        ;;
-      esac
-      shift
-      ((tectoplot_module_shift++))
-    done
-
-    if [[ ! -s ${GRAVXYFILE} ]]; then
-      info_msg "[-vres]: XY file ${GRAVXYFILE} does not exist."
+    if [[ ! -s ${m_vres_xy} ]]; then
+      info_msg "[-vres]: XY file ${m_vres_xy} does not exist."
       exit 1
     else
-      if [[ ${GRAVXYFILE} =~ ".kml" ]]; then
+      if [[ ${m_vres_xy} =~ ".kml" ]]; then
         info_msg "[-vres]: KML file specified for XY file. Converting to XY format and using first line only."
-        ogr2ogr -f "OGR_GMT" vres_profile.gmt ${GRAVXYFILE}
+        ogr2ogr -f "OGR_GMT" vres_profile.gmt ${m_vres_xy}
         gawk < vres_profile.gmt '
           BEGIN {
             count=0
@@ -162,43 +117,43 @@ EOF
           ($1+0==$1) {
             print $1, $2
           }' >  ${TMP}${F_MAPELEMENTS}vres_profile.xy
-          GRAVXYFILE=$(abs_path ${TMP}${F_MAPELEMENTS}vres_profile.xy)
+          m_vres_xy=$(abs_path ${TMP}${F_MAPELEMENTS}vres_profile.xy)
       fi
     fi
 
-    case $GRAVMODEL in
+    case ${m_vres_data} in
       FA)
-        GRAVDATA=$WGMFREEAIR
-        GRAVCPT=$WGMFREEAIR_CPT
+        VRES_DATA=$WGMFREEAIR
+        VRES_CPT=$WGMFREEAIR_CPT
         echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
         ;;
       BG)
-        GRAVDATA=$WGMBOUGUER
-        GRAVCPT=$WGMBOUGUER_CPT
+        VRES_DATA=$WGMBOUGUER
+        VRES_CPT=$WGMBOUGUER_CPT
         echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
         ;;
       IS)
-        GRAVDATA=$WGMISOSTATIC
-        GRAVCPT=$WGMISOSTATIC_CPT
+        VRES_DATA=$WGMISOSTATIC
+        VRES_CPT=$WGMISOSTATIC_CPT
         echo $GRAV_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $GRAV_SOURCESTRING >> ${LONGSOURCES}
         ;;
       SW)
-        GRAVDATA=$SANDWELLFREEAIR
-        GRAVCPT=$WGMFREEAIR_CPT
+        VRES_DATA=$SANDWELLFREEAIR
+        VRES_CPT=$WGMFREEAIR_CPT
         echo $SANDWELL_SOURCESTRING >> ${LONGSOURCES}
         echo $SANDWELL_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         ;;
       TP)
-        GRAVDATA=${TMP}${F_TOPO}dem.nc
-        GRAVCPT=${TMP}${F_CPTS}topo.cpt
-        RESGRID_CPTRANGE=2500
+        VRES_DATA=${TMP}${F_TOPO}dem.tif
+        VRES_CPT=${TMP}${F_CPTS}topo.cpt
+        VRES_CPTRANGE=2500
         ;;
       CV)
-        GRAVDATA=${SANDWELLFREEAIR_CURV}
-        GRAVCPT=gray
+        VRES_DATA=${SANDWELLFREEAIR_CURV}
+        VRES_CPT=gray
         ;;
       *)
         if [[ ! -s $GRAVMODEL ]]; then
@@ -206,13 +161,14 @@ EOF
           exit 1
         else
           info_msg "Using custom grid file ${GRAVMODEL}"
-          GRAVDATA=${GRAVMODEL}
+          VRES_DATA=${GRAVMODEL}
         fi
         ;;
     esac
 
     plots+=("resgrid")
     cpts+=("resgrid")
+    cpts+=("grav")
     calcvresflag=1
 
     tectoplot_module_caught=1
@@ -226,42 +182,57 @@ EOF
 
 function tectoplot_calculate_resgrid()  {
   if [[ $calcvresflag -eq 1 ]]; then
-    info_msg "Making residual gravity along ${GRAVXYFILE}"
+    info_msg "Making residual gravity along ${m_vres_xy}"
     mkdir -p ./resgrav
     cd ./resgrav
-    ${SWATH} ${GRAVWIDTHKM} ${GRAVALONGAVKM} ${GRAVACROSSAVKM} ${GRAVXYFILE} ${GRAVDATA} 0.1
+    ${SWATH} ${m_vres_width} ${m_vres_alongave} ${m_vres_acrossave} ${m_vres_xy} ${VRES_DATA} ${m_vres_res}
     cd ..
   fi
 }
 
 function tectoplot_cpt_resgrid() {
-  if [[ $PLOTAVGRID -eq 1 ]]; then
-    [[ ! -s $RESGRID_CPT ]] && gmt makecpt -C$GRAVCPT -T0/500 -Z $VERBOSE > $RESGRID_CPT
+  if [[ ${m_vres_plotaveflag} -eq 1 ]]; then
+  echo cpt here
+    [[ ! -s ${VRES_CPT} ]] && gmt makecpt -C${VRES_CPT} -T0/500 -Z $VERBOSE > ${GRAV_CPT}
   else
-    [[ ! -s $RESGRID_CPT ]] && gmt makecpt -C$GRAVCPT -T-${RESGRID_CPTRANGE}/${RESGRID_CPTRANGE} -Z $VERBOSE > $RESGRID_CPT
+  echo cpt there
+    [[ ! -s ${VRES_CPT} ]] && gmt makecpt -C${VRES_CPT} -T-${VRES_CPTRANGE}/${VRES_CPTRANGE} -Z $VERBOSE > ${GRAV_CPT}
   fi
 }
 
 function tectoplot_plot_resgrid() {
   case $1 in
   resgrid)
-    if [[ -e ./resgrav/grid_residual.nc ]]; then
-      if [[ $GRAVRELIEFFLAG -eq 1 ]]; then
-        GRAVICMD="-I+d"
+
+    local illumination
+
+    if [[ -e ./resgrav/grid_residual.tif ]]; then
+      if [[ ${m_vres_reliefflag} -eq 1 ]]; then
+        illumination="-I+d"
       else
-        GRAVICMD=""
+        illumination=""
       fi
-      if [[ $PLOTAVGRID -eq 1 ]]; then
-        gmt grdimage ./resgrav/grid_smoothed.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${GRAV_CPT} $RJOK $VERBOSE >> map.ps
-        [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/grid_residual.nc -W0.3p,white -T -C50 $RJOK ${VERBOSE} >> map.ps
+      if [[ ${m_vres_plotaveflag} -eq 1 ]]; then
+        cp ${GRAV_CPT} residgrav.cpt
+        gmt grdimage ./resgrav/grid_smoothed.tif ${illumination} -t${m_vres_trans} $GRID_PRINT_RES -Q -C${GRAV_CPT} $RJOK $VERBOSE >> map.ps
+        [[ ${m_vres_contourflag} -eq 1 ]] && gmt grdcontour ./resgrav/grid_residual.tif -W0.3p,white -T -C50 $RJOK ${VERBOSE} >> map.ps
       else
-        gmt grdimage ./resgrav/grid_residual.nc ${GRAVICMD} -t${RESGRID_TRANS} $GRID_PRINT_RES -Q -C${RESGRID_CPT} $RJOK $VERBOSE >> map.ps
-        [[ $GRAVCONTOURFLAG -eq 1 ]] && gmt grdcontour ./resgrav/grid_smoothed.nc -W0.3p,white,- -T -C50 $RJOK ${VERBOSE} >> map.ps
+        gmt makecpt -Fr -C$GRAVCPT -T-200/200 -Z $VERBOSE > residgrav.cpt
+        gmt grdimage ./resgrav/grid_residual.tif ${illumination} -t${m_vres_trans} $GRID_PRINT_RES -Q -Cresidgrav.cpt $RJOK $VERBOSE >> map.ps
+        [[ ${m_vres_contourflag} -eq 1 ]] && gmt grdcontour ./resgrav/grid_smoothed.tif -W0.3p,white,- -T -C50 $RJOK ${VERBOSE} >> map.ps
       fi
     fi
-    if [[ $GRAVPATHFLAG -eq 1 ]]; then
-      [[ -s ${GRAVXYFILE} ]] && gmt psxy ${GRAVXYFILE} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
+    if [[ ${m_vres_pathflag} -eq 1 ]]; then
+      [[ -s ${m_vres_xy} ]] && gmt psxy ${m_vres_xy} -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
     fi
+
+    if [[ ${m_vres_outlineflag} -eq 1 ]]; then
+      gmt psxy ./resgrav/trackfile_final_buffer.txt -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
+    fi
+    # gmt psxy ./resgrav/trackfile_final_buffer.txt -W0.6p,black,- $RJOK ${VERBOSE} >> map.ps
+    # gawk < ./resgrav/trackfile_merged_buffers.gmt '($1+0==$1) { print} ' | gmt psxy -W0.6p,black $RJOK ${VERBOSE} >> map.ps
+    # gmt psxy ./resgrav/end_profile_cutbox.gmt -W0.6p,brown,. $RJOK ${VERBOSE} >> map.ps
+
     tectoplot_plot_caught=1
     ;;
   esac
@@ -272,10 +243,31 @@ function tectoplot_plot_resgrid() {
 # }
 
 function tectoplot_legendbar_resgrid() {
+  local gridname
+  local gridtype
   case $1 in
     resgrid)
+      if [[ ${m_vres_plotaveflag} -eq 1 ]]; then
+        gridtype="Average"
+      else
+        gridtype="Residual"
+      fi
+      case ${m_vres_data} in
+        BG|FA|IS|SW)
+          gridname="gravity (mGal)"
+        ;;
+        CV)
+          gridname="gravity curvature"
+        ;;
+        TP)
+          gridname="topography (km)"
+        ;;
+        *)
+          gridname="grid"
+        ;;
+      esac
       echo "G 0.2i" >>${LEGENDDIR}legendbars.txt
-      echo "B ${RESGRID_CPT} 0.2i 0.1i+malu -Bxa100f50+l\"Residual gravity (mGal)\"" >>${LEGENDDIR}legendbars.txt
+      echo "B residgrav.cpt 0.2i 0.1i+malu -Bxaf+l\"${gridtype} ${gridname}\"" >>${LEGENDDIR}legendbars.txt
       barplotcount=$barplotcount+1
       tectoplot_caught_legendbar=1
     ;;

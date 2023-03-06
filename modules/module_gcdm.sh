@@ -2,7 +2,8 @@
 TECTOPLOT_MODULES+=("gcdm")
 
 # UPDATED
-
+# DOWNLOAD
+# NEW OPTS
 
 function tectoplot_defaults_gcdm() {
 
@@ -11,9 +12,9 @@ function tectoplot_defaults_gcdm() {
 
   GCDMDIR=$DATAROOT"GCDM/"
   GCDMDATA=$GCDMDIR"GCDM.nc"
-  GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
+  GCDMDATA_ORIG=$GCDMDIR"41598_2017_BFsrep45129_MOESM71_ESM.txt"
   GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
-  GCDM_BYTES="123810173"
+  GCDM_BYTES=0
 
   GCDM_CPT=${F_CPTS}"gcdm.cpt"
 }
@@ -27,23 +28,14 @@ function tectoplot_args_gcdm()  {
   case "${1}" in
 
   -gcdm)
-  cat <<-EOF > gcdm
+  tectoplot_get_opts_inline '
 des -gcdm plot gridded earthquake slip model (or any grid...) with clipping
 opt cpt m_gcdm_cpt cpt "seis"
     CPT used to color grid
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts gcdm
-  else
-    tectoplot_get_opts gcdm "${@}"
-
-    plots+=("m_gcdm")
-    cpts+=("m_gcdm")
-
-    # Signal to tectoplot that the current command was processed by this module
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gcdm")
+  cpts+=("m_gcdm")
   ;;
 
   esac
@@ -52,31 +44,17 @@ EOF
 # We download the relevant data in the _calculate_ function as this is the first time we should
 # be accessing the data itself.
 
-function tectoplot_calculate_gcdm()  {
+function tectoplot_download_gcdm()  {
 
-  if [[ ! -s $GCDMDATA ]]; then
-
-    read -r -p "GCDM data not downloaded: download now? (enter for y) [y|n] " response
-
-    case $response in
-      Y|y|yes|"")
-        if ! check_and_download_dataset "GlobalCurieDepthMap" $GCDM_SOURCEURL "no" $GCDMDIR $GCDMDATA_ORIG "none" $GCDM_BYTES "none"; then
-          info_msg "GCDM data could not be downloaded."
-          return 0
-        fi
-      ;;
-      N|n|*)
-        return 0
-      ;;
-    esac
-  fi
+    check_and_download_dataset $GCDM_SOURCEURL $GCDMDIR 41598_2017_BFsrep45129_MOESM71_ESM.txt
+    [[ ! -s $GCDMDATA ]] && info_msg "Processing GCDM data to grid format" && gmt xyz2grd -R-180/180/-80/80 $GCDMDATA_ORIG -I10m -G$GCDMDATA
 
 }
 
 function tectoplot_cpt_gcdm() {
   case $1 in
     m_gcdm)
-      gmt makecpt -C${m_gcdm_cpt[$tt]} -T$GCDMMIN/$GCDMMAX -Z ${VERBOSE} > ${F_CPTS}gcdm_${tt}.cpt
+      gmt makecpt -C${m_gcdm_cpt[$tt]} -T-1/46 -Z ${VERBOSE} > ${F_CPTS}gcdm_${tt}.cpt
     ;;
   esac
 }

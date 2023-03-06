@@ -122,240 +122,200 @@ EOF
   if [[ $plyfloatingtextflag -eq 1 && $plydemonlyflag -eq 0 ]]; then
   #  ${F_3D}floattext.dat contains lon lat elevation
 
-  echo "${PLY_FLOAT_TEXT_LON} ${PLY_FLOAT_TEXT_LAT} ${PLY_FLOAT_TEXT_DEPTH}" > ${F_3D}floattext.dat
+  for this_ftf in $(seq 1 $plyfloattextnum); do
 
-  ${FLOAT_TEXT} ${PLY_FLOAT_TEXT_FONT_DIR} ${F_3D}sentence.obj ${PLY_FLOAT_TEXT_STRING}
+    echo "${PLY_FLOAT_TEXT_LON[${this_ftf}]} ${PLY_FLOAT_TEXT_LAT[${this_ftf}]} ${PLY_FLOAT_TEXT_DEPTH[${this_ftf}]}" > ${F_3D}floattext.dat
 
-  # gawk < ${F_3D}sentence.obj -v v_exag=${PLY_VEXAG} -v text_lat=${PLY_FLOAT_TEXT_LAT} -v text_lon=${PLY_FLOAT_TEXT_LON} -v text_depth=${PLY_FLOAT_TEXT_DEPTH} -v text_scale=${PLY_FLOAT_TEXT_SCALE} '
+    ${FLOAT_TEXT} ${PLY_FLOAT_TEXT_FONT_DIR} ${F_3D}sentence_${this_ftf}.obj ${PLY_FLOAT_TEXT_STRING[${this_ftf}]}
 
-  # The problem with calculating from the extent of the text is that it changes as
-  # different letters are added to the string. We want to specify a fixed scaling of
-  # the text in terms of units/degree latitude. Then we don't need to rescale(), we
-  # just add x+lonscale, y
+    # gawk < ${F_3D}sentence.obj -v v_exag=${PLY_VEXAG} -v text_lat=${PLY_FLOAT_TEXT_LAT} -v text_lon=${PLY_FLOAT_TEXT_LON} -v text_depth=${PLY_FLOAT_TEXT_DEPTH} -v text_scale=${PLY_FLOAT_TEXT_SCALE} '
 
-  # New method: scale is the width (in longitude, degrees) of the floating text
-  # New method: scale is the width (in longitude, degrees) of the floating text
+    # The problem with calculating from the extent of the text is that it changes as
+    # different letters are added to the string. We want to specify a fixed scaling of
+    # the text in terms of units/degree latitude. Then we don't need to rescale(), we
+    # just add x+lonscale, y
 
-    gawk -v v_exag=${PLY_VEXAG} -v scale=${PLY_FLOAT_TEXT_SCALE} '
-    @include "tectoplot_functions.awk"
+    # New method: scale is the width (in longitude, degrees) of the floating text
 
-    BEGIN {
-      havematrix=0
-      itemind=0
-      sphereind=1
-      vertexind=0
-      v_scale=scale
-      print "mtllib materials.mtl"
-      minx=9999
-      maxx=-9999
-      miny=9999
-      maxy=-9999
-    }
+      gawk -v v_exag=${PLY_VEXAG} -v scale=${PLY_FLOAT_TEXT_SCALE[${this_ftf}]} '
+      @include "tectoplot_functions.awk"
 
-      # First input file is the floating text OBJ
-
-      (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
-        itemind++
-        full[itemind]=$0
-        for(ind=1;$(ind)!="";ind++) {
-          obj[itemind][ind]=$(ind)
-        }
-        if ($1=="v") {
-          maxx=($2>maxx)?$2:maxx
-          minx=($2<minx)?$2:minx
-          maxy=(-$4>maxy)?-$4:maxy
-          miny=(-$4<miny)?-$4:miny
-        }
-        len[itemind]=ind-1
-      }
-
-      # Second input file is one or more points in the format
-      # lon lat elev(m)
-
-      (NR!=FNR) {
-
-        depth=(6371-$3*v_exag)/100
-        lon=$1
-        lat=$2
-        phi=deg2rad(lon)
-        theta=deg2rad(90-lat)
-
-        # xoff=depth*sin(theta)*cos(phi)
-        # yoff=depth*sin(theta)*sin(phi)
-        # zoff=depth*cos(theta)
-
-        # This actually needs to be adjusted based on the latitude of the target site?
-        # sdr_rotation_matrix(-90, lat, 0)
-        # calc_ecef_to_enu_matrix(lon, lat)
-
-        latscale=scale
-        lonscale=scale*haversine_m(lon, lat, lon, lat+scale)/haversine_m(lon, lat, lon+scale, lat)
-        print "latscale, lonscale:", latscale, lonscale > "/dev/stderr"
-        # minlon=lon
-        # maxlon=lon+scale
-        # minlat=lat
-        # maxlat=minlat+(maxy-miny)/(maxx-minx)*scale*haversine_m(minlon, minlat, maxlon, minlat)/haversine_m(minlon, minlat, minlon, minlat+scale)
-
-
-        usedmtl=0
-        print "o FloatText_" sphereind++
+      BEGIN {
+        havematrix=0
+        itemind=0
+        sphereind=1
         vertexind=0
-        for (this_ind in len) {
-          if (obj[this_ind][1] == "v" || obj[this_ind][1] == "vn") {
-
-            this_x=obj[this_ind][2]
-            this_y=-obj[this_ind][4]
-            this_z=obj[this_ind][3]
-
-            # New approach: directly rescale x, y, z points to [lon, lon+dist] [lat, lat+val], depth
-            # and then project points to X,Y,Z ECEF coordinates
-            # (Will only work with 2D text for now)
-
-            # print "rescale_lon: rescale_value(" this_x ", " minx " , " maxx " , " minlon " , " maxlon " )" > "/dev/stderr"
-            # print "rescale_lat: rescale_value(" this_y ", " miny " , " maxy " , " minlat " , " maxlat " )" > "/dev/stderr"
-
-            rescale_lon=lon+lonscale*this_x
-            rescale_lat=lat+latscale*this_y
-
-            #rescale_lon=rescale_value(this_x, minx, maxx, minlon, maxlon)
-            #rescale_lat=rescale_value(this_y, miny, maxy, minlat, maxlat)
-
-            # print "rescale_lon, this_x: " rescale_lon, this_x > "/dev/stderr"
-            # print "rescale_lat, this_y: " rescale_lat, this_y > "/dev/stderr"
-
-            rescale_lon_rad=deg2rad(rescale_lon)
-            rescale_lat_rad=deg2rad(90-rescale_lat)
-
-            # print "rescale_lon, rescale_lat = ", rescale_lon, rescale_lat > "/dev/stderr"
-
-              x_new=depth*sin(rescale_lat_rad)*cos(rescale_lon_rad)
-              y_new=depth*sin(rescale_lat_rad)*sin(rescale_lon_rad)
-              z_new=depth*cos(rescale_lat_rad)
-              #
-              #
-              # multiply_rotation_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
-              #
-              #
-              # # Reorient the text OBJ from geocentric to E/N/U coordinates
-              # # multiply_ecef_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
-              #
-              # multiply_ecef_matrix(v[0], v[1], v[2])
-              #
-              # # X=-w[1], Y=w[2], and Z=w[0]
-              #
-              #
-              #
-              if (obj[this_ind][1]=="v") {
-              #   x_val=-w[1]*v_scale+xoff
-              #   y_val=w[2]*v_scale+yoff
-              #   z_val=w[0]*v_scale+zoff
-              #
-              #
-              #   veclen=sqrt(x_val*x_val+y_val*y_val+z_val*z_val)
-              #   if (obj[this_ind][3] == 0) {
-              #     # If the point was a 0-level point on the font, it should be at the depth elevation
-              #     x_val=x_val/veclen*depth
-              #     y_val=y_val/veclen*depth
-              #     z_val=z_val/veclen*depth
-              #   } else {
-              #     # If the point was not 0-level point on the font, it should be at the depth+depth/100 elevation
-              #     x_val=x_val/veclen*(depth-1/100)
-              #     y_val=y_val/veclen*(depth-1/100)
-              #     z_val=z_val/veclen*(depth-1/100)
-              #   }
-
-                # Vertex color is pure white
-                # print "v", -w[1]*v_scale+xoff, w[2]*v_scale+yoff, w[0]*v_scale+zoff, 255, 255, 255
-                print "v", x_new, y_new, z_new, 255, 255, 255
-                vertexind++
-              }
-              if (obj[this_ind][1]=="vn") {
-                print "vn", x_new/depth, y_new/depth, z_new/depth
-              }
-
-          } else if (obj[this_ind][1]=="f") {
-            if (usedmtl==0) {
-              print "usemtl FloatingText"
-              usedmtl=1
-            }
-            # Face vertices have to be incremented to account for prior floating text
-            printf("f ")
-            for (k=2; k<=len[this_ind]; k++) {
-              printf("%d/%d/%d ", obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind)
-            }
-            printf("\n")
-          } else if (obj[this_ind][1]=="vt") {
-
-            printf("vt ")
-            for (k=2; k<=len[this_ind]; k++) {
-              printf("%s ", obj[this_ind][k])
-            }
-            printf("\n")
-          }
-        }
-        # print lastvertexind, vertexind > "/dev/stderr"
-        lastvertexind+=vertexind
+        v_scale=scale
+        print "mtllib materials.mtl"
+        minx=9999
+        maxx=-9999
+        miny=9999
+        maxy=-9999
       }
-    ' ${F_3D}sentence.obj ${F_3D}floattext.dat > ${F_3D}floating_text.obj
+
+        # First input file is the floating text OBJ
+
+        (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
+          itemind++
+          full[itemind]=$0
+          for(ind=1;$(ind)!="";ind++) {
+            obj[itemind][ind]=$(ind)
+          }
+          if ($1=="v") {
+            maxx=($2>maxx)?$2:maxx
+            minx=($2<minx)?$2:minx
+            maxy=(-$4>maxy)?-$4:maxy
+            miny=(-$4<miny)?-$4:miny
+          }
+          len[itemind]=ind-1
+        }
+
+        # Second input file is one or more points in the format
+        # lon lat elev(m)
+
+        (NR!=FNR) {
+
+          depth=(6371-$3*v_exag)/100
+          lon=$1
+          lat=$2
+          phi=deg2rad(lon)
+          theta=deg2rad(90-lat)
+
+          # xoff=depth*sin(theta)*cos(phi)
+          # yoff=depth*sin(theta)*sin(phi)
+          # zoff=depth*cos(theta)
+
+          # This actually needs to be adjusted based on the latitude of the target site?
+          # sdr_rotation_matrix(-90, lat, 0)
+          # calc_ecef_to_enu_matrix(lon, lat)
+
+          latscale=scale
+          lonscale=scale*haversine_m(lon, lat, lon, lat+scale)/haversine_m(lon, lat, lon+scale, lat)
+          # print "latscale, lonscale:", latscale, lonscale > "/dev/stderr"
+          # minlon=lon
+          # maxlon=lon+scale
+          # minlat=lat
+          # maxlat=minlat+(maxy-miny)/(maxx-minx)*scale*haversine_m(minlon, minlat, maxlon, minlat)/haversine_m(minlon, minlat, minlon, minlat+scale)
 
 
-  # # Now add floating 3D text
-  # if [[ $plyfloatingtextflag -eq 1 && $plydemonlyflag -eq 0 ]]; then
-  #
-  # echo ${FLOAT_TEXT} ${PLY_FLOAT_TEXT_FONT_DIR} ${PLY_FLOAT_TEXT_STRING} ${F_3D}sentence.obj
-  #
-  # ${FLOAT_TEXT} ${PLY_FLOAT_TEXT_FONT_DIR} ${PLY_FLOAT_TEXT_STRING} ${F_3D}sentence.obj
-  #
-  # gawk < ${F_3D}sentence.obj -v v_exag=${PLY_VEXAG} -v text_lat=${PLY_FLOAT_TEXT_LAT} -v text_lon=${PLY_FLOAT_TEXT_LON} -v text_depth=${PLY_FLOAT_TEXT_DEPTH} -v text_scale=${PLY_FLOAT_TEXT_SCALE} '
-  # @include "tectoplot_functions.awk"
-  #
-  # BEGIN {
-  #   print "mtllib materials.mtl"
-  #   depth=(6371-text_depth*v_exag)/100
-  #   phi=deg2rad(text_lon)
-  #   theta=deg2rad(90-text_lat)
-  #
-  #   scale=(text_scale)
-  #
-  #   calc_ecef_to_enu_matrix(lon, lat)
-  #
-  #   # sdr_rotation_matrix(strike, dip, rake)
-  #   xoff=depth*sin(theta)*cos(phi)
-  #   yoff=depth*sin(theta)*sin(phi)
-  #   zoff=depth*cos(theta)
-  #   print "o FloatText"
-  #
-  # }
-  # {
-  #   vertexind=0
-  #   if ($1 == "v" || $1 == "vn") {
-  #
-  #       # $ Orient text
-  #       # multiply_rotation_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
-  #
-  #       # Reorient the text from geocentric to E/N/U coordinates
-  #       multiply_ecef_matrix($2, $3, $4)
-  #
-  #       if ($1=="v") {
-  #         print "v", w[0]*scale+xoff, w[1]*scale+yoff, w[2]*scale+zoff
-  #         vertexind++
-  #       }
-  #       if ($1=="vn") {
-  #         print "vn", w[0], w[1], w[2]
-  #       }
-  #
-  #   } else if ($1=="f") {
-  #     if (usedmtl==0) {
-  #       print "usemtl FloatingText"
-  #       usedmtl=1
-  #     }
-  #     print
-  #   }
-  # }
-  # ' > ${F_3D}floating_text.obj
+          usedmtl=0
+          print "o FloatText_" sphereind++
+          vertexind=0
+          for (this_ind in len) {
+            if (obj[this_ind][1] == "v" || obj[this_ind][1] == "vn") {
 
-    # rm -f ${F_3D}sentence.obj
 
+              this_x=obj[this_ind][2]
+
+              # Note the minus sign here and the changed order of coordinates
+              this_y=-obj[this_ind][4]
+              this_z=obj[this_ind][3]
+
+              # New approach: directly rescale x, y, z points to [lon, lon+dist] [lat, lat+val], depth
+              # and then project points to X,Y,Z ECEF coordinates
+
+              # Could rotate the obj along its horizontal axis first
+              # (Will only work with 2D text for now)
+
+              # print "rescale_lon: rescale_value(" this_x ", " minx " , " maxx " , " minlon " , " maxlon " )" > "/dev/stderr"
+              # print "rescale_lat: rescale_value(" this_y ", " miny " , " maxy " , " minlat " , " maxlat " )" > "/dev/stderr"
+
+
+              # this is the new longitude of the vertex
+              rescale_lon=lon+lonscale*this_x
+
+              # this is the new latitude of the vertex
+              rescale_lat=lat+latscale*this_y
+
+              # rescale_depth
+              rescale_depth=depth+this_z*(latscale+lonscale)/2
+
+              #rescale_lon=rescale_value(this_x, minx, maxx, minlon, maxlon)
+              #rescale_lat=rescale_value(this_y, miny, maxy, minlat, maxlat)
+
+              # print "rescale_lon, this_x: " rescale_lon, this_x > "/dev/stderr"
+              # print "rescale_lat, this_y: " rescale_lat, this_y > "/dev/stderr"
+
+              rescale_lon_rad=deg2rad(rescale_lon)
+              rescale_lat_rad=deg2rad(90-rescale_lat)
+
+              # print "rescale_lon, rescale_lat = ", rescale_lon, rescale_lat > "/dev/stderr"
+
+              # The reason why I cannot rotate text first is because of this calculation
+              # where I fix z_new to be equal to the depth
+
+                x_new=rescale_depth*sin(rescale_lat_rad)*cos(rescale_lon_rad)
+                y_new=rescale_depth*sin(rescale_lat_rad)*sin(rescale_lon_rad)
+                z_new=rescale_depth*cos(rescale_lat_rad)
+                #
+                #
+                # multiply_rotation_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+                #
+                #
+                # # Reorient the text OBJ from geocentric to E/N/U coordinates
+                # # multiply_ecef_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+                #
+                # multiply_ecef_matrix(v[0], v[1], v[2])
+                #
+                # # X=-w[1], Y=w[2], and Z=w[0]
+                #
+                #
+                #
+                if (obj[this_ind][1]=="v") {
+                #   x_val=-w[1]*v_scale+xoff
+                #   y_val=w[2]*v_scale+yoff
+                #   z_val=w[0]*v_scale+zoff
+                #
+                #
+                #   veclen=sqrt(x_val*x_val+y_val*y_val+z_val*z_val)
+                #   if (obj[this_ind][3] == 0) {
+                #     # If the point was a 0-level point on the font, it should be at the depth elevation
+                #     x_val=x_val/veclen*depth
+                #     y_val=y_val/veclen*depth
+                #     z_val=z_val/veclen*depth
+                #   } else {
+                #     # If the point was not 0-level point on the font, it should be at the depth+depth/100 elevation
+                #     x_val=x_val/veclen*(depth-1/100)
+                #     y_val=y_val/veclen*(depth-1/100)
+                #     z_val=z_val/veclen*(depth-1/100)
+                #   }
+
+                  # Vertex color is pure white
+                  # print "v", -w[1]*v_scale+xoff, w[2]*v_scale+yoff, w[0]*v_scale+zoff, 255, 255, 255
+                  print "v", x_new, y_new, z_new, 255, 255, 255
+                  vertexind++
+                }
+                if (obj[this_ind][1]=="vn") {
+                  print "vn", x_new/depth, y_new/depth, z_new/depth
+                }
+
+            } else if (obj[this_ind][1]=="f") {
+              if (usedmtl==0) {
+                print "usemtl FloatingText"
+                usedmtl=1
+              }
+              # Face vertices have to be incremented to account for prior floating text
+              printf("f ")
+              for (k=2; k<=len[this_ind]; k++) {
+                printf("%d/%d/%d ", obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind)
+              }
+              printf("\n")
+            } else if (obj[this_ind][1]=="vt") {
+
+              printf("vt ")
+              for (k=2; k<=len[this_ind]; k++) {
+                printf("%s ", obj[this_ind][k])
+              }
+              printf("\n")
+            }
+          }
+          # print lastvertexind, vertexind > "/dev/stderr"
+          lastvertexind+=vertexind
+        }
+      ' ${F_3D}sentence_${this_ftf}.obj ${F_3D}floattext.dat > ${F_3D}floating_text_${this_ftf}.obj
+
+    rm -f ${F_3D}sentence_${this_ftf}.obj
+  done
 cat <<-EOF >> ${F_3D}materials.mtl
 newmtl FloatingText
 Ka 1.000000 1.000000 1.000000
@@ -501,9 +461,42 @@ EOF
   fi
 
   # Now work on the seismicity data
+
+
+  # To make CPT coloring by an alternative field work, I need to pass the field
+  # location to the following awk script.
+
+  # SEIS_INPUTORDER="-i0,1,2,3+s${SEISSCALE}"
+  # SEIS_CPT=$SEISDEPTH_CPT
+  #
+  # if [[ ${xyzscaleeqsflag[$i]} -eq 1 ]]; then
+  #
+  #   ##########################################################################
+  #   # Plot earthquake data scaled by magnitude
+  #
+  #   if [[ $zctimeflag -eq 1 ]]; then
+  #     SEIS_INPUTORDER="-i0,1,6,3+s${SEISSCALE}"
+  #     SEIS_CPT=${F_CPTS}"eqtime.cpt"
+  #   elif [[ $zcclusterflag -eq 1 ]]; then
+  #     SEIS_INPUTORDER="-i0,1,7,3+s${SEISSCALE}"
+  #     SEIS_CPT=${F_CPTS}"eqcluster.cpt"
+  #   fi
+
+  # so if zctimeflag is 1, I want to use field 7 (6+1) and ${F_CPTS}eqtime.cpt
+  # if zcclusterflag is 1, I want to use field 8 (7+1) and ${F_CPTS}eqcluster.cpt
+
   if [[ -s ${F_SEIS}eqs.txt && $plydemonlyflag -eq 0 ]]; then
 
-          numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
+    if [[ $zctimeflag -eq 1 ]]; then
+      PLY_ZINDEX=7
+    elif [[ $zcclusterflag -eq 1 ]]; then
+      PLY_ZINDEX=8
+    else
+      PLY_ZINDEX=3
+    fi
+
+    numeqs=$(wc -l < ${F_SEIS}eqs.txt | gawk '{print $1}')
+
 cat <<-EOF > ${F_3D}tectoplot_header.ply
 ply
 format ascii 1.0
@@ -517,63 +510,73 @@ property uchar blue
 end_header
 EOF
 
-        PLY_POLYSCALE_SEIS=$(echo "${PLY_SCALE} * ${PLY_POLYSCALE}" | bc -l)
+          PLY_POLYSCALE_SEIS=$(echo "${PLY_SCALE} * ${PLY_POLYSCALE}" | bc -l)
 
-        replace_gmt_colornames_rgb ${F_CPTS}seisdepth.cpt > ${F_CPTS}seisdepth_fixed.cpt
-        gawk -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE_SEIS} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
-        @include "tectoplot_functions.awk"
-          BEGIN {
-            colorind=0
-            maxdepth="none"
-          }
-          (NR==FNR) {
-            if ($1+0==$1) {
-              minz[NR]=$1
-              split($2, arr, "/")
-              red[NR]=arr[1]
-              green[NR]=arr[2]
-              blue[NR]=arr[3]
-              colorind=NR
-            }
-          }
-          (NR!=FNR) {
-            if (maxdepth == "none") {
-              maxdepth=$3
-            } else if ($3 > maxdepth) {
-              maxdepth = $3
+          replace_gmt_colornames_rgb ${SEIS_CPT} > ${F_CPTS}ply_cpt_fixed.cpt
+          gawk -v z_ind=${PLY_ZINDEX} -v v_exag=${PLY_VEXAG} -v eq_polymag=${PLY_POLYMAG} -v eq_poly_scale=${PLY_POLYSCALE_SEIS} -v eq_poly_pow=${PLY_POLYMAG_POWER} '
+          @include "tectoplot_functions.awk"
+            BEGIN {
+              OFMT="%.12g"
+              colorind=0
+              maxdepth="none"
             }
 
-            # Earthquake data comes in the format lon lat depth mag etc.
-
-            phi=deg2rad($1)
-            theta=deg2rad(90-$2)
-            depth=(6371-$3*v_exag)/100
-
-            for(i=1; i<= colorind; i++) {
-              if (minz[i]<$3) {
-                curcolor_ind=i
-              } else {
-                break
+            # Read in the CPT file
+            (NR==FNR) {
+              if ($1+0==$1) {
+                minz[NR]=$1
+                split($2, arr, "/")
+                red[NR]=arr[1]
+                green[NR]=arr[2]
+                blue[NR]=arr[3]
+                colorind=NR
               }
             }
+            (NR!=FNR) {
+              if (maxdepth == "none") {
+                maxdepth=$3
+              } else if ($3 > maxdepth) {
+                maxdepth = $3
+              }
 
-            if ($4 < eq_polymag) {
-              print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind]
-            } else {
-              print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), (eq_poly_scale*($4 ^ eq_poly_pow)), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind] >> "./eq_polypts.txt"
+              # Earthquake data comes in the format lon lat depth mag etc.
+
+              phi=deg2rad($1)
+              theta=deg2rad(90-$2)
+              depth=(6371-$3*v_exag)/100
+
+              for(i=1; i<= colorind; i++) {
+                if (minz[i]<$(z_ind)) {
+                  curcolor_ind=i
+                } else {
+                  break
+                }
+              }
+
+              if ($4 < eq_polymag) {
+                print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind]
+              } else {
+                print depth*sin(theta)*cos(phi), depth*sin(theta)*sin(phi), depth*cos(theta), (eq_poly_scale*($4 ^ eq_poly_pow)), red[curcolor_ind], green[curcolor_ind], blue[curcolor_ind] >> "./eq_polypts.txt"
+              }
             }
-          }
-          END {
-            print maxdepth > "./eq_maxdepth.txt"
-          }' ${F_CPTS}seisdepth_fixed.cpt ${F_SEIS}eqs.txt > ${F_3D}tectoplot_vertex.ply
+            END {
+              print maxdepth > "./eq_maxdepth.txt"
+            }' ${F_CPTS}ply_cpt_fixed.cpt ${F_SEIS}eqs.txt > ${F_3D}tectoplot_vertex.ply
+
+          if [[ $addseisplyflag -eq 1 ]]; then
+
+            cat ${F_3D}tectoplot_header.ply ${F_3D}tectoplot_vertex.ply > ${F_3D}tectoplot.ply
+
+          fi
 
           if [[ ${PLY_SEISBALL} -eq 1 ]]; then
+
             [[ -s eq_polypts.txt ]] && mv eq_polypts.txt ${F_3D}eq_polypts.txt
 
             # Replicate the polyhedra
             if [[ -s ${F_3D}eq_polypts.txt ]]; then
               echo "mtllib materials.mtl" > ${F_3D}eq_poly.obj
-              ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}eq_polypts.txt "SphereColor" >> ${F_3D}eq_poly.obj
+              ${REPLICATE_OBS} ${REPLICATE_SPHERE} ${F_3D}eq_polypts.txt "SphereColor" >> ${F_3D}eq_poly.obj
             fi
 
 cat <<-EOF >> ${F_3D}materials.mtl
@@ -585,10 +588,8 @@ Tr 1.0
 illum 1
 Ns 0.000000
 EOF
-
           fi
 
-          cat ${F_3D}tectoplot_header.ply ${F_3D}tectoplot_vertex.ply > ${F_3D}tectoplot.ply
 
 #          echo "255 255 255 0.3 255 255 255 0.4 255 255 255 0.6 0.4 ${PLY_PT_OPACITY}" >> ${F_3D}tectoplot.ply
   fi
@@ -1386,9 +1387,6 @@ EOF
 
              }
 
-
-
-
              # Optionally, write out an object for the ocean
              if (makeocean==1) {
 
@@ -1833,6 +1831,18 @@ EOF
         info_msg "[-makeply]: Converting map to PNG"
         mkdir -p ${F_3D}Textures/
         gdal_translate -q -of "PNG" map.tif ${F_3D}Textures/${PLY_TEXNAME}
+      elif [[ -s landscan_image_${tt}.tif ]]; then
+        mkdir -p ${F_3D}Textures/
+        gdal_calc.py --overwrite -A landscan_image_1.tif --A_band=1 -B landscan_image_1.tif --B_band=2 -C landscan_image_1.tif --C_band=3 --outfile landscan_alpha_1.tif --calc="uint8( 254 - (A==255.)*(B==255.)*(C==255.)*254. )"
+
+        gdal_translate -q -b 1 landscan_image_1.tif landscan_band1.tif
+        gdal_translate -q -b 2 landscan_image_1.tif landscan_band2.tif
+        gdal_translate -q -b 3 landscan_image_1.tif landscan_band3.tif
+        gdal_edit.py -unsetnodata landscan_alpha_1.tif
+        gdal_merge.py -o landscan_merge.tif -separate landscan_band1.tif landscan_band2.tif landscan_band3.tif landscan_alpha_1.tif
+        gdal_edit.py -unsetnodata landscan_merge.tif
+
+        gdal_translate -q -of "PNG" landscan_merge.tif ${F_3D}Textures/${PLY_TEXNAME}
       elif [[ ! -s ${F_TOPO}colored_intensity.tif ]]; then
         mkdir -p ${F_3D}Textures/
         if [[ -s ${F_TOPO}colored_relief.tif ]]; then
@@ -1853,7 +1863,148 @@ EOF
 
   fi
 
+  if [[ -s cliproads.gmt && -s ${TOPOGRAPHY_DATA} ]]; then
+    info_msg "[-makeply]: Using DEM to create 3D road lines"
 
+    gawk < cliproads.gmt -v v_exag=${PLY_VEXAG_TOPO} '
+    @include "tectoplot_functions.awk"
+    BEGIN {
+      OFMT="%.12f"
+    }
+    {
+      if ($1==">") {
+        print "mtllib materials.mtl"
+        print "o Road_" ++contournum
+        print "usemtl Roads"
+        dontprint=1
+      } else if ($1+0==$1) {
+        vertexnum++
+        # Locate the vertex
+        depth=(6371+$3/1000*v_exag)/100
+        lon=$1
+        lat=$2
+        phi=deg2rad(lon)
+        theta=deg2rad(90-lat)
+
+        xoff=depth*sin(theta)*cos(phi)
+        yoff=depth*sin(theta)*sin(phi)
+        zoff=depth*cos(theta)
+        print "v", xoff, yoff, zoff
+        if (dontprint == 0) {
+          print "l", vertexnum-1, vertexnum
+        } else {
+          dontprint=0
+        }
+      }
+    }
+    ' > ${F_3D}roads.obj
+
+  if [[ -s ${F_3D}roads.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl Roads
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.011100 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+  fi
+fi
+
+  if [[ $makeplydemcontourflag -eq 1 && -s ${TOPOGRAPHY_DATA} ]]; then
+    info_msg "[-makeply]: Using DEM to create 3D contour lines"
+
+    if [[ -s majorcontourlines.dat ]]; then
+      echo "Found major contour lines"
+      gawk < majorcontourlines.dat -v v_exag=${PLY_VEXAG_TOPO} '
+      @include "tectoplot_functions.awk"
+      {
+        if ($1==">") {
+          print "mtllib materials.mtl"
+          print "o Contour_" ++contournum
+          print "usemtl MajorContour"
+          dontprint=1
+        } else {
+          vertexnum++
+          # Locate the vertex
+          depth=(6371+$3/1000*v_exag)/100
+          lon=$1
+          lat=$2
+          phi=deg2rad(lon)
+          theta=deg2rad(90-lat)
+
+          xoff=depth*sin(theta)*cos(phi)
+          yoff=depth*sin(theta)*sin(phi)
+          zoff=depth*cos(theta)
+          print "v", xoff, yoff, zoff
+          if (dontprint == 0) {
+            print "l", vertexnum-1, vertexnum
+          } else {
+            dontprint=0
+          }
+        }
+      }
+      ' > ${F_3D}majorcontours.obj
+
+      if [[ -s ${F_3D}majorcontours.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl MajorContour
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.010000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+      fi
+    fi
+
+    if [[ -s minorcontourlines.dat ]]; then
+      echo "Found minor contour lines"
+      gawk < minorcontourlines.dat -v v_exag=${PLY_VEXAG_TOPO} '
+      @include "tectoplot_functions.awk"
+      {
+        if ($1==">") {
+          print "mtllib materials.mtl"
+          print "o Contour_" ++contournum
+          print "usemtl MinorContour"
+          dontprint=1
+        } else {
+          vertexnum++
+          # Locate the vertex
+          depth=(6371+$3/1000*v_exag)/100
+          lon=$1
+          lat=$2
+          phi=deg2rad(lon)
+          theta=deg2rad(90-lat)
+
+          xoff=depth*sin(theta)*cos(phi)
+          yoff=depth*sin(theta)*sin(phi)
+          zoff=depth*cos(theta)
+          print "v", xoff, yoff, zoff
+          if (dontprint==0) {
+            print "l", vertexnum-1, vertexnum
+          } else {
+            dontprint=0
+          }
+        }
+      }
+      ' > ${F_3D}minorcontours.obj
+
+      if [[ -s ${F_3D}minorcontours.obj ]]; then
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl MinorContour
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.020000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+      fi
+    fi
+  fi
 
   if [[ $makeplyslab2meshflag -eq 1 && $plydemonlyflag -eq 0 ]]; then
 
@@ -2157,7 +2308,7 @@ EOF
           # Now convert the DEM to an OBJ format surface at the same scaling factor
           # Default format is scanline orientation of ASCII numbers: −ZTLa. Note that −Z only applies to 1-column output.
 
-    for i in $(seq 1 $numgridfault); do
+    for i in $(seq 1 $(echo "$numgridfault - 1" | bc)); do
 
           gridfile=${gridfault[$i]}
           info_msg "Creating OBJ file for fault file ${i} : ${gridfile}"
@@ -2220,7 +2371,7 @@ EOF
 
              color_assigned=0
              for(i=1; i<= colorind; i++) {
-               if (minz[i]<0-$3/1000) {
+               if (minz[i]<0-$3) {
                  vertexcolor[vertexind]=i
                  color_assigned=1
                } else {
@@ -2243,8 +2394,8 @@ EOF
                cell_nan[vertexind]=1
              }
 
-             # elevation of these data are in meters, negative downwards
-             r=(6371+$3/1000)/100
+             # elevation of these data are in kilometers, negative downwards
+             r=(6371+$3)/100
 
              # r = 6371/100 (Earth radius) for grid cells with values of NaN
 
@@ -2430,6 +2581,8 @@ EOF
            }
            ' > ${F_3D}fault_${i}.obj
 
+           rm -f ${F_3D}fault_${i}_presimplified.obj
+
            touch ${F_3D}faultdone
      done
 
@@ -2441,7 +2594,307 @@ Ks 0.000000 0.000000 0.000000
 Tr 1.0
 illum 1
 Ns 0.000000
+newmtl FaultLine
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.900002 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
 EOF
+
+  fi
+
+  # Polyline
+
+  if [[ -s ${PLY_POLYLINEFILE} && $plydemonlyflag -eq 0 ]]; then
+    # 3dpolyline.xyz contains lon lat elevation
+
+# I need to figure out the strike/dip/rake that corresponds to rotation of the
+# circle so the normal points toward the specified location
+
+    PLY_PLYSCALE=0.01
+
+cat <<-EOF >> ${F_3D}materials.mtl
+newmtl PolyLine
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Tr 1.0
+illum 1
+Ns 0.000000
+EOF
+
+    PLY_POLYLINESCALE=$(echo "${PLY_SCALE} * ${PLY_PLYSCALE}" | bc -l)
+
+    gawk -v v_exag=${PLY_VEXAG} -v polylinescale=${PLY_POLYLINESCALE} '
+    @include "tectoplot_functions.awk"
+
+    BEGIN {
+      OFMT = "%g"
+      ind=0
+      havematrix=0
+      itemind=0
+      sphereind=1
+      vertexind=0
+      print "mtllib materials.mtl"
+    }
+
+      # First input file is a template circle OBJ with vertices only
+
+      (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
+        itemind++
+        full[itemind]=$0
+        for(ind2=1;$(ind2)!="";ind2++) {
+          obj[itemind][ind2]=$(ind2)
+        }
+        len[itemind]=ind2-1
+      }
+
+      # Second input file is polyline points in the format
+      # lon lat depth
+
+      (NR!=FNR) {
+        ind++
+        lon[ind]=$1
+        lat[ind]=$2
+        rawdepth[ind]=0-$3/1000
+        depth[ind]=(6371-rawdepth[ind]*v_exag)/100
+
+        phi[ind]=deg2rad(lon[ind])
+        theta[ind]=deg2rad(90-lat[ind])
+
+        xoff[ind]=depth[ind]*sin(theta[ind])*cos(phi[ind])
+
+        # print "xoff is " depth[ind] " * " sin(theta[ind]) " * " cos(phi[ind]) " = " xoff[ind]  > "/dev/stderr"
+
+
+        yoff[ind]=depth[ind]*sin(theta[ind])*sin(phi[ind])
+        zoff[ind]=depth[ind]*cos(theta[ind])
+
+        # print "Data:", lon[ind], lat[ind], depth[ind], xoff[ind], yoff[ind], zoff[ind] > "/dev/stderr"
+      }
+      END {
+
+        # This ad-hoc method gets an initial orientation but is hard to
+        # understand and is likely WRONG.
+
+        # Calculate the azimuth of the line segment starting at each vertex
+        for(i=1;i<ind;i++) {
+            az[i]=azimuth_2pt(lon[i], lat[i], lon[i+1], lat[i+1])
+            dip[i]=dip_2pt(lon[i], lat[i], depth[i]*100, lon[i+1], lat[i+1], depth[i+1]*100)
+            # print "Dip["i"] is", dip[i] > "/dev/stderr"
+        }
+        finalaz[1]=az[1]
+        finaldip[1]=dip[1]
+        for(i=2;i<ind;i++) {
+          finalaz[i]=ave_dir(az[i-1], az[i])
+          finaldip[i]=dip[i]
+        }
+        finalaz[ind]=az[ind-1]
+        finaldip[ind]=dip[ind-1]
+
+        # Could not get this to work
+        # for(i=1;i<ind;i++) {
+        #
+        #   # Calculate the vector between the start and end points of each segment
+        #
+        #   vecx[i]=xoff[i+1]-xoff[i]
+        #   vecy[i]=yoff[i+1]-yoff[i]
+        #   vecz[i]=zoff[i+1]-zoff[i]
+        #
+        #   print "xoff/yoff/zoff", xoff[i], yoff[i], zoff[i], "vec", vecx[i], vecy[i], vecz[i] > "/dev/stderr"
+        #
+        #   # To rotate the Z axis to the given line requires rotating by this angle
+        #   # rotangle=30
+        #   # cos(theta)=(a.b)/||a||*||b||
+        #   rotangle[i]=rad2deg(acos(vecx[i]/sqrt(vecx[i]*vecx[i]+vecy[i]*vecy[i]+vecz[i]*vecz[i])))
+        #
+        #   # The axis of rotation is the cross product of the Z axis and the resultant vector
+        #
+        #   v_cross(0, 0, 1, vecx[i], vecy[i], vecz[i])
+        #   # [w_cross_1, w_cross_2, w_cross_3]
+        #
+        #   print "[0, 0, 1] x ["xoff[i]", "yoff[i]", "zoff[i]"] is ["w_cross_1","w_cross_2","w_cross_3"]" > "/dev/stderr"
+        #
+        #
+        #   wrotx[i]=w_cross_1/(sqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3))
+        #   wroty[i]=w_cross_2/(sqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3))
+        #   wrotz[i]=w_cross_3/(sqrt(w_cross_1*w_cross_1+w_cross_2*w_cross_2+w_cross_3*w_cross_3))
+        #
+        #   print "Rotating about", wrotx[i], wroty[i], wrotz[i], "by", rotangle[i] > "/dev/stderr"
+        #   # Calculate the rotation matrix
+        #
+        #   # calc_rotation_matrix_axis(w_cross_1, w_cross_2, w_cross_3, rotangle[i])
+        #
+        # }
+
+        # print i, "x" > "/dev/stderr"
+
+        print "o Polyline"
+        print "usemtl PolyLine"
+
+        lastvertexind=0
+
+        for(i=1;i<=ind;i++) {
+          # print "Outputting object", i, "with az", finalaz[i] > "/dev/stderr"
+          strike=finalaz[i]+90
+
+          # print i > "/dev/stderr"
+
+          # This dip is preliminary - needs to actually face toward the next point!
+          dipval=finaldip[i]
+
+          rake=0
+
+          calc_ecef_to_enu_matrix(lon[i], lat[i])
+
+          # print "inputs are", i, wrotx[i], wroty[i], wrotz[i], rotangle[i] > "/dev/stderr"
+          # calc_rotation_matrix_axis(wrotx[i], wroty[i], wrotz[i], rotangle[i])
+
+          sdr_rotation_matrix(strike, dipval, rake)
+
+          usedmtl=0
+          vertexind=0
+          for (this_ind in len) {
+            if (obj[this_ind][1] == "v")  {
+                $ Orient FMS
+                multiply_rotation_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+
+                # Reorient the FMS from geocentric to E/N/U coordinates
+                multiply_ecef_matrix(v[0], v[1], v[2])
+
+                if (obj[this_ind][1]=="v") {
+                  print "v", w[0]*polylinescale+xoff[i], w[1]*polylinescale+yoff[i], w[2]*polylinescale+zoff[i]
+                  vertexind++
+                }
+            }
+          }
+
+          # Output faces
+          # print "Circle has", itemind-1, "vertices" > "/dev/stderr"
+          num_vertices=itemind-1
+
+          if (i==1) {
+            printf("f ")
+            for(vert=1;vert<=num_vertices;vert++) {
+              printf("%s ", vert)
+            }
+            printf("\n")
+          }
+
+          if (i<ind) {
+            for(vert=num_vertices*(i-1)+1; vert<num_vertices*(i); vert++) {
+              faces[++facenum]=sprintf("%s %s %s %s %s", "f", vert, vert+num_vertices, vert+num_vertices+1, vert+1)
+            }
+            faces[++facenum]=sprintf("%s %s %s %s %s", "f", num_vertices*(i), num_vertices*(i+1), num_vertices*(i)+1, num_vertices*(i-1)+1)
+
+          }
+
+          if (i==ind) {
+            printf("f ")
+            for(vert=1;vert<=num_vertices;vert++) {
+              printf("%s ", vert+num_vertices*(ind-1))
+            }
+            printf("\n")
+          }
+
+          lastvertexind+=vertexind
+
+        }
+
+        for(i=1;i<=facenum;++i) {
+          print(faces[i])
+        }
+      }
+    ' ${CIRCLE_OBJ} ${PLY_POLYLINEFILE} >> ${F_3D}polyline.obj
+
+    #
+    #
+    #
+    # gawk -v v_exag=${PLY_VEXAG} -v v_scale=${PLY_POLYSCALE} '
+    # @include "tectoplot_functions.awk"
+    #
+    # BEGIN {
+    #   havematrix=0
+    #   itemind=0
+    #   sphereind=1
+    #   vertexind=0
+    #   print "mtllib materials.mtl"
+    # }
+    #
+    #   # First input file is a template circle OBJ with only vertices
+    #
+    #   (NR==FNR && substr($1,0,1) != "#" && $1 != "") {
+    #     itemind++
+    #     full[itemind]=$0
+    #     for(ind=1;$(ind)!="";ind++) {
+    #       obj[itemind][ind]=$(ind)
+    #     }
+    #     len[itemind]=ind-1
+    #   }
+    #
+    #   # Second input file is polyline points in the format
+    #   # lon lat elev(m)
+    #
+    #   (NR!=FNR) {
+    #
+    #     depth=(6371+$3/1000*v_exag)/100
+    #     lon=$1
+    #     lat=$2
+    #     phi=deg2rad(lon)
+    #     theta=deg2rad(90-lat)
+    #
+    #     xoff=depth*sin(theta)*cos(phi)
+    #     yoff=depth*sin(theta)*sin(phi)
+    #     zoff=depth*cos(theta)
+    #
+    #     calc_ecef_to_enu_matrix(lon, lat)
+    #
+    #     usedmtl=0
+    #     print "o Polyline_" sphereind++
+    #     vertexind=0
+    #     for (this_ind in len) {
+    #       if (obj[this_ind][1] == "v" || obj[this_ind][1] == "vn") {
+    #
+    #           # Reorient the circle OBJ from geocentric to E/N/U coordinates
+    #           multiply_ecef_matrix(obj[this_ind][2], obj[this_ind][3], obj[this_ind][4])
+    #
+    #           if (obj[this_ind][1]=="v") {
+    #             # Vertex color is pure red
+    #             print "v", w[0]*v_scale+xoff, w[1]*v_scale+yoff, w[2]*v_scale+zoff, 255, 0, 0
+    #             vertexind++
+    #           }
+    #           # if (obj[this_ind][1]=="vn") {
+    #           #   print "vn", w[0], w[1], w[2]
+    #           # }
+    #
+    #       } else if (obj[this_ind][1]=="f") {
+    #
+    #         # We do not have any faces yet as they need to be added later
+    #         # if (usedmtl==0) {
+    #         #   print "usemtl PolyLine"
+    #         #   usedmtl=1
+    #         # }
+    #         # # Face vertices have to be incremented to account for prior circles
+    #         # printf("f ")
+    #         # for (k=2; k<=len[this_ind]; k++) {
+    #         #   printf("%d/%d/%d ", obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind,obj[this_ind][k]+lastvertexind)
+    #         # }
+    #         # printf("\n")
+    #       } else if (obj[this_ind][1]=="vt") {
+    #
+    #         printf("vt ")
+    #         for (k=2; k<=len[this_ind]; k++) {
+    #           printf("%s ", obj[this_ind][k])
+    #         }
+    #         printf("\n")
+    #       }
+    #     }
+    #     # print lastvertexind, vertexind > "/dev/stderr"
+    #     lastvertexind+=vertexind
+    #   }
+    # ' ${CIRCLE_OBJ} 3dpolyline.xyz > ${F_3D}polyline.obj
   fi
 
   if [[ -s ${F_VOLC}volcanoes.dat && $plydemonlyflag -eq 0 ]]; then
@@ -2680,20 +3133,24 @@ EOF
     # earthquake, to stop the transparency problem (if it is a global Earth)
 
 
-  if [[ $closeglobeflag -eq 1 ]]; then
-    echo "Making a sphere with radius ${sphere_rad} to go under the earthquakes"
-cat <<-EOF > ${F_3D}insidearth.txt
-0 0 0 ${sphere_rad} 0 0 0
-EOF
-    ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}insidearth.txt > ${F_3D}inside_earth.obj
-  fi
+#   if [[ $closeglobeflag -eq 1 ]]; then
+#     echo "Making a sphere with radius ${sphere_rad} to go under the earthquakes"
+# cat <<-EOF > ${F_3D}insidearth.txt
+# 0 0 0 ${sphere_rad} 0 0 0
+# EOF
+#     ${REPLICATE_OBS} ${REPLICATE_SPHERE4} ${F_3D}insidearth.txt > ${F_3D}inside_earth.obj
+#   fi
 
   printf "1 " > ${F_3D}sketchfab.timeframe
   firstfileflag=""
 
-  if [[ -s ${F_3D}tectoplot.ply ]]; then
+  if [[ -s ${F_3D}tectoplot.ply && ${addseisplyflag} -ne 0 ]]; then
     printf "tectoplot.ply" >> ${F_3D}sketchfab.timeframe
     firstfileflag="+"
+  fi
+  if [[ -s ${F_3D}polyline.obj ]]; then
+      printf "%spolyline.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+      firstfileflag="+"
   fi
   if [[ -s ${F_3D}inside_earth.obj ]]; then
       printf "%sinside_earth.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
@@ -2743,6 +3200,18 @@ EOF
     printf "%soceanwest.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
     firstfileflag="+"
   fi
+  if [[ -s ${F_3D}majorcontours.obj ]]; then
+    printf "%smajorcontours.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+    firstfileflag="+"
+  fi
+  if [[ -s ${F_3D}minorcontours.obj ]]; then
+    printf "%sminorcontours.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+    firstfileflag="+"
+  fi
+  if [[ -s ${F_3D}roads.obj ]]; then
+    printf "%sroads.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+    firstfileflag="+"
+  fi
   if [[ -s ${F_3D}volcanoes.obj ]]; then
       printf "%svolcanoes.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
       firstfileflag="+"
@@ -2764,10 +3233,12 @@ EOF
     printf "%sgps.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
     firstfileflag="+"
   fi
-  if [[ -s ${F_3D}floating_text.obj ]]; then
-    printf "%sfloating_text.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
-    firstfileflag="+"
-  fi
+  for this_ftf in $(seq 1 $plyfloattextnum); do
+    if [[ -s ${F_3D}floating_text_${this_ftf}.obj ]]; then
+      printf "%sfloating_text_${this_ftf}.obj@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
+      firstfileflag="+"
+    fi
+  done
   if [[ -e ${F_3D}slabdone ]]; then
     for slabf in ${F_3D}slab_*.obj; do
       printf "%s${slabf}@r=-90,0,0" $firstfileflag >> ${F_3D}sketchfab.timeframe
@@ -2788,6 +3259,20 @@ EOF
 
 #slab_material.mtl volcanoes.mtl focsphere.mtl sphere.mtl
   cd ${F_3D}
+
+  if [[ $addplyflag -eq 1 ]]; then
+    for plyfile in ${ADDPLYFILE[@]}; do
+      ADDPLYPATH=$(basename ${plyfile})
+      cp ${plyfile} ${ADDPLYPATH}
+      gawk < sketchfab.timeframe -v addp=${ADDPLYPATH} '{
+        print $0 "+" addp
+      }' > sketchfab.timeframe.2
+      mv  sketchfab.timeframe.2  sketchfab.timeframe
+      ALLADDPLYPATHS+=("${ADDPLYPATH}")
+    done
+  else
+    ALLADDPLYPATHS=""
+  fi
 
   if [[ $addobjflag -eq 1 ]]; then
     for objfile in ${ADDOBJFILE[@]}; do
@@ -2820,29 +3305,32 @@ EOF
     ADDOBJTEXPATH=""
   fi
 
-  gawk < materials.mtl '
-  BEGIN {
-    counter=1
-  }
-  {
-    if ($1=="Ka" && $2+0 > 0.99) {
-      print "Ka", $3-counter*0.000001, $3-counter*0.000001, $3-counter*0.000001
-    } else if ($1=="Kd" && $2+0 > 0.99) {
-      print "Kd", $3-counter*0.000001, $3-counter*0.000001, $3-counter*0.000001
-    } else if ($1=="Ks") {
-      print "Ks 0.00000 0.00000 0.00000"
-    } else {
-      print
-      counter--
+  if [[ -s materials.mtl ]]; then
+    gawk < materials.mtl '
+    BEGIN {
+      counter=1
     }
-    counter++
-  }
-  ' > materials_fixed.mtl
-  mv materials_fixed.mtl materials.mtl
+    {
+      if ($1=="Ka" && $2+0 > 0.99) {
+        print "Ka", $3-counter*0.000001, $3-counter*0.000001, $3-counter*0.000001
+      } else if ($1=="Kd" && $2+0 > 0.99) {
+        print "Kd", $3-counter*0.000001, $3-counter*0.000001, $3-counter*0.000001
+      } else if ($1=="Ks") {
+        print "Ks 0.00000 0.00000 0.00000"
+      } else {
+        print
+        counter--
+      }
+      counter++
+    }
+    ' > materials_fixed.mtl
+
+    mv materials_fixed.mtl materials.mtl
+  fi
 
   rm -f Textures/*.xml
   # Textures/sidebox.png
 
-  zip tectoplot_sketchfab.zip ${ALLADDOBJPATHS[@]} ${ALLADDOBJTEXPATHS[@]} gps.obj floating_text.obj Textures/${PLY_TEXTCODE}.png ${PLY_TEXTCODE}.obj basetext.obj Textures/SideboxEast.png Textures/SideboxWest.png Textures/SideboxNorth.png Textures/SideboxSouth.png Textures/water.jpg OceanTop.obj ocean*.obj volcanoes.obj slab_*.obj fault_*.obj focal_mechanisms.obj sideboxnorth.obj sideboxwest.obj sideboxeast.obj sideboxsouth.obj Textures/focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe ${PLY_MTLNAME}.obj tectoplot.ply tectoplot_surface.ply materials.mtl Textures/${PLY_TEXNAME} Textures/alpha_* > /dev/null 2>&1
+  zip tectoplot_sketchfab.zip ${ALLADDPLYPATHS[@]} ${ALLADDOBJPATHS[@]} ${ALLADDOBJTEXPATHS[@]} gps.obj polyline.obj roads.obj *contours.obj floating_text_*.obj Textures/${PLY_TEXTCODE}.png ${PLY_TEXTCODE}.obj basetext.obj Textures/SideboxEast.png Textures/SideboxWest.png Textures/SideboxNorth.png Textures/SideboxSouth.png Textures/water.jpg OceanTop.obj ocean*.obj volcanoes.obj slab_*.obj fault_*.obj focal_mechanisms.obj sideboxnorth.obj sideboxwest.obj sideboxeast.obj sideboxsouth.obj Textures/focaltexture.jpg box.obj inside_earth.obj eq_poly.obj sketchfab.timeframe ${PLY_MTLNAME}.obj tectoplot.ply tectoplot_surface.ply materials.mtl Textures/${PLY_TEXNAME} Textures/alpha_* > /dev/null 2>&1
   cd ..
 fi # if [[ $makeplyflag -eq 1 ]]

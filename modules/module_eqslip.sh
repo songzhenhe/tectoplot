@@ -2,6 +2,7 @@
 TECTOPLOT_MODULES+=("eqslip")
 
 # UPDATED
+# NEW OPTS
 
 # function tectoplot_defaults_eqslip() {
 # }
@@ -15,7 +16,7 @@ function tectoplot_args_eqslip()  {
   case "${1}" in
     -eqslip)
 
-  cat <<-EOF > eqslip
+  tectoplot_get_opts_inline '
 des -eqslip plot gridded earthquake slip model (or any grid...) with clipping
 req m_eqslip_file file
     input grid file
@@ -48,19 +49,11 @@ opt label m_eqslip_labelstr string "Coseismic_slip"
 mes If int is not specified for a model, uses a contour interval that will
 mes work with all specified models. Note: the range of slip in ALL models
 mes specified to -eqslip is used to scale ALL CPTs and contours.
-EOF
+' "${@}" || return
 
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts eqslip
-  else
-    tectoplot_get_opts eqslip "${@}"
-
-    plots+=("eqslip")
-    cpts+=("eqslip")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("eqslip")
+  cpts+=("eqslip")
 
   ;;
   esac

@@ -30,6 +30,238 @@
 
 ## Functions to manage seismicity data
 
+# GMT psxy wrapper for plotting earthquakes scaled by a nonlinear stretch
+# factor. Expects plain text piped to stdin and outputs PS code to stdout
+
+# Scaling by magnitude is done using the following formula:
+
+# Mw_new=(Mw^seisstretch)/(refmag^(seisstretch-1))
+
+# The symbol size is defined such that an event with Mw=refmag will be
+# scale*refmag points in diameter, on the printed page.
+
+# To plot all events at the same size (scale*refmag points), set seisstretch=0
+# so that the scale equation reduces to: Mw_new=1/(refmag^-1) = refmag. Then
+# all events will be scale*refmag points in diameter.
+
+
+# Usage: gmt_psxy [[option1 arg1]] ...
+
+# fill, stroke option can be "none" to deactivate fill/stroke
+
+# xmul, ymul, zmul factors are multiplied to X,Y,Z values before plotting. This
+# is useful for turning depth positive to depth negative (zmul -1) for instance.
+# scale is multiplied vs magnitude before plotting (to adjust symbol size).
+
+# Last tested with GMT 6.4.0
+
+function gmt_psxy() {
+
+  local symbol="c"
+  local trans=0
+  local scale=1
+  local stretch=3
+  local refmag=6
+  local xcol=1
+  local ycol=2
+  local zcol=3
+  local magcol=4
+  local cpt="none"
+  local fill="black"
+  local stroke="0.1p,black"
+  local gmt_psxy_args
+  local strokeargs
+  local fillargs
+  local xmul=1
+  local ymul=1
+  local zmul=1
+
+  while [[ ! -z $1 ]]; do
+    case $1 in
+      zmul)
+        shift
+        if ! arg_is_float $1; then
+          echo "[gmt_psxy]: zmul option requires float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        zmul=$1
+        shift
+      ;;
+      ymul)
+        shift
+        if ! arg_is_float $1; then
+          echo "[gmt_psxy]: ymul option requires float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        ymul=$1
+        shift
+      ;;
+      xmul)
+        shift
+        if ! arg_is_float $1; then
+          echo "[gmt_psxy]: xmul option requires float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        xmul=$1
+        shift
+      ;;
+      trans)
+        shift
+        if [[ -z $1 ]]; then
+          echo "[gmt_psxy]: trans option requires argument (read empty string)" > /dev/stderr
+          exit 1
+        fi
+        trans=$1
+        shift
+      ;;
+      symbol)
+        shift
+        if [[ -z $1 ]]; then
+          echo "[gmt_psxy]: symbol option requires string argument (read empty string)" > /dev/stderr
+          exit 1
+        fi
+        symbol=$1
+        shift
+      ;;
+      scale)
+        shift
+        if ! arg_is_positive_float $1; then
+          echo "[gmt_psxy]: scale option requires positive float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        scale=$1
+        shift
+      ;;
+      stretch)
+        shift
+        if ! arg_is_positive_float $1; then
+          echo "[gmt_psxy]: stretch option requires positive float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        stretch=$1
+        shift
+      ;;
+      refmag)
+        shift
+        if ! arg_is_float $1; then
+          echo "[gmt_psxy]: refmag option requires float argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        refmag=$1
+        shift
+      ;;
+      xcol)
+        shift
+        if ! arg_is_positive_integer $1; then
+          echo "[gmt_psxy]: xcol option requires positive integer argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        xcol=$1
+        shift
+      ;;
+      ycol)
+        shift
+        if ! arg_is_positive_integer $1; then
+          echo "[gmt_psxy]: ycol option requires positive integer argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        ycol=$1
+        shift
+      ;;
+      zcol)
+        shift
+        if ! arg_is_positive_integer $1; then
+          echo "[gmt_psxy]: zcol option requires positive integer argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        zcol=$1
+        shift
+      ;;
+      magcol)
+        shift
+        if ! arg_is_positive_integer $1; then
+          echo "[gmt_psxy]: magcol option requires positive integer argument (read $1)" > /dev/stderr
+          exit 1
+        fi
+        magcol=$1
+        shift
+      ;;
+      cpt)
+        shift
+        if [[ -z $1 ]]; then
+          echo "[gmt_psxy]: cpt option requires string argument (read empty string)" > /dev/stderr
+          exit 1
+        fi
+        cpt=$1
+        shift
+      ;;
+      fill)
+        shift
+        if [[ -z $1 ]]; then
+          echo "[gmt_psxy]: fill option requires string argument (read empty string)" > /dev/stderr
+          exit 1
+        fi
+        fill=$1
+        shift
+      ;;
+      stroke)
+        shift
+        if [[ -z $1 ]]; then
+          echo "[gmt_psxy]: stroke option requires string argument (read empty string)" > /dev/stderr
+          exit 1
+        fi
+        stroke=$1
+        shift
+      ;;
+      *)
+        gmt_psxy_args+=("$1")
+        shift
+      ;;
+    esac
+  done
+
+  local colorargs=""
+
+  local strokewidth=$(echo ${stroke} | gawk '{ split($1,a,","); print $1+0}')
+
+  if [[ ${stroke} == "none" || $(echo "$strokewidth == 0" | bc) -eq 1 ]]; then
+    strokeargs=""
+  else
+    strokeargs="-W${stroke}"
+  fi
+
+  if [[ ${fill} == "none" ]]; then
+    fillargs=""
+  else
+    fillargs="-G${fill}"
+  fi
+
+  if [[ ${cpt} == "none" ]]; then
+    colorargs="-t${trans} ${strokeargs} ${fillargs} -i0+s${xmul},1+s${ymul},2+s${scale}"
+    zcol=0
+  else
+    colorargs="-t${trans} ${strokeargs} -C${cpt} -i0+s${xmul},1+s${ymul},2+s${zmul},3+s${scale}"
+  fi
+
+  # echo colorargs=${colorargs}
+
+  gawk -v str=$stretch -v sref=$refmag -v xcol=${xcol} -v ycol=${ycol} -v zcol=${zcol} -v magcol=${magcol} '
+  BEGIN {
+    OFMT="%.12f"
+  }
+  {
+    x=$(xcol)
+    y=$(ycol)
+    z=$(zcol)
+    mw=($(magcol)^str)/(sref^(str-1))
+    if (zcol==0) {
+      print x, y, mw
+    } else {
+      print x, y, z, mw
+    }
+  }' | gmt psxy -S${symbol} ${colorargs} ${gmt_psxy_args[@]} --PROJ_LENGTH_UNIT=p
+}
+
 # This function takes a Mw magnitude (e.g. 6.2) and prints the mantissa and
 # exponent of the moment magnitude, scaled by a nonlinear stretch factor.
 
@@ -42,10 +274,56 @@ function stretched_m0_from_mw () {
             print c[1], b[2] }'
 }
 
+# function stretched_mw_from_mw [magnitude] [seisstretch] [refmag]
+# argument 1: magnitude (mw)
+# argu
 # Stretch a Mw value from a Mw value
 
+# On failure, prints -1
+
 function stretched_mw_from_mw () {
-  echo $1 | gawk -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print ($1^str)/(sref^(str-1))}'
+  if ! arg_is_float $1; then
+    echo "[stretched_mw_from_mw]: magnitude ($1) is not a float" > "/dev/stderr"
+    echo "-1" && return 1
+  fi
+  if ! arg_is_float $1; then
+    echo "[stretched_mw_from_mw]: seisstretch ($1) is not a float" > "/dev/stderr"
+    echo "-1" && return 1
+  fi
+  if ! arg_is_float $1; then
+    echo "[stretched_mw_from_mw]: refmag ($1) is not a float" > "/dev/stderr"
+    echo "-1" && return 1
+  fi
+
+  gawk -v mag=${1} -v str=${2} -v sref=${3} 'BEGIN{print (mag^str)/(sref^(str-1))}'
+
+}
+
+function tectoplot_test_stretched_mw_from_mw() {
+
+  echo -n "Testing stretched_mw_from_mw... "
+
+  local result=$(stretched_mw_from_mw 6 3 6)   # mag=6^3/6^2 = 6
+  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
+    echo "test_stretched_mw_from_mw 6 3 6: failed" && return 1
+  fi
+
+  local result=$(stretched_mw_from_mw 6 1 6)   # mag=6^1/6^0 = 6
+  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
+    echo "test_stretched_mw_from_mw 6 1 6: failed" && return 1
+  fi
+
+  local result=$(stretched_mw_from_mw 6 0 6)   # mag=6^0/6^-1 = 1/(1/6) = 6
+  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
+    echo "test_stretched_mw_from_mw 6 0 6: failed" && return 1
+  fi
+
+  local result=$(stretched_mw_from_mw 3 0 6)   # mag=3^0/6^-1 = 1/(1/6) = 6
+  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
+    echo "test_stretched_mw_from_mw 3 0 6: failed (result=$result)" && return 1
+  fi
+
+  echo "passed all tests"
 }
 
 # Take a string as argument and return an earthquake ID

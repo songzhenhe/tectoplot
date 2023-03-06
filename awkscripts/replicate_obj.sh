@@ -7,6 +7,7 @@
 
 gawk -v material="$3" '
   BEGIN {
+    OFMT="%.12g"
     itemind=0
     sphereind=1
     vertexind=0

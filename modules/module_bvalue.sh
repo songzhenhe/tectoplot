@@ -2,6 +2,7 @@
 TECTOPLOT_MODULES+=("bvalue")
 
 # UPDATED
+# NEW OPT
 
 function tectoplot_defaults_bvalue() {
   m_bvalue_usemc=0
@@ -16,7 +17,7 @@ function tectoplot_args_bvalue()  {
   case "${1}" in
 
   -bvalue)
-  cat <<-EOF > bvalue
+  tectoplot_get_opts_inline '
 des -bvalue Plot cumulative frequency number distribution of seismicity
 opn mc m_bvalue_mc float 4.0
   magnitude of completeness for earthquake catalog
@@ -24,20 +25,11 @@ mes mc is the magnitude of completeness of the input catalog, which is set to be
 mes the earthquake bin with highest event count, if not specified directly.
 mes Note: -bvalue plots only seismicity; be careful if using CMTs with culling!
 exa tectoplot -z -bvalue mc 5
-EOF
+' "${@}" || return
 
-    if [[ $USAGEFLAG -eq 1 ]]; then
-      tectoplot_usage_opts bvalue
-    else
-      tectoplot_get_opts bvalue "${@}"
-
-      if [[ $(echo "${m_bvalue_mc} != 4.0" | bc -l) -eq 1 ]]; then
-        m_bvalue_usemc=1
-      fi
-
-      tectoplot_module_caught=1
+    if [[ $(echo "${m_bvalue_mc} != 4.0" | bc -l) -eq 1 ]]; then
+      m_bvalue_usemc=1
     fi
-
     ;;
   esac
 }

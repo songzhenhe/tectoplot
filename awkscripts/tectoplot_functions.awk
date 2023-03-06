@@ -49,9 +49,11 @@ function hypot(x,y)    { return ssqrt(x*x+y*y)          }
 function ssqrt(x)      { return (x<0)?0:sqrt(x)         }
 function ddiff(u)      { return u > 180 ? 360 - u : u   }
 function ceil(x)       { return int(x)+(x>int(x))       }
+function floor(x)      { return ceil(x)-1               }
 function sinsq(x)      { return sin(x)*sin(x)           }
 function cossq(x)      { return cos(x)*cos(x)           }
 function d_atan2d(y,x) { return (x == 0.0 && y == 0.0) ? 0.0 : rad2deg(atan2(y,x)) }
+function square(x)     { return x*x }
 
 # Rescale a value val that comes from data with range [xmin, xmax] into range [ymin, ymax]
 
@@ -126,7 +128,7 @@ function v_dot(u1,u2,u3,v1,v2,v3) {
 # Numerical diagonalization of 3x3 matrcies
 # Copyright (C) 2006  Joachim Kopp (GPL 2.1)
 
-function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz) {
+function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz,     i) {
 
   # Initialize the relevant part of the A matrix
 
@@ -328,8 +330,11 @@ function moment_tensor_diagonalize_ntp(Mxx,Myy,Mzz,Mxy,Mxz,Myz) {
 # Rotate a moment tensor around a specified plunging axis, by a specified angle.
 
 # Generate the rotation matrix
+# Output variables:
+#   r_R[0-2][0-2]        rotation matrix
+#   r_R_t[0-2][0-2]      transposed rotation matrix
 
-function build_rotation_matrices(r_trend, r_plunge, r_alpha) {
+function build_rotation_matrices(r_trend, r_plunge, r_alpha,       ux,uy,uz,ct,st) {
   # plunge here is the angle up the horizontal plane [-90=down; 90=up];
   # trend is the azimuth angle CW from north [0-360]
 
@@ -376,6 +381,36 @@ function print_matrix(m) {
     }
     printf("\n");
   }
+}
+
+# Calculate the azimuth between two lon/lat points
+# sets global variable azimuth_2pt_d to be the km distance between the points
+
+function azimuth_2pt(d_lon1, d_lat1, d_lon2, d_lat2,        lon1, lat1, lon2, lat2, theta) {
+  lon1 = deg2rad(d_lon1);
+  lat1 = deg2rad(d_lat1);
+  lon2 = deg2rad(d_lon2);
+  lat2 = deg2rad(d_lat2);
+  theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
+  azimuth_2pt_d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
+
+  return((rad2deg(theta)+360)%360)
+}
+
+
+function dip_2pt(d_lon1, d_lat1, d_depth1, d_lon2, d_lat2, d_depth2,        lon1, lat1, lon2, lat2, theta, dip) {
+  lon1 = deg2rad(d_lon1);
+  lat1 = deg2rad(d_lat1);
+  lon2 = deg2rad(d_lon2);
+  lat2 = deg2rad(d_lat2);
+  theta = atan2(sin(lon2-lon1)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1));
+  azimuth_2pt_d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
+
+  # distance
+  d = acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2-lon1) ) * 6371;
+  dip=atan((d_depth2 - d_depth1) / d)
+
+  return(rad2deg(dip))
 }
 
 # Calculate the average of two azimuthal directions
@@ -538,7 +573,7 @@ function moment_tensor_rotate(Mxx,Myy,Mzz,Mxy,Mxz,Myz, r_trend, r_plunge, r_alph
 
 # We want NED coordinates
 
-function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, mantissa, exponent, Mf)
+function sdr_mantissa_exponent_to_full_moment_tensor(strike_d, dip_d, rake_d, mantissa, exponent, Mf,    strike, dip, rake)
 {
   strike=deg2rad(strike_d)
   dip=deg2rad(dip_d)
@@ -690,22 +725,34 @@ function aux_sdr(strike_d, dip_d, rake_d, SDR) {
   rake = deg2rad(rake_d)
 
   aux_dip = acos(sin(rake)*sin(dip))
+
+  if (aux_dip==0) {
+    print "auxdip div by 0 for strike/dip/rake=" rad2deg(strike) "/" rad2deg(dip) "/" rad2deg(rake) "/" > "/dev/stderr"
+    aux_dip=0.0001
+  }
   r2 = atan2(cos(dip)/sin(aux_dip), -sin(dip)*cos(rake)/sin(aux_dip))
-  aux_strike = rad2deg(strike - atan2(cos(rake)/sin(aux_dip), -1/(tan(dip)*tan(aux_dip))))
-  aux_dip = rad2deg(aux_dip)
-  aux_rake = rad2deg(r2)
+  if (dip==0) {
+    print "Div by 0 for strike/dip/rake=" rad2deg(strike) "/" rad2deg(dip) "/" rad2deg(rake) "/" > "/dev/stderr"
+    SDR[1]=strike
+    SDR[2]=90
+    SDR[3]=rad2deg(r2)
+  } else {
+    aux_strike = rad2deg(strike - atan2(cos(rake)/sin(aux_dip), -1/(tan(dip)*tan(aux_dip))))
+    aux_dip = rad2deg(aux_dip)
+    aux_rake = rad2deg(r2)
 
-  if (aux_dip > 90) {
-      aux_strike = aux_strike + 180
-      aux_dip = 180 - aux_dip
-      aux_rake = 360 - aux_rake
-  }
+    if (aux_dip > 90) {
+        aux_strike = aux_strike + 180
+        aux_dip = 180 - aux_dip
+        aux_rake = 360 - aux_rake
+    }
 
-  while (aux_strike > 360) {
-      aux_strike = aux_strike - 360
-  }
-  while (aux_strike < 00) {
-      aux_strike = aux_strike + 360
+    while (aux_strike > 360) {
+        aux_strike = aux_strike - 360
+    }
+    while (aux_strike < 00) {
+        aux_strike = aux_strike + 360
+    }
   }
 
   SDR[1]=aux_strike
@@ -822,14 +869,44 @@ function isnumber(val) {
   }
 }
 
-function iso8601_to_epoch(timestring) {
+# gawk 'function ceil(x)       { return int(x)+(x>int(x))       }
+# function floor(x)      { return ceil(x)-1               }
+function leapyearsbefore(year, month,     y) {
+  y=year
+  if (year==0 && month<2) {
+    return 0
+  }
+  if (month>2) {
+    y=year+1
+  }
+  return 1 + floor(y / 4) - floor(y / 100) + floor(y / 400)
+}
+# { print leapyearsbefore($1, $2) }'
+
+
+# 1     the first leap year, Feb 29 0000
+# 2     floor(y / 4) number of years divided by 4; 0==0 1==0 2==0 3==0 4==1
+#         so if month==3 then Y=4 (no) goes to Y=5 (yes)
+#         but if month==3 then Y=4 is still no
+# 3
+
+
+# 0  L        1           2           3             4  L
+# |...........|...........|...........|.............|............]
+#
+
+# Return the number of leap years between year=start and later year=end
+function leapyearsbetween(start, startmonth, end) {
+  return leapyearsbefore(end, 1) - leapyearsbefore(start, startmonth);
+}
+
+function iso8601_to_epoch(timestring,        a,b,c) {
+
+  ENVIRON["TZ"] = "UTC"
   timecode=substr(timestring, 1, 19)
   split(timecode, a, "-")
+
   year=a[1]
-  if (year < 1900) {
-    return -2209013725
-    done=1
-  }
   month=a[2]
   split(a[3],b,"T")
   day=b[1]
@@ -839,25 +916,32 @@ function iso8601_to_epoch(timestring) {
   minute=c[2]
   second=c[3]
 
-  # These corrections are for a strange bug in OSX Catalina (at least) where only these
-  # specific days return wacky epoch times...
+  if (year < 1900) {
+    # we need to account for the seconds backward from 1900
+    # seconds thus far in the year at hand
+    short_time=sprintf("%04i %02i %02i %02i %02i %02i",1970,month,day,hour,minute,int(second+0.5));
+    shortepoch=mktime(short_time);
+    # 1900-01-01T00:00:00 is epoch -2208988800
+    # assume 31536000 seconds per year without leap years
+    #
+    leapyears=leapyearsbetween(year, month, 1900)
+    # print leapyears > "/dev/stderr"
+    epoch=-2208988800-(1900-year)*31536000-24*60*60*leapyears+shortepoch
+    return epoch
+  }
 
-  if (year == 1982 && month == 01 && day == 01) {
-    return 378691200 + second + 60*minute * 60*60*hour;
-  }
-  if (year == 1941 && month == 09 && day == 01) {
-    return -895153699 + second + 60*minute * 60*60*hour;
-  }
-  if (year == 1941 && month == 09 && day == 01) {
-    return -879638400 + second + 60*minute * 60*60*hour;
-  }
   the_time=sprintf("%04i %02i %02i %02i %02i %02i",year,month,day,hour,minute,int(second+0.5));
   return mktime(the_time);
 }
 
-#
+function epoch_to_iso8601(time) {
+  ENVIRON["TZ"] = "UTC"
+  return strftime("%FT%T", time)
+}
 
+#
 function time_increments_from_date(timestring_start, timestring_end, timestring_inc) {
+  ENVIRON["TZ"] = "UTC"
   timecode=substr(timestring_start, 1, 19)
   split(timecode, a, "-")
   year=a[1]
@@ -929,7 +1013,10 @@ function time_increments_from_date(timestring_start, timestring_end, timestring_
 
 # Functions for 3D focal mechanisms (rotations)
 
-function calc_rotation_matrix(yaw_deg, pitch_deg, roll_deg)
+# Produce a rotation matrix that transforms a reference CMT object using
+# specified yaw, pitch, and roll angles
+
+function calc_rotation_matrix(yaw_deg, pitch_deg, roll_deg,     alpha, beta, gamma)
 {
   alpha=deg2rad(yaw_deg)
   beta=deg2rad(pitch_deg)
@@ -952,7 +1039,46 @@ function calc_rotation_matrix(yaw_deg, pitch_deg, roll_deg)
   }
 }
 
-function calc_ecef_to_enu_matrix(lon_deg, lat_deg) {
+# Calculate rotation matrix about arbitrary axis [u, v, w] through angle theta
+# where theta is in degrees
+
+function calc_rotation_matrix_axis(u, v, w, theta_deg,      theta, uu, vv, ww, uv, vw, uw, l, L, c, s)
+{
+  theta=deg2rad(theta_deg)
+  uu=u*u
+  uv=u*v
+  uw=u*w
+  vw=v*w
+  vv=v*v
+  ww=w*w
+  c=cos(theta)
+  s=sin(theta)
+  L=uu+vv+ww
+  l=sqrt(L)
+
+  print "u v w", u, v, w > "/dev/stderr"
+  print "L is", L > "/dev/stderr"
+
+  if (havematrix == 0) {
+    R_ypr[0][0]=(uu+(vv+ww)*cos(theta))/L
+    R_ypr[0][1]=(uv*(1-c)-w*l*s)/L
+    R_ypr[0][2]=(uw*(1-c)+v*l*s)/L
+    R_ypr[1][0]=(uv*(1-c)+w*l*s)/L
+    R_ypr[1][1]=(vv+(uu+ww)*c)/L
+    R_ypr[1][2]=(vw*(1-c)-u*l*s)/L
+    R_ypr[2][0]=(uw*(1-c)-v*l*s)/L
+    R_ypr[2][1]=(vw*(1-c)+u*l*s)/L
+    R_ypr[2][2]=(ww+(uu+vv)*c)/L
+
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[0][0], R_ypr[0][1], R_ypr[0][2]) > "/dev/stderr"
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[1][0], R_ypr[1][1], R_ypr[1][2]) > "/dev/stderr"
+    # printf("| %.02f %.02f %.02f |\n", R_ypr[2][0], R_ypr[2][1], R_ypr[2][2]) > "/dev/stderr"
+  }
+}
+
+
+
+function calc_ecef_to_enu_matrix(lon_deg, lat_deg,    lambda, phi) {
 
   lambda=deg2rad(lon_deg)
   phi=deg2rad(lat_deg)
@@ -1005,7 +1131,7 @@ function multiply_ecef_matrix(x, y, z,    i,j) {
 # Returns distance across earth's spherical surface in meters, inputs are in degrees
 # Earth radius is 6371000 meters
 
-function haversine_m(lon1, lat1, lon2, lat2) {
+function haversine_m(lon1, lat1, lon2, lat2,      hav_lon1_r, hav_lat1_r, hav_lon2_r, hav_lat2_r) {
   hav_lon1_r=deg2rad(lon1)
   hav_lat1_r=deg2rad(lat1)
   hav_lon2_r=deg2rad(lon2)
@@ -1013,3 +1139,96 @@ function haversine_m(lon1, lat1, lon2, lat2) {
 
   return 2*6371000*asin(ssqrt( sqr(sin((hav_lat2_r-hav_lat1_r)/2)) + cos(hav_lat1_r)*cos(hav_lat2_r)*sqr(sin((hav_lon2_r-hav_lon1_r)/2))))
 }
+
+# Returns angular distance between two points, in degrees. Inputs are in degrees
+
+function angulardistance_m(lon1, lat1, lon2, lat2,      hav_lon1_r, hav_lat1_r, hav_lon2_r, hav_lat2_r) {
+  hav_lon1_r=deg2rad(lon1)
+  hav_lat1_r=deg2rad(lat1)
+  hav_lon2_r=deg2rad(lon2)
+  hav_lat2_r=deg2rad(lat2)
+
+  return rad2deg(acos(sin(hav_lat1_r)*sin(hav_lat2_r) + cos(hav_lat1_r)*cos(hav_lat2_r)*cos(hav_lon1_r-hav_lon2_r)))
+}
+
+
+# Return the radius of the Earth at a specified latitude. 
+
+function radiusEarth(latitude_r) {
+	r_equator=6378.137
+	r_pole=6356.752
+	a=r_equator
+	b=r_pole
+
+	cs=cos(latitude_r)
+	ss=sin(latitude_r)
+
+	return sqrt(((a*a*cs)^2+(b*b*ss)^2)/((a*cs)^2+(b*ss)^2))
+}
+
+# Calculate the East and North velocity of a site at Earth sea level given two
+# Euler poles of rotation that are subtracted. This is useful if we have a pole
+# of rotation relative to a reference plate, which itself is described by a pole
+# of rotation relative to a reference frame (e.g. ITRF or NNR)
+
+# Inputs are longitude, latitude, w (degrees/Myr) for both poles of rotation, followed
+# by the longitude and latitude of the point of interest.
+
+# Global variables that will be set after calling this function:
+# eulervec_N, eulervec_E, eulervec_U
+
+function eulervec(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2, tLon_d, tLat_d,         eLat_r1, eLat_r2, eLon_r1, eLon_r2, tLat_r, tLat_r_adj, tLon_r, earthrad, a1, a2, a3, b1, b2, b3, V1, V2, V3, R11, R12, R13, R21, R22, R23, R31, R32, R33) {
+	eLat_r1 = deg2rad(eLat_d1)
+	eLon_r1 = deg2rad(eLon_d1)
+	eLat_r2 = deg2rad(eLat_d2)
+	eLon_r2 = deg2rad(eLon_d2)
+
+	tLat_r = deg2rad(tLat_d)
+	tLon_r = deg2rad(tLon_d)
+
+	# Convert geodetic to geocentric latitude
+  e=0.081819
+	tLat_r_adj=atan((1-e*e)*tan(tLat_r))
+
+	a11 = deg2rad(eV1)*cos(eLat_r1)*cos(eLon_r1)
+	a21 = deg2rad(eV1)*cos(eLat_r1)*sin(eLon_r1)
+	a31 = deg2rad(eV1)*sin(eLat_r1)
+
+	a12 = deg2rad(eV2)*cos(eLat_r2)*cos(eLon_r2)
+	a22 = deg2rad(eV2)*cos(eLat_r2)*sin(eLon_r2)
+	a32 = deg2rad(eV2)*sin(eLat_r2)
+
+	# a = [a1, a2, a3] is in units of rad/Myr
+	a1 = a11-a12
+	a2 = a21-a22
+	a3 = a31-a32
+
+	# unit vector
+	b1 = cos(tLat_r)*cos(tLon_r)
+	b2 = cos(tLat_r)*sin(tLon_r)
+  b3 = sin(tLat_r)
+
+	# V is in units of km*deg/Myr 
+
+	V1 = a2*b3-a3*b2
+	V2 = a3*b1-a1*b3
+	V3 = a1*b2-a2*b1
+
+	# Conversion from ECEF to NEU coordinates
+	R11 = -sin(tLat_r_adj)*cos(tLon_r)
+	R12 = -sin(tLat_r_adj)*sin(tLon_r)
+	R13 = cos(tLat_r_adj)
+  R21 = -sin(tLon_r)
+  R22 = cos(tLon_r)
+  R23 = 0
+  R31 = cos(tLat_r_adj)*cos(tLon_r)
+  R32 = cos(tLat_r_adj)*sin(tLon_r)
+  R33 = sin(tLat_r_adj)
+
+	# Multiply by the Earth radius to get velocity at Earth's surface in km/Myr = mm/yr
+  earthrad=radiusEarth(tLat_r_adj)
+  eulervec_N=earthrad*(R11*V1 + R12*V2 + R13 * V3)
+  eulervec_E=earthrad*(R21*V1 + R22*V2 + R23 * V3)
+  eulervec_U=earthrad*(R31*V1 + R32*V2 + R33 * V3)
+}
+

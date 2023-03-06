@@ -80,6 +80,9 @@ TECTOPLOT_THEMES="${DEFDIR}"tectoplot.themes
 ########################################################################################
 # Paths to various tectoplot scripts
 
+##### SQL scripts
+SQLDIR=${TECTOPLOTDIR}sql/
+
 ##### bash scripts
 # Source the following scripts at startup
 BASHSCRIPTDIR=${TECTOPLOTDIR}"bashscripts/"
@@ -106,6 +109,7 @@ PLOTLABELS=${BASHSCRIPTDIR}"plotlabels.sh"
 ##### bash scraper scripts
 SCRAPERDIR=${BASHSCRIPTDIR}"data_scrapers/"
 
+SCRAPE_EMSC=$SCRAPERDIR"scrape_emsc.sh"
 SCRAPE_ANSS=$SCRAPERDIR"scrape_anss.sh"
 SCRAPE_GCMT=$SCRAPERDIR"scrape_gcmt.sh"
 SCRAPE_GFZ=$SCRAPERDIR"scrape_gfz.sh"
@@ -215,6 +219,8 @@ FOCAL_TEXTURE_DIM=$THREEDDIR"focaltexture_dim.jpg"
 VOLCANO_OBJ=$THREEDDIR"cone.obj"
 VOLCANO_MATERIAL=$THREEDDIR"volcanoes.mtl"
 
+CIRCLE_OBJ=$THREEDDIR"circle.obj"
+
 ARROW_OBJ=$THREEDDIR"arrow8.obj"
 
 ##### 3D fonts
@@ -224,6 +230,16 @@ PLY_FLOAT_TEXT_FONT_DIR=${THREEDDIR}"newfont/flatfont/"
 #### Data sets and tools that we download into the DATAROOT directory
 #### Set DATAROOT above and then run tectoplot -getdata to validate and download these
 #### to your hard disk
+
+##### Global timezone shapefile
+TIMEZONESHP_SOURCESTRING="Time Zone Boundary Builder https://github.com/evansiroky/timezone-boundary-builder"
+TIMEZONESHP_SHORT_SOURCESTRING="TZBB"
+TIMEZONESHP_SOURCE_URL="https://github.com/evansiroky/timezone-boundary-builder/releases/download/2022f/timezones-with-oceans.shapefile.zip"
+
+TIMEZONEDIR=${DATAROOT}timezones/
+TIMEZONESHP=${TIMEZONEDIR}combined-shapefile-with-oceans.shp
+TIMEZONE_ZIP_BYTES=74995124
+TIMEZONE_CHECK_BYTES=111829168
 
 ##### Global Seafloor Fabric Map
 
@@ -306,7 +322,7 @@ LITHO1DIR_2=$LITHO1DIR"LITHO1.0/litho_model"   # Can't end in a forward slash
 LITHO1MODELDIR=$LITHO1DIR"LITHO1.0/litho_model/"
 LITHO1PROGDIR=$LITHO1DIR"LITHO1.0/progs/"
 LITHO1FILE=$LITHO1DIR"LITHO1.0/litho_model/node9999.model"
-LITHO1_SOURCEURL="http://igppweb.ucsd.edu/~gabi/litho1/litho1.0.tar.gz"
+LITHO1_SOURCEURL="https://igppweb.ucsd.edu/~gabi/litho1/litho1.0.tar.gz"
 LITHO1_BYTES=12868
 LITHO1_ZIP_BYTES=12419118
 
@@ -425,15 +441,6 @@ MULLER_OCAGE=${MULLER_DIR}"Muller_etal_2019_Tectonics_v2.0_PresentDay_AgeGrid.nc
 MULLER_OCAGE_SOURCEURL="https://www.earthbyte.org/webdav/ftp/Data_Collections/Muller_etal_2019_Tectonics/Muller_etal_2019_Agegrids/Muller_etal_2019_Tectonics_v2.0_PresentDay_AgeGrid.nc"
 MULLER_OCAGE_BYTES=25985584
 
-##### Global Curie Depth Map
-#GCDM_SOURCESTRING="Global Curie Depth Map, Li et al., 2017, doi:10.1038/srep45129"
-#GCDM_SHORT_SOURCESTRING="GCDM"
-
-#GCDMDIR=$DATAROOT"GCDM/"
-#GCDMDATA=$GCDMDIR"GCDM.nc"
-#GCDMDATA_ORIG=$GCDMDIR"gcdm.txt"
-#GCDM_SOURCEURL="https://static-content.springer.com/esm/art%3A10.1038%2Fsrep45129/MediaObjects/41598_2017_BFsrep45129_MOESM71_ESM.txt"
-#GCDM_BYTES="123810173"
 
 ##### GMT Day and Night Imagery
 
@@ -488,9 +495,14 @@ GVP_HOLOCENE_SOURCEURL="https://volcano.si.edu/database/list_volcano_holocene_ex
 
 ##### Earthquake hypocenter data
 
+
+# ANSS is the collection of earthquakes derivd from ComCat
+EMSCDIR=$DATAROOT"EMSC/"
+EMSC_EQ_SOURCESTRING="Earthquakes from EMSC, https://www.seismicportal.eu/fdsn-wsevent.html"
+EMSC_EQ_SHORT_SOURCESTRING="EMSC"
+
 # ANSS is the collection of earthquakes derivd from ComCat
 ANSSDIR=$DATAROOT"ANSS/"
-ANSS_TILEDIR=${ANSSDIR}"tiles/"
 ANSS_EQ_SOURCESTRING="Earthquakes: USGS/ANSS, https://earthquake.usgs.gov/earthquakes/search/"
 ANSS_EQ_SHORT_SOURCESTRING="ANSS"
 

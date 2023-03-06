@@ -1,19 +1,11 @@
 
 TECTOPLOT_MODULES+=("labels")
 
+# UPDATED
+# NEW OPTS
+
 function tectoplot_defaults_labels() {
-  MODULE_LABEL_FONT_DEFAULT="Helvetica"
-  MODULE_LABEL_FONTCOLOR_DEFAULT="black"
-  MODULE_LABEL_MAXFONTSIZE_DEFAULT=12
-  MODULE_LABEL_MINFONTSIZE_DEFAULT=3
-  MODULE_LABEL_TRANS_DEFAULT=0
-  MODULE_LABEL_OUTLINE_DEFAULT=""
-  MODULE_LABEL_OUTLINE_COLOR_DEFAULT=white
-
   MODULE_LABEL_PLOTLINE="+i"  # +i option suppresses line plotting
-
-
-  cuglab=1   # Start at the first position
 }
 
 function tectoplot_args_labels()  {
@@ -25,201 +17,61 @@ function tectoplot_args_labels()  {
   case "${1}" in
 
     -labels)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_labels.sh
--label:          plot labels along lines defined in KML file
--label [labelfile] [[options...]]
-
-Options:
-
-font                                 GMT builtin font name
-color                                fill color
-maxsize                              font size larger than this will be set to this
-minsize                              text with font smaller than this will not plot
-setsize                              try to plot all labels at set font size
-outline  [proportion] [color]        activate outline
-trans                                label text transparency
-upper | lower | title                change case of label text
-maxspace                             maximum number of spaces to add to text
-
-GMT fonts
-
-SERIF FONTS
---------------------------------------------------------------------------------
-Bookman-Demi  Bookman-Demiltalic  Bookman-Light  Bookman-LightItalic
-NewCenturySchlbk-Roman  NewCenturySchlbk-Italic  NewCenturySchlbk-Bold
-   NewCenturySchlbk-BoldItalic
-Palatino-Roman Palatino-Italic Palatino-Bold Palatino-Boldltalic
-Symbol
-Times-Roman  Times-Bold  Times-Italic  Times-Boldltalic
-ZapfChancery-MediumItalic
-
-SANS SERIF FONTS
---------------------------------------------------------------------------------
-AvantGarde-Book  AvantGarde-BookOblique  AvantGarde-Demi  AvantGarde-DemiOblique
-Courier  Courier-Bold  Courier-Oblique  Courier-Boldoblique
-Helvetica  Helvetica-Bold  Helvetica-Oblique  Helvetica-BoldOblique
-Helvetica-Narrow  Helvetica-Narrow-Bold  Helvetica-Narrow-Oblique
-   Helvetica-Narrow-BoldOblique
-ZapfDingbats
-
-This module can be called multiple times with different options to plot multiple
-types of labels with different symbologies
-
---------------------------------------------------------------------------------
-EOF
-  fi
-
-  shift
-
-  # Check if this is the first time we are calling -label
-  if [[ $labfirst -ne 1 ]]; then
-    uglab=0
-    labfirst=1
-  fi
-
-  if arg_is_flag $1; then
-    info_msg "[-label]: Must specify a label file and optional arguments"
-    exit 1
-  else
-    uglab=$(echo "${uglab} + 1" | bc)
-
-    if [[ ! -s ${1} ]]; then
-      info_msg "[-label]: Label file $1 does not exist or is empty"
-      exit 1
-    fi
-    MODULE_LABEL_FILE[$uglab]=$(abs_path $1)
-    shift
-    ((tectoplot_module_shift++))
-  fi
+  tectoplot_get_opts_inline '
+des -label plot labels along paths
+req m_label_file file
+  input file containing lines and label text
+opt font m_label_font string "Helvetica"
+  GMT builtin font name
+opt color m_label_fontcolor string "black"
+  fill color
+opt maxsize m_label_maxsize float 12
+  font size larger than this will be set to this
+opt minsize m_label_minsize float 3
+  text with font smaller than this will not plot
+opt setsize m_label_setsize float 0
+  try to plot all labels at set font size
+opt outline m_label_outline float 0
+  outline proportion of character size
+opt outlinecolor m_label_outlinecolor string "white"
+  outline color
+opt trans m_label_trans float 0
+  label text transparency
+opt case m_label_case string "none"
+  change case of label text ( upper | lower | title | none )
+opt maxspace m_label_maxspace float 4
+  maximum number of spaces to add to texopt t
+opt line m_label_plotline flag 0
+  plot the path line along with the each string
+mes GMT fonts
+mes
+mes SERIF FONTS
+mes --------------------------------------------------------------------------------
+mes Bookman-Demi  Bookman-Demiltalic  Bookman-Light  Bookman-LightItalic
+mes NewCenturySchlbk-Roman  NewCenturySchlbk-Italic  NewCenturySchlbk-Bold
+mes    NewCenturySchlbk-BoldItalic
+mes Palatino-Roman Palatino-Italic Palatino-Bold Palatino-Boldltalic
+mes Symbol
+mes Times-Roman  Times-Bold  Times-Italic  Times-Boldltalic
+mes ZapfChancery-MediumItalic
+mes
+mes SANS SERIF FONTS
+mes --------------------------------------------------------------------------------
+mes AvantGarde-Book  AvantGarde-BookOblique  AvantGarde-Demi  AvantGarde-DemiOblique
+mes Courier  Courier-Bold  Courier-Oblique  Courier-Boldoblique
+mes Helvetica  Helvetica-Bold  Helvetica-Oblique  Helvetica-BoldOblique
+mes Helvetica-Narrow  Helvetica-Narrow-Bold  Helvetica-Narrow-Oblique
+mes    Helvetica-Narrow-BoldOblique
+mes ZapfDingbats
+mes
+mes This module can be called multiple times with different options to plot multiple
+mes types of labels with different symbologies
+exa tectoplot -r FR -gsrm -a
+' "${@}" || return
 
   # Set the default values
 
-  MODULE_LABEL_FONT[$uglab]=${MODULE_LABEL_FONT_DEFAULT}
-  MODULE_LABEL_FONTCOLOR[$uglab]=${MODULE_LABEL_FONTCOLOR_DEFAULT}
-  MODULE_LABEL_MAXFONTSIZE[$uglab]=${MODULE_LABEL_MAXFONTSIZE_DEFAULT}
-  MODULE_LABEL_MINFONTSIZE[$uglab]=${MODULE_LABEL_MINFONTSIZE_DEFAULT}
-  MODULE_LABEL_TRANS[$uglab]=${MODULE_LABEL_TRANS_DEFAULT}
-  MODULE_LABEL_OUTLINE[$uglab]=${MODULE_LABEL_OUTLINE_DEFAULT}
-  MODULE_LABEL_OUTLINE_COLOR[$uglab]=${MODULE_LABEL_OUTLINE_COLOR_DEFAULT}
-  MODULE_LABEL_CASEFLAG[$uglab]=""
-  MODULE_LABEL_MAXSPACING[$uglab]=4
-
-  while ! arg_is_flag $1; do
-    case $1 in
-      # font
-      # color
-      # maxsize
-      # minsize
-      # outline
-      # trans
-      font)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_FONT[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option font requires a GMT font name argument"
-          exit 1
-        fi
-      ;;
-      color)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_FONTCOLOR[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option color requires argument"
-          exit 1
-        fi
-      ;;
-      maxsize)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_MAXFONTSIZE[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option maxsize requires argument"
-          exit 1
-        fi
-      ;;
-      minsize)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_MINFONTSIZE[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option minsize requires argument"
-          exit 1
-        fi
-      ;;
-      setsize)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_MINFONTSIZE[$uglab]="${1}"
-          MODULE_LABEL_MAXFONTSIZE[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option setsize requires argument"
-          exit 1
-        fi
-      ;;
-      maxspace)
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_MAXSPACING[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option maxspace requires argument"
-          exit 1
-        fi
-      ;;
-      outline)
-      # Outline should be a percentage of font size rather than a fixed number
-        shift
-        ((tectoplot_module_shift++))
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_OUTLINE[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        else
-          echo "[-label]: option outline requires argument"
-          exit 1
-        fi
-        if ! arg_is_flag $1; then
-          MODULE_LABEL_OUTLINE_COLOR[$uglab]="${1}"
-          shift
-          ((tectoplot_module_shift++))
-        fi
-      ;;
-      upper|lower|title)
-        MODULE_LABEL_CASEFLAG[$uglab]="${1}"
-        shift
-        ((tectoplot_module_shift++))
-      ;;
-      *)
-        echo "[-label]: argument ${1} not recognized"
-        exit 1
-      ;;
-    esac
-  done
-
   plots+=("labels")
-
-  tectoplot_module_caught=1
   ;;
 
   esac
@@ -240,16 +92,18 @@ EOF
 function tectoplot_plot_labels() {
   case $1 in
     labels)
-      info_msg "Plotting labels from ${MODULE_LABEL_FILE[$cuglab]} with these options: ${MODULE_LABEL_FONT[$cuglab]} ${MODULE_LABEL_FONTCOLOR[$cuglab]} ${MODULE_LABEL_MAXFONTSIZE[$cuglab]} ${MODULE_LABEL_MINFONTSIZE[$cuglab]} ${MODULE_LABEL_TRANS[$cuglab]} ${MODULE_LABEL_OUTLINE[$cuglab]}"
+      info_msg "Plotting labels from ${m_label_file[$tt]} with these options: font ${m_label_font[$tt]} color ${m_label_fontcolor[$tt]} maxsize ${m_label_maxsize[$tt]]} minsize ${m_label_minsize[$tt]} trans ${m_label_trans[$tt]} outline ${m_label_outline[$tt]} maxspace ${m_label_maxspace[$tt]}"
 
-      #TEXT_KMLFILE=/Users/kylebradley/Dropbox/scripts/tectoplot/labels/TextLabels.kml
-      TEXT_FONT=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}
+      if [[ ${m_label_setsize[$tt]} -ne 0 ]]; then
+        m_label_maxsize[$tt]=${m_label_setsize[$tt]}
+        m_label_minsize[$tt]=${m_label_setsize[$tt]}
+      fi
 
-      # TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}${MODULE_LABEL_OUTLINE[$cuglab]}
+      m_label_textfont=${m_label_font[$tt]},${m_label_fontcolor[$tt]}
 
       rm -f TextLabels.gmt
       # Convert KML paths to GMT OGR format
-      ogr2ogr -f "OGR_GMT" TextLabels.gmt ${MODULE_LABEL_FILE[$cuglab]}
+      ogr2ogr -f "OGR_GMT" TextLabels.gmt ${m_label_file[$tt]}
 
       # Parse the KML file to extract the paths and labels
       gawk < TextLabels.gmt '
@@ -290,7 +144,7 @@ function tectoplot_plot_labels() {
       }'> data_clipped.txt
 
       # Should I separate the paths with only two points to ensure they are not smoothed?
-      case ${MODULE_LABEL_CASEFLAG[$cuglab]} in
+      case ${m_label_caseflag[$tt]} in
         upper)
           tr '[:lower:]' '[:upper:]' < data_clipped.txt > tmp.txt
           mv tmp.txt data_clipped.txt
@@ -320,7 +174,6 @@ function tectoplot_plot_labels() {
         ;;
       esac
 
-
       # Resample the paths using the 'time' increment to smooth them out
       gmt sample1d data_clipped.txt -Fc -T2 -I0.1 > data_resampled.txt
 
@@ -328,7 +181,7 @@ function tectoplot_plot_labels() {
       gmt mapproject data_clipped.txt -i0,1 -G+uC+a -R -J  > data_proj_dist.txt
 
       # Calculate the lengths of the labels for fontsize 1
-      ${BASHSCRIPTDIR}stringlength.sh ${MODULE_LABEL_FONT[$cuglab]} 1 data_proj_dist.txt ${BASHSCRIPTDIR}lettersizes.txt > data_proj_dist_labelcalc.txt
+      ${BASHSCRIPTDIR}stringlength.sh ${m_label_font[$tt]} 1 data_proj_dist.txt ${BASHSCRIPTDIR}lettersizes.txt > data_proj_dist_labelcalc.txt
 
       #gmt mapproject data_pre.txt -i0,1 -G+ud+a > data_dist.txt
 
@@ -341,7 +194,7 @@ function tectoplot_plot_labels() {
       shopt -s nullglob
       rm -f text*.gmt
 
-      gawk -v maxfontsize=${MODULE_LABEL_MAXFONTSIZE[$cuglab]} -v maxspacing=${MODULE_LABEL_MAXSPACING[$cuglab]} '
+      gawk -v maxfontsize=${m_label_maxsize[$tt]} -v maxspacing=${m_label_maxspace[$tt]} '
         function max(a,b) { return (a>b)?a:b }
         function min(a,b) { return (a<b)?a:b }
         function rd(n, multipleOf)
@@ -457,20 +310,23 @@ function tectoplot_plot_labels() {
       # Plot the text along the smoothed curves
       #gmt psxy data.txt -Sqn1:+v+Lh+i $RJOK >> map.ps
 
+      if [[ ${m_label_plotline[$tt]} -eq 1 ]]; then
+        local plotlinecmd=""
+      else
+        local plotlinecmd="+i"
+      fi
+
       for textfile in text*.gmt; do
         fontsize=$(basename $textfile | gawk -F_ '{print $2}')
-        if [[ $(echo "$fontsize >= ${MODULE_LABEL_MINFONTSIZE[$cuglab]}" | bc) -eq 1 ]]; then
-          #echo gmt psxy $textfile -Sqn1:+Lh+f${fontsize}p,$TEXT_FONT${PLOTLINE}+v $RJOK
-          if [[ ${MODULE_LABEL_OUTLINE[$cuglab]} != "" ]]; then
-            widthval=$(echo "$fontsize * ${MODULE_LABEL_OUTLINE[$cuglab]}" | bc -l)
-            TEXT_FONT_OUTLINE=${MODULE_LABEL_FONT[$cuglab]},${MODULE_LABEL_FONTCOLOR[$cuglab]}"=${widthval}p,${MODULE_LABEL_OUTLINE_COLOR[$cuglab]}"
-            gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT_OUTLINE}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+        if [[ $(echo "$fontsize >= ${m_label_minsize[$tt]}" | bc) -eq 1 ]]; then
+          if [[ $(echo "${m_label_outline[$tt]} == 0" | bc) != 1 ]]; then
+            widthval=$(echo "$fontsize * ${m_label_outline[$tt]}" | bc -l)
+            m_label_textfont_outline=${m_label_font[$tt]},${m_label_fontcolor[$tt]}"=${widthval}p,${m_label_outlinecolor[$tt]}"
+            gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${m_label_textfont_outline}${plotlinecmd}+v $RJOK >> map.ps
           fi
-          gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${TEXT_FONT}${MODULE_LABEL_PLOTLINE}+v $RJOK >> map.ps
+          gmt psxy $textfile -N -Sqn1:+Lh+f${fontsize}p,${m_label_textfont}${plotlinecmd}+v $RJOK >> map.ps
         fi
       done
-
-      cuglab=$(echo "$cuglab + 1" | bc -l)
 
       tectoplot_plot_caught=1
     ;;

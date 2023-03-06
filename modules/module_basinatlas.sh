@@ -4,6 +4,8 @@
 
 # UPDATED
 
+# NEW OPTS
+
 # Register the module with tectoplot
 TECTOPLOT_MODULES+=("basinatlas")
 
@@ -50,7 +52,7 @@ function tectoplot_args_basinatlas()  {
 
   -basinatlas)
 
-  cat <<-EOF > basinatlas
+  tectoplot_get_opts_inline '
 des -basinatlas plot datasets from BasinAtlas
 opt level m_basinatlas_datalevel int 6
     data level [0-12]
@@ -102,21 +104,12 @@ mes >>> Urban Cover (percent area) <<<
 mes   urb_pc_[suf]
 mes     sse | use
 exa tectoplot -r IT -basinatlas level 6
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts basinatlas
-  else
-    tectoplot_get_opts basinatlas "${@}"
+  [[ -s ${m_basinatlas_cpt} ]] && basinatlascptflag=1
 
-    [[ -s ${m_basinatlas_cpt} ]] && basinatlascptflag=1
-
-    plots+=("basinatlas")
-    cpts+=("basinatlas")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("basinatlas")
+  cpts+=("basinatlas")
   ;;
 
   esac
@@ -128,7 +121,6 @@ EOF
 function tectoplot_cpt_basinatlas() {
 
     if [[ -s ${m_basinatlas_used_cpt[$tt]} ]]; then
-      # cp ${m_basinatlas_cpt[$tt]} ${F_CPTS}${m_basinatlas_data[$tt]}.cpt
       m_basinatlas_legendlabel[$tt]=${m_basinatlas_cptLABEL}
       m_basinatlas_used_cpt[$tt]=${m_basinatlas_cpt[$tt]}
     else
@@ -136,9 +128,8 @@ function tectoplot_cpt_basinatlas() {
       m_basinatlas_suffix[$tt]=${m_basinatlas_data[$tt]:7:3}
 
       case ${m_basinatlas_prefix[$tt]} in
-        cmi_ix) # syr | s01-s12 | uyr
+        cmi_ix)
           gmt makecpt -T-100/100 -Cturbo -I > ${F_CPTS}${m_basinatlas_prefix[$tt]}.cpt
-          # m_basinatlas_legendlabel[$tt]="Climate Moisture Index (x100)"
           case ${m_basinatlas_suffix[$tt]} in
             s01|s02|s03|s04|s05|s06|s07|s08|s09|s10|s11|s12)
               m_basinatlas_legendlabel[$tt]="Climate Moisture Index - basin mean for $(getmonth ${m_basinatlas_suffix[$tt]}) (x100)"
@@ -236,7 +227,7 @@ function tectoplot_plot_basinatlas() {
         basinatlas_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
         basinatlas_rj+=("-JX${PSSIZE}i/${BASINATLAS_PSSIZE_ALT}id")
         # Plot the map in Cartesian coordinates
-        gmt psxy ${m_basinatlas_datapath[$tt]} -G+z -C${m_basinatlas_used_cpt[$tt]} -t${m_basinatlas_trans[$tt]} -aZ=${m_basinatlas_data[$tt]} ${basinatlas_rj[@]} --PS_MEDIA=${PSSIZE}ix${BASINATLAS_PSSIZE_ALT}i -fg -Bxaf -Byaf -Btlrb -Xc -Yc --GMT_HISTORY=false  > basin.ps 2>/dev/null
+        gmt psxy ${m_basinatlas_datapath[$tt]} -G+z -C${m_basinatlas_used_cpt[$tt]} -t${m_basinatlas_trans[$tt]} -aZ=${m_basinatlas_data[$tt]} ${basinatlas_rj[@]} --PS_MEDIA=${PSSIZE}ix${BASINATLAS_PSSIZE_ALT}i -fg -Bxaf -Byaf -Btlrb -Xc -Yc --MAP_FRAME_PEN=0p,black --GMT_HISTORY=false  > basin.ps 2>/dev/null
         # Convert to a TIFF file at specified resolution
         gmt psconvert basin.ps -A+m0i -Tt -E${m_basinatlas_res[$tt]} -W+g ${VERBOSE}
         # Update the coordinates in basin.tif to be correct

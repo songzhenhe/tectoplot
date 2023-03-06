@@ -1,11 +1,7 @@
 
 TECTOPLOT_MODULES+=("srcmod")
 
-# Calculate residual grid by removing along-line average, using da-dt formulation
-# Builtin support for gravity grids
-
-# Variables needed:
-
+# NEW OPTS
 
 function tectoplot_defaults_srcmod() {
 
@@ -37,7 +33,7 @@ function tectoplot_args_srcmod()  {
 
   -s)
 
-  cat <<-EOF > s
+  tectoplot_get_opts_inline '
 des -s plot earthquake slip data from SRCMOD
 opn update m_srcmod_s_update flag 0
     try to update SRCMOD catalog
@@ -49,7 +45,7 @@ opt id m_srcmod_s_filter string "none"
     strings that are used to filter events based on ID info
 opt strike m_srcmod_s_strike float -9999
     plot slip vectors relative to the specified strike direction
-opt strike m_srcmod_s_dip float -9999
+opt dip m_srcmod_s_dip float -9999
     plot slip vectors relative to the specified dip value
 opt int m_srcmod_s_int float 2
     contour interval for drawn contours
@@ -58,20 +54,11 @@ opt min m_srcmod_s_min float 3
 opt max m_srcmod_s_max float 25
     maximum slip magnitude that is considered for CPT
 exa tectoplot -r JP -s
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts s
-  else
-    tectoplot_get_opts s "${@}"
-
-    plots+=("m_srcmod_s")
-    cpts+=("m_srcmod_s")
-
-    tectoplot_module_caught=1
-  fi
-
-    ;;
+  plots+=("m_srcmod_s")
+  cpts+=("m_srcmod_s")
+  ;;
 
   esac
 }
@@ -243,7 +230,7 @@ function tectoplot_plot_srcmod() {
               while(traw>360) {
                 traw=traw-360
               }
-              print $2, $1, traw, $6/100
+              print $2, $1, traw, $6/10
             }' > temp1sliprake.xyz
         fi
 
@@ -258,7 +245,7 @@ function tectoplot_plot_srcmod() {
         fi
         gmt grdcontour slipfinal.grd -A5 -S3 -C${m_srcmod_s_int[$tt]} ${RJSTRING} -O -K $VERBOSE >> map.ps
         if [[ $srcmodrakeflag -eq 1 ]]; then
-          gmt psxy temp1sliprake.xyz -Gblack -SV0.05i+jb+e -W0.5p,black ${RJSTRING} -O -K $VERBOSE >> map.ps
+          gmt psxy temp1sliprake.xyz -Gblack -SV0.15i+jb+e -W1.5p,black ${RJSTRING} -O -K $VERBOSE >> map.ps
         fi
         echo $SRCMOD_SHORT_SOURCESTRING >> ${SHORTSOURCES}
         echo $SRCMOD_SOURCESTRING >> ${LONGSOURCES}

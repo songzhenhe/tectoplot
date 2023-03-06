@@ -30,6 +30,8 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+ALWAYS_DOWNLOAD="Y"
+
 TOPO_DPI=150i
 
 PROFILE_X_SHIFT=0i
@@ -247,8 +249,6 @@ ARROWFMT="0.03/0.12/0.06"    # format for velocity arrows, GMT 4 style
 GRIDCALL="WESN"              # GMT axes code (-Bxxxx)
 GRIDLINESON=0                # Gridlines on (0=off)
 VELSCALE=0.01                # Scale factor for velocities
-PVHEAD=0.1i                  # Head size for velocity vectors
-PVFORMAT="0.03/0.06/0.06"    # Experimental head size for plate relative V
 
 # Miscellaneous options that haven't been placed in their proper locations in this file
 
@@ -418,9 +418,6 @@ DEFREF="NNR"                 # default reference plate ID (or NNR/ITRF08/etc)
 PLATEVEC_COLOR="black"       # plate rotation vector, fill
 PLATEVEC_TRANS=10            # plate rotation vector, transparency
 LATSTEPS=0.5                 # colatitude increment for small circles
-PLATELABEL_COLOR="black"     # color of plate label
-PLATELABEL_SIZE="6p"         # size of plate label
-PLATELABEL_FONT=${PLATELABEL_SIZE},Helvetica,${PLATELABEL_COLOR}
 PLATEVELRES="0.05d"          # resolution of plate velocity grid
 PLATEVEC_TEXT_SIZE="5p"      # plate velocity label size
 PLATEVEC_TEXT_COLOR="black"  # plate velocity label color

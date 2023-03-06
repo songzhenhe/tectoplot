@@ -2,13 +2,9 @@
 TECTOPLOT_MODULES+=("gridhist")
 
 
-function tectoplot_defaults_gridhist() {
-  GRIDHIST_WIDTH="2i"
-  GRIDHIST_HEIGHT="5i"
-  GRIDHIST_CPT=${F_CPTS}topo.cpt
-  GRIDHIST_YLABEL="Elevation (m)"
-  GRIDHIST_BINWIDTH=100
+# NEW OPTS
 
+function tectoplot_defaults_gridhist() {
   gridhist_weighted=1  # If set to 0, don't weight histogram by actual cell area - dangerous!
 }
 
@@ -20,181 +16,152 @@ function tectoplot_args_gridhist()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -gridhistbin)
-  shift
-  if arg_is_positive_float ${1}; then
-    GRIDHIST_BINWIDTH="${1}"
-    shift
-    ((tectoplot_module_shift++))
-  fi
-  tectoplot_module_caught=1
-  ;;
+  # -gridhistbin)
+  # shift
+  # if arg_is_positive_float ${1}; then
+  #   GRIDHIST_BINWIDTH="${1}"
+  #   shift
+  #   ((tectoplot_module_shift++))
+  # fi
+  # tectoplot_module_caught=1
+  # ;;
 
-  -gridhistclip)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gridhist.sh
-
--gridhistclip:   define a clipping region for the grid histogram calculation
--gridhistclip [file]
-
-  File can be a KML with a polygon or an XY (lon lat) file.
-  The first object in the KML file will be closed if necessary, so a line path
-    will work.
-  The clipping polygon will be plotted as a black, dashed line.
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-  shift
-  if ! arg_is_flag ${1}; then
-    if [[ -s ${1} ]]; then
-      GRIDHIST_CLIPFILE=$(abs_path "${1}")
-      if [[ $GRIDHIST_CLIPFILE == *".kml" ]]; then
-        kml_to_first_poly ${GRIDHIST_CLIPFILE} gridhist_clip.xy
-        GRIDHIST_CLIPFILE=$(abs_path gridhist_clip.xy)
-      fi
-      gridhistclipflag=1
-    else
-      echo "[-gridhistclip]: Clipping file ${1} not found or is empty"
-      exit 1
-    fi
-    shift
-    ((tectoplot_module_shift++))
-  fi
-
-  tectoplot_module_caught=1
-  ;;
+#   -gridhistclip)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# modules/module_gridhist.sh
+#
+# -gridhistclip:   define a clipping region for the grid histogram calculation
+# -gridhistclip [file]
+#
+#   File can be a KML with a polygon or an XY (lon lat) file.
+#   The first object in the KML file will be closed if necessary, so a line path
+#     will work.
+#   The clipping polygon will be plotted as a black, dashed line.
+#
+# Example: None
+# --------------------------------------------------------------------------------
+# EOF
+# fi
+#   shift
+#   if ! arg_is_flag ${1}; then
+#     if [[ -s ${1} ]]; then
+#       GRIDHIST_CLIPFILE=$(abs_path "${1}")
+#       if [[ ${m_gridhist_clip} == *".kml" ]]; then
+#         kml_to_first_poly ${m_gridhist_clip} gridhist_clip.xy
+#         GRIDHIST_CLIPFILE=$(abs_path gridhist_clip.xy)
+#       fi
+#       gridhistclipflag=1
+#     else
+#       echo "[-gridhistclip]: Clipping file ${1} not found or is empty"
+#       exit 1
+#     fi
+#     shift
+#     ((tectoplot_module_shift++))
+#   fi
+#
+#   tectoplot_module_caught=1
+#   ;;
 
   -gridhist)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gridhist.sh
 
--gridhist:     plot a histogram of values of the topography grid
--gridhist [[width_in=${GRIDHIST_WIDTH}]] [[height_in=${GRIDHIST_HEIGHT}]]
+  tectoplot_get_opts_inline '
+des -gridhist plot histogram of raster cell values
+opn file m_gridhist_file string "topo"
+    target grid file (default is topography from -t)
+opn clip m_gridhist_clip string "none"
+    clipping path (can be KML polyline)
+opn width m_gridhist_width string "2i"
+    width of plotted panel in inches
+opn height m_gridhist_height string "5i"
+    height of plotted panel in inches
+opn cpt m_gridhist_cpt cpt "${F_CPTS}topo.cpt"
+    CPT file
+opn bin m_gridhist_binwidth float 100
+    width of data bins
+opn label m_gridhist_label string "Elevation (m)"
+    y-axis label
+mes gridhist can only be called once
+' "${@}" || return
 
-  Will be extended to include custom grid
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-    shift
-
-    if ! arg_is_flag ${1}; then
-      GRIDHIST_WIDTH="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    if ! arg_is_flag ${1}; then
-      GRIDHIST_HEIGHT="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    plots+=("gridhist")
+    plots+=("m_gridhist")
     clipdemflag=1
-
-    tectoplot_module_caught=1
     ;;
 
+#
+#   -gridhistfile)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# modules/module_gridhist.sh
+#
+# -gridhistfile:   Change the file that is subjected to the histogram analysis
+# -gridhistfile [grid_file_path] [bin_width] [cpt_file] [[label label text here]]
+#
+# Example: None
+# --------------------------------------------------------------------------------
+# EOF
+# fi
+#   shift
 
-  -gridhistfile)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gridhist.sh
+  # if ! arg_is_flag "${1}"; then
+  #   if [[ -s "${1}" ]]; then
+  #     GRIDHIST_FILE=$(abs_path ${1})
+  #     gridhistfileflag=1
+  #   else
+  #     info_msg "[-gridhistfile]: Input file ${1} not found... assuming it will be created"
+  #     GRIDHIST_FILE="${1}"
+  #     gridhistfileflag=1
+  #   fi
+  #   shift
+  #   ((tectoplot_module_shift++))
+  # fi
+  #
+  # if arg_is_positive_float "${1}"; then
+  #   GRIDHIST_BINWIDTH="${1}"
+  #   shift
+  #   ((tectoplot_module_shift++))
+  # fi
+  #
+  # if ! arg_is_flag "${1}"; then
+  #   GRIDHIST_CPT="${1}"
+  #   shift
+  #   ((tectoplot_module_shift++))
+  # fi
+  #
+  # if [[ $1 == "label" ]]; then
+  #   GRIDHIST_YLABEL=""
+  #   shift
+  #   ((tectoplot_module_shift++))
+  #   while ! arg_is_flag "${1}"; do
+  #     GRIDHIST_YLABEL=${GRIDHIST_YLABEL}" ${1}"
+  #     shift
+  #     ((tectoplot_module_shift++))
+  #   done
+  # fi
 
--gridhistfile:   Change the file that is subjected to the histogram analysis
--gridhistfile [grid_file_path] [bin_width] [cpt_file] [[label label text here]]
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-  shift
-
-  if ! arg_is_flag "${1}"; then
-    if [[ -s "${1}" ]]; then
-      GRIDHIST_FILE=$(abs_path ${1})
-      gridhistfileflag=1
-    else
-      info_msg "[-gridhistfile]: Input file ${1} not found... assuming it will be created"
-      GRIDHIST_FILE="${1}"
-      gridhistfileflag=1
-    fi
-    shift
-    ((tectoplot_module_shift++))
-  fi
-
-  if arg_is_positive_float "${1}"; then
-    GRIDHIST_BINWIDTH="${1}"
-    shift
-    ((tectoplot_module_shift++))
-  fi
-
-  if ! arg_is_flag "${1}"; then
-    GRIDHIST_CPT="${1}"
-    shift
-    ((tectoplot_module_shift++))
-  fi
-
-  if [[ $1 == "label" ]]; then
-    GRIDHIST_YLABEL=""
-    shift
-    ((tectoplot_module_shift++))
-    while ! arg_is_flag "${1}"; do
-      GRIDHIST_YLABEL=${GRIDHIST_YLABEL}" ${1}"
-      shift
-      ((tectoplot_module_shift++))
-    done
-  fi
-
-
-  tectoplot_module_caught=1
-  ;;
 
   -gridhistint)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_gridhist.sh
+  tectoplot_get_opts_inline '
+des -gridhistint query histogram to report total surface area between min/max
+opn min m_gridhist_intmin float 0
+  low cut-off value
+opn max m_gridhist_intmax float 250
+  high cut-off value
+' "${@}" || return
 
--gridhistint:   Report total percent area between upper and lower intervals.
--gridhistint [interval1_low] [interval1_high]
-
-  After -gridhist has been run, report the total surface area contained between
-  the given upper and lower interval bounds.
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-
-  shift
-
-  while ! arg_is_flag "${1}"; do
-    if arg_is_float "${1}"; then
-      GRIDHIST_INT_LOW+=("${1}")
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    if arg_is_float "${1}"; then
-      GRIDHIST_INT_HIGH+=("${1}")
-      shift
-      ((tectoplot_module_shift++))
-      gridhist_dointcalc=1
-    fi
-  done
   gridhistintflag=1
-  tectoplot_module_caught=1
   ;;
-
   esac
 }
 
 function tectoplot_plot_gridhist() {
-  if [[ $gridhistclipflag -eq 1 ]]; then
-    gmt psxy ${GRIDHIST_CLIPFILE} -W1p,black,- ${VERBOSE} ${RJOK} >> map.ps
+  if [[ ${m_gridhist_clip} != "none" ]]; then
+    if [[ ${m_gridhist_clip} == *".kml" ]]; then
+      kml_to_first_poly ${m_gridhist_clip} gridhist_clip.xy
+      m_gridhist_clip=$(abs_path gridhist_clip.xy)
+    fi
+    gridhistclipflag=1
+    gmt psxy ${m_gridhist_clip} -W1p,black,- ${VERBOSE} ${RJOK} >> map.ps
   fi
 }
 
@@ -202,46 +169,44 @@ function tectoplot_post_gridhist() {
   # case $1 in
   # gridhist
 
-    if [[ $gridhistfileflag -eq 0 ]]; then
-      GRIDHIST_FILE=${TOPOGRAPHY_DATA}  # Default is dem
+    if [[ ${m_gridhist_file} == "topo" ]]; then
+      m_gridhist_file=${TOPOGRAPHY_DATA}  # Default is dem
     fi
 
-    if [[ -s ${GRIDHIST_FILE} && $gridhist_hasrun -eq 0 ]]; then
+    if [[ -s ${m_gridhist_file} && ${gridhist_hasrun} -eq 0 ]]; then
       gridhist_hasrun=1
       # Non-cumulative data
       # Bin centers using -F
 
       mkdir module_gridhist/
 
-      gmt grdcut ${GRIDHIST_FILE} -R -J -Gmodule_gridhist/gridhistcut.nc
+      gmt grdcut ${m_gridhist_file} -R -J -Gmodule_gridhist/gridhistcut.nc
 
       gmt grd2xyz module_gridhist/gridhistcut.nc > module_gridhist/histdata_pre.txt
-      DEMDETAILS=($(gmt grdinfo -C ${GRIDHIST_FILE}))
-      GRIDRES_X=${DEMDETAILS[7]}
-      GRIDRES_Y=${DEMDETAILS[8]}
+      GRIDDETAILS=($(gmt grdinfo -C ${m_gridhist_file}))
+      GRIDRES_X=${GRIDDETAILS[7]}
+      GRIDRES_Y=${GRIDDETAILS[8]}
 
       # histdata.txt is lon lat Z
 
       # we need to weight the histogram by the area of the observation points.
 
-
-      if [[ $gridhistclipflag -eq 1 ]]; then
-        gmt gmtselect module_gridhist/histdata_pre.txt -F${GRIDHIST_CLIPFILE} > module_gridhist/histdata.txt
+      if [[ -s ${m_gridhist_clip} ]]; then
+        gmt gmtselect module_gridhist/histdata_pre.txt -F${m_gridhist_clip} > module_gridhist/histdata.txt
 
         # But what if the
         if [[ ! -s module_gridhist/histdata.txt ]]; then
           info_msg "[-gridhistclip]: Shifting polygon by +360 degrees and re-trying clip."
-          gawk < ${GRIDHIST_CLIPFILE} '
+          gawk < ${m_gridhist_clip} '
           {
             print $1+360, $2
           }' > gridhistclipregion_fixed.txt
-          GRIDHIST_CLIPFILE=gridhistclipregion_fixed.txt
+          m_gridhist_clip=gridhistclipregion_fixed.txt
 
-          gmt gmtselect module_gridhist/histdata_pre.txt -F${GRIDHIST_CLIPFILE} > module_gridhist/histdata.txt
+          gmt gmtselect module_gridhist/histdata_pre.txt -F${m_gridhist_clip} > module_gridhist/histdata.txt
         fi
       else
         cp module_gridhist/histdata_pre.txt module_gridhist/histdata.txt
-
       fi
 
       if [[ $gridhist_weighted -eq 1 ]]; then
@@ -354,8 +319,8 @@ function tectoplot_post_gridhist() {
           }' > module_gridhist/histdata_weighted.txt
       fi
 
-      HISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
-      CUMHISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -Q -T${GRIDHIST_BINWIDTH} -F -i2,3 -Vn -I))
+      HISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -T${m_gridhist_binwidth} -F -i2,3 -Vn -I))
+      CUMHISTRANGE=($(gmt pshistogram module_gridhist/histdata_weighted.txt -Z1+w -Q -T${m_gridhist_binwidth} -F -i2,3 -Vn -I))
 
       # echo ${HISTRANGE[@]}
 
@@ -368,25 +333,22 @@ function tectoplot_post_gridhist() {
       HISTRANGE[3]=$(echo "${HISTRANGE[3]} + ${HISTYDIFF}/3" | bc -l)
       CUMHISTRANGE[3]=$(echo "${CUMHISTRANGE[3]}*11/10" | bc -l)
 
-      if [[ -s ${GRIDHIST_CPT} ]]; then
-        GRIDHIST_CPTCMD="-C${GRIDHIST_CPT}"
+      if [[ ! -z ${m_gridhist_cpt} ]]; then
+        GRIDHIST_CPTCMD="-C${m_gridhist_cpt}"
       else
         GRIDHIST_CPTCMD="-Ggray"
       fi
 
       # Adding -N to the following command will draw the equivalent normal distribution
 
-      gmt pshistogram module_gridhist/histdata_weighted.txt -T${GRIDHIST_BINWIDTH} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -Z1+w -BSW -Bxaf+l"${GRIDHIST_YLABEL}" --FONT_LABEL=10p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -K > module_gridhist/gridhist.ps
-
-      gmt pshistogram module_gridhist/histdata_weighted.txt -Q -T${GRIDHIST_BINWIDTH} -JX${GRIDHIST_WIDTH}/${GRIDHIST_HEIGHT} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=10p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
-
+      gmt pshistogram module_gridhist/histdata_weighted.txt -T${m_gridhist_binwidth} -R${HISTRANGE[0]}/${HISTRANGE[1]}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX${m_gridhist_width}/${m_gridhist_height} -Z1+w -BSW -Bxaf+l"${m_gridhist_label}" --FONT_LABEL=10p,black -Byaf+l"Relative frequency" ${GRIDHIST_CPTCMD} -F -i2,3 -Vn -A -K > module_gridhist/gridhist.ps
+      gmt pshistogram module_gridhist/histdata_weighted.txt -Q -T${m_gridhist_binwidth} -JX${m_gridhist_width}/${m_gridhist_height} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=10p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
       gmt psconvert module_gridhist/gridhist.ps -Tf -A+m0.5i
-    # ;;
-    #
-      if [[ -s module_gridhist/histdata_weighted.txt && $gridhistintflag -eq 1 ]]; then
-        for gridind in $(seq 1 ${#GRIDHIST_INT_LOW[@]}); do
-          thisgrid=$(echo "$gridind - 1" | bc)
-          LC_ALL=en_US.UTF-8 gawk < module_gridhist/histdata_weighted.txt -v low=${GRIDHIST_INT_LOW[$thisgrid]} -v high=${GRIDHIST_INT_HIGH[$thisgrid]} '
+
+      if [[ -s module_gridhist/histdata_weighted.txt && ${gridhistintflag} -eq 1 ]]; then
+        # for gridind in $(seq 1 ${#GRIDHIST_INT_LOW[@]}); do
+          # thisgrid=$(echo "$gridind - 1" | bc)
+          LC_ALL=en_US.UTF-8 gawk < module_gridhist/histdata_weighted.txt -v low=${m_gridhist_intmin} -v high=${m_gridhist_intmax} '
           BEGIN {
             sumarea=0
           }
@@ -394,10 +356,10 @@ function tectoplot_post_gridhist() {
             sumarea+=$5
           }
           END {
-            print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between", low, "and", high, "meters elevation (" sprintf("%0.01f", sumarea * 100 / 511217755) "% of Earth surface)"
+            print "There are", sprintf("%'"'"'d", sumarea ), "square kilometers between", low, "and", high
           }
           '
-        done
+        # done
       fi
     else
       [[ $gridhist_hasrun -eq 0 ]] && echo "[-gridhist]: Target file ${GRIDHIST_FILE} does not exist or is empty." && gridhist_hasrun=1

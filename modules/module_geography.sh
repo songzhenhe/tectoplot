@@ -1,38 +1,19 @@
 
 TECTOPLOT_MODULES+=("geography")
 
+# UPDATED
+
+# NEW OPTS
+
+
 # plot geographic elements like coastlines, country borders
 
 function tectoplot_defaults_geography() {
 
 ################################################################################
-##### Coastlines and land/sea colors
-COAST_QUALITY="-Da"          # pscoast quality
-COAST_SIZELIMIT=0
-FILLCOASTS=""                # pscoast option for filling land areas
-COAST_LINEWIDTH="0.5p"       # pscoast line width
-COAST_LINECOLOR="black"      # pscoast line color
-
-LAKE_LINEWIDTH="0.2p"
-LAKE_LINECOLOR="black"
-
-RIVER_LINEWIDTH=0.4p
-RIVER_LINECOLOR="blue"
-RIVER_COMMAND=""
-
-COAST_KM2="100"              # minimum size (im km^2) of feature
-LANDCOLOR="gray"             # color of land areas
-SEACOLOR="lightblue"         # color of sea areas
-FILLCOASTS=""                # empty by default = don't fill anything
 
 ################################################################################
 ##### Country borders and labels
-BORDER_LINEWIDTH="1.3p"      # National border linewidth
-BORDER_LINECOLOR="red"       # National border linecolor
-
-BORDER_QUALITY="-Da"
-BORDER_LINEWIDTH="0.5p"
-BORDER_LINECOLOR="red"
 
 COUNTRY_LABEL_FONTSIZE="8p"
 COUNTRY_LABEL_FONT="Helvetica-bold"
@@ -55,6 +36,12 @@ OSMCOASTBF2FILE=${OSMCOASTDIR}"land_polygons_osm_planet.bf2"
 OSMCOAST_SHORT_SOURCESTRING="OpenStreetMap"
 OSMCOAST_SOURCESTRING="Coastlines are from OpenStreetMap (www.openstreetmap.org/copyright) via FOSSGIS (https://osmdata.openstreetmap.de/data/land-polygons.html)"
 
+
+GLOBALROADSDIR=${DATAROOT}"GlobalRoads/"
+GLOBALROADSFILE=${GLOBALROADSDIR}"ne_10m_roads.gmt"
+
+ROADS_SHORT_SOURCESTRING="GlobalRoads"
+ROADS_SOURCESTRING="Roads are from Patterson, Tom. Kelso, Nathaniel Vaughn. World Roads, 1:10 million (2012). [Shapefile]. North American Cartographic Information Society. Retrieved from https://maps.princeton.edu/catalog/stanford-vs175mk0273"
 }
 
 function tectoplot_args_geography()  {
@@ -65,9 +52,15 @@ function tectoplot_args_geography()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -aosm)
+  -roads)
+  tectoplot_get_opts_inline '
+des -roads plot global road network
+' "${@}" || return
+  plots+=("m_geography_roads")
 
-  cat <<-EOF > aosm
+  ;;
+  -aosm)
+  tectoplot_get_opts_inline '
 des -aosm plot high quality coastlines from Open Street Map database
 opn simplify m_geography_aosm_simplify string "none"
     simplify coastlines: 01 or 001
@@ -85,25 +78,16 @@ opn noplot m_geography_aosm_noplot flag 0
     do not plot coastlines
 mes -aosm should only be called once; subsequent calls will overwrite all options
 exa tectoplot -aosm width 1p fill green
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts aosm
-  else
-    tectoplot_get_opts aosm "${@}"
-
-    if [[ ${m_geography_aosm_noplot} -ne 1 ]]; then
-      plots+=("m_geography_aosm")
-    fi
-
-    tectoplot_module_caught=1
+  if [[ ${m_geography_aosm_noplot} -ne 1 ]]; then
+    plots+=("m_geography_aosm")
   fi
-
   ;;
 
   -tissot)
 
-  cat <<-EOF > tissot
+  tectoplot_get_opts_inline '
 des -tissot plot circles of specified radius at evenly spaced points given by -pf
 opn width m_geography_tissot_width posfloat 100
     width of Tissot-type
@@ -112,20 +96,12 @@ opn line m_geography_tissot_line string "0.2p,black"
 opn fill m_geography_tissot_fill string "none"
     fill color
 mes Note that this is a false Tissot plot that is commonly used but is not
-mes actually plotting Tissot's indicatrices.
+mes actually plotting Tissots indicatrices.
 mes -tissot should only be called once.
 exa tectoplot -r g -a -pf 1000 -tissot
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts tissot
-  else
-    tectoplot_get_opts tissot "${@}"
-
-    plots+=("m_geography_tissot")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_geography_tissot")
 
   if [[ $m_geography_tissot_fill == "none" ]]; then
     m_geography_tissot_fillcmd=""
@@ -138,12 +114,10 @@ EOF
   else
     m_geography_tissot_linecmd="-W${m_geography_tissot_line}"
   fi
-
   ;;
 
   -a)
-
-  cat <<-EOF > a
+  tectoplot_get_opts_inline '
 des -a plot ocean and land coastlines from GHSSG
 opt res m_geography_a_res string "a"
     resolution: a=auto f=full h=high i=intermediate l=low c=crude
@@ -157,24 +131,17 @@ opt size m_geography_a_size string "none"
     minimum size of plotted object: number with k = size in km^2
 opt trans m_geography_a_trans float 0
     transparency (percent)
+opt raster m_geography_a_rasterize flag 0
+    rasterize the plot and plot the raster
 exa tectoplot -r g -a
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts a
-  else
-    tectoplot_get_opts a "${@}"
-
-    plots+=("m_geography_a")
-
-    tectoplot_module_caught=1
-  fi
-
-    ;;
+  plots+=("m_geography_a")
+  ;;
 
   -ac) # args: landcolor seacolor
 
-  cat <<-EOF > ac
+  tectoplot_get_opts_inline '
 des -ac plot land/water areas with specified colors
 opt res m_geography_ac_res string "a"
     resolution: a=auto f=full h=high i=intermediate l=low c=crude
@@ -187,22 +154,13 @@ opt size m_geography_ac_size string "none"
 opt trans m_geography_ac_trans float 0
     transparency (percent)
 exa tectoplot -r g -ac
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts ac
-  else
-    tectoplot_get_opts ac "${@}"
-
-    plots+=("m_geography_ac")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_geography_ac")
   ;;
 
   -acb)
-
-  cat <<-EOF > acb
+  tectoplot_get_opts_inline '
 des -acb plot country border lines
 opt res m_geography_acb_res string "a"
     resolution: a=auto f=full h=high i=intermediate l=low c=crude
@@ -213,23 +171,13 @@ opt fill m_geography_acb_fill string "none"
 opt trans m_geography_acb_trans float 0
     transparency (percent)
 exa tectoplot -r g -acb
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts acb
-  else
-    tectoplot_get_opts acb "${@}"
-
-    plots+=("m_geography_acb")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_geography_acb")
   ;;
 
   -acs)
-
-  cat <<-EOF > acs
+  tectoplot_get_opts_inline '
 des -acs plot state border lines
 opt res m_geography_acs_res string "a"
     resolution: a=auto f=full h=high i=intermediate l=low c=crude
@@ -240,56 +188,26 @@ opt fill m_geography_acs_fill string "none"
 opt trans m_geography_acs_trans float 0
     transparency (percent)
 exa tectoplot -r g -acs
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts acs
-  else
-    tectoplot_get_opts acs "${@}"
-
-    plots+=("m_geography_acs")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_geography_acs")
   ;;
 
-    -acl)
-
-  cat <<-EOF > acl
+  -acl)
+tectoplot_get_opts_inline '
 des -acl label all or only selected countries
-opn list m_geography_acl_list list
+opt font m_geography_acl_font string "8p,Helvetica,black"
+    font of country labels
+opt list m_geography_acl_list list
     list of countries to label
 exa tectoplot -r =AF -a l -acb red 0.2p a -acl
-EOF
+' "${@}" || return
 
-# countrylabeluselistflag=0
-#   if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -acl:
-# -acl [[countryID1 ...]]
-# Example: Outline and label the countries of Africa
-#   tectoplot -r =AF -a l -acb red 0.2p a -acl
-# --------------------------------------------------------------------------------
-# EOF
-#   fi
-
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts acl
-  else
-    tectoplot_get_opts acl "${@}"
-
-    plots+=("m_geography_acl")
-echo acl
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_geography_acl")
   ;;
 
-
-
-    -countries)
-  cat <<-EOF > countries
+  -countries)
+tectoplot_get_opts_inline '
 des -countries plot randomly colored country polygons
 opt line m_geography_countries_line string "0.2p,black"
     line symbology; use none for no line
@@ -300,59 +218,33 @@ opt trans m_geography_countries_trans float 0
 opt res m_geography_countries_res string "d"
     resolution: a=auto f=full h=high i=intermediate l=low c=crude
 exa tectoplot -r g -a l
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts countries
-  else
-    tectoplot_get_opts countries "${@}"
-
-    plots+=("m_geography_countries")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_geography_countries")
   ;;
 
-    -countryid)
-  cat <<-EOF > countryid
+  -countryid)
+tectoplot_get_opts_inline '
 des -countryid print list of countries in map area
 exa tectoplot -r g -countryid
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts countryid
-  else
-    tectoplot_get_opts countryid "${@}"
-
-    plots+=("m_geography_countryid")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_geography_countryid")
   ;;
 
-
   -rivers)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--rivers:       plot rivers if -a command is called
--rivers
 
-Example:
-   tectoplot -r BR -a -rivers
---------------------------------------------------------------------------------
-EOF
-fi
+tectoplot_get_opts_inline '
+des -rivers plot rivers from GHSSG
+opt trans m_geography_rivers_trans integer 0
+  transparency (not recommended due to overlapping segments)
+opt line m_geography_rivers_line string "1p,blue"
+  river line width and color definition
+exa tectoplot -r FR -a -rivers
+' "${@}" || return
 
-    shift
-    RIVER_COMMAND="-I1/${RIVER_LINEWIDTH},${RIVER_LINECOLOR} -I2/${RIVER_LINEWIDTH},${RIVER_LINECOLOR}"
-
-    echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-    echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
-
-    tectoplot_module_caught=1
-    ;;
+  plots+=("m_geography_rivers")
+  ;;
 
   esac
 }
@@ -429,6 +321,22 @@ function tectoplot_plot_geography() {
 
   case $1 in
 
+  m_geography_roads)
+    echo $ROADS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $ROADS_SOURCESTRING >> ${LONGSOURCES}
+
+    ogr2ogr -f OGR_GMT -clipsrc ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} cliproads.gmt ${GLOBALROADSFILE} >/dev/null 2>&1
+    gmt psxy cliproads.gmt -W1p,black ${RJOK} >> map.ps
+
+  ;;
+
+  m_geography_rivers)
+    gmt pscoast -Ia/${m_geography_rivers_line[$tt]} -t${m_geography_rivers_trans[$tt]} $RJOK $VERBOSE >> map.ps
+
+    echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
+  ;;
+
   m_geography_tissot)
 
     if [[ -s gridswap.txt ]]; then
@@ -466,7 +374,30 @@ function tectoplot_plot_geography() {
       m_geography_a_sizecmd=""
     fi
 
-    gmt pscoast -D${m_geography_a_res[$tt]} -W1/${m_geography_a_line[$tt]} ${m_geography_a_seafillcmd} ${m_geography_a_fillcmd} ${m_geography_a_sizecmd} -t${m_geography_a_trans[$tt]} $RJOK $VERBOSE >> map.ps
+    if [[ ${m_geography_a_rasterize[$tt]} -eq 1 ]]; then
+      gmt_init_tmpdir
+
+      M_GEOGRAPHY_A_PSSIZE_ALT=$(gawk -v size=${PSSIZE} -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
+        BEGIN {
+          print size*(minlat-maxlat)/(minlon-maxlon)
+        }')
+
+      m_geography_a_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
+      m_geography_a_rj+=("-JX${PSSIZE}i/${M_GEOGRAPHY_A_PSSIZE_ALT}id")
+      # Plot the map in Cartesian coordinates
+      gmt pscoast -D${m_geography_a_res[$tt]} -W1/${m_geography_a_line[$tt]} ${m_geography_a_seafillcmd} ${m_geography_a_fillcmd} ${m_geography_a_sizecmd} -t${m_geography_a_trans[$tt]} ${m_geography_a_rj[@]} -Bxaf -Byaf -Btlrb -Xc -Yc --MAP_FRAME_PEN=0p,black --GMT_HISTORY=false > module_a_tmp.ps 2>/dev/null
+      # Convert to a TIFF file at specified resolution
+      gmt psconvert module_a_tmp.ps -A+m0i -Tt -W+g ${VERBOSE}
+      rm -f module_a_tmp.tiff
+      # Update the coordinates in basin.tif to be correct
+      gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} module_a_tmp.tif
+      # rm -f module_a_tmp.ps
+      gmt_remove_tmpdir
+
+      gmt grdimage module_a_tmp.tif ${RJOK} ${VERBOSE} >> map.ps
+    else
+      gmt pscoast -D${m_geography_a_res[$tt]} -W1/${m_geography_a_line[$tt]} ${m_geography_a_seafillcmd} ${m_geography_a_fillcmd} ${m_geography_a_sizecmd} -t${m_geography_a_trans[$tt]} $RJOK $VERBOSE >> map.ps
+    fi
 
     echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
@@ -476,7 +407,7 @@ function tectoplot_plot_geography() {
   m_geography_aosm)
 
     if [[ -s osmcoasts.bf2 ]]; then
-      gmt psxy osmcoasts.bf2 -bi2f -t${m_geography_aosm_trans} ${OSMCOAST_PLOTFILLCMD} -W${m_geography_aosm_width},${m_geography_aosm_color}  ${RJOK} ${VERBOSE} >> map.ps
+      gmt psxy osmcoasts.bf2 -A -bi2f -t${m_geography_aosm_trans} ${OSMCOAST_PLOTFILLCMD} -W${m_geography_aosm_width},${m_geography_aosm_color}  ${RJOK} ${VERBOSE} >> map.ps
       echo $OSMCOAST_SHORT_SOURCESTRING >> ${SHORTSOURCES}
       echo >> ${SHORTSOURCES}
       echo $OSMCOAST_SOURCESTRING >> ${LONGSOURCES}
@@ -509,7 +440,7 @@ function tectoplot_plot_geography() {
     ;;
 
   m_geography_countryid) # report country ID codes
-      gawk -F, < $COUNTRY_CODES '{ print $2, $3, $1, $4 }' | gmt select ${rj[0]} | grep -v "NaN"
+      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $1, $4 }' | gmt select ${rj[0]} | grep -v "NaN"
     # else
     #   while ! arg_is_flag $2; do
     #     gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
@@ -518,12 +449,11 @@ function tectoplot_plot_geography() {
     # fi
     ;;
 
-
   m_geography_acb)
 
     m_geography_acb_rescmd="-D${m_geography_acb_res[$tt]}"
 
-    gmt pscoast ${m_geography_acb_rescmd} -N1/${m_geography_acb_line[$tt]} $RJOK $VERBOSE >> map.ps
+    gmt pscoast ${m_geography_acb_rescmd} -N1/${m_geography_acb_line[$tt]} -t${m_geography_acb_trans[$tt]} $RJOK $VERBOSE >> map.ps
 
     echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
@@ -562,9 +492,9 @@ function tectoplot_plot_geography() {
             print $3, $2, $4
           }
         }
-      ' ${F_MAPELEMENTS}selected_country_ids.txt $COUNTRY_CODES | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
+      ' ${F_MAPELEMENTS}selected_country_ids.txt $COUNTRY_CODES | gmt pstext -F+f${m_geography_acl_font[$tt]}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
     else
-      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${COUNTRY_LABEL_FONTSIZE},${COUNTRY_LABEL_FONT},${COUNTRY_LABEL_FONTCOLOR}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
+      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${m_geography_acl_font[$tt]}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
     fi
     tectoplot_plot_caught=1
     ;;

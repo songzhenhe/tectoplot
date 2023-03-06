@@ -2,6 +2,7 @@
 # Plot polyline shapefiles (or any other format recognized by ogr2ogr)
 
 # UPDATED
+# NEW OPTS
 
 TECTOPLOT_MODULES+=("shapefile_line")
 
@@ -21,37 +22,35 @@ function tectoplot_args_shapefile_line()  {
   case "${1}" in
 
   -shp_q)
-  cat <<-EOF > shp_q
+  tectoplot_get_opts_inline '
 des -shp_q query a shapefile and report all field names
 req m_shapefile_query_file file
     shapefile to query
-  ;;
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts shp_q
-  else
-    tectoplot_get_opts shp_q "${@}"
-
-    plots+=("m_shapefile_shp_q")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_shapefile_shp_q")
   export CPL_LOG="/dev/null"
   ;;
 
 
+# We can theoretically plot by categories of some input field
+# If the categories in question are specified, query each before plotting
+
   -shp_l)
-  cat <<-EOF > shp_l
+  tectoplot_get_opts_inline '
 des -shp_l plot a polyline shapefile, color using CPT and possibly vary line width
 req m_shapefile_line_file file
     shapefile to plot
 opt color m_shapefile_line_color string "black"
     line color if not using CPT
 opt data m_shapefile_line_data string "none"
-    Field name for coloring using CPT
+    Name of numeric field used for coloring with CPT (can be number string)
 opt cpt m_shapefile_line_cpt cpt turbo
     CPT to use when coloring by data value
+opt cat m_shapefile_cat string "none"
+    field name used in category selection
+opt val m_shapefile_val string "none"
+    value used in categorical data selection
 opt widthbin m_shapefile_line_widthbin int 0
     separate input into specified number of bins based on data min/max values
 opt widthmin m_shapefile_line_widthmin float 0.1
@@ -66,17 +65,10 @@ opt inv m_shapefile_line_cptinv flag 0
     invert CPT
 mes Default CPT stretching is calculated using min/max from region
 mes Data are reprojected to WGS1984 when clipping happens
-EOF
+mes Fields should have numeric data type to allow CPT coloring
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts shp_l
-  else
-    tectoplot_get_opts shp_l "${@}"
-
-    plots+=("m_shapefile_shp_l")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_shapefile_shp_l")
   export CPL_LOG="/dev/null"
   ;;
 
@@ -84,6 +76,8 @@ EOF
 }
 
 function tectoplot_calculate_shapefile_line()  {
+
+  # This will be run for each instance of shp_l called... not ideal
 
   [[ ! -d ./shapefile_line/ ]] && mkdir ./shapefile_line/
 
@@ -138,8 +132,11 @@ function tectoplot_plot_shapefile_line() {
         ;;
       esac
 
-      ogr2ogr -f CSV -sql "SELECT MIN(${m_shapefile_line_data[$tt]}) as min_value, MAX(${m_shapefile_line_data[$tt]}) as max_value FROM $(basename ${m_shapefile_line_selectfile} | sed 's/\(.*\)\..*/\1/')" ./shapefile_line/minmax_${tt}.csv ${m_shapefile_line_selectfile}
-      m_shapefile_line_range=($(tail -n 1 ./shapefile_line/minmax_${tt}.csv | gawk -F, '{print $1+0, $2+0}'))
+      # echo ogr2ogr -f CSV -dialect sqlite -sql "SELECT MIN(CAST(${m_shapefile_line_data[$tt]} AS decimal)) as min_value, MAX(CAST(${m_shapefile_line_data[$tt]} AS decimal)) as max_value FROM $(basename ${m_shapefile_line_selectfile} | sed 's/\(.*\)\..*/\1/')" ./shapefile_line/minmax_${tt}.csv ${m_shapefile_line_selectfile}
+      ogr2ogr -f CSV -dialect sqlite -sql "SELECT MIN(CAST(${m_shapefile_line_data[$tt]} AS decimal)) as min_value, MAX(CAST(${m_shapefile_line_data[$tt]} AS decimal)) as max_value FROM $(basename ${m_shapefile_line_selectfile} | sed 's/\(.*\)\..*/\1/')" ./shapefile_line/minmax_${tt}.csv ${m_shapefile_line_selectfile}
+      # ogr2ogr -f CSV -sql "SELECT MIN(${m_shapefile_line_data[$tt]}) as min_value, MAX(${m_shapefile_line_data[$tt]}) as max_value FROM $(basename ${m_shapefile_line_selectfile} | sed 's/\(.*\)\..*/\1/')" ./shapefile_line/minmax_${tt}.csv ${m_shapefile_line_selectfile}
+
+      m_shapefile_line_range=($(tail -n 1 ./shapefile_line/minmax_${tt}.csv | sed 's/"//g' | gawk -F, '{print $1+0, $2+0}'))
 
       m_shapefile_line_cptmin[$tt]=${m_shapefile_line_range[0]}
       m_shapefile_line_cptmax[$tt]=${m_shapefile_line_range[1]}
@@ -181,11 +178,11 @@ function tectoplot_plot_shapefile_line() {
 
         # echo width is ${m_shapefile_line_thiswidth} and bounds are ${m_shapefile_lowbound} "/" ${m_shapefile_upbound}
 
-        # echo         ogr2ogr -sql "SELECT * from $(basename ${m_shapefile_line_file[$tt]} | sed 's/\(.*\)\..*/\1/') where ((${m_shapefile_line_data[$tt]} >= ${m_shapefile_lowbound}) and (${m_shapefile_line_data[$tt]} < ${m_shapefile_upbound}))" ./shapefile_line/selected_${tt}_${this_bin}.shp ${m_shapefile_line_file[$tt]}
+        # echo ogr2ogr -dialect sqlite -sql "SELECT * from $(basename ${m_shapefile_line_file[$tt]} | sed 's/\(.*\)\..*/\1/') where ((cast(${m_shapefile_line_data[$tt]} as decimal) >= ${m_shapefile_lowbound[$this_bin]}) and (cast(${m_shapefile_line_data[$tt]} as decimal) < ${m_shapefile_upbound[$this_bin]}))" ./shapefile_line/selected_${tt}_${this_bin}.shp ${m_shapefile_line_file[$tt]}
+        ogr2ogr -dialect sqlite -sql "SELECT * from $(basename ${m_shapefile_line_file[$tt]} | sed 's/\(.*\)\..*/\1/') where ((cast(${m_shapefile_line_data[$tt]} as decimal) >= ${m_shapefile_lowbound[$this_bin]}) and (cast(${m_shapefile_line_data[$tt]} as decimal) < ${m_shapefile_upbound[$this_bin]}))" ./shapefile_line/selected_${tt}_${this_bin}.shp ${m_shapefile_line_file[$tt]}
 
-        ogr2ogr -sql "SELECT * from $(basename ${m_shapefile_line_file[$tt]} | sed 's/\(.*\)\..*/\1/') where ((${m_shapefile_line_data[$tt]} >= ${m_shapefile_lowbound[$this_bin]}) and (${m_shapefile_line_data[$tt]} < ${m_shapefile_upbound[$this_bin]}))" ./shapefile_line/selected_${tt}_${this_bin}.shp ${m_shapefile_line_file[$tt]}
-
-        gmt psxy ./shapefile_line/selected_${tt}_${this_bin}.shp -W${m_shapefile_line_thiswidth[$tt,$this_bin]}p,${m_shapefile_line_color[$tt]} ${m_shapefile_line_cptcmd} --PS_LINE_CAP=round --PS_LINE_JOIN=round $RJOK $VERBOSE >> map.ps
+        # echo gmt psxy ./shapefile_line/selected_${tt}_${this_bin}.shp -W${m_shapefile_line_thiswidth[$tt,${this_bin}]}p,${m_shapefile_line_color[$tt]} ${m_shapefile_line_cptcmd} --PS_LINE_CAP=round --PS_LINE_JOIN=round $RJOK $VERBOSE \>\> map.ps
+        gmt psxy ./shapefile_line/selected_${tt}_${this_bin}.shp -W${m_shapefile_line_thiswidth[$tt,${this_bin}]}p,${m_shapefile_line_color[$tt]} ${m_shapefile_line_cptcmd} --PS_LINE_CAP=round --PS_LINE_JOIN=round $RJOK $VERBOSE >> map.ps
   # echo gmt psxy ./shapefile_line/selected_${tt}_${this_bin}.shp -W${m_shapefile_line_thiswidth}p,${m_shapefile_line_color[$tt]} ${m_shapefile_line_cptcmd} --PS_LINE_CAP=round --PS_LINE_JOIN=round $RJOK $VERBOSE \>\> map.ps
 
       done
@@ -228,7 +225,7 @@ function tectoplot_legend_shapefile_line() {
       done
 
       init_legend_item "m_shapefile_shp_l_title"
-        echo "$CENTERLON $CENTERLAT ${m_shapefile_line_file[$tt]}: ${m_shapefile_line_data[$tt]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
+        echo "$CENTERLON $CENTERLAT $(basename ${m_shapefile_line_file[$tt]}): ${m_shapefile_line_data[$tt]}" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE ${RJOK} -Y0.10i >> ${LEGFILE}
       close_legend_item "m_shapefile_shp_l_title"
 
     fi

@@ -1,8 +1,8 @@
 
 # Commands for plotting GIS datasets like points, lines, and grids
 
-# module_gis has been fully updated to utilize tectoplot_get_opts
-
+# UPDATED
+# NEW OPTS
 
 # Register the module with tectoplot
 TECTOPLOT_MODULES+=("gis")
@@ -28,26 +28,17 @@ function tectoplot_args_gis()  {
   case "${1}" in
 
   -nangrid)
-    cat <<-EOF > nangrid
-des -cn plot NaN from grid as colored cell
+  tectoplot_get_opts_inline '
+des -nangrid plot NaN cells from grid as colored cells
 req m_gis_nangrid_file file
     input grid file
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts nangrid
-  else
-    tectoplot_get_opts nangrid "${@}"
-
-    plots+=("m_gis_nangrid")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_gis_nangrid")
   ;;
 
   -cn)
-    cat <<-EOF > cn
+  tectoplot_get_opts_inline '
 des -cn Plot contours of gridded dataset
 req m_gis_cn_file file
     input grid file
@@ -83,22 +74,13 @@ opt trans m_gis_cn_trans float 0
     transparency of all contours
 mes -cn can be called multiple times with different grid files and options
 exa tectoplot -t -cn topo/dem.tif int 1000
-EOF
+' "${@}" || return
 
-    if [[ $USAGEFLAG -eq 1 ]]; then
-      tectoplot_usage_opts cn
-    else
-      tectoplot_get_opts cn "${@}"
-
-      plots+=("m_gis_cn")
-
-      tectoplot_module_caught=1
-    fi
-
+  plots+=("m_gis_cn")
   ;;
 
   -gr)
-  cat <<-EOF > gr
+  tectoplot_get_opts_inline '
 des -gr Plot a grid (raster) datafile
 req m_gis_gr_file file
     input grid file
@@ -120,44 +102,29 @@ opt list m_gis_gr_list list ""
     test list
 mes -gr can be called multiple times with different grid files and options
 exa tectoplot -t -ts -gr topo/dem.tif cpt cmocean/topo
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts gr
-  else
-    tectoplot_get_opts gr "${@}"
-
-    plots+=("m_gis_gr")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gis_gr")
   ;;
 
   -im) # args: file { arguments }
 
-  cat <<-EOF > im
+  tectoplot_get_opts_inline '
 des -im Plot a rendered grid image datafile
 req m_gis_im_file file
     input grid file
 opt args m_gis_im_args list ""
     GMT grdimage arguments
+opt clip m_gis_im_clip file ""
+    clipping polygon file (inside clipping only, alternatively use -clipoff)
 mes -im can be called multiple times with different grid files and options
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts im
-  else
-    tectoplot_get_opts im "${@}"
-
-    plots+=("m_gis_im")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gis_im")
   ;;
 
   -lis)
-
-  cat <<-EOF > lis
+  tectoplot_get_opts_inline '
 des -lis Plot decorated lines (like ticked faults)
 req m_gis_lis_file file
     input line file
@@ -166,22 +133,13 @@ opt sym m_gis_lis_symbol string "t"
 opt stroke m_gis_lis_stroke string "1p,black"
     line width and color
 mes -lis can be called multiple times with different input files and options
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts lis
-  else
-    tectoplot_get_opts lis "${@}"
-
-    plots+=("m_gis_lis")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_gis_lis")
   ;;
 
   -li) # args: file color width
-  cat <<-EOF > li
+  tectoplot_get_opts_inline '
 des -li Plot a polyline file
 req m_gis_li_file file
     input polyline file
@@ -198,22 +156,13 @@ opt trans m_gis_li_trans float 0
 mes -li can be called multiple times with different input files and options
 mes att option requires field name in shapefile/OGR_GMT file
 mes To fill polygons with CPT values, use cpt [] att [] fill cpt
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts li
-  else
-    tectoplot_get_opts li "${@}"
-
-    plots+=("m_gis_li")
-
-    tectoplot_module_caught=1
-  fi
-
+  plots+=("m_gis_li")
   ;;
 
   -pt)
-  cat <<-EOF > pt
+  tectoplot_get_opts_inline '
 des -pt Plot a point dataset
 req m_gis_pt_file file
     input point file
@@ -232,24 +181,16 @@ mes  +(plus), st(a)r, (b|B)ar, (c)ircle, (d)iamond, (e)llipse,
 mes	  (f)ront, octa(g)on, (h)exagon, (i)nvtriangle, (j)rotated rectangle,
 mes	  pe(n)tagon, (p)oint, (r)ectangle, (R)ounded rectangle, (s)quare,
 mes   (t)riangle, (x)cross, (y)dash,
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts pt
-  else
-    tectoplot_get_opts pt "${@}"
-
-    plots+=("m_gis_pt")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gis_pt")
   ;;
 
   # Plot small circle with given angular radius, color, linewidth
   -smallc)
-  cat <<-EOF > smallc
+  tectoplot_get_opts_inline '
 des -small Plot small circle around a given pole at given angular distance
-req m_gis_smallc_file file
+opt m_gis_smallc_file file
     Input file with fields lon(°) lat(°) dist(°)
 opt stroke m_gis_smallc_stroke string "1p,black"
     Width and color of line
@@ -259,22 +200,14 @@ opt pole m_gis_smallc_pole flag 0
     Activate plotting of origin location as filled circle
 opt list m_gis_smallc_list floatlist ""
     List of small circles in lon lat dist ... format
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts smallc
-  else
-    tectoplot_get_opts smallc "${@}"
-
-    plots+=("m_gis_smallc")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gis_smallc")
   ;;
 
   # Plot great circle
   -greatc)
-  cat <<-EOF > greatc
+  tectoplot_get_opts_inline '
 des -greatc Plot great circle passing through given point with given azimuth
 opt file m_gis_greatc_file file /dev/null
     Input point file
@@ -288,23 +221,21 @@ opt label m_gis_greatc_label flag 0
     Activate labelling of great circle
 opt list m_gis_greatc_list floatlist ""
     List of great circles in lon lat az ... format
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts greatc
-  else
-    tectoplot_get_opts greatc "${@}"
-
-    plots+=("m_gis_greatc")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gis_greatc")
   ;;
   esac
 }
 
-# function tectoplot_calculate_gis()  {
-# }
+function tectoplot_calculate_gis()  {
+  if [[ ${m_gis_im_add} -ne 1 ]]; then
+    for thisfile in ${m_gis_im_file[@]}; do
+      echo "Adding grid file to profile: ${thisfile}"
+    done
+    m_gis_im_add=1
+  fi
+}
 
 # function tectoplot_cpt_gis() {
 # }
@@ -355,8 +286,10 @@ function tectoplot_plot_gis() {
 
     local AFLAG=-A${m_gis_cn_int[$tt]}
     local CFLAG=-C${m_gis_cn_int[$tt]}
+    local SFLAG
+    local QFLAG
 
-    [[ ! -z ${m_gis_cn_mindist[$tt]} ]] && QFLAG=-Q${m_gis_cn_mindist[$tt]} || QFLAG=""
+    [[ ! -z ${m_gis_cn_minsize[$tt]} ]] && QFLAG=-Q${m_gis_cn_minsize[$tt]} || QFLAG=""
     [[ ! -z ${m_gis_cn_smooth[$tt]} ]] && SFLAG=-S${m_gis_cn_smooth[$tt]} || SFLAG=""
 
     local m_gis_gcmw=$(echo ${m_gis_cn_major_app[$tt]} | gawk -F, '{print $1}' )
@@ -576,7 +509,6 @@ function tectoplot_plot_gis() {
 
     if [[ ${m_gis_li_file[$tt]} == *kml ]]; then
       kml_to_all_xy ${m_gis_li_file[$tt]} m_gis_line_${tt}.txt
-      ls -l m_gis_line_${tt}.txt
       m_gis_li_file[$tt]=$(abs_path m_gis_line_${tt}.txt)
     elif [[ ${m_gis_li_file[$tt]} == *shp ]]; then
       CPL_LOG=/dev/null ogr2ogr -f "OGR_GMT" m_gis_line_${tt}.gmt ${m_gis_li_file[$tt]}
@@ -618,8 +550,13 @@ function tectoplot_plot_gis() {
 
   m_gis_im)
 
-    gmt grdimage ${m_gis_im_file[$tt]} ${m_gis_im_args[$tt]} -Q ${RJSTRING} -O -K $VERBOSE >> map.ps
-
+    if [[ -s ${m_gis_im_clip[$tt]} ]]; then
+      gmt psclip ${m_gis_im_clip[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+    fi
+    gmt grdimage ${m_gis_im_file[$tt]} ${m_gis_im_args[$tt]} ${RJSTRING} -O -K $VERBOSE >> map.ps
+    if [[ -s ${m_gis_im_clip[$tt]} ]]; then
+      gmt psclip -C -K -O ${VERBOSE} >> map.ps
+    fi
     tectoplot_plot_caught=1
   ;;
 

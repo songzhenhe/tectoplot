@@ -175,6 +175,26 @@ function select_in_gmt_map {
   mv a.tmp "${1}"
 }
 
+function select_in_gmt_map_tab {
+  inputfile="${1}"
+  shift
+  gawk < "${inputfile}" '{
+    print $1, $2, NR
+  }' | gmt select ${@} -f0x,1y,s -i0,1,t ${VERBOSE} > preselect.tmp
+
+  gawk '
+  (NR==FNR) {
+    id[$3]=1
+  }
+  (NR!=FNR) {
+    if(id[FNR]==1) {
+      print
+    }
+  }' preselect.tmp "${inputfile}" > postselect.tmp
+  cp postselect.tmp "${inputfile}"
+}
+
+
 # select_in_gmt_map_by_columns()
 # Takes in a text file and removes rows for which the points indicated in
 # specified X,Y columns do not fall on the map.
@@ -316,7 +336,7 @@ function randomize_lines() {
 # jumps in longitude across the dateline
 
 function fix_dateline_poly() {
-  gawk < $1 '
+  OFMT='%f' gawk < $1 '
   function abs(x) { return (x>0)?x:-x }
   function addf(u,v, a, b) {
     split(u,a,".")
@@ -500,11 +520,13 @@ function sample_grid_360() {
 
   rm -f collated.tmp
 
+  gmt_init_tmpdir
+
   while [[ ${#@} -gt 0 ]]; do
     grid_file=$1
     shift
 
-    gmt grdtrack $points_file -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+    gmt grdtrack $points_file -G"${grid_file}" ${VERBOSE} -fg -Z -N > output.tmp
 
     # Check whether we just got NaNs
 
@@ -528,7 +550,7 @@ function sample_grid_360() {
         print $0
       }' > newfile.txt
 
-      gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+      gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -fg -Z -N > output.tmp
 
       shouldredo=$(gawk < output.tmp '
         BEGIN {
@@ -550,7 +572,7 @@ function sample_grid_360() {
           print $0
         }' > newfile.txt
 
-        gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -Z -N > output.tmp
+        gmt grdtrack newfile.txt -G"${grid_file}" ${VERBOSE} -fg -Z -N > output.tmp
 
         shouldredo=$(gawk < output.tmp '
           BEGIN {
@@ -579,6 +601,8 @@ function sample_grid_360() {
   done
   cat collated.tmp
   rm -f collated.tmp output.tmp collated_new.tmp
+
+  gmt_remove_tmpdir
 }
 
 # CPT-related functions

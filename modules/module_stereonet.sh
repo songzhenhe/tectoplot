@@ -1,6 +1,8 @@
 
 TECTOPLOT_MODULES+=("stereonet")
 
+# NEW OPTS
+
 # function tectoplot_defaults_stereonet() {
 # }
 
@@ -15,65 +17,19 @@ function tectoplot_args_stereonet()  {
   # The flag must not conflict with an existing tectoplot option or another module
   -cs) # args: none
 
-  # The following usage statement is required for tectoplot -usage to work with this module.
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_stereonet.sh
--cs:           plot focal mechanism principal axes on a stereonet
--cs [[options]]
+  tectoplot_get_opts_inline '
+des -seistime create a seismicity vs time plot
+opn width m_stereonet_width word "7i"
+  width of stereonet in inches
+opn np m_stereo_nodalflag flag 0
+  plot nodal plane lines
+opn pa m_stereo_paflag flag 1
+  plot principal axes
+opn nogrid m_stereo_nogridflag flag 0
+  suppress plotting of lower hemisphere grid lines
+' "${@}" || return
 
- Requires -c option to select focal mechanism data.
- Output file is stereo.pdf in temporary directory.
-
- Default is -cs np pa
-
- Options
-
- np          plot fault nodal planes and poles
- pa          plot principal axes
- nogrid      do not plot the lower hemisphere grid lines
-
-Example:
- tectoplot -r PY -c -cs
---------------------------------------------------------------------------------
-EOF
-  fi
-    tectoplot_module_shift=0
-
-    shift
-    cstereonodalflag=0
-    cstereonpaflag=0
-
-    while ! arg_is_flag $1; do
-      case $1 in
-        np)
-          shift
-          ((tectoplot_module_shift++))
-          cstereonodalflag=1
-        ;;
-        pa)
-          shift
-          ((tectoplot_module_shift++))
-          cstereonpaflag=1
-        ;;
-        nogrid)
-          shift
-          ((tectoplot_module_shift++))
-          cstereonogridflag=1
-        ;;
-        *)
-          echo "[-cs]: Option $1 not recognized"
-          exit 1
-        ;;
-      esac
-    done
-
-    if [[ $cstereonodalflag -eq 0 && $cstereonpaflag -eq 0 ]]; then
-      cstereonpaflag=1
-      cstereonodalflag=1
-    fi
-
-    tectoplot_module_caught=1
+    m_stereo_plotstereo=1
     ;;
   esac
 }
@@ -100,14 +56,14 @@ function tectoplot_post_stereonet() {
   # VERBOSE : VERBOSITY LEVEL
   # RJOK : -R -J -O -K
 
-  if [[ -s ${CMTFILE} ]]; then
+  if [[ -s ${CMTFILE} && ${m_stereo_plotstereo} -eq 1 ]]; then
     info_msg "[-cs]: Making stereonet of focal mechanism data"
 
     # We use Lambert azimuthal equal-area, lower hemisphere
-    if [[ $cstereonogridflag -eq 1 ]]; then
-      csgridcmd="-Bxa -Bya"
+    if [[ ${m_stereo_nogridflag} -eq 1 ]]; then
+      local csgridcmd="-Bxa -Bya"
     else
-      csgridcmd="-Bxafg10 -Byafg10"
+      local csgridcmd="-Bxafg10 -Byafg10"
     fi
 
     gmt psbasemap -JA0/-89.99999/5i -Rg $csgridcmd -K ${VERBOSE} > stereo.ps
@@ -121,7 +77,7 @@ function tectoplot_post_stereonet() {
     symbolsize=0.1i
     symbolsize_np=0.15i
 
-    if [[ $cstereonodalflag -eq 1 ]]; then
+    if [[ ${m_stereo_nodalflag} -eq 1 ]]; then
       info_msg "[-cs]: Plotting nodal plane poles"
       gawk < ${F_CMT}cmt.dat '{$1=0; $2=-90; print}' | gmt psmeca -Gwhite@100 -Ewhite@100 -T -W0.2p,gray -Sm5i+m -R -J -O -K ${VERBOSE} >> stereo.ps
 
@@ -129,7 +85,7 @@ function tectoplot_post_stereonet() {
       gawk < ${CMTFILE} '{ if ($20>0) { print $19-90, $20-90 } else { print $19-90, $20 } }' | gmt psxy -Sd${symbolsize_np} -W0.5p,red -Gwhite -R -J -O -K ${VERBOSE} >> stereo.ps
     fi
 
-    if [[ $cstereonpaflag -eq 1 ]]; then
+    if [[ $m_stereo_paflag -eq 1 ]]; then
       info_msg "[-cs]: Plotting principal axes"
 
       if [[ $axescmtthrustflag -eq 1 ]]; then

@@ -50,6 +50,8 @@ tectoplot data directory                           :   ${HOME}/TectoplotData/
 
 Installation of dependencies using Homebrew may require root access via sudo
 
+Installation by miniconda is the most reliable
+
 EOF
 }
 
@@ -381,7 +383,7 @@ function brew_packages() {
   # addition taps to enable packages not included in core tap
   tap_list=""
   # term_list includes packages which run from terminal without GUI
-  term_list="gmt git gawk proj gcc ghostscript evince"
+  term_list="gmt git gawk proj gcc ghostscript evince gnuplot"
   # "gmt@6"
   # cask_list includes packages macOS apps, fonts and plugins and other non-open source software
   cask_list=""
@@ -448,7 +450,7 @@ function install_evince() {
 function install_apt() {
   echo "Checking for apt..."
   if command_exists "apt"; then
-    sudo apt install build-essential cmake curl ffmpeg gawk gcc gdal-bin gfortran ghostscript git gmt graphicsmagick libblas-dev libcurl4-gnutls-dev libfftw3-dev libgdal-dev libglib2.0-dev liblapack-dev libnetcdf-dev libpcre3-dev netcdf-bin
+    sudo apt install build-essential cmake curl ffmpeg gawk gcc gnuplot gdal-bin gfortran ghostscript git gmt graphicsmagick libblas-dev libcurl4-gnutls-dev libfftw3-dev libgdal-dev libglib2.0-dev liblapack-dev libnetcdf-dev libpcre3-dev netcdf-bin
   else
     echo "apt not found... cannot install packages."
     exit 1
@@ -513,15 +515,15 @@ function miniconda_deps() {
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
       *)
         echo "Unrecognized system type ${OSTYPE}. Only installing non-system-specific packages."
-        conda install -y python=3.9 git gmt=6.4 gawk ghostscript mupdf -c conda-forge
+        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript mupdf imagemagick -c conda-forge
       ;;
     esac
 

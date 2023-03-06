@@ -38,7 +38,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Download the entire global ANSS seismicity catalog and store in weekly data files,
+# Download the entire global ANSS seismicity catalog,
 # then process into 5x5 degree tiles for quicker plotting.
 
 # Most of the download time is the pull request, but making larger chunks leads
@@ -54,12 +54,10 @@
 #       &end_month=${month}&end_day=7&end_time=23%3A59%3A59&min_dep=&max_dep=
 #       &min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > anss_seis_2019_01_week1.dat
 
-# Note that ANSS queries require the correct final day of the month, including leap years!
+# Note that ANSS queries require the correct final day of the month, including
+# leap years! Whyyyy.....
 
-# Reverse the order of lines in each file, printing the files in order specified
-# tac preferred over tail -r preferred over gawk
-
-# This is the date that separates old catalog from new (more rapidly updated) catalog
+# This is the URL of the mirror to use
 ANSS_MIRROR="https://earthquake.usgs.gov"
 
 # Set ANSS_VERBOSE=1 for more illuminating messages
@@ -84,219 +82,187 @@ ANSS_VERBOSE=1
 #   fi
 # }
 
+function repair_anss_time_json() {
+  gawk -F, '
+  BEGIN {
+    OFS=","
+    OFMT="%.3f"
+    ENVIRON["TZ"] = "UTC"
+  }
+  {
+    for(i=1;i<=NF;++i) {
+      if (substr($(i),2,4) == "time") {
+        split($(i), a, ":")
+        $(i)=sprintf("\"time\":\"%s\",\"epochtime\":%.2f", strftime("%FT%T", a[2]/1000), a[2]/1000)
+      }
+    }
+    print
+  }'
+}
+
+function add_one_second() {
+  gawk '
+    {
+      date = substr($1,1,10);
+      split(date,dstring,"-");
+      time = substr($1,12,8);
+      split(time,tstring,":");
+      the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
+      secs = mktime(the_time);
+      newtime = strftime("%FT%T", secs+1);
+      print newtime
+    }'
+}
+
 function anss_update_catalog() {
 
   [[ $ANSS_VERBOSE -eq 1 ]] && echo "Scraping ANSS data in directory $(pwd)"
-  TILEDIR="${1}"
 
-  if [[ ! -d ${TILEDIR} ]]; then
-    echo "ANSS catalog cannot be updated because tile directory ${TILEDIR} does not exist"
+  if [[ ! -s anss.gpkg ]]; then
+    echo "Earthquakes GPKG does not exist. Initializing."
+
+    # Make a fake entry that we know will have the appropriate data types in each field
+cat <<EOF > event1.json
+{"type":"FeatureCollection","metadata":{"generated":1677207254000,"url":"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2020-01-01T00:00:00&endtime=2020-02-01T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000","title":"USGS Earthquakes","status":200,"api":"1.13.6","limit":20000,"offset":1,"count":17228},"features":[{"type":"Feature","properties":{"mag":2.6,"place":"83 km NW of San Antonio, Puerto Rico","time":"2020-02-01T23:58:58","epochtime":1580601538.17,"updated":1587247811040,"tz":0,"url":"https://earthquake.usgs.gov/earthquakes/eventpage/us60007me5","detail":"https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us60007me5&format=geojson","felt":100,"cdi":5.0,"mmi":1.1,"alert":"green","status":"reviewed","tsunami":0,"sig":104,"net":"us","code":"60007me5","ids":",us60007me5,","sources":",us,","types":",origin,phase-data,","nst":10,"dmin":0.758,"rms":0.51,"gap":213.5,"magType":"ml","type":"earthquake","title":"M 2.6 - 83 km NW of San Antonio, Puerto Rico"},"geometry":{"type":"Point","coordinates":[-67.6777,19.0062,10]},"id":"us60007me5"}],"bbox":[-179.9907,-61.461,-3.66,179.9993,86.2275,621.81]}
+EOF
+
+    # Download the first batch of data
+    # As of March 2023, 1000AD to 1950-02-13T05:55:11.000 is 20,000 events
+
+    echo "Downloading first batch of events"
+    while [[ ! -s batch1.json ]]; do
+      curl -0 "${ANSS_MIRROR}/fdsnws/event/1/query?format=geojson&starttime=1000-01-01T00:00:00&endtime=1950-02-13T05:55:11&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" > batch1.json
+      if [[ ! -s batch1.json ]]; then
+        echo "No data downloaded... retrying after 30 seconds"
+        sleep 30
+      fi
+      if grep -i "<HTML>" batch1.json; then
+        echo "Got actual error message... retrying after 30 seconds"
+        sleep 30
+        rm batch1.json
+      fi
+    done
+
+    # batch1.json must exist to get here
+    cat batch1.json | repair_anss_time_json > batch1_fixed.json
+
+
+    # Make the geopackage
+    # Create the geopackage with the anss table
+    if ogr2ogr -f GPKG -nln anss -t_srs EPSG:4979 anss.gpkg event1.json; then
+      echo "Created GPKG: anss.gpkg"
+    else
+      echo "Creation of anss GPKG failed"
+      rm -f anss.gpkg event1.json
+      exit 1
+    fi
+
+    # Delete the row, leaving a pristine file
+    ogrinfo -update -dialect sqlite -sql "DELETE FROM anss WHERE id=='us60007me5'" anss.gpkg
+
+    ogr2ogr -f GPKG -append -nln anss anss.gpkg batch1_fixed.json
+    echo "Added $(wc -l < batch1_fixed.json) events"
+    rm -f batch1.json batch1_fixed.json
+
+    mintime=$(ogr2ogr -f CSV -dialect spatialite -sql "SELECT MAX(time) FROM anss" /vsistdout/ anss.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
+
+    # Download the second batch of data
+    echo "Downloading second batch of events"
+
+    while [[ ! -s batch2.json ]]; do
+      curl -0 "${ANSS_MIRROR}/fdsnws/event/1/query?format=geojson&starttime=$(echo ${mintime} | add_one_second)&endtime=1966-01-01T00:00:00&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" > batch2.json
+      if [[ ! -s batch2.json ]]; then
+        echo "No data downloaded... retrying after 30 seconds"
+        sleep 30
+      fi
+      if grep -i "<HTML>" batch2.json; then
+        echo "Got actual error message... retrying after 30 seconds"
+        sleep 30
+        rm batch2.json
+      fi
+    done
+
+    cat batch2.json | repair_anss_time_json > batch2_fixed.json
+
+    # batch1.json must exist to get here
+    ogr2ogr -f GPKG -append -nln anss anss.gpkg batch2_fixed.json
+    echo "Added $(wc -l < batch2_fixed.json) events"
+    rm -f batch2.json batch2_fixed.json
+
+    echo "Adding indexes to GPKG"
+    ogrinfo -sql "CREATE INDEX time_index ON anss (time)" anss.gpkg
+    ogrinfo -sql "CREATE INDEX id_index ON anss (id)" anss.gpkg
+  fi
+
+  if [[ ! -s anss.gpkg ]]; then
+    echo "anss.gpkg could not be created... exiting"
     exit 1
   fi
 
-  if [[ ! -s anss_index_1.cat ]]; then
-    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1000 AD to 1959 AD"
+  # From this point on, we will request one year of data at a time, in increments
+  # of 20,000 events
+  echo "Downloading new events"
+  got_events=1
+  while [[ ${got_events} -eq 1 ]]; do
 
-    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1000-01-01T00:00:00&endtime=1959-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_1.cat
+    # Find the time of the latest event in the database, plus one second
+    mintime=$(ogr2ogr -f CSV -dialect spatialite -sql "SELECT MAX(time) FROM anss" /vsistdout/ anss.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.' | add_one_second)
 
-    lastevent=$(tail -n 1 anss_index_1.cat | gawk -F, '{split($1, a, "."); print a[1]}')
-
-    if [[ $lastevent == "" ]]; then
-      echo "Error: could not download events from 1000 to 1959"
-      rm -f anss_index_1.cat
-      exit 1
-    else
-      tile_catalog_file $TILEDIR anss_index_1.cat
-    fi
-  fi
-  if [[ ! -s anss_index_2.cat ]]; then
-    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading events from 1960 AD to 1969 AD"
-    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=1960-01-01T00:00:00&endtime=1969-12-31T23:59:59&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_2.cat
-    lastevent=$(tail -n 1 anss_index_2.cat | gawk -F, '{split($1, a, "."); print a[1]}')
-    if [[ $lastevent == "" ]]; then
-      echo "Error: could not download events from 1960 to 1969"
-      rm -f anss_index_2.cat
-      exit 1
-    else
-      tile_catalog_file $TILEDIR anss_index_2.cat
-    fi
-  fi
-
-  anss_num=$(ls 2>/dev/null -Ubad1 -- anss_*.cat | wc -l)
-
-  # If there is at least one file called anss_*.cat
-  if [[ $anss_num -ne 0 ]]; then
-
-    # Determine the latest anss catalog file
-    latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
-
-    # If the file exists, then determine the date of the latest event and start
-    # scraping from there.
-
-    while [[ ! -s $latest_anss_file ]]; do
-      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Removing empty catalog file $latest_anss_file; probably leftover from previous scrape"
-      rm -f $latest_anss_file
-      latest_anss_file=$(ls anss_*.cat | sort -n -k 3 -t '_' | tail -n 1)
-    done
-
-    # determine the catalog number of the next file to create
-    # filename of latest file is anss_index_N.cat where N is an integer
-
-    file_ind=$(echo $latest_anss_file | gawk '
-      (NR==1) {
-        split($0,a,"_")
-        split(a[3],b,".")
-        print b[1] + 1
-      }')
-
-    lastevent=$(tail -n 1 $latest_anss_file | gawk -F, '{split($1, a, "."); print a[1]}')
-
-    # Initialize the
-    new_time=$(echo $lastevent | gawk '
+    # Add days so that leap days cannot mess us up!
+    maxtime=$(echo $mintime | gawk '
       {
         date = substr($1,1,10);
         split(date,dstring,"-");
         time = substr($1,12,8);
         split(time,tstring,":");
-        the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
+
+        the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3]+10,0,0,0);
         secs = mktime(the_time);
-        newtime = strftime("%FT%T", secs+2);
+        newtime = strftime("%FT%T", secs);
         print newtime
       }')
-      [[ $ANSS_VERBOSE -eq 1 ]] && echo "Looking for events following last downloaded event at: ${new_time}"
-      s_year=${new_time:0:4}
-      s_month=${new_time:5:2}
-      s_day=${new_time:8:2}
-      s_hour=${new_time:11:2}
-      s_minute=${new_time:14:2}
-      s_second=${new_time:17:2}
-      # It's OK to request future events
-      e_year=$(echo "$s_year + 1" | bc -l)
-      e_month=${s_month}
-      e_day=${s_day}
-      e_hour=${s_hour}
-      e_minute=${s_minute}
-      e_second=${s_second}
 
-  else
-    # If there is no catalog, download the first two large chunks before going
-    # to year/20000 event files
+    rm -f batchN.json
+    while [[ ! -s batchN.json ]]; do
+      echo "Downloading events between ${mintime} and ${maxtime}"
 
-    # 1000       1959     18804
-    # 1959       1969     19639
+      echo curl "-0 \"${ANSS_MIRROR}/fdsnws/event/1/query?format=geojson&starttime=$(echo ${mintime} | add_one_second)&endtime=${maxtime}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&orderby=time-asc&limit=20000\"" \> output.json
+      if ! curl -0 "${ANSS_MIRROR}/fdsnws/event/1/query?format=geojson&starttime=$(echo ${mintime} | add_one_second)&endtime=${maxtime}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&orderby=time-asc&limit=20000" > batchN.json; then
+        echo "curl error:"
+        cat batchN.json
+        rm -f batchN.json
+        continue
+      fi
 
+      if grep -m 1 "{\"type\":\"Feature" batchN.json >/dev/null; then
+        echo "Got JSON"
+        break
+      else
+        echo "Returned file does not contain JSON header. Sleeping for 60 seconds and trying again"
+        cat batchN.json
+        rm -f batchN.json
+        sleep 60
+      fi
+    done
 
-    # Initialize the downloads which will be by year or by 20000 increment, whichever is smaller
-
-    s_year=1000
-    s_month=01
-    s_day=01
-    s_hour=00
-    s_minute=00
-    s_second=00
-    e_year=1971
-    e_month=12
-    e_day=31
-    e_hour=23
-    e_minute=59
-    e_second=59
-
-    file_ind=3
-  fi
-
-  got_events=1
-  # Download events by increments of 20000 events
-
-  # download the first several increments
-
-  while [[ $got_events -eq 1 ]]; do
-    [[ $ANSS_VERBOSE -eq 1 ]] && echo "Downloading 20000 events starting at ${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second} into anss_index_${file_ind}.cat"
-
-    [[ $ANSS_VERBOSE -eq 1 ]] && echo curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc"
-
-    curl ${CURL_QUIET} "${ANSS_MIRROR}/fdsnws/event/1/query?format=csv&starttime=${s_year}-${s_month}-${s_day}T${s_hour}:${s_minute}:${s_second}&endtime=${e_year}-${e_month}-${e_day}T${e_hour}:${e_minute}:${e_second}&minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180&limit=20000&orderby=time-asc" | sed '1d' > anss_index_${file_ind}.cat
-
-    # Read the date string of the last downloaded event
-    lastevent=$(tail -n 1 anss_index_${file_ind}.cat | gawk -F, '{split($1, a, "."); print a[1]}')
-
-    if [[ $lastevent == "" || $lastevent == "</BODY></HTML>" ]]; then
+    # If there is an empty bracket [] then data came out but no events were returned
+    if grep "\[\]" batchN.json; then
       got_events=0
-
-      # Remove the file that is empty
-      rm -f anss_index_${file_ind}.cat
+      echo "No new events found between ${mintime} and requested ${maxtime}"
+      # If the
+      if [[ $(echo ${maxtime} $(date -u +"%FT%T") | gawk '{print ($1>=$2)?1:0}') -eq 1 ]]; then
+        echo "Reached current date - ending download"
+        return
+      fi
     else
+      cat batchN.json | repair_anss_time_json > batchN_fixed.json
+      ogr2ogr -f GPKG -append -nln anss anss.gpkg batchN_fixed.json
 
-      # The downloaded file will have only new events that can be added to the tiles.
-      tile_catalog_file $TILEDIR anss_index_${file_ind}.cat
+      maxtime2=$(ogr2ogr -f CSV -dialect spatialite -sql "SELECT MAX(time) FROM anss" /vsistdout/ anss.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
 
-      # Parse the timestring of the last downloaded event and add two seconds to the timestring
-      # before starting the next download chunk.
-
-      new_time=$(echo $lastevent | gawk '
-        {
-          date = substr($1,1,10);
-          split(date,dstring,"-");
-          time = substr($1,12,8);
-          split(time,tstring,":");
-          the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
-          secs = mktime(the_time);
-          newtime = strftime("%FT%T", secs+2);
-          print newtime
-        }')
-        [[ $ANSS_VERBOSE -eq 1 ]] && echo "newtime is ${new_time}"
-        s_year=${new_time:0:4}
-        s_month=${new_time:5:2}
-        s_day=${new_time:8:2}
-        s_hour=${new_time:11:2}
-        s_minute=${new_time:14:2}
-        s_second=${new_time:17:2}
-        e_year=$(echo "$s_year + 1" | bc -l)
-        ((file_ind++))
+      echo "Added $(wc -l < batchN_fixed.json) events between ${mintime} and ${maxtime2} (requested until ${maxtime})"
     fi
   done
-}
-
-# Add events from CATALOGFILE to spatial tiles and M5+ catalog file, in the
-# specified TILEDIR
-
-# 2018-12-27T20:00:43.897Z,61.3785,-150.0251,41.9,1.2,ml,,,,0.61,ak,ak018glcx1r9,2019-10-24T20:25:36.028Z,"3 km NW of Point MacKenzie, Alaska",earthquake,,0.3,,,reviewed,ak,ak
-# lat=$2
-# lon=$3
-# mag=$5
-
-function tile_catalog_file {
-  TILEDIR=$1
-  CATALOGFILE=$2
-
-  [[ $ANSS_VERBOSE -eq 1 ]] && echo "Processing ANSS file $CATALOGFILE into tile files"
-  gawk < ${CATALOGFILE} -F, -v tiledir=${TILEDIR} '
-    BEGIN { added=0 }
-    function rd(n, multipleOf)
-    {
-      if (n % multipleOf == 0) {
-        num = n
-      } else {
-         if (n > 0) {
-            num = n - n % multipleOf;
-         } else {
-            num = n + (-multipleOf - n % multipleOf);
-         }
-      }
-      return num
-    }
-    {
-
-      if($5 >= 5) {
-        tilestr=sprintf("%sanss_m_largerthan_5.cat", tiledir)
-      } else {
-        tilestr=sprintf("%stile_%d_%d.cat", tiledir, rd($3,5), rd($2,5));
-      }
-      print $0 >> tilestr
-      added++
-    }
-    END {
-      print ">>>> Added", added, "events to ANSS tiles <<<<"
-    }'
 }
 
 # Change into the ANSS directory and update the catalog there
@@ -304,7 +270,7 @@ function tile_catalog_file {
 ANSSDIR="${1}"
 
 if [[ -d $ANSSDIR ]]; then
-  [[ $ANSS_VERBOSE -eq 1 ]] && echo "ANSS tile directory exists."
+  [[ $ANSS_VERBOSE -eq 1 ]] && echo "ANSS directory exists."
 else
   [[ $ANSS_VERBOSE -eq 1 ]] && echo "Creating ANSS seismicity directory ${ANSSDIR}"
   mkdir -p ${ANSSDIR}
@@ -312,10 +278,6 @@ fi
 
 cd $ANSSDIR
 
-if [[ ! -d ./tiles ]]; then
-  mkdir -p ./tiles || echo "Cannot create tile directory ${ANSSDIR}/tiles/. Exiting" && exit 1
-fi
+# Update the ANSS catalog data
 
-# Update and tile the ANSS catalog data
-
-anss_update_catalog "./tiles/"
+anss_update_catalog

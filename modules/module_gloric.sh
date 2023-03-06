@@ -2,9 +2,10 @@
 # Plot Global Rivers Classification shapefiles
 
 # UPDATED
+# DOWNLOAD
+# NEW OPTS
 
-
-# This module can be extended to be a generic shapefile plotter using psxy
+# This module has been extended to be a generic shapefile plotter using psxy: module_shapefile_line.sh
 
 
 TECTOPLOT_MODULES+=("gloric")
@@ -16,8 +17,11 @@ function tectoplot_defaults_gloric() {
     GLORIC_LARGE_WIDTH_DEF=0.75
     GLORIC_VERYLARGE_WIDTH_DEF=1.25
 
-    GLORICDIR=${DATAROOT}"GloRiC_v10_shapefile/GloRiC_v10_shapefile/"
-    GLORICDATA=${GLORICDIR}"GloRiC_v10.shp"
+    GLORICDIR=${DATAROOT}"GloRiC/"
+    GLORICDATA=${GLORICDIR}"GloRiC_v10_shapefile/GloRiC_v10.shp"
+
+    GLORIC_SOURCEURL="https://data.hydrosheds.org/file/hydrosheds-associated/gloric/GloRiC_v10_shapefile.zip"
+    GLORIC_CHECKFILE="GloRiC_TechDoc_v10.pdf"
 
     GLORIC_SOURCESTRING="Global Rivers Classification: https://www.hydrosheds.org/products/gloric"
     GLORIC_SHORT_SOURCESTRING="GLoRiC"
@@ -34,7 +38,7 @@ function tectoplot_args_gloric()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
   -gloric)
-  cat <<-EOF > gloric
+  tectoplot_get_opts_inline '
 des -gloric plot river channels from GLORIC database
 opt minsize m_gloric_sizestring string "small"
     minimum river size: small, medium, large, verylarge
@@ -60,21 +64,19 @@ mes A default CPT is created unless the cpt option is specified
 mes Default CPT stretching is calculated using min/max from region
 mes Data types:
 mes Log_Q_ave [-3.00000000000,1.33064000000]
-EOF
+' "${@}" || return
 
-  if [[ $USAGEFLAG -eq 1 ]]; then
-    tectoplot_usage_opts gloric
-  else
-    tectoplot_get_opts gloric "${@}"
-
-    plots+=("m_gloric")
-
-    tectoplot_module_caught=1
-  fi
+  plots+=("m_gloric")
   export CPL_LOG="/dev/null"
   ;;
 
   esac
+}
+
+function tectoplot_download_gloric() {
+
+  check_and_download_dataset "${GLORIC_SOURCEURL}" "${GLORICDIR}" "${GLORIC_CHECKFILE}"
+
 }
 
 function tectoplot_calculate_gloric()  {
@@ -193,10 +195,10 @@ function tectoplot_plot_gloric() {
     if [[ ${m_gloric_makesmall} -eq 1 ]]; then
       ogr2ogr -sql "SELECT * FROM clip WHERE CAST(Reach_type as character(10)) like '%3_'" ./gloric/large_${tt}.shp ./gloric/clip.shp >/dev/null 2>&1
     fi
-    [[ -s ./gloric/small_${tt}.shp ]] && gmt psxy ./gloric/small_${tt}.shp -W${GLORIC_SMALL_WIDTH}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
-    [[ -s ./gloric/medium_${tt}.shp ]] && gmt psxy ./gloric/medium_${tt}.shp -W${GLORIC_MEDIUM_WIDTH}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
-    [[ -s ./gloric/large_${tt}.shp ]] && gmt psxy ./gloric/large_${tt}.shp -W${GLORIC_LARGE_WIDTH}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
-    [[ -s ./gloric/verylarge_${tt}.shp ]] && gmt psxy ./gloric/verylarge_${tt}.shp -W${GLORIC_VERYLARGE_WIDTH}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
+    [[ -s ./gloric/small_${tt}.shp ]] && gmt psxy ./gloric/small_${tt}.shp -W${GLORIC_SMALL_WIDTH[$tt]}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
+    [[ -s ./gloric/medium_${tt}.shp ]] && gmt psxy ./gloric/medium_${tt}.shp -W${GLORIC_MEDIUM_WIDTH[$tt]}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
+    [[ -s ./gloric/large_${tt}.shp ]] && gmt psxy ./gloric/large_${tt}.shp -W${GLORIC_LARGE_WIDTH[$tt]}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
+    [[ -s ./gloric/verylarge_${tt}.shp ]] && gmt psxy ./gloric/verylarge_${tt}.shp -W${GLORIC_VERYLARGE_WIDTH[$tt]}p,${m_gloric_color[$tt]} ${m_gloric_cptcmd} --PS_LINE_CAP=round $RJOK $VERBOSE >> map.ps
 
     info_msg "[-gloric]: plotting for instance ${tt}"
 

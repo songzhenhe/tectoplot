@@ -1,11 +1,7 @@
 
 TECTOPLOT_MODULES+=("magnetics")
 
-# Calculate residual grid by removing along-line average, using da-dt formulation
-# Builtin support for gravity grids
-
-# Variables needed:
-
+# NEW OPTS
 
 function tectoplot_defaults_magnetics() {
 
@@ -16,15 +12,12 @@ function tectoplot_defaults_magnetics() {
   EMAG_V2=$EMAG_V2_DIR"EMAG2_V2.tif"
   EMAG_V2_CPT=$EMAG_V2_DIR"EMAG2_V2.cpt"
   EMAG_V2_SOURCEURL="http://geomag.colorado.edu/images/EMAG2/EMAG2_V2.tif"
-  EMAG_V2_BYTES="233388712"
+  EMAG_V2_CHECKFILE="EMAG2_V2.tif"
 
-  MAGTRANS=0
-  F_MAG="./magnetics/"
+  F_MAG="./modules/magnetics/"
 
   MAG_CPT=${F_CPTS}"mag.cpt"
   DEF_MAG_CPT="vik"
-
-  MAGGRAD="-I+d"
 }
 
 function tectoplot_args_magnetics()  {
@@ -35,86 +28,39 @@ function tectoplot_args_magnetics()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-    -m|--mag) # args: transparency%
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_magnetics.sh
--m:            plot global crustal magnetization
--m [[transparency]] [[nograd]]
+    -m)
+  tectoplot_get_opts_inline '
+des -m plot EMAG2_V2 crustal magnetization
+opt trans m_magnetics_trans float 0
+    transparency
+opt grad m_magnetics_nograd flag 0
+    plot data gradient as dark/light shading
+' "${@}" || return
 
-  Plots EMAG_V2 crustal magnetization.
-  nograd: Don't plot gradient intensity
-
-Example: Magnetization surrounding the East Pacific Rise
-  tectoplot -r -95 -85 -45 -35 -m
---------------------------------------------------------------------------------
-EOF
-
-  fi
-      shift
-
-  		plotmag=1
-  		if arg_is_positive_float $1; then
-  			MAGTRANS="${1}"
-  			shift
-        ((tectoplot_module_shift++))
-  		fi
-
-      if [[ $1 == "nograd" ]]; then
-        MAGGRAD=""
-        shift
-        ((tectoplot_module_shift++))
-      fi
-
-  		info_msg "[-m]: Magnetic data to plot is ${MAGMODEL}, transparency is ${MAGTRANS}"
-  		plots+=("magnetics")
-      cpts+=("magnetics")
-
-      echo $MAG_SOURCESTRING >> ${LONGSOURCES}
-      echo $MAG_SHORT_SOURCESTRING >> ${SHORTSOURCES}
-
-      # Signal to tectoplot that the current command was processed by this module
-      tectoplot_module_caught=1
-  	  ;;
-
+  plots+=("m_magnetics")
+  cpts+=("m_magnetics")
+  ;;
   esac
 }
 
-# We download the relevant data in the _calculate_ function as this is the first time we should
-# be accessing the data itself.
+function tectoplot_download_magnetics()  {
 
-function tectoplot_calculate_magnetics()  {
+  check_and_download_dataset $EMAG_V2_SOURCEURL $EMAG_V2_DIR $EMAG_V2_CHECKFILE
 
-  [[ ! -d ${F_MAG} ]] && mkdir -p ${F_MAG}
+}
 
-  if [[ ! -s $EMAG_V2 ]]; then
-
-    read -r -p "EMAG_V2 magnetic data not downloaded: download now? (enter for y) [y|n] " response
-
-    case $response in
-      Y|y|yes|"")
-        if ! check_and_download_dataset "EMAG_V2" $EMAG_V2_SOURCEURL "no" $EMAG_V2_DIR $EMAG_V2 "none" $EMAG_V2_BYTES "none"; then
-          info_msg "EMAG_V2 data could not be downloaded."
-          return 0
-        fi
-      ;;
-      N|n|*)
-        return 0
-      ;;
-    esac
-  fi
-
+function tectoplot_calculate_magnetics() {
   # Cut out and store the magnetics data
   # This makes a terrible hash of it (GMT 6.1.1):
   # gmt grdcut $EMAG_V2 -G${F_MAG}/mag.nc -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE}
 
-  # This works
-  [[ ! -s ${F_MAG}mag.nc ]] && gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of NetCDF $EMAG_V2 ${F_MAG}mag.nc > /dev/null 2>&1
+  mkdir -p ${F_MAG}
+  [[ ! -s ${F_MAG}crustal_magnetization.nc ]] && gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -of NetCDF $EMAG_V2 ${F_MAG}crustal_magnetization.nc
 }
 
 function tectoplot_cpt_magnetics() {
   case $1 in
-  magnetics)
+  m_magnetics)
     touch $MAG_CPT
     MAG_CPT=$(abs_path $MAG_CPT)
     gmt makecpt -C${DEF_MAG_CPT} -Z -Do -T-250/250/1 $VERBOSE > $MAG_CPT
@@ -124,12 +70,22 @@ function tectoplot_cpt_magnetics() {
 }
 
 function tectoplot_plot_magnetics() {
+
   case $1 in
-  magnetics)
-    info_msg "Plotting magnetic data"
-    gmt grdimage ${F_MAG}mag.nc $GRID_PRINT_RES $MAGGRAD -C$MAG_CPT -t$MAGTRANS $RJOK -Q $VERBOSE >> map.ps
-  #   [[ ! -s ${F_MAG}mag.tif ]] && gmt grdimage ${F_MAG}mag.nc $MAGGRAD -C$MAG_CPT -t$MAGTRANS -A${F_MAG}mag.tif -R -J
-  # echo out
+  m_magnetics)
+    local maggradcmd
+
+    info_msg "[-m]: Plotting magnetic data"
+    if [[ ${m_magnetics_grad[$tt]} == 1 ]]; then
+      maggradcmd="-I+d"
+    else
+      maggradcmd=""
+    fi
+    gmt grdimage ${F_MAG}crustal_magnetization.nc ${maggradcmd} $GRID_PRINT_RES -C$MAG_CPT -t${m_magnetics_trans[$tt]} $RJOK -Q $VERBOSE >> map.ps
+
+    echo $MAG_SOURCESTRING >> ${LONGSOURCES}
+    echo $MAG_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+
     tectoplot_plot_caught=1
     ;;
   esac

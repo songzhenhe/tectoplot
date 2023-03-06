@@ -343,7 +343,6 @@ function white_tiff() {
 # Takes a RGB tiff ${1} and a DEM ${2} and sets R=${3} G=${4} B=${5} for cells where DEM<=0, output to ${6}
 
 function recolor_sea() {
-
   gdal_calc.py --overwrite --quiet -A "${1}" -B "${2}" --B_band=1 --calc  "uint8(254*((A>0)*B/255. + (A<=0)*${3}/255.))" --type=Byte --outfile=outA.tif
   gdal_calc.py --overwrite --quiet -A "${1}" -B "${2}" --B_band=2 --calc  "uint8(254*((A>0)*B/255. + (A<=0)*${4}/255.))" --type=Byte --outfile=outB.tif
   gdal_calc.py --overwrite --quiet -A "${1}" -B "${2}" --B_band=3 --calc  "uint8(254*((A>0)*B/255. + (A<=0)*${5}/255.))" --type=Byte --outfile=outC.tif

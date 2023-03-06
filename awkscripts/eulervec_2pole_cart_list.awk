@@ -88,29 +88,33 @@ function eulervec(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2, tLon_d, tLat_d) 
 
 	b1 = earthrad*cos(tLat_r)*cos(tLon_r)
 	b2 = earthrad*cos(tLat_r)*sin(tLon_r)
-  b3 = earthrad*sin(tLat_r)
+  	b3 = earthrad*sin(tLat_r)
 
 	V1 = a2*b3-a3*b2
 	V2 = a3*b1-a1*b3
 	V3 = a1*b2-a2*b1
 
+	# ECEF (X,Y,Z) to NEU (North,East,Up) rotation matrix
+
 	R11 = -sin(tLat_r)*cos(tLon_r)
 	R12 = -sin(tLat_r)*sin(tLon_r)
 	R13 = cos(tLat_r)
-  R21 = -sin(tLon_r)
-  R22 = cos(tLon_r)
-  R23 = 0
-  R31 = cos(tLat_r)*cos(tLon_r)
-  R32 = cos(tLat_r)*sin(tLon_r)
-  R33 = sin(tLat_r)
+  	R21 = -sin(tLon_r)
+  	R22 = cos(tLon_r)
+  	R23 = 0
+  	R31 = cos(tLat_r)*cos(tLon_r)
+  	R32 = cos(tLat_r)*sin(tLon_r)
+  	R33 = sin(tLat_r)
 
 	L1 = R11*V1 + R12*V2 + R13 * V3
 	L2 = R21*V1 + R22*V2 + R23 * V3
+
  	azimuth=rad2deg(atan2(L2, L1))
 	if (azimuth<0) {
 		azimuth=azimuth+360
 	}
 
+	# WTF why are we converting to radians.....????
 	print(L2*2*pi/360, L1*2*pi/360, azimuth)
 }
 

@@ -448,7 +448,7 @@ def parse_usgs_xml(event_id_code):
     for ep in xeventParameters:
         xevents = ep.findall('d:event',ns)
         i=i+1
-        print('Event {}'.format(i))
+        # print('Event {}'.format(i))
     events = []
     i = 0
     for xev in xevents:

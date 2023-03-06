@@ -3,16 +3,12 @@ TECTOPLOT_MODULES+=("volcanoes")
 
 # Plot volcanoes
 
+# NEW OPTS
+
 # Flags respected:
 # polygonselectflag : 1==select from $POLYGONOI
 
 function tectoplot_defaults_volcanoes() {
-  V_SYMBOL="t"                  # volcano symbol; t=triangle    kvolcano/=volcano
-  V_FILL="red"                  # volcano symbol, fill
-  V_SIZE="0.075i"               # volcano symbol, size
-  V_LINEW="0.3p"                # volcano symbol, edge line width
-  V_LINECOLOR="black"           # volcano symbol, edge line color
-
   VOLC_SOURCESTRING="Volcano data from Smithsonian GVP (https://volcano.si.edu/), Whelley et al. 2015 doi:10.1007/s00445-014-0893-8"
   VOLC_SHORT_SOURCESTRING="GVP"
 
@@ -20,7 +16,6 @@ function tectoplot_defaults_volcanoes() {
   WHELLEYVOLC=$DATAROOT"Smithsonian/Whelley_2015_volcanoes.txt"
   JAPANVOLC=$DATAROOT"Smithsonian/japan_volcanoes.lonlatname"
   HARISVOLC=${TECTFABRICSDIR}"HarisVolcElev.txt"
-
 }
 
 function tectoplot_args_volcanoes()  {
@@ -31,53 +26,34 @@ function tectoplot_args_volcanoes()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
-  -vc|--volc) # args: none
-    if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_volcanoes.sh
--vc:           plot volcanoes
--vc [[fill color=${V_FILL}]] [[line width=${V_LINEW}]] [[size=${V_SIZE}]]
-
-  Data from a variety of sources; Smithsonian, Whelley 2015, Japan
-  Currently uses the GMT custom volcano symbol.
-
-Example: Volcanoes of Japan
-  tectoplot -r JP -a -vc
---------------------------------------------------------------------------------
-EOF
-    fi
-    shift
-
-    # Create directories registered by modules
-    mkdir -p "${TMP}${F_VOLC}"
-
-    if ! arg_is_flag $1 ; then
-      V_FILL="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    if ! arg_is_flag $1 ; then
-      V_LINEW="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
-    if ! arg_is_flag $1; then
-      V_SIZE="${1}"
-      shift
-      ((tectoplot_module_shift++))
-    fi
+  -vc) # args: none
+  tectoplot_get_opts_inline '
+des -vc plot global volcano locations data
+opt fill m_volcanoes_fill word "red"
+  fill color of volcano symbols
+opt line m_volcanoes_line word "0.3p,black"
+  line definition for volcano symbol
+opt size m_volcanoes_size word "0.075i"
+  size of volcano symbols, in points
+opt symbol m_volcanoes_symbol word "t"
+  GMT symbol code
+mes Data from a variety of sources; Smithsonian, Whelley 2015, Japan
+exa tectoplot -r JP -a -vc
+' "${@}" || return
 
     plots+=("volcanoes")
 
     echo $VOLC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $VOLC_SOURCESTRING >> ${LONGSOURCES}
-
-    tectoplot_module_caught=1
     ;;
   esac
 }
 
 function tectoplot_calculate_volcanoes()  {
+
+    # Create directory
+    mkdir -p "${TMP}${F_VOLC}"
+
     # lat lon elevation
     cat $SMITHVOLC $WHELLEYVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
     @include "tectoplot_functions.awk"
@@ -105,6 +81,14 @@ function tectoplot_calculate_volcanoes()  {
         }
       }
     }' >> ${F_VOLC}volcanoes.dat
+
+
+    # Experimental work with GeoJSON converted from Smithsonian databases
+
+    # Select the volcanoes within the map region
+    ogr2ogr -sql 'SELECT * from GVP_Volcano_List_Holocene where (lon >= '${MINLON}' and lon <= '${MAXLON}' and lat <= '${MAXLAT}' and lat >= '${MINLAT}')' holocene.geojson /Users/kylebradley/Dropbox/TectoplotData/Volcanoes/GVP_5.0.2_Holocene.geojson
+    ogr2ogr -sql 'SELECT * from GVP_Volcano_List_Pleistocene where (lon >= '${MINLON}' and lon <= '${MAXLON}' and lat <= '${MAXLAT}' and lat >= '${MINLAT}')' pleistocene.geojson /Users/kylebradley/Dropbox/TectoplotData/Volcanoes/GVP_5.0.2_Pleistocene.geojson
+
 
     # # lon lat elevation elevation
     # cat $JAPANVOLC | gawk -v minlon=${MINLON} -v maxlon=${MAXLON} -v minlat=${MINLAT} -v maxlat=${MAXLAT} '
@@ -135,8 +119,8 @@ function tectoplot_calculate_volcanoes()  {
 function tectoplot_plot_volcanoes() {
   case $1 in
   volcanoes)
-    info_msg "[-vc]: Plotting volcanoes"
-    gmt psxy ${F_VOLC}volcanoes.dat -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE}  $RJOK $VERBOSE >> map.ps
+    info_msg "[-vc]: Plotting volcanoes >${tt}<"
+    gmt psxy ${F_VOLC}volcanoes.dat -W${m_volcanoes_line[$tt]} -G${m_volcanoes_fill[$tt]} -S${m_volcanoes_symbol[$tt]}${m_volcanoes_size[$tt]}  $RJOK $VERBOSE >> map.ps
     ;;
   esac
 }
@@ -152,7 +136,7 @@ function tectoplot_legend_volcanoes() {
     init_legend_item "volcanoes"
 
     # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-    echo "$CENTERLON $CENTERLAT" | gmt psxy -W"${V_LINEW}","${V_LINECOLOR}" -G"${V_FILL}" -S${V_SYMBOL}${V_SIZE} $RJOK $VERBOSE >> ${LEGFILE}
+    echo "$CENTERLON $CENTERLAT" | gmt psxy -W${m_volcanoes_line[$tt]} -G${m_volcanoes_fill[$tt]} -S${m_volcanoes_symbol[$tt]}${m_volcanoes_size[$tt]} $RJOK $VERBOSE >> ${LEGFILE}
     echo "$CENTERLON $CENTERLAT Volcano" | gmt pstext -F+f6p,Helvetica,black+jLM $VERBOSE ${RJOK} -Y0.01i -X0.15i >> ${LEGFILE}
 
     close_legend_item "volcanoes"

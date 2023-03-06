@@ -47,7 +47,8 @@
 #       &min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > isc_seis_2019_01_week1.dat
 
 # Note that ISC queries require the correct final day of the month, including leap years!
-ISC_VERBOSE=0
+ISC_VERBOSE=1
+
 [[ $ISC_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
 # tac not available in all environments but tail usually is.
 ISC_MIRROR="http://www.isc.ac.uk"
@@ -69,7 +70,11 @@ function lastday_of_month() {
   case $month in
       0[13578]|10|12) days=31;;
       0[469]|11)	    days=30;;
-      02) days=$(echo $year | gawk '{
+      02) days=$(echo $year | gawk '
+          BEGIN {
+            ENVIRON["TZ"] = "UTC"
+          }
+          {
           jul=strftime("%j",mktime($1 " 12 31 0 0 0 "));
           if (jul==366) {
             print 29
@@ -158,12 +163,14 @@ fi
 cd $ISC_FOCALS_DIR
 
 # Sort the isc_focals_complete.txt file to preserve the order of earliest->latest
-if [[ -e isc_focals_complete.txt ]]; then
+if [[ -s isc_focals_complete.txt ]]; then
   sort < isc_focals_complete.txt -t '_' -n -k 3 -k 4 -k 5 > isc_focals_complete.txt.sort
   mv isc_focals_complete.txt.sort isc_focals_complete.txt
+else
+  touch isc_focals_complete.txt
 fi
 
-
+# Download if we are not just rebuilding
 if ! [[ $2 =~ "rebuild" ]]; then
 
   rm -f isc_focals_just_downloaded.txt
@@ -181,7 +188,11 @@ if ! [[ $2 =~ "rebuild" ]]; then
   # new format for isc is isc_focals_year_segment.cat
 
   # Look for the last entry in the list of catalog files
-  last_cat=($(tail -n 1 ./isc_focals_list.txt 2>/dev/null | gawk -F_ '{split($4, a, "."); print $3, a[1]}'))
+  if [[ -s ./isc_focals_list.txt ]]; then
+    last_cat=($(tail -n 1 ./isc_focals_list.txt 2>/dev/null | gawk -F_ '{split($4, a, "."); print $3, a[1]}'))
+  else
+    last_cat[0]=""
+  fi
 
   # If there is no last entry (no file), regenerate the list
   if [[ -z ${last_cat[0]} ]]; then
@@ -196,7 +207,7 @@ if ! [[ $2 =~ "rebuild" ]]; then
         done
     done
   else
-  # Otherwise, only add the events that postdate the last catalog file.
+  # Otherwise, only add the events postdating the last catalog file.
     [[ $ISC_VERBOSE -eq 1 ]] && echo "Adding new catalog files to file list..."
     last_year=${last_cat[0]}
     last_segment=${last_cat[1]}
@@ -225,51 +236,64 @@ if ! [[ $2 =~ "rebuild" ]]; then
   fi
 
   # isc_focals_list now contains the list of all possible download files.
-  touch isc_focals_complete.txt
   # Get a list of files that should exist but are not yet marked as complete
   cat isc_focals_complete.txt isc_focals_list.txt | sort -r -n -t "_" -k 3 -k 4 -k 5 | uniq -u > isc_focals_incomplete.txt
 
-  isc_focals_list_files=($(tecto_tac isc_focals_incomplete.txt))
+  if [[ -s isc_focals_incomplete.txt ]]; then
 
-  # echo ${isc_focals_list_files[@]}
+    isc_focals_list_files=($(tecto_tac isc_focals_incomplete.txt))
 
-  testcount=0
-  last_index=-1
-  for d_file in ${isc_focals_list_files[@]}; do
+    # echo ${isc_focals_list_files[@]}
 
-    # If we download the focals file successfully, then
-    if download_isc_focals_file ${d_file}; then
+    testcount=0
+    last_index=-1
+    for d_file in ${isc_focals_list_files[@]}; do
 
-      [[ $ISC_VERBOSE -eq 1 ]] && echo "Downloaded ${d_file}"
-      echo ${d_file} >> isc_focals_just_downloaded.txt
-      if [[ $last_index -ge 0 ]]; then
-        # Need to check whether the last file exists still before marking as complete (could have been deleted)
-        [[ $ISC_VERBOSE -eq 1 ]] && echo "File ${d_file} downloaded succesfully. Marking earlier file ${isc_focals_list_files[$last_index]} as complete, if it exists."
-        [[ -e ${isc_focals_list_files[$last_index]} ]] && echo ${isc_focals_list_files[$last_index]} >> isc_focals_complete.txt
+      # If we download the focals file successfully, then
+      if download_isc_focals_file ${d_file}; then
+
+        [[ $ISC_VERBOSE -eq 1 ]] && echo "Downloaded ${d_file}"
+        echo ${d_file} >> isc_focals_just_downloaded.txt
+        if [[ $last_index -ge 0 ]]; then
+          # Need to check whether the last file exists still before marking as complete (could have been deleted)
+          [[ $ISC_VERBOSE -eq 1 ]] && echo "File ${d_file} downloaded succesfully. Marking earlier file ${isc_focals_list_files[$last_index]} as complete, if it exists."
+          [[ -e ${isc_focals_list_files[$last_index]} ]] && echo ${isc_focals_list_files[$last_index]} >> isc_focals_complete.txt
+        fi
+
       fi
-
-    fi
-    last_index=$(echo "$last_index + 1" | bc)
-    testcount=$(echo "$testcount + 1" | bc)
-  done
+      last_index=$(echo "$last_index + 1" | bc)
+      testcount=$(echo "$testcount + 1" | bc)
+    done
+  fi
+else
+  # rebuild
+  cp isc_focals_list.txt isc_focals_just_downloaded.txt
+  rm -f isc_extract.cat
 fi
 
-# If we downloaded a file (should always happen as newest file is never marked complete)
+# If we successfully downloaded a file (which should always happen as the newest file is never marked complete)
 
 #   EVENTID,TYPE, AUTHOR   ,DATE      ,TIME       ,LAT     ,LON      ,DEPTH,DEPFIX,AUTHOR   ,TYPE  ,MAG
 
-if [[ -e isc_focals_just_downloaded.txt ]]; then
+if [[ -s isc_focals_just_downloaded.txt ]]; then
 
-  last_added_event_date=$(tail -n 1 isc_extract.cat | gawk '{print $3}')
-  last_added_event_id=$(tail -n 1 isc_extract.cat | gawk '{print $2}')
+  # If the catalog file exists, find the date of the last focal mechanism downloaded.
+  # This should always be the latest mechanism as the file is by nature sorted.
+  if [[ ! -s isc_extract.cat ]]; then
+    last_added_event_date="0000-00-00T00:00:00"
+    last_added_event_id="nil"
+  else
+    last_added_event_date=$(tail -n 1 isc_extract.cat | gawk '{print $3}')
+    last_added_event_id=$(tail -n 1 isc_extract.cat | gawk '{print $2}')
+  fi
 
   [[ $ISC_VERBOSE -eq 1 ]] && echo "Date of last ISC focal mechanism in catalog is: ${last_added_event_date}"
   selected_files=$(cat isc_focals_just_downloaded.txt)
 
   # For each candidate file, examine events and see if they are younger than the
-  # last event that has been added the catalog. Keep track of the youngest event.
+  # latest event in the catalog. Keep track of the latest event.
 
-  rm -f  to_clean.cat
+  rm -f to_clean.cat
   for foc_file in $selected_files; do
     [[ $ISC_VERBOSE -eq 1 ]] && echo "Processing newly downloaded file $foc_file into ISC CMT database"
     cat $foc_file | sed -n '/N_AZM/,/^STOP/p' | sed '1d;$d' | sed '$d' | \
@@ -290,5 +314,6 @@ if [[ -e isc_focals_just_downloaded.txt ]]; then
   done
 fi
 
-rm -f isc_focals_*.cat not_tiled.cat cmt_tools_rejected.dat isc.toadd.cat isc.toadd
+#  rm -f isc_focals_*.cat
+rm -f not_tiled.cat cmt_tools_rejected.dat isc.toadd.cat isc.toadd
 rm -f isc_focals_incomplete.txt isc_focals_just_downloaded.txt

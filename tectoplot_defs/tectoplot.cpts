@@ -53,10 +53,6 @@ SEISDEPTH_NODEEPEST_CPT=${F_CPTS}"seisdepth_nodeepest.cpt"
 GRAV_CPT=${F_CPTS}"grav.cpt"
 GRAV_CURV_CPT=${F_CPTS}"gravcurv.cpt"
 
-GEOAGE_CPT=${F_CPTS}"geoage.cpt"
-GEOAGE_COLORBAR_MAX=250
-GEOAGE_COLORBAR_MIN=0
-
 PLATEID_CPT=${F_CPTS}"plateid.cpt"
 
 FAULTSLIP_CPT=${F_CPTS}"faultslip.cpt"
