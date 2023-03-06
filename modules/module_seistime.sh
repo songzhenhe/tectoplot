@@ -33,6 +33,8 @@ opn maxtime m_seistime_maxtime word "auto"
   end time, ISO8601 format
 opn onmap m_seistime_onmapflag flag 0
   place timeline onto map below map frame
+opn shiftx m_seistime_shiftx float 0
+  shift plot horizontally by this amount when using onmap
 ' "${@}" || return
   echo here
     doseistimeflag=1
@@ -121,7 +123,7 @@ function tectoplot_post_seistime() {
       cat ${F_SEIS}seistimeline.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > seistime.ps
 
 
-      gmt psbasemap -R -J -Bpxa6Hf1h -Bsxa1D -BtrSW -Bxaf -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=12p --FORMAT_DATE_MAP="o dd" --FORMAT_CLOCK_MAP="hh:mm" --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  seistime.ps
+      gmt psbasemap -R -J -Bxaf+sD -BtESW -Bxaf -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=12p --FORMAT_DATE_MAP="o dd" --FORMAT_CLOCK_MAP="hh:mm" --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  seistime.ps
       # gmt psbasemap -R -J -Bxaf+sD -BtrSW -Bxaf+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p --GMT_HISTORY=false >>  seistime.ps
 
       gmt psconvert seistime.ps -Tf -A+m0.5i
@@ -135,7 +137,7 @@ function tectoplot_post_seistime() {
         SEISTIME_PS_DIM=($(gmt psconvert seistime.ps -Fseistime -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, $10/2.54-(mapwidth+0) }'))
 
         # echo "It is" ${SEISTIME_PS_DIM[@]}
-        gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
+        gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps -Xa${m_seistime_shiftx} $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
 
         # Set PS_HEIGHT_IN so another module can concatenate a panel
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
