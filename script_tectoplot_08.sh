@@ -8605,7 +8605,7 @@ shift && continue
 fi
     if arg_is_flag $2; then
       info_msg "[-scrapedata]: No datasets specified. Scraping all catalogs."
-      SCRAPESTRING="giace"
+      SCRAPESTRING="giacem"
     else
       SCRAPESTRING="${2}"
       shift
@@ -12067,6 +12067,29 @@ fi
   shift
   gpscorw=$2
   shift
+  ;;
+
+  -credit)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-credit:          Add credit and date information to map legend
+Usage: -credit [string]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+    makecreditline=1
+    if ! arg_is_flag $2; then
+      CREDITLINE="${2}"
+      shift
+    fi
+    while ! arg_is_flag $2; do
+      CREDITLINE="${CREDITLINE} $2"
+      shift
+    done
+    CREDITLINE="${CREDITLINE} ($(date +"%Y-%m-%d"))"
+
   ;;
 
 	-z) # -z: plot seismicity
@@ -23144,9 +23167,6 @@ function close_legend_item() {
       fi
     fi
 
-    makecreditline=0
-    CREDITLINE="By Dr. Kyle Bradley, $(date +"%Y-%m-%d")"
-
     if [[ $makecreditline -eq 1 ]]; then
       init_legend_item "credit"
       echo "$CENTERLON $CENTERLAT ${CREDITLINE}" | gmt pstext -F+f8p,Helvetica-bold,black+jCB $VERBOSE ${RJOK} >> ${LEGFILE}
@@ -23168,7 +23188,7 @@ function close_legend_item() {
 
       gmt psxy -T ${RJSTRING} -Xc -Yc -K ${VERBOSE} > ${LEGENDDIR}separator.ps
       lat2=$(echo "${CENTERLAT}+1"| bc -l)
-      echo "${CENTERLON} ${CENTERLAT}t${CENTERLON} ${lat2}" | tr 't' '\n' | gmt psxy -W0.2p,black $VERBOSE -J -R -O -K >> ${LEGENDDIR}separator.ps
+      # echo "${CENTERLON} ${CENTERLAT}t${CENTERLON} ${lat2}" | tr 't' '\n' | gmt psxy -W0.2p,black $VERBOSE -J -R -O -K >> ${LEGENDDIR}separator.ps
       gmt psxy -T -R -J -O ${VERBOSE} >> ${LEGENDDIR}separator.ps
       gmt psconvert ${LEGENDDIR}separator.ps -Te -A+m0.05i -Vn
       if [[ ${#LEGEND_ITEM_PATHS[@]} -gt 0 ]]; then
