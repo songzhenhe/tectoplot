@@ -33,7 +33,7 @@ opn maxtime m_seistime_maxtime word "auto"
   end time, ISO8601 format
 opn onmap m_seistime_onmapflag flag 0
   place timeline onto map below map frame
-opn shiftx m_seistime_shiftx float 0
+opn shiftx m_seistime_shiftx string "0i"
   shift plot horizontally by this amount when using onmap
 ' "${@}" || return
   echo here

@@ -64,6 +64,8 @@ opt only m_cities_langonlyflag flag 0
     only select cities that have a name in the specified language (lang option)
 opt just m_cities_just word "left"
     set justification for tiff map labels (left, right, center)
+opt nolegend m_cities_nolegendflag flag 0
+    do not plot city information in map legend
 mes By default, uses gnuplot to create an EPS layer with UTF8 fonts that GMT
 mes does not support. For plain GMT text, use the plaintext option which will
 mes filter cities that (hopefully) have ASCII names plottable by GMT.
@@ -306,9 +308,8 @@ function tectoplot_plot_cities() {
         min_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.9+$2}')
         max_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.1+$2}')
 
-        echo max_ycoord is ${max_ycoord} min_ycoord is ${min_ycoord} max_cutoff is ${max_cutoff_xcoord} min_cutoff is ${min_cutoff_xcoord} max_cutoffy is ${max_cutoff_ycoord} min_cutoffy is ${min_cutoff_ycoord}
+        # echo max_ycoord is ${max_ycoord} min_ycoord is ${min_ycoord} max_cutoff is ${max_cutoff_xcoord} min_cutoff is ${min_cutoff_xcoord} max_cutoffy is ${max_cutoff_ycoord} min_cutoffy is ${min_cutoff_ycoord}
 
-        echo gmt mapproject -R -J ${m_cities_toplotfile[$tt]} -i0,1,t -f0x,1y,s \| gawk -F'\t' -v pssize=${m_cities_size[$tt]} -v scale=${m_cities_psfontscale[$tt]}
         gmt mapproject -R -J ${m_cities_toplotfile[$tt]} -i0,1,t -f0x,1y,s | gawk -F'\t' -v pssize=${m_cities_size[$tt]} -v scale=${m_cities_psfontscale[$tt]} '
           ($4>='${m_cities_labelmin[$tt]}') {
               if (pssize+0==0) {
@@ -574,11 +575,12 @@ EOF
 function tectoplot_legendbar_cities() {
   case $1 in
     m_cities_pp)
-      if [[ ${m_cities_cpt[$tt]} != "none" ]]; then
-
-        echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
-        echo "B ${m_cities_cpt_used[$tt]} 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
-        barplotcount=$barplotcount+1
+      if [[ ${m_cities_nolegendflag[$tt]} -ne 1 ]]; then
+        if [[ ${m_cities_cpt[$tt]} != "none" ]]; then
+          echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+          echo "B ${m_cities_cpt_used[$tt]} 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
+          barplotcount=$barplotcount+1
+        fi
       fi
       tectoplot_legendbar_caught=1
       ;;
@@ -589,21 +591,24 @@ function tectoplot_legend_cities() {
   case $1 in
   m_cities_pp)
 
-    init_legend_item "cities_${tt}"
+    if [[ ${m_cities_nolegendflag[$tt]} -ne 1 ]]; then
 
-    if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
-      m_cities_legendstring="City with population <= ${m_cities_maxpop[$tt]}"
-    elif [[ ${m_cities_maxpop[$tt]} -eq 100000000 ]]; then
-      m_cities_legendstring="City with population >= ${m_cities_minpop[$tt]}"
-    else
-      m_cities_legendstring="City with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"
+      init_legend_item "cities_${tt}"
+
+      if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
+        m_cities_legendstring="City with population <= ${m_cities_maxpop[$tt]}"
+      elif [[ ${m_cities_maxpop[$tt]} -eq 100000000 ]]; then
+        m_cities_legendstring="City with population >= ${m_cities_minpop[$tt]}"
+      else
+        m_cities_legendstring="City with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"
+      fi
+
+      echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE -X.175i >> ${LEGFILE}
+      echo "${CENTERLON} ${CENTERLAT} ${m_cities_legendstring}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} $VERBOSE >> ${LEGFILE}
+
+      # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
+      close_legend_item "cities_${tt}"
     fi
-
-    echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE -X.175i >> ${LEGFILE}
-    echo "${CENTERLON} ${CENTERLAT} ${m_cities_legendstring}" | gmt pstext -F+f6p,Helvetica,black+jLM -X0.15i ${RJOK} $VERBOSE >> ${LEGFILE}
-
-    # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
-    close_legend_item "cities_${tt}"
     tectoplot_legend_caught=1
   ;;
   esac
