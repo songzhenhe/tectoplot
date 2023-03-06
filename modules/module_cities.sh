@@ -306,8 +306,9 @@ function tectoplot_plot_cities() {
         min_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.9+$2}')
         max_cutoff_ycoord=$(echo ${max_ycoord} ${min_ycoord} | gawk '{print ($1-$2)*0.1+$2}')
 
-        # echo max_ycoord is ${max_ycoord} min_ycoord is ${min_ycoord} max_cutoff is ${max_cutoff_xcoord} min_cutoff is ${min_cutoff_xcoord} max_cutoffy is ${max_cutoff_ycoord} min_cutoffy is ${min_cutoff_ycoord}
+        echo max_ycoord is ${max_ycoord} min_ycoord is ${min_ycoord} max_cutoff is ${max_cutoff_xcoord} min_cutoff is ${min_cutoff_xcoord} max_cutoffy is ${max_cutoff_ycoord} min_cutoffy is ${min_cutoff_ycoord}
 
+        echo gmt mapproject -R -J ${m_cities_toplotfile[$tt]} -i0,1,t -f0x,1y,s \| gawk -F'\t' -v pssize=${m_cities_size[$tt]} -v scale=${m_cities_psfontscale[$tt]}
         gmt mapproject -R -J ${m_cities_toplotfile[$tt]} -i0,1,t -f0x,1y,s | gawk -F'\t' -v pssize=${m_cities_size[$tt]} -v scale=${m_cities_psfontscale[$tt]} '
           ($4>='${m_cities_labelmin[$tt]}') {
               if (pssize+0==0) {
