@@ -23169,7 +23169,7 @@ function close_legend_item() {
 
     if [[ $makecreditline -eq 1 ]]; then
       init_legend_item "credit"
-      echo "$CENTERLON $CENTERLAT ${CREDITLINE}" | gmt pstext -F+f8p,Helvetica-bold,black+jCB $VERBOSE ${RJOK} >> ${LEGFILE}
+      echo "$CENTERLON $CENTERLAT ${CREDITLINE}" | gmt pstext -F+f5p,Helvetica-bold,black+jCB $VERBOSE ${RJOK} >> ${LEGFILE}
       close_legend_item "credit"
     fi
 
