@@ -23159,6 +23159,12 @@ function close_legend_item() {
     if [[ -s datasourceslegend.txt ]]; then
       info_msg "[-legend]: adding data sources"
       numsources=$(wc -l < datasourceslegend.txt)
+          if [[ $makecreditline -eq 1 ]]; then
+        echo "" >> datasourceslegend.txt
+        echo "" >> datasourceslegend.txt
+        echo ${CREDITLINE} >> datasourceslegend.txt
+    fi
+
       if [[ $numsources -ge 1 ]]; then
         init_legend_item "datasources"
         echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
@@ -23167,11 +23173,11 @@ function close_legend_item() {
       fi
     fi
 
-    if [[ $makecreditline -eq 1 ]]; then
-      init_legend_item "credit"
-      echo "$CENTERLON $CENTERLAT ${CREDITLINE}" | gmt pstext -F+f5p,Helvetica-bold,black+jCB $VERBOSE ${RJOK} >> ${LEGFILE}
-      close_legend_item "credit"
-    fi
+    # if [[ $makecreditline -eq 1 ]]; then
+    #   init_legend_item "credit"
+    #   echo "$CENTERLON $CENTERLAT ${CREDITLINE}" | gmt pstext -F+f5p,Helvetica-bold,black+jCB $VERBOSE ${RJOK} >> ${LEGFILE}
+    #   close_legend_item "credit"
+    # fi
 
 
     gmt psxy -T ${RJSTRING} -Xc -Yc -K $VERBOSE > ${NONCOLORBARLEGEND}
