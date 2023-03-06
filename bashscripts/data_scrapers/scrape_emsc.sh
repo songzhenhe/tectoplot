@@ -180,14 +180,13 @@ function emsc_update_catalog() {
             split(date,dstring,"-");
             time = substr($1,12,8);
             split(time,tstring,":");
-
-            the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3]+days,tstring[1]+hours,tstring[2],tstring[3]+timeinc);
+            the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],tstring[3]+increment);
             secs = mktime(the_time);
             # print "the_time", the_time > "/dev/stderr"
             newtime = strftime("%FT%T", secs);
             print newtime
           }')
-
+    echo maxtime is ${maxtime}
     rm -f batchN.json
     while [[ ! -s batchN.json ]]; do
       echo "Downloading events between ${mintime} and ${maxtime}, increment is ${timeinc}"
