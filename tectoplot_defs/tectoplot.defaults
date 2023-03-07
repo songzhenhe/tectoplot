@@ -30,6 +30,19 @@
 # This file will be sourced by the main tectoplot script to load various default values.
 # Assignments should be in bash format
 
+
+
+
+zccull_lat=2
+zccull_lon=2
+zccull_depth=30
+zccull_mag=0.5
+zccull_sec=15
+
+# Comparison of ISC/GCMT focal mechanism catalogs and ISC/ANSS earthquake catalogs indicates a maximum
+# origin time difference of 8 seconds for events that match lat=2, lon=2, depth=30, mag=0.5 criteria.
+
+
 ALWAYS_DOWNLOAD="Y"
 
 TOPO_DPI=150i

@@ -12042,6 +12042,29 @@ fi
   shift
   ;;
 
+  -cullparams)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-cullparams:          set the parameters used to cull CMT and earthquake catalogs
+Usage: -cullparams [param] [value] [[...]]
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      lat) shift; zccull_lat=$2; shift;;
+      lon) shift; zccull_lon=$2; shift ;;
+      dep) shift; zccull_depth=$2; shift ;;
+      mag) shift; zccull_mag=$2; shift ;;
+      sec) shift; zccull_sec=$2; shift ;;
+      *) echo "[-cullparams]: parameter not recognized ${2}"; exit 1 ;;
+    esac
+  done
+
+  ;;
+
   -epoch)
   iso8601_to_epoch $2
   exit 1
@@ -15500,7 +15523,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               }
             }
           } else {
-            # For the two entries surrounding each entry (before and after)
+            # For the entries surrounding each entry (before and after)
             for(j=i-3; j<=i+3; j++) {
               if (j>=1 && j<=numentries && j != i && idcode[i] != idcode[j]) {
                 # Does the comparison event fall in the spatial-magnitude window of the target event?
@@ -15982,7 +16005,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     ##### EQUIVALENT EARTHQUAKES
 
     # If the REMOVE_EQUIVS variable is set, compare eqs.txt with cmt.dat to remove
-    # earthquakes that have a focal mechanism equivalent, using a spatiotemporal
+    # earthquakes that have a focal mechanism equivalent, using a spatio-temporal
     # proximity metric
 
     # If CMTFILE exists but we aren't plotting CMT's this will really cull a lot of EQs! Careful!
@@ -15997,6 +16020,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # $7 is epoch seconds for eqs.txt
       # $4 is epoch seconds for focal mechanisms
 
+      # Put the epoch at the beginning of each line, then sort by epoch
+      # Could also just sort by timestring
       gawk '
       (NR==FNR) { # Read in EQs first
         print $7, $0
@@ -16006,22 +16031,16 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       }
       ' ${F_SEIS}eqs.txt $CMTFILE | sort -n -k 1,1 > ${F_CMT}equiv_presort.txt
 
-      gawk < ${F_CMT}equiv_presort.txt '
-        function abs(v) { return (v>0)?v:-v }
-        BEGIN {
-          delta_lon=2
-          delta_lat=2
-          delta_sec=15
-          delta_depth=30
-          delta_mag=0.5
-        }
+      echo cull paraks are -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} 
+      gawk < ${F_CMT}equiv_presort.txt -v numsurround=3 -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} '
+        @include "tectoplot_functions.awk"
         {
           data[NR]=$0
           epoch[NR]=$1
           numfields[NR]=NF
 
           if ($14 != "") {
-          # CMT entry
+          # focal mechanism entries have data in field 14
             iscmt[NR]=1
             lon[NR]=$9
             lat[NR]=$10
@@ -16029,7 +16048,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             mag[NR]=$14
             idcode[NR]=$3
           } else {
-          # Seismicity entry
+          # Seismicity entries do not have data in field 14
           # EPOCH LON LAT DEPTH MAG TIMECODE ID EPOCH CLUSTERID+0
             iscmt[NR]=0
             lon[NR]=$2
@@ -16045,28 +16064,36 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           for(indd=1;indd<=numentries;indd++) {
             # print "Examining", indd, "iscmt:" iscmt[indd] > "/dev/stderr"
 
-            # For seismicity event, decide if there is a focal mechanism equivalent
+            # For each seismicity event, decide if there is a focal mechanism equivalent
             if (iscmt[indd]==0) {
+              # Print by default
               printme=1
-              for(j=indd-2; j<=indd+2; j++) {
-                # For the surrounding two events, if one is a CMT event
+              for(j=indd-numsurround; j<=indd+numsurround; j++) {
+                # For the surrounding events, if one is a CMT event
                 if (j>=1 && j<=numentries && j != indd && iscmt[j]==1) {
 
-                  if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
+                  # We could implement a sliding scale comparison so that large events will
+                  # be culled if they have larger magnitude differences. This may occur when
+                  # Mw (GCMT) is compared to mb (seismicity) which saturates. There should not
+                  # be multiple nearby very large earthquakes within the short time window, in real life.
+
+                 if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
                        (abs(depth[indd]-depth[j])<=delta_depth) && (abs(epoch[indd]-epoch[j])<=delta_sec &&
                        (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
-                       # This CMT [j] is a duplicate of the seismicity event [i]
-                       # print "Matched:" > "/dev/stderr"
-                       # print "  testing cmt", j, "vs eq", indd > "/dev/stderr"
-                       # print "  ---" > "/dev/stderr"
-                       # print "  " data[indd] > "/dev/stderr"
-                       # print data[j] > "/dev/stderr"
-                       # print "---" > "/dev/stderr"
-                       # print lon[indd], lon[j] > "/dev/stderr"
-                       # print lat[indd], lat[j] > "/dev/stderr"
-                       # print depth[indd], depth[j] > "/dev/stderr"
-                       # print mag[indd], mag[j] > "/dev/stderr"
-                       # print epoch[indd], epoch[j] > "/dev/stderr"
+                       This CMT [j] is a duplicate of the seismicity event [i]
+                       print "Matched:" > "/dev/stderr"
+                       print "  testing cmt", j, "vs eq", indd > "/dev/stderr"
+                       print "  ---" > "/dev/stderr"
+                       print "  " data[indd] > "/dev/stderr"
+                       print data[j] > "/dev/stderr"
+                       print "---" > "/dev/stderr"
+                       print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
+                       print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
+                       print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
+                       print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
+                       print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
+                       print "time: " abs(epoch[indd]-epoch[j]) > "/dev/stderr"
+                       print "depth: " abs(depth[indd]-depth[j]) > "/dev/stderr"
                       printme=0
                       # mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
                       mixedid = sprintf("%s %s+%s",idcode[j],idcode[j],idcode[indd])
