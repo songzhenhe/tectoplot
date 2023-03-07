@@ -16077,6 +16077,14 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
                   # Mw (GCMT) is compared to mb (seismicity) which saturates. There should not
                   # be multiple nearby very large earthquakes within the short time window, in real life.
 
+print "EVENT", i, j  > "/dev/stderr"
+                       print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
+                       print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
+                       print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
+                       print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
+                       print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
+
+
                  if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
                        (abs(depth[indd]-depth[j])<=delta_depth) && (abs(epoch[indd]-epoch[j])<=delta_sec &&
                        (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
