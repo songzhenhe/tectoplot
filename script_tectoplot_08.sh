@@ -16032,7 +16032,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       ' ${F_SEIS}eqs.txt $CMTFILE | sort -n -k 1,1 > ${F_CMT}equiv_presort.txt
 
       echo cull paraks are -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} 
-      gawk < ${F_CMT}equiv_presort.txt -v numsurround=3 -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} '
+      gawk < ${F_CMT}equiv_presort.txt -v numsurround=20 -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} '
         @include "tectoplot_functions.awk"
         {
           data[NR]=$0
