@@ -12612,6 +12612,7 @@ if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zctime:       color seismicity by time rather than depth
 Usage: -zctime [start_time] [[end_time=$(date_shift_utc)]]
+       -zctime break [break_time] [[colorbefore]] [[colorafter]]
 
   The default start time is epoch 0 (1970-01-01T00:00:00)
   The default end time is the current UTC time when tectoplot runs.
@@ -12627,13 +12628,32 @@ fi
     COLOR_TIME_START_TEXT="1970-01-01T00:00:00"
     COLOR_TIME_END_TEXT=$(date_shift_utc)
 
-    if ! arg_is_flag $2; then
-      COLOR_TIME_START_TEXT=$(echo "${2}" | iso8601_from_partial)
+    if [[ $2 == "break" ]]; then
       shift
-    fi
-    if ! arg_is_flag $2; then
-      COLOR_TIME_END_TEXT=$(echo "${2}" | iso8601_from_partial)
-      shift
+      zccolorbefore="black"
+      zccolorafter="red"
+      if ! arg_is_flag $2; then
+        zccolorbreakflag=1
+        COLOR_TIME_BREAK_TEXT=$(echo "${2}" | iso8601_from_partial)
+        shift
+      fi
+      if ! arg_is_flag $2; then
+        zccolorbefore=$2
+        shift
+      fi
+      if ! arg_is_flag $2; then
+        zccolorafter=$2
+        shift
+      fi
+    else
+      if ! arg_is_flag $2; then
+        COLOR_TIME_START_TEXT=$(echo "${2}" | iso8601_from_partial)
+        shift
+      fi
+      if ! arg_is_flag $2; then
+        COLOR_TIME_END_TEXT=$(echo "${2}" | iso8601_from_partial)
+        shift
+      fi
     fi
 
     info_msg "[-zctime]: Text start and end times are: $COLOR_TIME_START_TEXT $COLOR_TIME_END_TEXT"
@@ -14789,15 +14809,15 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           timeselstring=""
         fi
         magselstring="AND mag <= ${EQ_MAXMAG} AND mag >= ${EQ_MINMAG}"
-        depselstring="AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) <= ${EQCUTMAXDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) <= ${EQCUTMAXDEPTH})) AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) >= ${EQCUTMINDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) >= ${EQCUTMINDEPTH}))"
+        depselstring="AND Z(geom) <= ${EQCUTMAXDEPTH} AND Z(geom) >= ${EQCUTMINDEPTH}"
 
         if [[ $eqcattype =~ "EMSC" ]]; then
           if [[ -s ${EMSCDIR}emsc.gpkg ]]; then
-            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected_1.gpkg ${EMSCDIR}emsc.gpkg
-            ogr2ogr -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}emsc_selected.gpkg ${F_SEIS}emsc_selected_1.gpkg && rm -f ${F_SEIS}emsc_selected_1.gpkg
-            ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
-          
+            depselstring_emsc="AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) <= ${EQCUTMAXDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) <= ${EQCUTMAXDEPTH})) AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) >= ${EQCUTMINDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) >= ${EQCUTMINDEPTH}))"
 
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected_1.gpkg ${EMSCDIR}emsc.gpkg
+            ogr2ogr -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring_emsc}" ${F_SEIS}emsc_selected.gpkg ${F_SEIS}emsc_selected_1.gpkg && rm -f ${F_SEIS}emsc_selected_1.gpkg
+            ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
           
             gawk < emsc_selected.csv '
               @include "tectoplot_functions.awk"
@@ -17783,14 +17803,23 @@ for cptfile in ${cpts[@]} ; do
     ;;
 
     eqtime)
-      gmt makecpt -Fr -T${COLOR_TIME_START_TEXT}/${COLOR_TIME_END_TEXT}/30+n -C${EQ_TIME_DEF} ${SEIS_CPT_INV} ${VERBOSE} -Z | gawk '
-      {
-        if ($1=="B") {
-          print $0 "@70"
-        } else {
-          print
-        }
-      }' > ${F_CPTS}eqtime_text.cpt
+
+      if [[ $zccolorbreakflag -eq 1 ]]; then
+        echo "0000-01-01T00:00:00 ${zccolorbefore} ${COLOR_TIME_BREAK_TEXT} ${zccolorbefore}" > ${F_CPTS}eqtime_text.cpt
+        echo "${COLOR_TIME_BREAK_TEXT} ${zccolorafter} $(date -u +"%FT%T") ${zccolorafter}" >> ${F_CPTS}eqtime_text.cpt
+        echo "B black" >> ${F_CPTS}eqtime_text.cpt
+        echo "F white" >> ${F_CPTS}eqtime_text.cpt
+        echo "N gray" >> ${F_CPTS}eqtime_text.cpt
+      else
+        gmt makecpt -Fr -T${COLOR_TIME_START_TEXT}/${COLOR_TIME_END_TEXT}/30+n -C${EQ_TIME_DEF} ${SEIS_CPT_INV} ${VERBOSE} -Z | gawk '
+        {
+          if ($1=="B") {
+            print $0 "@70"
+          } else {
+            print
+          }
+        }' > ${F_CPTS}eqtime_text.cpt
+      fi
       
       ;;
 
