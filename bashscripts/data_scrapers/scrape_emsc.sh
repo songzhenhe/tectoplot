@@ -234,7 +234,3 @@ cd $EMSCDIR
 # Update the EMSC catalog data
 
 emsc_update_catalog
-
-# Repair the EMSC depths
-
-emsc_update_catalog

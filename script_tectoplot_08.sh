@@ -14789,13 +14789,16 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           timeselstring=""
         fi
         magselstring="AND mag <= ${EQ_MAXMAG} AND mag >= ${EQ_MINMAG}"
-        depselstring="AND Z(geom) <= ${EQCUTMAXDEPTH} AND Z(geom) >= ${EQCUTMINDEPTH}"
+        depselstring="AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) <= ${EQCUTMAXDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) <= ${EQCUTMAXDEPTH})) AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) >= ${EQCUTMINDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) >= ${EQCUTMINDEPTH}))"
 
         if [[ $eqcattype =~ "EMSC" ]]; then
           if [[ -s ${EMSCDIR}emsc.gpkg ]]; then
             ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected_1.gpkg ${EMSCDIR}emsc.gpkg
             ogr2ogr -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}emsc_selected.gpkg ${F_SEIS}emsc_selected_1.gpkg && rm -f ${F_SEIS}emsc_selected_1.gpkg
             ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
+          
+
+          
             gawk < emsc_selected.csv '
               @include "tectoplot_functions.awk"
               (NR==1) {

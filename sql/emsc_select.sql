@@ -1,6 +1,12 @@
 -- EMSC JSON download indicates negative depths for EMSC-RTS catalog...
 SELECT
-  X(geom), Y(geom), ABS(Z(geom)),
+  X(geom), Y(geom), 
+  CASE 
+    WHEN source_catalog="EMSC-RTS" THEN
+      0-Z(geom)
+    ELSE
+      Z(geom)
+  END,
   CASE lower(magType)
     -- Weatherill, 2016
     WHEN 'ms' THEN
