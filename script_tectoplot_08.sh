@@ -498,6 +498,8 @@ cprofnum=0
 declare -a on_exit_items
 declare -a on_exit_move_items
 
+cleanup gmt.conf gmt.history
+
 # DEFINE FLAGS
   calccmtflag=0
   cptdirectflag=0
@@ -1001,6 +1003,22 @@ do
       echo "Compiling mdenoise"
       if [[ ! -x ${MDENOISE} ]]; then
         ${CXXCOMPILER} -o ${MDENOISE} ${MDENOISEDIR}mdenoise.cpp ${MDENOISEDIR}triangle.c
+      fi
+
+      echo "Compiling QRSOLVE"
+      if [[ ! -x ${QRSOLVE} ]]; then
+        rm -rf ${CSCRIPTDIR}qrsolve/libc/
+        rm -rf ${CSCRIPTDIR}qrsolve/include/
+
+        (
+        cd ${CSCRIPTDIR}qrsolve/
+        mkdir -p ${CSCRIPTDIR}qrsolve/libc/
+        mkdir -p ${CSCRIPTDIR}qrsolve/include/
+        bash ${CSCRIPTDIR}qrsolve/qr_solve.sh
+        bash ${CSCRIPTDIR}qrsolve/r8lib.sh
+        bash ${CSCRIPTDIR}qrsolve/test_lls.sh
+        bash ${CSCRIPTDIR}qrsolve/gps_solve.sh
+        )
       fi
 
       if [[ -s ${LITHO1FILE} ]]; then
@@ -11490,6 +11508,7 @@ fi
     ;;
 
   -tposwhite) # -tposwhite: set color of areas above sea level to white in DEM stretch
+TPOSWHITEVAL=255
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tposwhite:  set color of areas above sea level to white in DEM stretch
@@ -12115,6 +12134,53 @@ fi
 
   ;;
 
+  -getdate)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-getdate:         print iso8601 time for given epoch (seconds since 1970-01-01T00:00:00)
+Usage: -getdate [date1] [[...]]
+
+Example:
+tectoplot -getdate 315532800
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  while ! arg_is_flag $2; do
+    epoch_to_iso8601 $2
+    shift
+  done
+  exit 0
+  ;;
+
+  -getepoch)
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-getepoch:         print epoch time (seconds since 1970-01-01T00:00:00)
+Usage: -getepoch [date1] [[...]]
+
+Example:
+tectoplot -getepoch 1970-01-01T00:00:00
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  while ! arg_is_flag $2; do
+    if [[ $2 == "now" ]]; then
+      thisdate=$(date -u +"%FT%T")
+      iso8601_to_epoch $thisdate
+    else
+      iso8601_to_epoch $2
+    fi
+    shift
+  done
+  exit 0
+  ;;
+
 	-z) # -z: plot seismicity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -12562,25 +12628,15 @@ fi
     COLOR_TIME_END_TEXT=$(date_shift_utc)
 
     if ! arg_is_flag $2; then
-      COLOR_TIME_START_TEXT=${2}
+      COLOR_TIME_START_TEXT=$(echo "${2}" | iso8601_from_partial)
       shift
     fi
     if ! arg_is_flag $2; then
-      COLOR_TIME_END_TEXT=${2}
+      COLOR_TIME_END_TEXT=$(echo "${2}" | iso8601_from_partial)
       shift
     fi
-    COLOR_TIME_START=$(echo "$COLOR_TIME_START_TEXT" | gawk '
-      @include "tectoplot_functions.awk"
-      {
-        print iso8601_to_epoch($1)
-      }')
-    COLOR_TIME_END=$(echo "$COLOR_TIME_END_TEXT" | gawk '
-      @include "tectoplot_functions.awk"
-      {
-        print iso8601_to_epoch($1)
-      }')
 
-    info_msg "[-zctime]: Epoch start and end times are: $COLOR_TIME_START $COLOR_TIME_END"
+    info_msg "[-zctime]: Text start and end times are: $COLOR_TIME_START_TEXT $COLOR_TIME_END_TEXT"
 
     zctimeflag=1
     replaceseiscptflag=0
@@ -14721,7 +14777,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
     else
       for eqcattype in ${EQ_CATALOG_TYPE[@]}; do
-      if [[ $eqcattype =~ "EMSC" ]]; then
+
         if [[ $notearthquakeflag -eq 1 ]]; then
           noteqstring="NOT "
         else
@@ -14732,235 +14788,220 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         else
           timeselstring=""
         fi
-        magselstring="AND mag <= '${EQ_MAXMAG}' AND mag >= '${EQ_MINMAG}'"
+        magselstring="AND mag <= ${EQ_MAXMAG} AND mag >= ${EQ_MINMAG}"
+        depselstring="AND Z(geom) <= ${EQCUTMAXDEPTH} AND Z(geom) >= ${EQCUTMINDEPTH}"
 
-        if [[ -s ${EMSCDIR}emsc.gpkg ]]; then
-          ogr2ogr -spat ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring}" ${F_SEIS}emsc_selected.gpkg ${EMSCDIR}emsc.gpkg
-          ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
-          gawk < emsc_selected.csv '
-            @include "tectoplot_functions.awk"
-            (NR==1) {
-              if ($1!="X(geom)") {
-                print
-              }
-            }
-            (NR>1) {
-              $(NF+1) = iso8601_to_epoch($5)
-               print
-             }'>> ${F_SEIS}eqs.txt
-        else
-          echo "No EMSC GPKG file found. Delete EMSC directory and rerun -scrapedata to rebuild from scratch?"
-          exit 1
-        fi
-        ((NUMEQCATS+=1))
-        echo "${EMSC_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
-        echo "${EMSC_EQ_SOURCESTRING}" >> ${LONGSOURCES}
-      fi
-
-      if [[ $eqcattype =~ "ANSS" ]]; then
-        if [[ $notearthquakeflag -eq 1 ]]; then
-          noteqstring="NOT "
-        else
-          noteqstring=""
-        fi
-        if [[ $timeselectflag -eq 1 ]]; then
-          timeselstring="AND time <= '$ENDTIME' AND time >= '$STARTTIME'"
-        else
-          timeselstring=""
-        fi
-        magselstring="AND mag <= '${EQ_MAXMAG}' AND mag >= '${EQ_MINMAG}'"
-
-        if [[ -s ${ANSSDIR}anss.gpkg ]]; then
-          ogr2ogr -spat ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -f "GPKG" -where "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring}" ${F_SEIS}anss_selected.gpkg ${ANSSDIR}anss.gpkg
-          CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}anss_select.sql anss_selected.csv ${F_SEIS}anss_selected.gpkg
-          gawk < anss_selected.csv '
-            @include "tectoplot_functions.awk"
-            (NR==1) {
-              if ($1!="X(geom)") {
-                print
-              }
-            }
-            (NR>1) {
-              $(NF+1) = iso8601_to_epoch($5)
-               print
-             }'>> ${F_SEIS}eqs.txt
-        else
-          echo "No ANSS GPKG file found. Delete ANSS directory and rerun -scrapedata to rebuild from scratch?"
-          exit 1
-        fi
-        ((NUMEQCATS+=1))
-        echo "${ANSS_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
-        echo "${ANSS_EQ_SOURCESTRING}" >> ${LONGSOURCES}
-      fi
-      if [[ $eqcattype =~ "GHEC" ]]; then
-        F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
-
-        # lon, lat, depth, mag, timestring, id, epoch, type
-        # type = "mw" or "ms" or "mb"
-          gawk < ${GEMGHEC_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
-            @include "tectoplot_functions.awk"
-            {
-              lon=$1
-              lat=$2
-              depth=$3
-              mag=$4
-              datestring=$5
-
-              if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
-                if (test_lon(minlon, maxlon, lon) == 1) {
+        if [[ $eqcattype =~ "EMSC" ]]; then
+          if [[ -s ${EMSCDIR}emsc.gpkg ]]; then
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected_1.gpkg ${EMSCDIR}emsc.gpkg
+            ogr2ogr -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}emsc_selected.gpkg ${F_SEIS}emsc_selected_1.gpkg && rm -f ${F_SEIS}emsc_selected_1.gpkg
+            ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
+            gawk < emsc_selected.csv '
+              @include "tectoplot_functions.awk"
+              (NR==1) {
+                if ($1!="X(geom)") {
                   print
                 }
               }
-            }
-          ' >> ${F_SEIS}GHEC.txt
-          cat ${F_SEIS}GHEC.txt >> ${F_SEIS}eqs.txt
-          ((NUMEQCATS+=1))
-          ((customseisindex+=1))
-          echo "${GEMGHEC_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
-          echo "${GEMGHEC_SOURCESTRING}" >> ${LONGSOURCES}
-      fi
-      if [[ $eqcattype =~ "ISC" ]]; then
-
-        if [[ -s ${ISC_EQS_DIR}iscseis.gpkg ]]; then
-          # ISC event types have 'e' in the second character position if the event is a natural earthquake
-          if [[ $notearthquakeflag -eq 1 ]]; then
-            noteqstring="NOT "
-          else
-            noteqstring=""
-          fi
-          if [[ $timeselectflag -eq 1 ]]; then
-            timeselstring="AND time <= '$ENDTIME' AND time >= '$STARTTIME'"
-          else
-            timeselstring=""
-          fi
-          magselstring="AND mag <= '${EQ_MAXMAG}' AND mag >= '${EQ_MINMAG}'"
-
-          ogr2ogr -spat ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} -f "GPKG" -where "SUBSTRING(type,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring}" ${F_SEIS}iscseis_selected.gpkg ${ISC_EQS_DIR}iscseis.gpkg
-          CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}isc_select.sql iscseis_selected.csv ${F_SEIS}iscseis_selected.gpkg
-          gawk < iscseis_selected.csv '
-            @include "tectoplot_functions.awk"
-            (NR==1) {
-              if ($1!="X(geom)") {
+              (NR>1) {
+                $(NF+1) = iso8601_to_epoch($5)
                 print
-              }
-            }
-            (NR>1) {
-              $(NF+1) = iso8601_to_epoch($5)
-               print
-             }'>> ${F_SEIS}eqs.txt
-        else
-          echo "No ISC seismicity GPKG file found. Delete ISC_SEIS directory and rerun -scrapedata to rebuild from scratch?"
-          exit 1
+              }'>> ${F_SEIS}eqs.txt
+          else
+            echo "No EMSC GPKG file found. Delete EMSC directory and rerun -scrapedata to rebuild from scratch?"
+            exit 1
+          fi
+          ((NUMEQCATS+=1))
+          echo "${EMSC_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+          echo "${EMSC_EQ_SOURCESTRING}" >> ${LONGSOURCES}
         fi
-        ((NUMEQCATS+=1))
-        echo "${ISC_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
-        echo "${ISC_EQ_SOURCESTRING}" >> ${LONGSOURCES}
-      fi
-      if [[ $eqcattype =~ "EHB" ]]; then
 
-        # lon, lat, depth, mag, timestring, id, epoch, type
-        # type = "mw" or "ms" or "mb"
+        if [[ $eqcattype =~ "ANSS" ]]; then
 
-          gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
-            @include "tectoplot_functions.awk"
-            {
-              lon=$1
-              lat=$2
-              depth=$3
-              mag=$4
-              datestring=$5
-              id=$6
-              epoch=$7
-              type=$8
+          if [[ -s ${ANSSDIR}anss.gpkg ]]; then
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}anss_selected_1.gpkg ${ANSSDIR}anss.gpkg 
+            ogr2ogr -f "GPKG" -where "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}anss_selected.gpkg ${F_SEIS}anss_selected_1.gpkg && rm -f ${F_SEIS}anss_selected_1.gpkg
+            rm -f anss_selected_1.gpkg
+            CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}anss_select.sql anss_selected.csv ${F_SEIS}anss_selected.gpkg
+            gawk < anss_selected.csv '
+              @include "tectoplot_functions.awk"
+              (NR==1) {
+                if ($1!="X(geom)") {
+                  print
+                }
+              }
+              (NR>1) {
+                $(NF+1) = iso8601_to_epoch($5)
+                print
+              }'>> ${F_SEIS}eqs.txt
+          else
+            echo "No ANSS GPKG file found. Delete ANSS directory and rerun -scrapedata to rebuild from scratch?"
+            exit 1
+          fi
+          ((NUMEQCATS+=1))
+          echo "${ANSS_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+          echo "${ANSS_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+        fi
+        if [[ $eqcattype =~ "GHEC" ]]; then
+          F_SEIS_FULLPATH=$(abs_path ${F_SEIS})
+
+          # lon, lat, depth, mag, timestring, id, epoch, type
+          # type = "mw" or "ms" or "mb"
+            gawk < ${GEMGHEC_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
+              @include "tectoplot_functions.awk"
+              {
+                lon=$1
+                lat=$2
+                depth=$3
+                mag=$4
+                datestring=$5
+
+                if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+                  if (test_lon(minlon, maxlon, lon) == 1) {
+                    print
+                  }
+                }
+              }
+            ' >> ${F_SEIS}GHEC.txt
+            cat ${F_SEIS}GHEC.txt >> ${F_SEIS}eqs.txt
+            ((NUMEQCATS+=1))
+            ((customseisindex+=1))
+            echo "${GEMGHEC_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+            echo "${GEMGHEC_SOURCESTRING}" >> ${LONGSOURCES}
+        fi
+        if [[ $eqcattype =~ "ISC" ]]; then
+
+          if [[ -s ${ISC_EQS_DIR}iscseis.gpkg ]]; then
+            # ISC event types have 'e' in the second character position if the event is a natural earthquake
+
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}isc_selected_1.gpkg ${ISC_EQS_DIR}iscseis.gpkg
+            ogr2ogr -f "GPKG" -where "SUBSTRING(type,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}iscseis_selected.gpkg ${F_SEIS}isc_selected_1.gpkg && rm -f ${F_SEIS}isc_selected_1.gpkg
+
+            CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}isc_select.sql iscseis_selected.csv ${F_SEIS}iscseis_selected.gpkg
+            gawk < iscseis_selected.csv '
+              @include "tectoplot_functions.awk"
+              (NR==1) {
+                if ($1!="X(geom)") {
+                  print
+                }
+              }
+              (NR>1) {
+                $(NF+1) = iso8601_to_epoch($5)
+                print
+              }'>> ${F_SEIS}eqs.txt
+          else
+            echo "No ISC seismicity GPKG file found. Delete ISC_SEIS directory and rerun -scrapedata to rebuild from scratch?"
+            exit 1
+          fi
+          ((NUMEQCATS+=1))
+          echo "${ISC_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+          echo "${ISC_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+        fi
+        if [[ $eqcattype =~ "EHB" ]]; then
+
+          # lon, lat, depth, mag, timestring, id, epoch, type
+          # type = "mw" or "ms" or "mb"
+
+            gawk < ${ISCEHB_DATA} -v mindepth="${EQCUTMINDEPTH}" -v maxdepth="${EQCUTMAXDEPTH}" -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} -v mindate=$STARTTIME -v maxdate=$ENDTIME -v modifymagsflag=${modifymagnitudes} '
+              @include "tectoplot_functions.awk"
+              {
+                lon=$1
+                lat=$2
+                depth=$3
+                mag=$4
+                datestring=$5
+                id=$6
+                epoch=$7
+                type=$8
 
 
-              if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
-                if (test_lon(minlon, maxlon, lon) == 1) {
+                if ((mindate <= datestring && datestring <= maxdate) && (depth >= mindepth && depth <= maxdepth) && (lat >= minlat && lat <= maxlat) && (mag >= minmag && mag <= maxmag)) {
+                  if (test_lon(minlon, maxlon, lon) == 1) {
 
-                  if (modifymagsflag==1) {
-                    if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
-                      # ISC mb > Mw(GCMT) Weatherill, 2016
-                      oldval=mag
-                      $4 = 1.084 * mag - 0.142
-                      print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
-                    } else if (tolower(type) == "ms") {
-                      # ISC Ms > Mw(GCMT) Weatherill, 2016
-                      oldval=mag
-                      if (mag >= 3.5 && mag <= 6.0) {
-                          $4 = 0.616 * mag + 2.369
-                          print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
-                      } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
-                        $4 = 0.994 * mag + 0.1
+                    if (modifymagsflag==1) {
+                      if (tolower(type) == "mb" && mag >= 3.5 && mag <=7.0) {
+                        # ISC mb > Mw(GCMT) Weatherill, 2016
+                        oldval=mag
+                        $4 = 1.084 * mag - 0.142
                         print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                      } else if (tolower(type) == "ms") {
+                        # ISC Ms > Mw(GCMT) Weatherill, 2016
+                        oldval=mag
+                        if (mag >= 3.5 && mag <= 6.0) {
+                            $4 = 0.616 * mag + 2.369
+                            print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                        } else if (mag > 6.0 && mag <= 8.0) { # Weatherill, 2016, ISC
+                          $4 = 0.994 * mag + 0.1
+                          print $6, type "=" oldval, "to Mw(GCMT)=", $4 >> "./mag_conversions.dat"
+                        }
                       }
                     }
+                    $8=""
+                    print
                   }
-                  $8=""
-                  print
                 }
               }
-            }
-          ' > ${F_SEIS}ISC_EHB_extract.cat
-          cat ${F_SEIS}ISC_EHB_extract.cat >> ${F_SEIS}eqs.txt
-          ((NUMEQCATS+=1))
-          ((customseisindex+=1))
-          echo "${ISCEHB_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
-          echo "${ISCEHB_EQ_SOURCESTRING}" >> ${LONGSOURCES}
-      fi
-      ##############################################################################
-      # Add additional user-specified seismicity files. This needs to be expanded
-      # to import from various common formats. Currently needs tectoplot format data
-      # and only ingests lines with 4-7 fields.
+            ' > ${F_SEIS}ISC_EHB_extract.cat
+            cat ${F_SEIS}ISC_EHB_extract.cat >> ${F_SEIS}eqs.txt
+            ((NUMEQCATS+=1))
+            ((customseisindex+=1))
+            echo "${ISCEHB_EQ_SHORT_SOURCESTRING}" >> ${SHORTSOURCES}
+            echo "${ISCEHB_EQ_SOURCESTRING}" >> ${LONGSOURCES}
+        fi
+        ##############################################################################
+        # Add additional user-specified seismicity files. This needs to be expanded
+        # to import from various common formats. Currently needs tectoplot format data
+        # and only ingests lines with 4-7 fields.
 
-      # lon lat depth mag iso8601_time ID [epoch=iso8601 time]
+        # lon lat depth mag iso8601_time ID [epoch=iso8601 time]
 
-  #-69.1646 -19.8668 113.23 3.977 2021-10-13T12:06:13 us6000fu7b 1634097973
-  #-69.602026 -21.532711 18.254 1.3 2014-12-31T22:07:13 iquique18964 none
+    #-69.1646 -19.8668 113.23 3.977 2021-10-13T12:06:13 us6000fu7b 1634097973
+    #-69.602026 -21.532711 18.254 1.3 2014-12-31T22:07:13 iquique18964 none
 
-      if [[ $eqcattype =~ "custom" ]]; then
-        info_msg "[-z]: Loading custom seismicity file ${SEISADDFILE[$customseisindex]}"
-          gawk < ${SEISADDFILE[$customseisindex]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
-            @include "tectoplot_functions.awk"
-            {
-               # We have at least lon lat depth mag
-              if (NF >= 4) {
-                if ($5=="") {
-                  $5=0
-                  checkdate=0
-                } else {
-                  checkdate=1
-                }
+        if [[ $eqcattype =~ "custom" ]]; then
+          info_msg "[-z]: Loading custom seismicity file ${SEISADDFILE[$customseisindex]}"
+            gawk < ${SEISADDFILE[$customseisindex]} -v minlat="$MINLAT" -v maxlat="$MAXLAT" -v minlon="$MINLON" -v maxlon="$MAXLON" -v mindate=$STARTTIME -v maxdate=$ENDTIME -v mindepth=${EQCUTMINDEPTH} -v maxdepth=${EQCUTMAXDEPTH} -v minmag=${EQ_MINMAG} -v maxmag=${EQ_MAXMAG} '
+              @include "tectoplot_functions.awk"
+              {
+                # We have at least lon lat depth mag
+                if (NF >= 4) {
+                  if ($5=="") {
+                    $5=0
+                    checkdate=0
+                  } else {
+                    checkdate=1
+                  }
 
-                # If there is no ID
-                if (NF<6) {
-                  $6="None"
-                }
-                # If there is no epoch
-                if (NF<7) {
-                  $7="none"
-                }
-                if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag && $2 >= minlat && $2 <= maxlat) {
-                  if (test_lon(minlon, maxlon, $1) == 1) {
-                    if (checkdate==1) {
-                      if (mindate <= $5 && $5 <= maxdate) {
-                        if ($7=="none") {
-                          $7=iso8601_to_epoch($5)
+                  # If there is no ID
+                  if (NF<6) {
+                    $6="None"
+                  }
+                  # If there is no epoch
+                  if (NF<7) {
+                    $7="none"
+                  }
+                  if ($3 >= mindepth && $3 <= maxdepth && $4 <= maxmag && $4 >= minmag && $2 >= minlat && $2 <= maxlat) {
+                    if (test_lon(minlon, maxlon, $1) == 1) {
+                      if (checkdate==1) {
+                        if (mindate <= $5 && $5 <= maxdate) {
+                          if ($7=="none") {
+                            $7=iso8601_to_epoch($5)
+                          }
+                          print $1, $2, $3, $4, $5, $6, $7
                         }
+                      } else {
                         print $1, $2, $3, $4, $5, $6, $7
                       }
-                    } else {
-                      print $1, $2, $3, $4, $5, $6, $7
                     }
                   }
                 }
-              }
-            }' > ${F_SEIS}custom_${customseisindex}.cat
-            cat ${F_SEIS}custom_${customseisindex}.cat >> ${F_SEIS}eqs.txt
-          ((NUMEQCATS+=1))
-          ((customseisindex+=1))
-          echo "${CUSTOMEQCREDIT}" >> ${SHORTSOURCES}
-          echo "Seismicity from ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
-      fi
+              }' > ${F_SEIS}custom_${customseisindex}.cat
+              cat ${F_SEIS}custom_${customseisindex}.cat >> ${F_SEIS}eqs.txt
+            ((NUMEQCATS+=1))
+            ((customseisindex+=1))
+            echo "${CUSTOMEQCREDIT}" >> ${SHORTSOURCES}
+            echo "Seismicity from ${SEISADDFILE[$seisfilenumber]}" >> ${LONGSOURCES}
+        fi
       done
     fi
 
@@ -15002,7 +15043,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
 
       if [[ $CULL_EQ_CATALOGS -eq 1 ]]; then
-        echo "Culling multiple input seismic catalogs..."
+        info_msg "Culling multiple input seismic catalogs..."
 
         # Copy the extracted catalog to the precull catalog
         cp ${F_SEIS}eqs.txt ${F_SEIS}eqs_precull.txt
@@ -15014,11 +15055,11 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         gawk < ${F_SEIS}eqs_precull.txt -v n=${num_eqs_precull} -v verbose=0 '
         @include "tectoplot_functions.awk"
         BEGIN {
-          epoch_cutoff=5  # Seconds between events
+          epoch_cutoff=8  # Seconds between events
           mag_cutoff=0.3   # Magnitude difference
-          lon_cutoff=0.2   # Longitude difference
-          lat_cutoff=0.2   # Latitude difference
-          depth_cutoff=20  # depth difference
+          lon_cutoff=0.3   # Longitude difference
+          lat_cutoff=0.3   # Latitude difference
+          depth_cutoff=300  # depth difference
         }
         (NR <= n) {
           data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)"\x99"NR
@@ -16031,7 +16072,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       }
       ' ${F_SEIS}eqs.txt $CMTFILE | sort -n -k 1,1 > ${F_CMT}equiv_presort.txt
 
-      echo cull paraks are -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} 
+      # echo cull parameters are -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} 
       gawk < ${F_CMT}equiv_presort.txt -v numsurround=20 -v delta_lat=${zccull_lat} -v delta_lon=${zccull_lon} -v delta_sec=${zccull_sec} -v delta_depth=${zccull_depth} -v delta_mag=${zccull_mag} '
         @include "tectoplot_functions.awk"
         {
@@ -16060,7 +16101,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         }
         END {
           numentries=NR
-          # Check each earthquake entry
+          # Check each entry in the merged file
           for(indd=1;indd<=numentries;indd++) {
             # print "Examining", indd, "iscmt:" iscmt[indd] > "/dev/stderr"
 
@@ -16069,39 +16110,42 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               # Print by default
               printme=1
               for(j=indd-numsurround; j<=indd+numsurround; j++) {
-                # For the surrounding events, if one is a CMT event
+                # For the surrounding events, if one is a focal mechanism
                 if (j>=1 && j<=numentries && j != indd && iscmt[j]==1) {
 
-                  # We could implement a sliding scale comparison so that large events will
-                  # be culled if they have larger magnitude differences. This may occur when
-                  # Mw (GCMT) is compared to mb (seismicity) which saturates. There should not
-                  # be multiple nearby very large earthquakes within the short time window, in real life.
+                  # if (mag[j] >= 7) {
+                  #   delta_lon=3
+                  #   delta_lat=3
+                  # }
+                  # if (mag[j] >= 8) {
+                  #   delta_lon=5
+                  #   delta_lat=5
+                  # }
 
-print "EVENT", i, j  > "/dev/stderr"
-                       print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
-                       print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
-                       print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
-                       print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
-                       print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
+# print "EVENT", i, j  > "/dev/stderr"
+#                        print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
+#                        print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
+#                        print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
+#                        print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
+#                        print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
 
-
+                # Remove the depth comparison as this is the worst constrained dimension
+                # (abs(depth[indd]-depth[j])<=delta_depth) && 
                  if ( (abs(lon[indd]-lon[j])<=delta_lon) && (abs(lat[indd]-lat[j])<=delta_lat) &&
-                       (abs(depth[indd]-depth[j])<=delta_depth) && (abs(epoch[indd]-epoch[j])<=delta_sec &&
-                       (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
-                       This CMT [j] is a duplicate of the seismicity event [i]
-                       print "Matched:" > "/dev/stderr"
-                       print "  testing cmt", j, "vs eq", indd > "/dev/stderr"
-                       print "  ---" > "/dev/stderr"
-                       print "  " data[indd] > "/dev/stderr"
-                       print data[j] > "/dev/stderr"
-                       print "---" > "/dev/stderr"
-                       print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
-                       print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
-                       print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
-                       print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
-                       print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
-                       print "time: " abs(epoch[indd]-epoch[j]) > "/dev/stderr"
-                       print "depth: " abs(depth[indd]-depth[j]) > "/dev/stderr"
+                       (abs(epoch[indd]-epoch[j])<=delta_sec && (abs(mag[indd]-mag[j])<=delta_mag) ) ) {
+                      #  This CMT [j] is a duplicate of the seismicity event [i]
+                      #  print "Matched:" > "/dev/stderr"
+                      #  print "---" > "/dev/stderr"
+                      #  print data[indd] > "/dev/stderr"
+                      #  print data[j] > "/dev/stderr"
+                      #  print "---" > "/dev/stderr"
+                      #  print lon[indd], lon[j], "(" abs(lon[indd]-lon[j]), "<", delta_lon  ")" > "/dev/stderr"
+                      #  print lat[indd], lat[j],  "(" abs(lat[indd]-lat[j]), "<", delta_lat ")" > "/dev/stderr"
+                      # #  print depth[indd], depth[j], "("  abs(depth[indd]-depth[j]), "<", delta_depth ")" > "/dev/stderr"
+                      #  print mag[indd], mag[j],  "(" abs(mag[indd]-mag[j]), "<", delta_mag ")" > "/dev/stderr"
+                      #  print epoch[indd], epoch[j],  "(" abs(epoch[indd]-epoch[j]), "<", delta_sec ")" > "/dev/stderr"
+                      #  print "time: " abs(epoch[indd]-epoch[j]) > "/dev/stderr"
+                      # #  print "depth: " abs(depth[indd]-depth[j]) > "/dev/stderr"
                       printme=0
                       # mixedid = sprintf("'s/%s/%s+%s/'",idcode[j],idcode[j],idcode[indd])
                       mixedid = sprintf("%s %s+%s",idcode[j],idcode[j],idcode[indd])
@@ -17646,6 +17690,14 @@ print "EVENT", i, j  > "/dev/stderr"
 
   ### MODULE CALCULATION FUNCTIONS
 
+  # tectoplot_calculate_module() is currently run for every call from 
+  # a function within that module. That is likely not the right 
+  # behavior.
+
+  # tectoplot_calculate_module() should run ONCE and be used to
+  # derive datasets that are not sensitive to multiple calls to 
+  # module functions. 
+
   for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
 
     eval "((${this_mod}_calculate_callnum++))"
@@ -17655,8 +17707,37 @@ print "EVENT", i, j  > "/dev/stderr"
       info_msg "Running module data calculations for ${this_mod}"
       cmd="tectoplot_calculate_${this_mod}"
       "$cmd"
+      # ${this_mod}
     fi
   done
+
+  # tectoplot_calc_module() is registered by functions within modules
+  # using calcs+=("module_id"). Any module that relies on calculating
+  # data to be used in plot() should ensure that calcs+=("module_id")
+  # is paired with plots+=("module_id") to ensure synchronization of
+  # the [$tt] variable. 
+
+  for this_calc in ${calcs[@]}; do
+    tectoplot_calc_caught=0
+
+    # Increment the ${routine_callnum} variable here.
+    # The reserved variable $tt contains the number of times a given
+    # routine has been called
+
+    eval "((${this_calc}_calc_callnum++))"
+    eval "tt=\${${this_calc}_calc_callnum}"
+
+    for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
+      if type "tectoplot_calc_${this_mod}" >/dev/null 2>&1; then
+        cmd="tectoplot_calc_${this_mod}"
+        "$cmd" ${this_calc}
+      fi
+      if [[ $tectoplot_calc_caught -eq 1 ]]; then
+        break
+      fi
+    done
+  done
+
 
   # Profiling plots go to the end
 
@@ -17699,104 +17780,15 @@ for cptfile in ${cpts[@]} ; do
     ;;
 
     eqtime)
-      gmt makecpt -Fr -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${SEIS_CPT_INV} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} -v timestart_s=${COLOR_TIME_START} -v timeend_s=${COLOR_TIME_END} '
-        BEGIN {
-          if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
-            # Greater than 5 years
-            endstr_start=4
-            endstr_end=4
-          } else if (timeend_s-timestart_s >= 60*60*24*365.25 * 1) {
-            # Greater than or equal to 1 year but less than 5 years
-            endstr_start=4
-            endstr_end=4
-          } else if (timeend_s-timestart_s < 60*60*24*365.25 * 1) {
-            # Less than one year - use full timestring
-            endstr_start=19
-            endstr_end=19
-            if (substr(timeend, 17, 3) == ":00") {
-              endstr_end=16
-            }
-            if (substr(timestart, 17, 3) == ":00") {
-              endstr_start=16
-            }
-          }
-          gsub(/T/, " ", timestart)
-          gsub(/T/, " ", timeend)
-          gsub(/-/, "/", timestart)
-          gsub(/-/, "/", timeend)
+      gmt makecpt -Fr -T${COLOR_TIME_START_TEXT}/${COLOR_TIME_END_TEXT}/30+n -C${EQ_TIME_DEF} ${SEIS_CPT_INV} ${VERBOSE} -Z | gawk '
+      {
+        if ($1=="B") {
+          print $0 "@70"
+        } else {
+          print
         }
-
-        {
-          if ($1=="B") {
-            print oldstr, ";", substr(timeend,1,endstr_end)
-          } else if ($1+0 != $1) {
-            if ($2=="white") {
-              $2="gray"
-            }
-            print
-          } else {
-            if (NR!=1) {
-              if (NR==2) {
-                print oldstr, ";" substr(timestart,1,endstr_start)
-              } else {
-                print oldstr, ";"
-              }
-            }
-            oldstr=$0
-          }
-        }' > ${F_CPTS}"eqtime.cpt"
-
-        # echo gmt makecpt -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE}
-        gmt makecpt -Fr -T${COLOR_TIME_START}/${COLOR_TIME_END}+n10 -C${EQ_TIME_DEF} ${VERBOSE} | gawk -v timestart=${COLOR_TIME_START_TEXT} -v timeend=${COLOR_TIME_END_TEXT} '
-          BEGIN {
-            OFMT="%.12f"
-            if (timeend_s-timestart_s > 60*60*24*365.25 * 5) {
-              # Greater than 5 years
-              endstr_start=4
-              endstr_end=4
-            } else if (timeend_s-timestart_s >= 60*60*24*365.25 * 1) {
-              # Greater than or equal to 1 year but less than 5 years
-              endstr_start=4
-              endstr_end=4
-            } else if (timeend_s-timestart_s < 60*60*24*365.25 * 1) {
-              # Less than one year - use full timestring
-              endstr_start=19
-              endstr_end=19
-              if (substr(timeend, 17, 3) == ":00") {
-                endstr_end=16
-              }
-              if (substr(timestart, 17, 3) == ":00") {
-                endstr_start=16
-              }
-            }
-            gsub(/T/, " ", timestart)
-            gsub(/T/, " ", timeend)
-            gsub(/-/, "/", timestart)
-            gsub(/-/, "/", timeend)
-          }
-
-          {
-            if ($1=="B") {
-              print oldstr, ";", substr(timeend,1,endstr_end)
-              print
-            } else if ($1+0 != $1) {
-              if ($2=="white") {
-                $2="gray"
-              }
-              print
-            } else {
-              if (NR!=1) {
-                if (NR==2) {
-                  print oldstr, ";" substr(timestart,1,endstr_start)
-                } else {
-                  print oldstr, ";"
-                }
-              }
-              $1=$1/10000000
-              $3=$3/10000000
-              oldstr=sprintf("%f %s %f %s", $1, $2, $3, $4)
-            }
-          }' > ${F_CPTS}"eqtime_cmt.cpt"
+      }' > ${F_CPTS}eqtime_text.cpt
+      
       ;;
 
     eqcluster)
@@ -18036,8 +18028,14 @@ for cptfile in ${cpts[@]} ; do
           gmt makecpt -C${tcyclecptcpt} -I -N -Fr -Z -T${j}/${k}/1 -G${tcycle_cptlow}/${tcycle_cpthigh} >> cyclegray.cpt
         done
 
-        tectoplot -tmix ${F_CPTS}topo_temp.cpt ./cyclegray.cpt ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} 1 ${tcyclemethod}
-        cp tempfiles_to_delete/mix.cpt .
+        (
+          mkdir ./newrun
+          cp ${F_CPTS}topo_temp.cpt ./cyclegray.cpt ./newrun
+          cd ./newrun
+          tectoplot -tmix ./topo_temp.cpt ./cyclegray.cpt ${CPT_ZRANGE_2[0]} ${CPT_ZRANGE_2[1]} 1 ${tcyclemethod}
+          cp tempfiles_to_delete/mix.cpt ..
+
+        )
         TOPO_CPT=mix.cpt
       else
         cp ${F_CPTS}topo_temp.cpt ${TOPO_CPT}
@@ -18125,13 +18123,15 @@ CMT_CPT=$SEISDEPTH_CPT
 
 
 if [[ $zctimeflag -eq 1 ]]; then
-  SEIS_ZCOL=7
-  SEIS_CPT=${F_CPTS}"eqtime.cpt"
-  CMT_CPT=${F_CPTS}"eqtime_cmt.cpt"
+  SEIS_ZCOL=5
+  CMT_ZCOL=17
+  SEIS_CPT=${F_CPTS}"eqtime_text.cpt"
+  CMT_CPT=${F_CPTS}"eqtime_text.cpt"
 elif [[ $zcclusterflag -eq 1 ]]; then
   SEIS_CPT=${F_CPTS}"eqcluster.cpt"
   CMT_CPT=${F_CPTS}"eqcluster.cpt"
   SEIS_ZCOL=8
+  CMT_ZCOL=16
 fi
 
 
@@ -18790,11 +18790,11 @@ EOF
               GlobalCMT) #
               ;;
               MomentTensor) # 15 total fields, 0-14; epoch is in 14
-                [[ -e ${F_CMT}cmt_thrust.txt ]] && gawk < ${F_CMT}cmt_thrust.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_CMT}cmt_thrust_time.txt
+                [[ -e ${F_CMT}cmt_thrust.txt ]] && gawk < ${F_CMT}cmt_thrust.txt '{temp=$3; $3=$15; print}' > ${F_CMT}cmt_thrust_time.txt
                 CMT_THRUSTPLOT=$(abs_path ${F_CMT}cmt_thrust_time.txt)
-                [[ -e ${F_CMT}cmt_normal.txt ]] && gawk < ${F_CMT}cmt_normal.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_CMT}cmt_normal_time.txt
+                [[ -e ${F_CMT}cmt_normal.txt ]] && gawk < ${F_CMT}cmt_normal.txt '{temp=$3; $3=$15;print}' > ${F_CMT}cmt_normal_time.txt
                 CMT_NORMALPLOT=$(abs_path ${F_CMT}cmt_normal_time.txt)
-                [[ -e ${F_CMT}cmt_strikeslip.txt ]] && gawk < ${F_CMT}cmt_strikeslip.txt '{temp=$3; $3=$15/10000000; $15=temp; print}' > ${F_CMT}cmt_strikeslip_time.txt
+                [[ -e ${F_CMT}cmt_strikeslip.txt ]] && gawk < ${F_CMT}cmt_strikeslip.txt '{temp=$3; $3=$15; print}' > ${F_CMT}cmt_strikeslip_time.txt
                 CMT_STRIKESLIPPLOT=$(abs_path ${F_CMT}cmt_strikeslip_time.txt)
               ;;
               TNP) #
@@ -19389,6 +19389,8 @@ EOF
 
         if [[ $euleratgpsflag -eq 1 ]]; then    # If we are looking at GPS data (-wg)
           if [[ $plotgps -eq 1 ]]; then         # If the GPS data are regional
+                  echo herea
+
             cat $GPS_FILE | gawk  '{print $2, $1}' > ${F_PLATES}eulergrid.txt   # lon lat -> lat lon
             cat $GPS_FILE > ${F_GPS}gps.obs
           fi
@@ -19884,16 +19886,20 @@ EOF
 
           info_msg "[-inset]: tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt stroke ${INSET_LINE_WIDTH},${INSET_LINE_COLOR}  -tm insetmap ${MEGADEBUGFLAG} ${DEBUGFLAG}"
 
-          tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li mapelements/bounds.txt stroke ${INSET_LINE_WIDTH},${INSET_LINE_COLOR} -tm insetmap ${MEGADEBUGFLAG} ${DEBUGFLAG}
+          # Open a new shell and create a new directory to avoid contaminating the current tectoplot 
+          # folder with different GMT settings that might arise from plotting (e.g. grid spacing)
+          (
+            mkdir insetmap_tmp/
+            cd insetmap_tmp/
+            tectoplot ${INSET_PROJSTRING} -f ${CENTERLON} ${CENTERLAT} -keepopenps ${INSET_ARGS} -li ../mapelements/bounds.txt stroke ${INSET_LINE_WIDTH},${INSET_LINE_COLOR} -tm insetmap ${MEGADEBUGFLAG} ${DEBUGFLAG}
+            cd ..
+            mv insetmap_tmp/insetmap/* insetmap_tmp/
+            rmdir insetmap_tmp/insetmap/
+            mv insetmap_tmp insetmap
+          )
 
+          # Close the inset PS file
           gmt psxy -T -O >> insetmap/map.ps
-
-          # tectoplot -RJ S ${CENTERLON} ${CENTERLAT} ${INSET_DEGWIDTH} -a -li mapelements/bounds.txt red 2p -pss $(echo ${INSET_SIZE} | gawk '{print $1+0}') -pgo -tm insetmap
-          #
-          # gmt_init_tmpdir
-          # gmt pscoast -Rg -JG${CENTERLON}/${CENTERLAT}/${INSET_DEGWIDTH}/${INSET_SIZE}  -Bg -Df -A5000 -Ggray -Swhite -K ${VERBOSE} > inset.ps
-          # gmt psxy ${F_MAPELEMENTS}"bounds.txt" -W${INSET_AOI_LINEWIDTH},${INSET_AOI_LINECOLOR} ${VERBOSE} -R -J -O >> inset.ps
-          # gmt_remove_tmpdir
 
           PS_DIM=$(gmt psconvert insetmap/map.ps -TG -E700 -Finset -A+m0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
           INSET_PS_WIDTH="$(echo $PS_DIM | gawk '{print $1/2.54}')"
@@ -19941,18 +19947,6 @@ EOF
               esac
             else
               # Place inside the map frame
-
-
-              # TR|RT) shifth=10; shiftv=10 ;;
-              # CR|RC) shifth=10;  shiftv=0  ;;
-              # BR|RB) shifth=10;  shiftv=10  ;;
-              # TM|MT) shifth=0;  shiftv=10  ;;
-              # CM|MC) shifth=0; shiftv=0 ;;
-              # BM|MB) shifth=0;  shiftv=10  ;;
-              # TL|LT) shifth=10;  shiftv=10  ;;
-              # CL|LC) shifth=10;  shiftv=0  ;;
-              # BL|LB) shifth=10;  shiftv=10  ;;
-
               case ${INSET_JUST_CODE} in
                 TR|RT) shifth=${INSET_DH};  shiftv=${INSET_DV}  ;;
                 CR|RC) INSET_JUST_CODE="CR"
@@ -20115,29 +20109,10 @@ EOF
         # Origpoint is the lon lat coords of the reference point
         Origpoint[0]=${SCALEREFLON}
         Origpoint[1]=${SCALEREFLAT}
-        # XYpoint=($(echo "${SCALEREFLON} ${SCALEREFLAT}" | gmt mapproject ${RJSTRING}))
-
-        # # American unit names (meter vs metre)
-        # geodunit=$(geod -lu | gawk -v unit=${scaleunit} '($1==unit) {
-        #     for(i=3;i<NF;i++) {
-        #       printf("%s ", $(i))
-        #     }
-        #     printf("%s", $(NF))
-        #   }' | sed 's/metre/meter/g')
-
-        #        2  C
-        #
-        #      p2h
-        #        D  B                A
-        #        O         p1h       1
-        #
-        #
 
         # Point 1 is the eastward projection from the starting point by the given
         # distance. The path connecting Origpoint and Point1 might curve, so
         # a Cartesian distance calculation isn't actually correct.
-
-
 
         Point1=($(project_point_parallel_wgs84 ${SCALEREFLON} ${SCALEREFLAT} ${scalenot} ${scaleunit}))
 
@@ -22736,9 +22711,9 @@ if [[ $makelegendflag -eq 1 ]]; then
 
 # REQUIRES CPT
       eqtime)
-          # echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-          # echo "B $SEIS_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa+l\"Earthquake time\"" >> ${LEGENDDIR}legendbars.txt
-          # barplotcount=$barplotcount+1
+          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+          echo "B $SEIS_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa+l\"Earthquake time\"" >> ${LEGENDDIR}legendbars.txt
+          barplotcount=$barplotcount+1
         ;;
 
       # geoage)

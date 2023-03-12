@@ -78,13 +78,22 @@ function date_shift_utc() {
 function iso8601_to_epoch() {
   TZ=UTC
    gawk '
-   @include "/Users/kylebradley/Dropbox/scripts/tectoplot/awkscripts/tectoplot_functions.awk"
+   @include "tectoplot_functions.awk"
    BEGIN {
      ENVIRON["TZ"] = "UTC"
      print iso8601_to_epoch("'$1'")
    }'
 }
 
+function epoch_to_iso8601() {
+  TZ=UTC
+   gawk '
+   @include "tectoplot_functions.awk"
+   BEGIN {
+     ENVIRON["TZ"] = "UTC"
+     print epoch_to_iso8601("'$1'")
+   }'
+}
 # Report the local time, including daylight savings, for a given UTC date and time zone
 # Input date is in ISO8601 format YYYY-MM-DDTHH-MM-SS.sss
 
@@ -147,4 +156,18 @@ function localtime_from_utc() {
       print outstring
     }
  }'
+}
+
+# This function returns a full ISO8601 datetime (YYYY-MM-DDTHH:MM:SS) from a
+# potentially partial datetime (eg. YYYY-MM-DD  or YYYY)
+
+function iso8601_from_partial() {
+      gawk '{
+        date = substr($1,1,10);
+        split(date,dstring,"-");
+        time = substr($1,12,8);
+        split(time,tstring,":");
+        end = substr($1, 20, 5);
+        printf("%04d-%02d-%02dT%02d:%02d:%02d%s\n", dstring[1]+0, dstring[2]+0, dstring[3]+0, tstring[1]+0, tstring[2]+0, tstring[3]+0, end)
+      }'
 }

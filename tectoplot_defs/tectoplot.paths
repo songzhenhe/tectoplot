@@ -124,6 +124,8 @@ EXTRACT_ISC_TILES=$SCRAPERDIR"extract_isc_tiles.sh"
 ##### C/C++ CODES
 # Source the following scripts at startup
 CSCRIPTDIR=${TECTOPLOTDIR}"cscripts/"
+QRSOLVE=${CSCRIPTDIR}qrsolve/gps_solve
+
 
 ##### awk scripts
 AWKSCRIPTDIR=${TECTOPLOTDIR}"awkscripts/"

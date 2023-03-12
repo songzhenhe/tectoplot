@@ -2789,12 +2789,25 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           # 0                1                2  3       4   5       6        7       8         9       10      11 12     13    14
           # X Y depth mrr mtt mff mrt mrf mtf exp [newX newY] [event_title]
 
-          gmt pscoupe seg_${segind}.txt -i0,1,2,5-11,t -R-100000/100000/-100/7000 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z+d90 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
+          # 0         1         2         3        4        5         6        7        8        9  10 11 12                        13   14         15   16
+          # 35.436849 10.000000 10.000000 0.045802 0.689186 -0.734427 0.068807 0.185450 0.672789 21 0  0  C201511112053A+us10003xm9 19.2 1447275185 0    2015-11-11T20:53:05
+
+
+          # When the alternative location fields are "none", then pscoupe craps out and passes those as
+          # trailing text that gets confused with the ID field. So we need to filter those events out
+          # by replacing those values with 0 
+          gawk < seg_${segind}.txt '{
+            if ($13=="none" && $14=="none") {
+              $13="0"
+              $14="0"
+            }
+            print $0
+          }' |  gmt pscoupe -i0,1,2,5-11,t -R-100000/100000/-100/7000 -JX5i/-2i -Aa$p1_x/$p1_z/$p2_x/$p2_z+d90 -S${CMTLETTER}0.05i -Xc -Yc > /dev/null
 
           rm -f Aa*_map
 
           projected_focals=$(ls Aa* | head -n 1)
-
+          cp ${projected_focals} ${LINEID}projfoc_${segind}.txt
           projected_focals_num=$(wc -l < ${projected_focals})
           startnum=$(wc -l < seg_$segind.txt)
 
@@ -2870,12 +2883,21 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
           cat cmt_altlines_*.txt > ${F_PROFILES}${LINEID}_${i}cmt_altlines.txt
         fi
 
-
         rm -f ./savedAa/*
         rmdir ./savedAa/
 
-        echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR}  ${cmtcommandlist[$i]} -C${SEIS_CPT} $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
-        echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${SEIS_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        if [[ $zctimeflag -eq 1 ]]; then
+            gawk < ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt '{temp=$3; $3=$17; print}' > ${F_PROFILES}${LINEID}_${i}cmt_fixed_time.txt
+            mv ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt ${F_PROFILES}${LINEID}_${i}cmt_fixed_save.txt
+            mv ${F_PROFILES}${LINEID}_${i}cmt_fixed_time.txt ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt
+        elif [[ $zcclusterflag -eq 1 ]]; then
+            gawk < ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt '{temp=$3; $3=$16; print}' > ${F_PROFILES}${LINEID}_${i}cmt_fixed_time.txt
+            mv ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt ${F_PROFILES}${LINEID}_${i}cmt_fixed_save.txt
+            mv ${F_PROFILES}${LINEID}_${i}cmt_fixed_time.txt ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt
+        fi
+
+        echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -N -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${CMT_CPT} $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
+        echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -N -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${CMT_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
       fi
     done

@@ -105,6 +105,9 @@ function eulervec(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2, tLon_d, tLat_d) 
 	V3 = a1*b2-a2*b1
 
 	# Conversion from ECEF to NEU coordinates
+	# # https://www.mathworks.com/help/aeroblks/directioncosinematrixeceftoned.html 
+	# # (reference is for ECEF to NED - we multiply R3* by -1 below to get NEU)
+
 	R11 = -sin(tLat_r_adj)*cos(tLon_r)
 	R12 = -sin(tLat_r_adj)*sin(tLon_r)
 	R13 = cos(tLat_r_adj)

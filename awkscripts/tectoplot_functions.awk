@@ -901,7 +901,6 @@ function leapyearsbetween(start, startmonth, end) {
 }
 
 function iso8601_to_epoch(timestring,        a,b,c) {
-
   ENVIRON["TZ"] = "UTC"
   timecode=substr(timestring, 1, 19)
   split(timecode, a, "-")
@@ -1078,6 +1077,7 @@ function calc_rotation_matrix_axis(u, v, w, theta_deg,      theta, uu, vv, ww, u
 
 
 
+
 function calc_ecef_to_enu_matrix(lon_deg, lat_deg,    lambda, phi) {
 
   lambda=deg2rad(lon_deg)
@@ -1173,6 +1173,10 @@ function radiusEarth(latitude_r) {
 
 # Inputs are longitude, latitude, w (degrees/Myr) for both poles of rotation, followed
 # by the longitude and latitude of the point of interest.
+
+# Note that this function is off by a small fraction (<<1%) from the published conversions
+# of Kreemer et al., 2014, suggesting a different treatment of either the figure
+# of the Earth, geocentric vs geodetic latitude, etc. More investigation is needed.
 
 # Global variables that will be set after calling this function:
 # eulervec_N, eulervec_E, eulervec_U

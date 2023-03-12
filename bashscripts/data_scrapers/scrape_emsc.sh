@@ -1,14 +1,5 @@
 #!/bin/bash
 
-# Catalog files are separated into 4 segments per month. A list of possible catalog
-# files is generated each time this scraper is run: emsc_list.txt
-
-# Each time this scraper is run, catalog files younger than or overlapping with the date
-# stored in emsc_last_downloaded_event.txt are downloaded. Catalog files without a STOP
-# line are considered failed and are deleted upon download.
-
-# After downloads are complete
-
 # tectoplot
 # bashscripts/scrape_emsc_seismicity.sh
 # Copyright (c) 2021 Kyle Bradley, all rights reserved.
@@ -38,24 +29,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Download the entire global EMSC seismicity catalog,
-# then process into 5x5 degree tiles for quicker plotting.
-
-# Most of the download time is the pull request, but making larger chunks leads
-# to some failures due to number of events. The script can be run multiple times
-# and will not re-download files that already exist. Some error checking is done
-# to look for empty files and delete them.
-
-# Example curl command (broken onto multiple lines)
-# curl "${EMSC_MIRROR}/cgi-bin/web-db-v4?request=COMPREHENSIVE&out_format=CATCSV
-#       &searchshape=RECT&bot_lat=-90&top_lat=90&left_lon=-180&right_lon=180
-#       &ctr_lat=&ctr_lon=&radius=&max_dist_units=deg&srn=&grn=&start_year=${year}
-#       &start_month=${month}&start_day=01&start_time=00%3A00%3A00&end_year=${year}
-#       &end_month=${month}&end_day=7&end_time=23%3A59%3A59&min_dep=&max_dep=
-#       &min_mag=&max_mag=&req_mag_type=Any&req_mag_agcy=prime" > emsc_seis_2019_01_week1.dat
-
-# Note that EMSC queries require the correct final day of the month, including
-# leap years! Whyyyy.....
+# NOTE: As of March 2023, EMSC events from source catalog EMSC-RTS have NEGATIVE
+# depths (Z=-40 is equivalent to 40 km below sea level) which must be corrected
+# upon download rather than upon selection in order to keep the catalog sane.
 
 # This is the URL of the mirror to use
 EMSC_MIRROR="https://www.seismicportal.eu"
@@ -63,24 +39,6 @@ EMSC_MIRROR="https://www.seismicportal.eu"
 # Set EMSC_VERBOSE=1 for more illuminating messages
 EMSC_VERBOSE=1
 [[ $EMSC_VERBOSE -eq 1 ]] && CURL_QUIET="" || CURL_QUIET="-s"
-# Not needed anymore
-# function tecto_tac() {
-#   if hash tac 2>/dev/null; then
-#     tac $@
-#   elif echo "a" | tail -r >/dev/null 2>&1; then
-#     tail -r $@
-#   else
-#     gawk '{
-#       data[NR]=$0
-#     }
-#     END {
-#       num=NR
-#       for(i=num;i>=1;i--) {
-#         print data[i]
-#       }
-#     }' $@
-#   fi
-# }
 
 function repair_emsc_time_json() {
   gawk -F, '
@@ -126,7 +84,7 @@ function emsc_update_catalog() {
 
     echo "Downloading first batch of events"
     while [[ ! -s batch1.json ]]; do
-      curl -0 "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&starttime=1998-01-01T00:00:00&endtime=1998-02-02T00:00:00&${range}&limit=4000&orderby=time-asc" > batch1.json
+      curl -0 "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&starttime=1998-01-01T00:00:00&endtime=1998-02-02T00:00:00&${range}&limit=20000&orderby=time-asc" > batch1.json
       cat batch1.json
       if [[ ! -s batch1.json ]]; then
         echo "No data downloaded... retrying after 30 seconds"
@@ -152,6 +110,8 @@ function emsc_update_catalog() {
     echo "Adding indexes to GPKG"
     ogrinfo -sql "CREATE INDEX time_index ON emsc (time)" emsc.gpkg
     ogrinfo -sql "CREATE INDEX id_index ON emsc (id)" emsc.gpkg
+    ogrinfo -sql "CREATE INDEX mag_index ON emsc (mag)" emsc.gpkg
+
   fi
 
   if [[ ! -s emsc.gpkg ]]; then
@@ -272,5 +232,9 @@ fi
 cd $EMSCDIR
 
 # Update the EMSC catalog data
+
+emsc_update_catalog
+
+# Repair the EMSC depths
 
 emsc_update_catalog

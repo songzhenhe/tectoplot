@@ -163,6 +163,8 @@ function iscseis_update_catalog() {
     echo "Adding indexes to GPKG"
     ogrinfo -sql "CREATE INDEX time_index ON iscseis (time)" iscseis.gpkg
     ogrinfo -sql "CREATE INDEX id_index ON iscseis (id)" iscseis.gpkg
+    ogrinfo -sql "CREATE INDEX mag_index ON iscseis (mag)" iscseis.gpkg
+
   fi
 
   if [[ ! -s iscseis.gpkg ]]; then

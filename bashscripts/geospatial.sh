@@ -249,6 +249,59 @@ function select_in_gmt_map_by_columns() {
     mv a.tmp $infile
 }
 
+# select_in_gmt_map_by_columns()
+# Takes in a text file and removes rows for which the points indicated in
+# specified X,Y columns do not fall on the map.
+# Column numbers start with 1 not 0
+# Note: the output is piped to stdout
+# args: 1 = X coord column number, 2 = Y coord column number
+#       3 = file 4... = region (-R) or region and projection (-R -J)
+
+function select_in_gmt_map_by_columns_stdout() {
+    xcol=$(echo "$1" | bc)
+    ycol=$(echo "$2" | bc)
+    infile="${3}"
+    shift
+    shift
+    shift
+    # Switch columns xcol and ycol with columns 1 and 2
+    gawk < $infile -v xc=$xcol -v yc=$ycol '
+    {
+      for(i=1;i<=NF;i++) {
+        if (i==1) {
+          printf("%s ", $(xc))
+        } else if (i==2) {
+          printf("%s ", $(yc))
+        } else if (i==xc) {
+          printf("%s ", $1)
+        } else if (i==yc) {
+          printf("%s ", $2)
+        } else if (i==NF) {
+          printf("%s\n", $(i))
+        } else {
+          printf("%s ", $(i))
+        }
+      }
+    }' | gmt select ${@} -f0x,1y,s -i0,1,t -o0,1,t ${VERBOSE} | gawk -v xc=$xcol -v yc=$ycol '
+    {
+      for(i=1;i<=NF;i++) {
+        if (i==1) {
+          printf("%s ", $(xc))
+        } else if (i==2) {
+          printf("%s ", $(yc))
+        } else if (i==xc) {
+          printf("%s ", $1)
+        } else if (i==yc) {
+          printf("%s ", $2)
+        } else if (i==NF) {
+          printf("%s\n", $(i))
+        } else {
+          printf("%s ", $(i))
+        }
+      }
+    }' 
+}
+
 ################################################################################
 # Grid (raster) file functions
 
@@ -636,4 +689,93 @@ function cptinfo {
   END {
     print minz, maxz, haszero
   }'
+}
+
+# GPKG
+# ogr2ogr -spat does not work across datelines... so split into two queries and merge
+# if necessary
+# arg1=minlon
+# arg2=maxlon
+# arg3=minlat
+# arg4=maxlat
+# arg5=sourcefile.gpkg
+# arg6=outfile_name.gpkg
+
+function ogr2ogr_spat() {
+  local SPAT_MINLON_1
+  local SPAT_MAXLON_1
+  local SPAT_TYPE
+  local MINLON="${1}"
+  shift
+  local MAXLON="${1}"
+  shift
+  local MINLAT="${1}"
+  shift
+  local MAXLAT="${1}"
+  shift
+  local output_file="${1}"
+  shift
+  local input_file="${1}"
+  shift
+
+  # All remaining arguments are in "${@}"
+
+
+  if [[ -s ${output_file} ]]; then
+    echo "[geospatial:ogr2ogr_spat]: output file ${output_file} exists; not overwriting"
+    return
+  fi
+
+  if [[ $(echo "${MAXLON} > 180 && ${MINLON} > 180" | bc -l) -eq 1  ]]; then
+    #             220      290
+    # ----------|--------------#
+    #              <         >
+    #            -140      -70
+    SPAT_MINLON_1=$(echo "${MINLON} - 360" | bc -l)
+    SPAT_MAXLON_1=$(echo "${MAXLON} - 360" | bc -l)
+    SPAT_TYPE=1
+  elif [[ $(echo "${MAXLON} < -180 && ${MINLON} < -180" | bc -l) -eq 1  ]]; then
+    # -220 -190
+    # ----------|--------------#
+    # <       >
+    # 140   170
+    SPAT_MINLON_1=$(echo "${MINLON} + 360" | bc -l)
+    SPAT_MAXLON_1=$(echo "${MAXLON} + 360" | bc -l)
+    SPAT_TYPE=1
+  elif [[ $(echo "${MAXLON} > -180 && ${MINLON} < -180" | bc -l) -eq 1  ]]; then
+    # -220             -120
+    # ----------|--------------#
+    # <                   >
+    # 140    180 -180  -120
+    SPAT_MINLON_1=$(echo "${MINLON}+360" | bc -l)
+    SPAT_MAXLON_1=180
+    SPAT_MINLON_2=-180
+    SPAT_MAXLON_2=${MAXLON}
+    SPAT_TYPE=2
+  elif [[ $(echo "${MAXLON} > 180 && ${MINLON} < 180" | bc -l) -eq 1  ]]; then
+    #    140            240
+    # ----------|--------------#
+    #    <                >
+    #    140 180 -180  -120
+    SPAT_MINLON_1=${MINLON}
+    SPAT_MAXLON_1=180
+    SPAT_MINLON_2=-180
+    SPAT_MAXLON_2=$(echo "${MAXLON} - 360" | bc -l)
+    SPAT_TYPE=2
+  else
+    SPAT_MINLON_1=${MINLON}
+    SPAT_MAXLON_1=${MAXLON}
+    SPAT_TYPE=1
+  fi
+
+  case ${SPAT_TYPE} in
+    1)
+      ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${@} ${output_file} ${input_file}
+    ;;
+    2)
+      ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${output_file} ${input_file}
+      ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" selected_2.gpkg ${input_file}
+      ogr2ogr -f "GPKG" -upsert ${output_file} selected_2.gpkg && rm -f selected_2.gpkg
+    ;;
+  esac
 }

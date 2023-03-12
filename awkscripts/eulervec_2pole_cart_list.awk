@@ -114,7 +114,7 @@ function eulervec(eLat_d1, eLon_d1, eV1, eLat_d2, eLon_d2, eV2, tLon_d, tLat_d) 
 		azimuth=azimuth+360
 	}
 
-	# WTF why are we converting to radians.....????
+	# Conversion from degrees to radians
 	print(L2*2*pi/360, L1*2*pi/360, azimuth)
 }
 

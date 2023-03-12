@@ -73,6 +73,7 @@ mes URL: ${m_cities_sourceurl}
 exa tectoplot -r =EU -a -pp min 500000
 ' "${@}" || return
 
+  calcs+=("m_cities_pp")
   plots+=("m_cities_pp")
   cpts+=("m_cities_pp")
   ;;
@@ -145,7 +146,7 @@ function tectoplot_plot_cities() {
     # select all populated places within area, over the minimum population, sorted by population with largest cities last
 
     if [[ -s ${m_cities_osm} ]]; then
-      ogr2ogr -f "GPKG" -dialect sqlite -spat ${MINLON} ${MINLAT} ${MAXLON} ${MAXLAT} osm_selected.gpkg ${m_cities_osm}
+      ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} osm_selected.gpkg ${m_cities_osm} 
       ogr2ogr -f "CSV" -dialect sqlite -lco SEPARATOR=TAB -sql "SELECT lon, lat, name, englishname, CAST(allnames as VARCHAR), population FROM osm_places WHERE population >= '${m_cities_minpop[$tt]}' AND population <= '${m_cities_maxpop[$tt]}' ORDER BY population" osm_selected.csv osm_selected.gpkg
     else
       echo "City data file ${m_cities_osm} not found... attempting to download data from overpass-api.de" 
