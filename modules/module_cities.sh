@@ -222,20 +222,25 @@ function tectoplot_plot_cities() {
           # so that we can uniquely join the binstats result back to the cities.
           # So add an increasing decimal to each population value
           printf("%s\t%s\t%d\n", $1, $2, NR)
-        }' | gmt binstats ${rj[0]} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2 ${VERBOSE} > cities_bin_${tt}.dat 2>/dev/null
-
+        }' > cities_binprep_${tt}.txt 
+        
+        gmt_init_tmpdir
+          echo gmt binstats cities_binprep_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2
+          gmt binstats cities_binprep_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2 ${VERBOSE} > cities_bin_${tt}.dat 2>/dev/null
+        gmt_remove_tmpdir
+        
         gawk -F$'\t' '
-        function abs(v) { return (v>0)?v:-v }
-        # Load the binstats data with maximum population in each bin
-        (NR==FNR) {
-          line[$3]=1
-        }
-        # Load the original city data including name
-        (NR!=FNR) {
-          if (line[FNR]==1) {
-            print
+          function abs(v) { return (v>0)?v:-v }
+          # Load the binstats data with maximum population in each bin
+          (NR==FNR) {
+            line[$3]=1
           }
-        }' cities_bin_${tt}.dat cities_${tt}.dat > cities_sel_${tt}.dat
+          # Load the original city data including name
+          (NR!=FNR) {
+            if (line[FNR]==1) {
+              print
+            }
+          }' cities_bin_${tt}.dat cities_${tt}.dat > cities_sel_${tt}.dat
 
         # Based on the exact location of corner tiles, we can have cities that are
         # too close to each other to plot comfortably. So, knockout any city
@@ -339,6 +344,8 @@ function tectoplot_plot_cities() {
               }
           }' 
 
+        
+        touch cities.dat cities.left.dat cities.right.dat
         # Use the range of the points to establish the range of plot
 
         projrange=($(cat cities.dat cities.left.dat cities.right.dat | gawk -F'\t' '
@@ -388,6 +395,7 @@ function tectoplot_plot_cities() {
 
          # echo ypix is $ypix
 
+if [[ -s cities.dat ]]; then
         cat <<-EOF > cities.dem
 #!/usr/local/bin/gnuplot -persist
 set terminal pngcairo background "0xffffff" font "${m_cities_font[$tt]}" fontscale 8 size ${labelres}, ${ypix}
@@ -460,6 +468,12 @@ save_encoding = "utf8"
 plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "black"
 EOF
 
+        gnuplot cities.dem
+        gnuplot cities_eps.dem
+
+fi
+
+if [[ -s cities.right.dat ]]; then
         cat <<-EOF > cities_eps_right.dem
 #!/usr/local/bin/gnuplot -persist
 set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
@@ -496,7 +510,12 @@ save_encoding = "utf8"
 # Plot it
 plot 'cities.right.dat' using 4:5:(CityName(1,3)) with labels right tc "black"
 EOF
+        gnuplot cities_eps_right.dem
 
+
+fi
+
+if [[ -s cities.left.dat ]]; then
         cat <<-EOF > cities_eps_left.dem
 #!/usr/local/bin/gnuplot -persist
 set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
@@ -533,10 +552,10 @@ save_encoding = "utf8"
 # Plot it
 plot 'cities.left.dat' using 4:5:(CityName(1,3)) with labels left tc "black"
 EOF
-        gnuplot cities.dem
-        gnuplot cities_eps.dem
         gnuplot cities_eps_left.dem
-        gnuplot cities_eps_right.dem
+
+fi
+
         gmt_init_tmpdir
 
           # convert cities.1.png  \( +clone -alpha extract -morphology edge square:5 -threshold 50% -fill red -opaque white -transparent black \) -composite result.png
