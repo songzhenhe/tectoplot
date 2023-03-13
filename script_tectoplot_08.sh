@@ -23176,11 +23176,24 @@ function close_legend_item() {
           echo "$CENTERLON $CENTERLAT magnitude" | gmt pstext -F+f6p,Helvetica,black+jCM+a90 $VERBOSE -X6p -J -R -O -K >> ${LEGFILE}
           gmt psxy -T -X0.07i ${RJOK} >> ${LEGFILE}
 
-          EQ_LEG_MAX=9
+          EQ_LEG_MAX=$(gawk < ${F_SEIS}eqs.txt '
+          @include "tectoplot_functions.awk"
+          BEGIN {
+            getline
+            maxmag=$4
+          }
+          {
+            maxmag=($4>maxmag)?$4:maxmag
+          }
+          END {
+            print ceil(maxmag)
+          }')
 
-          if [[ $(echo "(${EQ_MAXMAG} == ${EQ_MAXMAG_DEF})" | bc) -eq 1 ]]; then
-            EQ_LEG_MAX=8
-          fi
+          # # EQ_LEG_MAX=
+
+          # if [[ $(echo "(${EQ_MAXMAG} == ${EQ_MAXMAG_DEF})" | bc) -eq 1 ]]; then
+          #   EQ_LEG_MAX=8
+          # fi
 
           for thismag in $(seq 2 $EQ_LEG_MAX); do
             if [[ $(echo "$thismag <= $EQ_MAXMAG && $thismag >= $EQ_MINMAG" | bc) -eq 1 ]]; then

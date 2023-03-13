@@ -225,7 +225,6 @@ function tectoplot_plot_cities() {
         }' > cities_binprep_${tt}.txt 
         
         gmt_init_tmpdir
-          echo gmt binstats cities_binprep_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2
           gmt binstats cities_binprep_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2 ${VERBOSE} > cities_bin_${tt}.dat 2>/dev/null
         gmt_remove_tmpdir
         
