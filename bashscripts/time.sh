@@ -33,7 +33,7 @@
 # Call with arguments will add the specified number of
 # days hours minutes seconds
 # from the current time.
-# Example: date_code_utc -7 0 0 0
+# Example: date_shift_utc -7 0 0 0
 # Returns: current date minus seven days
 
 function date_shift_utc() {
@@ -58,9 +58,48 @@ function date_shift_utc() {
           minutecount = ARGV[3]
       }
       if (ARGC > 4) {
-          secondcount = ARGV[2]
+          secondcount = ARGV[4]
       }
       timestr = strftime("%FT%T")
+      date = substr(timestr,1,10);
+      split(date,dstring,"-");
+      time = substr(timestr,12,8);
+      split(time,tstring,":");
+      the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
+      secs = mktime(the_time);
+      newtime = strftime("%FT%T", secs+daycount*24*60*60+hourcount*60*60+minutecount*60+secondcount);
+      print newtime
+      exit exitval
+  }' "$@"
+}
+
+# Same as date_shift_utc but takes a date as the first argument and applies shift to that
+
+function date_shift_utc_given() {
+  TZ=UTC0     # use UTC
+  export TZ
+
+  gawk 'BEGIN  {
+      exitval = 0
+
+      daycount=0
+      hourcount=0
+      minutecount=0
+      secondcount=0
+
+      timestr=ARGV[1]
+      if (ARGC > 2) {
+          daycount = ARGV[2]
+      }
+      if (ARGC > 3) {
+          hourcount = ARGV[3]
+      }
+      if (ARGC > 4) {
+          minutecount = ARGV[4]
+      }
+      if (ARGC > 5) {
+          secondcount = ARGV[5]
+      }
       date = substr(timestr,1,10);
       split(date,dstring,"-");
       time = substr(timestr,12,8);

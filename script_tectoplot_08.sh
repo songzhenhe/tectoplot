@@ -12634,6 +12634,7 @@ fi
       zccolorafter="red"
       if ! arg_is_flag $2; then
         zccolorbreakflag=1
+        COLOR_TIME_BREAK_TEXT_ORIG="${2}"
         COLOR_TIME_BREAK_TEXT=$(echo "${2}" | iso8601_from_partial)
         shift
       fi
@@ -12664,7 +12665,7 @@ fi
     # Replace one occurrance of seisdepth with eqtime in cpts list
     for thiscpt_num in ${#cpts[@]}; do
       ((thiscpt_num--))
-      if [[ ${cpts[$thiscpt_num]} =~ "seisdepth" ]]; then
+      if [[ $thiscpt_num -ge 0 && ${cpts[$thiscpt_num]} =~ "seisdepth" ]]; then
         replaceseiscptflag=1
         cpts[$thiscpt_num]="eqtime"
         break
@@ -17805,11 +17806,30 @@ for cptfile in ${cpts[@]} ; do
     eqtime)
 
       if [[ $zccolorbreakflag -eq 1 ]]; then
+        # Make the actual CPT 
         echo "0000-01-01T00:00:00 ${zccolorbefore} ${COLOR_TIME_BREAK_TEXT} ${zccolorbefore}" > ${F_CPTS}eqtime_text.cpt
         echo "${COLOR_TIME_BREAK_TEXT} ${zccolorafter} $(date -u +"%FT%T") ${zccolorafter}" >> ${F_CPTS}eqtime_text.cpt
         echo "B black" >> ${F_CPTS}eqtime_text.cpt
         echo "F white" >> ${F_CPTS}eqtime_text.cpt
         echo "N gray" >> ${F_CPTS}eqtime_text.cpt
+
+        # Make the CPT for the legend        
+        zc_st_3=$(date_shift_utc_given ${COLOR_TIME_BREAK_TEXT} -9 0 0 0)
+
+        zc_st_2=$(date_shift_utc_given ${COLOR_TIME_BREAK_TEXT} -8 0 0 0)
+        zc_st=$(date_shift_utc_given ${COLOR_TIME_BREAK_TEXT} -7 0 0 0)
+        zc_et=$(date_shift_utc_given ${COLOR_TIME_BREAK_TEXT} 7 0 0 0)
+        zc_et_2=$(date_shift_utc_given ${COLOR_TIME_BREAK_TEXT} 8 0 0 0)
+
+        echo "${zc_st_2} ${zccolorbefore} ${zc_st} ${zccolorbefore} L; Before " > ${F_CPTS}eqtime_text_legend.cpt
+        echo "${zc_st} ${zccolorbefore} ${COLOR_TIME_BREAK_TEXT} ${zccolorbefore};  " >> ${F_CPTS}eqtime_text_legend.cpt
+        echo "${COLOR_TIME_BREAK_TEXT} ${zccolorafter} ${zc_et} ${zccolorafter} L; ${COLOR_TIME_BREAK_TEXT_ORIG}" >> ${F_CPTS}eqtime_text_legend.cpt
+        echo "${zc_et} ${zccolorafter} ${zc_et_2} ${zccolorafter} U; After" >> ${F_CPTS}eqtime_text_legend.cpt
+        echo "B ${zccolorbefore}" >> ${F_CPTS}eqtime_text_legend.cpt
+        echo "F ${zccolorafter}" >> ${F_CPTS}eqtime_text_legend.cpt
+        echo "N ${zccolorbefore}" >> ${F_CPTS}eqtime_text_legend.cpt
+
+
       else
         gmt makecpt -Fr -T${COLOR_TIME_START_TEXT}/${COLOR_TIME_END_TEXT}/30+n -C${EQ_TIME_DEF} ${SEIS_CPT_INV} ${VERBOSE} -Z | gawk '
         {
@@ -22743,8 +22763,13 @@ if [[ $makelegendflag -eq 1 ]]; then
 
 # REQUIRES CPT
       eqtime)
-          echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
-          echo "B $SEIS_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa+l\"Earthquake time\"" >> ${LEGENDDIR}legendbars.txt
+          if [[ ${zccolorbreakflag} -eq 1 ]]; then
+            echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+            echo "B ${F_CPTS}eqtime_text_legend.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -L -S+c+s" >> ${LEGENDDIR}legendbars.txt
+          else
+            echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+            echo "B $SEIS_CPT 0.2i ${LEGEND_BAR_HEIGHT}+malu+e ${LEGENDBAR_OPTS} -S+c+s -Bxa+l\"Earthquake time\"" >> ${LEGENDDIR}legendbars.txt
+          fi
           barplotcount=$barplotcount+1
         ;;
 

@@ -40,7 +40,7 @@ opt fontscale m_cities_psfontscale float 1
     set scale factor for city labels
 opt symbol m_cities_symbol string "c"
     symbol code for city points
-opt size m_cities_size string "0.1i"
+opt size m_cities_size string "0.05i"
     size of city points
 opt fill m_cities_fill string "none"
     color for symbol fill if CPT not used
@@ -148,6 +148,12 @@ function tectoplot_plot_cities() {
     if [[ -s ${m_cities_osm} ]]; then
       ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} osm_selected.gpkg ${m_cities_osm} 
       ogr2ogr -f "CSV" -dialect sqlite -lco SEPARATOR=TAB -sql "SELECT lon, lat, name, englishname, CAST(allnames as VARCHAR), population FROM osm_places WHERE population >= '${m_cities_minpop[$tt]}' AND population <= '${m_cities_maxpop[$tt]}' ORDER BY population" osm_selected.csv osm_selected.gpkg
+
+      # osm_selected.csv contains escaped characters such as &apos;
+
+      sed < osm_selected.csv "s/&apos;/\'/g" > osm_selected_clean.csv
+      mv osm_selected_clean.csv osm_selected.csv
+
     else
       echo "City data file ${m_cities_osm} not found... attempting to download data from overpass-api.de" 
         # echo "Trying to get OSM populated place data"
