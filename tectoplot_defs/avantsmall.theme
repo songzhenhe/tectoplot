@@ -5,7 +5,6 @@ FONT_LABEL 8p,AvantGarde-Book,black
 FONT_LOGO 4p,AvantGarde-Book,black
 FONT_TAG 8p,AvantGarde-Book,black
 FONT_TITLE 8p,AvantGarde-Book,black
-FORMAT_GEO_MAP D
 MAP_ANNOT_MIN_SPACING 0p
 MAP_ANNOT_OFFSET_PRIMARY 2p
 MAP_ANNOT_OFFSET_SECONDARY 2p

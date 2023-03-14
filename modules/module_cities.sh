@@ -38,6 +38,8 @@ opt font m_cities_font string "Helvetica"
     font for city labels, as a name recognizable by fontconfig
 opt fontscale m_cities_psfontscale float 1
     set scale factor for city labels
+opt fontcolor m_cities_fontcolor string "black"
+    font fill color
 opt symbol m_cities_symbol string "c"
     symbol code for city points
 opt size m_cities_size string "0.05i"
@@ -48,6 +50,12 @@ opt stroke m_cities_stroke string "0.25p,black"
     stroke definition for city symbols
 opt trans m_cities_trans float 0
     transparency of labels (text OR tiff)
+opt outline m_cities_outline string "none"
+    specify color for text outline - turns option on
+opt outwidth m_cities_outlinewidth float 0.3
+    specify width of font outline (units are arbitrary)
+opt outtrans m_cities_outline_trans float 0
+    transparency of label outlines
 opt bin m_cities_bin float 0
     hexagonal bin size for plotting only largest cities within cells
 opt plaintext m_cities_plaintext flag 0
@@ -287,6 +295,7 @@ function tectoplot_plot_cities() {
         m_cities_toplotfile[$tt]=cities_sel_knockout_${tt}.dat
       fi
 
+
       # Plot the city symbols, largest cities on top
       if [[ "${m_cities_size[$tt]}" != "0" ]]; then      
         gawk < ${m_cities_toplotfile[$tt]} -F'\t' '{print $1 "\t" $2 "\t" $4}' | sort -n -k 3 | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE >> map.ps
@@ -335,19 +344,24 @@ function tectoplot_plot_cities() {
                 }
               }
               if ($1 > '${max_cutoff_xcoord}') {
-                print $3 "\t" $5 "\t" $4 "\t" $1-0.1 "\t" $2+yoffset > "cities.right.dat"
+                print $3 "\t" $5 "\t" $4 "\t" $1-0.1 "\t" $2+yoffset > "cities_right.dat"
               } else if ($1 < '${min_cutoff_xcoord}') {
-                print $3 "\t" $5 "\t" $4 "\t" $1+0.1 "\t" $2+yoffset > "cities.left.dat"
+                print $3 "\t" $5 "\t" $4 "\t" $1+0.1 "\t" $2+yoffset > "cities_left.dat"
               } else {
                 print $3 "\t" $5 "\t" $4 "\t" $1 "\t" $2+yoffset > "cities.dat"
               }
           }' 
 
-        
-        touch cities.dat cities.left.dat cities.right.dat
+        if [[ ! -s cities.dat && ! -s cities_left.dat  && ! -s cities_right.dat ]]; then
+          echo blah
+          return
+        fi
+
+
+        touch cities.dat cities_left.dat cities_right.dat
         # Use the range of the points to establish the range of plot
 
-        projrange=($(cat cities.dat cities.left.dat cities.right.dat | gawk -F'\t' '
+        projrange=($(cat cities.dat cities_left.dat cities_right.dat | gawk -F'\t' '
           BEGIN {
               getline;
               minX=$4; maxX=$4; minY=$5; maxY=$5
@@ -394,6 +408,7 @@ function tectoplot_plot_cities() {
 
          # echo ypix is $ypix
 
+
 if [[ -s cities.dat ]]; then
         cat <<-EOF > cities.dem
 #!/usr/local/bin/gnuplot -persist
@@ -427,8 +442,9 @@ CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
 NO_ANIMATION = 1
 # UTF8 is important so that labels come out looking right
 save_encoding = "utf8"
-plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "red"
+plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "${m_cities_fontcolor[$tt]}"
 EOF
+gnuplot cities.dem
 
         cat <<-EOF > cities_eps.dem
 #!/usr/local/bin/gnuplot -persist
@@ -464,19 +480,15 @@ save_encoding = "utf8"
 ## Last datafile plotted: "cities.dat"
 # plot "cities.dat" using 4:5 with points pt 5
 # Plot it
-plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "black"
+plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "${m_cities_fontcolor[$tt]}"
 EOF
+gnuplot cities_eps.dem
 
-        gnuplot cities.dem
-        gnuplot cities_eps.dem
-
-fi
-
-if [[ -s cities.right.dat ]]; then
-        cat <<-EOF > cities_eps_right.dem
+  if [[ ${m_cities_outline[$tt]} != "none" ]]; then
+        cat <<-EOF > cities_eps_stroke.dem
 #!/usr/local/bin/gnuplot -persist
 set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
-set output 'cities.right.eps'
+set output 'cities_stroke.eps'
 unset border
 unset key
 set datafile separator "	"
@@ -507,18 +519,36 @@ save_encoding = "utf8"
 ## Last datafile plotted: "cities.dat"
 # plot "cities.dat" using 4:5 with points pt 5
 # Plot it
-plot 'cities.right.dat' using 4:5:(CityName(1,3)) with labels right tc "black"
+plot 'cities.dat' using 4:5:(CityName(1,3)) with labels ${m_cities_just[$tt]} tc "${m_cities_outline[$tt]}"
 EOF
-        gnuplot cities_eps_right.dem
+    
+    gnuplot cities_eps_stroke.dem
 
-
+    if [[ -s cities_stroke.eps ]]; then 
+      gawk < cities_stroke.eps '
+      {
+        if ($1=="/PaintType") {
+          print "/PaintType 2 def"
+          print "/StrokeWidth '${m_cities_outlinewidth[$tt]}' def"
+        } else if ($1=="%%EndPageSetup") {
+          print "%%EndPageSetup"
+          print "2 setlinecap"
+          print "1 setlinejoin"
+        }
+        else {
+          print
+        }
+      }' > cities_stroke_fixed.eps
+    fi
+  fi
 fi
 
-if [[ -s cities.left.dat ]]; then
-        cat <<-EOF > cities_eps_left.dem
+if [[ -s cities_right.dat ]]; then
+
+cat <<-EOF > cities_eps_right.dem
 #!/usr/local/bin/gnuplot -persist
 set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
-set output 'cities.left.eps'
+set output 'cities_right.eps'
 unset border
 unset key
 set datafile separator "	"
@@ -549,10 +579,165 @@ save_encoding = "utf8"
 ## Last datafile plotted: "cities.dat"
 # plot "cities.dat" using 4:5 with points pt 5
 # Plot it
-plot 'cities.left.dat' using 4:5:(CityName(1,3)) with labels left tc "black"
+plot 'cities_right.dat' using 4:5:(CityName(1,3)) with labels right tc "${m_cities_fontcolor[$tt]}"
 EOF
-        gnuplot cities_eps_left.dem
+gnuplot cities_eps_right.dem
 
+  if [[ ${m_cities_outline[$tt]} != "none" ]]; then
+cat <<-EOF > cities_eps_right_stroke.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities_right_stroke.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities_right.dat' using 4:5:(CityName(1,3)) with labels right tc "${m_cities_outline[$tt]}"
+EOF
+    gnuplot cities_eps_right_stroke.dem
+
+    if [[ -s cities_right_stroke.eps ]]; then 
+      gawk < cities_right_stroke.eps '
+      {
+        if ($1=="/PaintType") {
+          print "/PaintType 2 def"
+          print "/StrokeWidth 0.3 def"
+        } else if ($1=="%%EndPageSetup") {
+          print "%%EndPageSetup"
+          print "2 setlinecap"
+          print "1 setlinejoin"
+        }
+        else {
+          print
+        }
+      }' > cities_right_stroke_fixed.eps
+    fi
+  fi
+fi
+
+if [[ -s cities_left.dat ]]; then
+
+cat <<-EOF > cities_eps_left.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities_left.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities_left.dat' using 4:5:(CityName(1,3)) with labels left tc "${m_cities_fontcolor[$tt]}"
+EOF
+  gnuplot cities_eps_left.dem
+
+  if [[ ${m_cities_outline[$tt]} != "none" ]]; then
+cat <<-EOF > cities_eps_left_stroke.dem
+#!/usr/local/bin/gnuplot -persist
+set terminal eps font "${m_cities_font[$tt]}" fontscale ${m_cities_psfontscale[$tt]} size $(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l), $(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)
+set output 'cities_left_stroke.eps'
+unset border
+unset key
+set datafile separator "	"
+set style data lines
+set style line 1 lc rgb 'black' pt 5   # square
+unset xtics
+unset ytics
+# Set the margins to 0 so that there is no extra whitespace around the map
+set lmargin 0
+set rmargin 0
+set tmargin 0
+set bmargin 0
+# Use the expanded map area
+set xrange [ ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set x2range [  ${llcoordP[0]} : ${urcoordP[0]} ] noreverse writeback
+set yrange [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set y2range [ ${llcoordP[1]} : ${urcoordP[1]} ] noreverse writeback
+set zrange [ * : * ] noreverse writeback
+set cbrange [ * : * ] noreverse writeback
+set rrange [ * : * ] noreverse writeback
+# Set the scaling rule for the size of the labels
+Scale(size) = log(column(size)>100?column(size):100)
+# Connect the size and text together
+CityName(String,Size) = sprintf("{/=%d %s}", Scale(Size), stringcolumn(String))
+NO_ANIMATION = 1
+# UTF8 is important so that labels come out looking right
+save_encoding = "utf8"
+## Last datafile plotted: "cities.dat"
+# plot "cities.dat" using 4:5 with points pt 5
+# Plot it
+plot 'cities_left.dat' using 4:5:(CityName(1,3)) with labels left tc "${m_cities_outline[$tt]}"
+EOF
+        gnuplot cities_eps_left_stroke.dem
+
+
+        if [[ -s cities_left_stroke.eps ]]; then 
+          gawk < cities_left_stroke.eps '
+          {
+            if ($1=="/PaintType") {
+              print "/PaintType 2 def"
+              print "/StrokeWidth 0.3 def"
+            } else if ($1=="%%EndPageSetup") {
+              print "%%EndPageSetup"
+              print "2 setlinecap"
+              print "1 setlinejoin"
+            }
+            else {
+              print
+            }
+          }' > cities_left_stroke_fixed.eps
+        fi
+    fi
 fi
 
         gmt_init_tmpdir
@@ -564,11 +749,17 @@ fi
           if [[ ${m_cities_tiffflag} -eq 1 ]]; then
              gmt grdimage cities.1.png -R${llcoordP[0]}/${urcoordP[0]}/${llcoordP[1]}/${urcoordP[1]} -JX$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l) -Xa${llcoordP[0]} -Ya${llcoordP[1]} -t${m_cities_trans[$tt]} -O -K >> map.ps
           else
+            if [[ ${m_cities_outline[$tt]} != "none" ]]; then
+              [[ -s cities_stroke_fixed.eps ]] && gmt psimage cities_stroke_fixed.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_outline_trans[$tt]} >> map.ps
+              [[ -s cities_left_stroke_fixed.eps ]] && gmt psimage cities_left_stroke_fixed.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_outline_trans[$tt]} >> map.ps
+              [[ -s cities_right_stroke_fixed.eps ]] && gmt psimage cities_right_stroke_fixed.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_outline_trans[$tt]} >> map.ps
+            fi
+
             [[ -s cities.1.eps ]] && gmt psimage cities.1.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
-            [[ -s cities.left.eps ]] && gmt psimage cities.left.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
-            [[ -s cities.right.eps ]] && gmt psimage cities.right.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
+            [[ -s cities_left.eps ]] && gmt psimage cities_left.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
+            [[ -s cities_right.eps ]] && gmt psimage cities_right.eps -Dx0/0+w$(echo "${urcoordP[0]} - ${llcoordP[0]}" | bc -l)/$(echo "${urcoordP[1]} - ${llcoordP[1]}" | bc -l)  -Xa${llcoordP[0]} -Ya${llcoordP[1]} -O -K -t${m_cities_trans[$tt]} >> map.ps
           fi
-        gmt_remove_tmpdir        fi
+        gmt_remove_tmpdir        
 
       else
         if [[ ${m_cities_noclip[$tt]} -eq 1 ]]; then
@@ -602,7 +793,7 @@ function tectoplot_legendbar_cities() {
     m_cities_pp)
       if [[ ${m_cities_nolegendflag[$tt]} -ne 1 ]]; then
         if [[ ${m_cities_cpt[$tt]} != "none" ]]; then
-          echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+          echo "G StrokeWidth 0.1i" >> ${LEGENDDIR}legendbars.txt
           echo "B ${m_cities_cpt_used[$tt]} 0.2i 0.1i+malu -W0.00001 ${LEGENDBAR_OPTS} -Bxaf+l\"City population (100k)\"" >> ${LEGENDDIR}legendbars.txt
           barplotcount=$barplotcount+1
         fi

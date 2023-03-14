@@ -289,7 +289,7 @@ fi
 # Load GMT shell functions
 source gmt_shell_functions.sh
 
-gmt gmtset D_FORMAT "%.12f"
+# gmt gmtset D_FORMAT "%.12f"
 
 ################################################################################
 # Define paths and defaults
@@ -13910,6 +13910,9 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
     POLYGONAOI=$(abs_path ${F_MAPELEMENTS}fixed_polygon.xy)
   fi
 
+
+
+
   # Create some template (empty) maps to get basic info about the map itself
   # Determine the range of projected coordinates for the bounding box and save them
   # DEFINE BSTRING
@@ -13919,6 +13922,8 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   else
     TITLE="+t\"${PLOTTITLE}\""
   fi
+
+
 
   # We allow GMT to decide where to place the lon/lat labels, but we still
   # need to set the number of decimal places manually based on the AOI.
@@ -18206,21 +18211,21 @@ fi
   #####          GMT media and map style management                          #####
   ################################################################################
 
-  # Page options
-  # Just make a giant page and trim it later using gmt psconvert -A+m
+  # # Page options
+  # # Just make a giant page and trim it later using gmt psconvert -A+m
 
   gmt gmtset PS_PAGE_ORIENTATION portrait PS_MEDIA 1000ix1000i
 
-  # Map frame options
+  # # Map frame options
 
   gmt gmtset MAP_FRAME_TYPE fancy MAP_FRAME_WIDTH 0.12c MAP_FRAME_PEN 0.25p,black
-  gmt gmtset FORMAT_GEO_MAP=D
+  # gmt gmtset FORMAT_GEO_MAP D
 
-  # Font options
-  gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black
+  # # Font options
+  # gmt gmtset FONT_ANNOT_PRIMARY 10 FONT_LABEL 10 FONT_TITLE 12p,Helvetica,black
 
-  # Symbol options
-  gmt gmtset MAP_VECTOR_SHAPE 0.5 MAP_TITLE_OFFSET 24p
+  # # Symbol options
+  # gmt gmtset MAP_VECTOR_SHAPE 0.5 MAP_TITLE_OFFSET 24p
 
   if [[ -s ${DEFDIR}${THEME_ID}.theme ]]; then
     info_msg "Setting theme to ${THEME_ID}"
@@ -18282,8 +18287,8 @@ fi
 
   # Page color
 
-  gmt gmtset PS_PAGE_COLOR ${PAGE_COLOR}
-  gmt gmtset MAP_FRAME_PEN 1p,black
+  # gmt gmtset PS_PAGE_COLOR ${PAGE_COLOR}
+  # gmt gmtset MAP_FRAME_PEN 1p,black
 
   if [[ $usecustomgmtvars -eq 1 ]]; then
     info_msg "gmt gmtset ${GMTVARS[@]}"
@@ -19876,12 +19881,11 @@ EOF
 
         mapfont=($(gmt gmtget FONT_ANNOT_PRIMARY | tr ',' '\n'))
 
-
         whitegraticuleflag=1
         if [[ $whitegraticuleflag -eq 1 ]]; then
-          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white >> map.ps
+          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} >> map.ps
         fi
-        gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE >> map.ps
+        gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D >> map.ps
         if [[ ${overridegridlinespacing} -eq 1 ]]; then
           gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
         fi
