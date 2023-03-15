@@ -163,7 +163,7 @@ function tectoplot_download_gps() {
 # column 24 - number of steps assumed, determined from our steps database
 # column 25-27 - latitude (degrees), longitude (degrees) and height (m) of station.
 
-cat <<-EOF > midas.vrt
+cat <<-EOF > "${m_gps_midas_dir}"midas.vrt
 <OGRVRTDataSource>
     <OGRVRTLayer name="midas">
         <SrcDataSource>midas.csv</SrcDataSource>
@@ -204,6 +204,7 @@ EOF
     echo "name,version,epochstart,epochend,epochdur,epochnum,epochgood,sumsamples,e_m_yr,n_m_yr,u_m_yr,se_m_yr,sn_m_yr,su_m_yr,e_offset1_m,n_offset1_m,u_offset1_m,e_outlier_frac,n_outlier_fram,u_outlier_frac,e_sd_vpair,n_sd_vpair,u_sd_vpair,nsteps,lat,lon,elev" > "${m_gps_midas_dir}"midas.csv
     gawk < "${m_gps_midas_dir}midas.IGS14.txt" '{OFS=","; $26=$26+0; while($26<-180) { $26=$26+360 }; while($26>180) {$26=$26-360}; print $0}' >> "${m_gps_midas_dir}"midas.csv
     rm -f "${m_gps_midas_dir}"midas.gpkg
+
     (
       cd "${m_gps_midas_dir}"
       ogr2ogr -f "GPKG" -nln midas midas.gpkg midas.vrt 
