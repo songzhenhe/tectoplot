@@ -9764,11 +9764,11 @@ fi
       fi
     else
       if ! arg_is_flag "${2}"; then
-        STARTTIME="${2}"
+        STARTTIME=$(echo "${2}" | iso8601_from_partial)
         shift
       fi
       if ! arg_is_flag "${2}"; then
-        ENDTIME="${2}"
+        ENDTIME=$(echo "${2}" | iso8601_from_partial)
         shift
       fi
       info_msg "Time constraints: $STARTTIME to $ENDTIME"

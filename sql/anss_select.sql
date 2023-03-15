@@ -29,9 +29,6 @@ SELECT
           1.159 * mag - 0.659
         ELSE mag
       END
-    -- Mereu, 2020
-    WHEN 'ml' THEN
-      0.62 * mag + 1.09
     ELSE mag
   END,
   CAST(time as VARCHAR),

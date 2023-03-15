@@ -563,6 +563,10 @@ function moment_tensor_rotate(Mxx,Myy,Mzz,Mxy,Mxz,Myz, r_trend, r_plunge, r_alph
 }
 
 
+# moment_tensor_to_m0() 
+
+# return the moment magnitude m0 based on the formula m0 = 1/sqrt(2) * (Mij^2)^1/2
+
 # sdr_mantissa_exponent_to_full_moment_tensor()
 # Calculate the six components of the moment tensor from strike, dip, rake and M0 in mantissa, exponent form
 #
