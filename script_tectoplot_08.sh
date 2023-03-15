@@ -19883,7 +19883,7 @@ EOF
 
         whitegraticuleflag=1
         if [[ $whitegraticuleflag -eq 1 ]]; then
-          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} >> map.ps
+          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D  >> map.ps
         fi
         gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D >> map.ps
         if [[ ${overridegridlinespacing} -eq 1 ]]; then
