@@ -7968,7 +7968,7 @@ fi
         fi
 
         RJSTRING="${rj[@]}"
-        GRATOPTS="--MAP_ANNOT_MIN_ANGLE=0 --MAP_ANNOT_OBLIQUE=anywhere"
+        GRATOPTS="--MAP_ANNOT_MIN_ANGLE=0 --MAP_ANNOT_OBLIQUE=anywhere,tick_normal --MAP_ANNOT_ORTHO=wesn"
 
         if [[ ${ARG1:1:2} == "g" ]]; then
           info_msg "[-RJ]: using global circle map ($ARG1)"
@@ -14825,8 +14825,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           if [[ -s ${EMSCDIR}emsc.gpkg ]]; then
             depselstring_emsc="AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) <= ${EQCUTMAXDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) <= ${EQCUTMAXDEPTH})) AND ((source_catalog = 'EMSC-RTS' AND 0-Z(geom) >= ${EQCUTMINDEPTH}) OR (source_catalog != 'EMSC-RTS' AND Z(geom) >= ${EQCUTMINDEPTH}))"
 
-            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected_1.gpkg ${EMSCDIR}emsc.gpkg
-            ogr2ogr -f "GPKG" -where "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring_emsc}" ${F_SEIS}emsc_selected.gpkg ${F_SEIS}emsc_selected_1.gpkg && rm -f ${F_SEIS}emsc_selected_1.gpkg
+            echo "SUBSTRING(evtype,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring_emsc}" > ogr2ogr_spat.where
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}emsc_selected.gpkg ${EMSCDIR}emsc.gpkg
+            rm -f ogr2ogr_spat.where
+
             ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}emsc_select.sql emsc_selected.csv ${F_SEIS}emsc_selected.gpkg
           
             gawk < emsc_selected.csv '
@@ -14852,9 +14854,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         if [[ $eqcattype =~ "ANSS" ]]; then
 
           if [[ -s ${ANSSDIR}anss.gpkg ]]; then
-            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}anss_selected_1.gpkg ${ANSSDIR}anss.gpkg 
-            ogr2ogr -f "GPKG" -where "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}anss_selected.gpkg ${F_SEIS}anss_selected_1.gpkg && rm -f ${F_SEIS}anss_selected_1.gpkg
-            rm -f anss_selected_1.gpkg
+          echo "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
+          ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}anss_selected.gpkg ${ANSSDIR}anss.gpkg
+          rm -f ogr2ogr_spat.where
+          echo outputting csv
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}anss_select.sql anss_selected.csv ${F_SEIS}anss_selected.gpkg
             gawk < anss_selected.csv '
               @include "tectoplot_functions.awk"
@@ -14907,9 +14910,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           if [[ -s ${ISC_EQS_DIR}iscseis.gpkg ]]; then
             # ISC event types have 'e' in the second character position if the event is a natural earthquake
 
-            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}isc_selected_1.gpkg ${ISC_EQS_DIR}iscseis.gpkg
-            ogr2ogr -f "GPKG" -where "SUBSTRING(type,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" ${F_SEIS}iscseis_selected.gpkg ${F_SEIS}isc_selected_1.gpkg && rm -f ${F_SEIS}isc_selected_1.gpkg
-
+            echo "SUBSTRING(type,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
+            ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}iscseis_selected.gpkg ${ISC_EQS_DIR}iscseis.gpkg
+            rm -f ogr2ogr_spat.where
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}isc_select.sql iscseis_selected.csv ${F_SEIS}iscseis_selected.gpkg
             gawk < iscseis_selected.csv '
               @include "tectoplot_functions.awk"
