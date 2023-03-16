@@ -7968,6 +7968,7 @@ fi
         fi
 
         RJSTRING="${rj[@]}"
+        GRATOPTS="--MAP_ANNOT_MIN_ANGLE=0 --MAP_ANNOT_OBLIQUE=anywhere"
 
         if [[ ${ARG1:1:2} == "g" ]]; then
           info_msg "[-RJ]: using global circle map ($ARG1)"
@@ -8028,6 +8029,7 @@ fi
         fi
 
         RJSTRING="${rj[@]}"
+        GRATOPTS="--MAP_ANNOT_MIN_ANGLE=0 --MAP_ANNOT_OBLIQUE=anywhere"
         recalcregionflag_bounds=1
         projcoordsflag=1
       ;;
@@ -8097,6 +8099,8 @@ fi
         fi
 
         RJSTRING="${rj[@]}"
+        GRATOPTS="--MAP_ANNOT_MIN_ANGLE=0 --MAP_ANNOT_OBLIQUE=anywhere"
+
         recalcregionflag_bounds=1
         projcoordsflag=1
       ;;
@@ -19883,9 +19887,9 @@ EOF
 
         whitegraticuleflag=1
         if [[ $whitegraticuleflag -eq 1 ]]; then
-          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D  >> map.ps
+          gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FONT_ANNOT_PRIMARY=${mapfont[0]},${mapfont[1]},white=${whitegraticulewidth},white --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D  ${GRATOPTS} >> map.ps
         fi
-        gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D >> map.ps
+        gmt psbasemap "${BSTRING[@]}" ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --FORMAT_FLOAT_MAP=${MAP_FORMAT_FLOAT_OUT} --FORMAT_GEO_OUT=D --FORMAT_GEO_MAP=D ${GRATOPTS} >> map.ps
         if [[ ${overridegridlinespacing} -eq 1 ]]; then
           gmt gmtset FORMAT_FLOAT_OUT ${OLD_FORMAT_FLOAT_OUT}
         fi
