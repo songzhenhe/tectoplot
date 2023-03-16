@@ -352,16 +352,20 @@ function tectoplot_plot_cities() {
               }
           }' 
 
+
         if [[ ! -s cities.dat && ! -s cities_left.dat  && ! -s cities_right.dat ]]; then
-          echo blah
           return
         fi
 
+        cat cat cities.dat cities_left.dat cities_right.dat > cities_combined.dat
 
         touch cities.dat cities_left.dat cities_right.dat
         # Use the range of the points to establish the range of plot
 
-        projrange=($(cat cities.dat cities_left.dat cities_right.dat | gawk -F'\t' '
+        echo cities are
+        cat cities_combined.dat
+
+        projrange=($(cat cities_combined.dat | gawk -F'\t' '
           BEGIN {
               getline;
               minX=$4; maxX=$4; minY=$5; maxY=$5
@@ -376,11 +380,16 @@ function tectoplot_plot_cities() {
             print minX, maxX, minY, maxY
           }'))
 
-        llcoord[0]=${projrange[0]}
-        urcoord[0]=${projrange[1]}
-        llcoord[1]=${projrange[2]}
-        urcoord[1]=${projrange[3]}
+        # Don't care about resolution now that we are using EPS instead of TIFF
+        # llcoord[0]=${projrange[0]}
+        # urcoord[0]=${projrange[1]}
+        # llcoord[1]=${projrange[2]}
+        # urcoord[1]=${projrange[3]}
 
+        llcoord[0]=${llcoord_map[0]}
+        urcoord[0]=${urcoord_map[0]}
+        llcoord[1]=${llcoord_map[1]}
+        urcoord[1]=${urcoord_map[1]}
 
   # We want to right justify any points that are too far to the right of the figure
   # 
@@ -399,6 +408,8 @@ function tectoplot_plot_cities() {
 
         llcoordP[1]=$(echo "${llcoord[1]} - 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
         urcoordP[1]=$(echo "${urcoord[1]} + 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
+
+        echo llcoord ${llcoord[@]}  urcoord ${urcoord[@]}
 
         # Set the width in pixels of the PNG containing the label text
         labelres=10000

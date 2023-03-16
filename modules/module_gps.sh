@@ -54,8 +54,10 @@ des -gref list available reference plates (assuming data are in IGS08 or IGS14)
 des -g2 plot GPS velocities
 opt file m_gps_userfile file "none"
   use a custom data file instead of default (MIDAS) dataset
-opt ref m_gps_ref string "none"
+opt ref m_gps_ref word "none"
   use plate with specified ID as the reference plate; "none": no transformation; "plate":use plate at plot reference point
+opt maxerr m_gps_maxerror float 9999
+  remove velocities with N or E uncertainty larger than given value (mm/yr)
 opt noplot m_gps_noplotflag flag 0
   prevent plotting of the GPS velocities
 opt fill m_gps_fill string "black"
@@ -64,7 +66,7 @@ opt linewidth m_gps_linewidth float 0
   set the line stroke width (p)
 opt linewidth m_gps_linecolor string "black"
   set the line stroke color
-opt cpt m_gps_cpt string "none"
+opt cpt m_gps_cpt word "none"
   color GPS vectors by velocity
 opt legvel m_gps_legvel float 0
   set the scale of the velocity arrow shown in the legend
@@ -101,9 +103,10 @@ mes   Note: If -pg is active then data are selected inside that polygon
 exa tectoplot -r =EU -a -g2
 ' "${@}" || return
 
-  calcs+=("m_gps_g2")
+  calcs+=("m_gps_g2")   
   plots+=("m_gps_g2")
   cpts+=("m_gps_g2")
+
   ;;
 
   -gx)
@@ -122,6 +125,43 @@ opn list m_gps_lsq_list list ""
   ' "${@}" || return
   after_plots+=("m_gps_gmat")
   ;;
+
+    -gg2)
+    tectoplot_get_opts_inline '
+des -gg2 interpolate GPS velocities using GMT gpsgridder module
+opt res m_gps_gg2_res word "2m"
+    spacing of interpolation points
+opt poisson m_gps_gg2_poisson float 0.5
+    Poissons ration for elasting Greens functions (0 to 1)
+opt residuals m_gps_gg2_residflag flag 0
+    plot GPS residual velocities (data - prediction)
+opt noave m_gps_gg2_noaveflag flag 0
+    do not plot interpolated velocity vectors
+opt noave0 m_gps_gg2_noave0flag flag 0
+    do not plot interpolated velocity vectors with 0 nearby data points
+opt subsample m_gps_gg2_subsample float 1
+    subsample velocity arrows by the specified factor
+opt maxshear m_gps_gg2_maxshearflag flag 0
+    plot grid of maximum shear strain rate
+opt secinv m_gps_gg2_secinvflag flag 0
+    plot grid of second invariant of strain rate tensor
+opt strdil m_gps_gg2_strdilflag flag 0
+    plot dilatation of strain rate tensor grid
+opt rot m_gps_gg2_rot flag 0
+    plot rotation rate grid 
+opt cross m_gps_gg2_cross flag 0
+    plot strain crosses
+opt grdtrans m_gps_gg2_trans float 0
+    transparency of grid plots
+mes  poisson is Poissons ratio for the elastic Greens functions (0-1)
+mes  Duplicated GPS sites are culled, keeping first
+  ' "${@}" || return
+
+  calcs+=("m_gps_gg2")
+  cpts+=("m_gps_gg2")
+  plots+=("m_gps_gg2")
+  ;;
+
   esac
 
 }
@@ -227,7 +267,6 @@ function tectoplot_calc_gps()  {
 
   case $1 in
     m_gps_g2)
-  
     tectoplot_calc_caught=1
 
   # This section transforms default (MIDAS) or user-specified data into plottable GPS velocities
@@ -243,9 +282,8 @@ function tectoplot_calc_gps()  {
 
     if [[ -s ${m_gps_midas_file} ]]; then
       info_msg "Selecting data within AOI from MIDAS GPS file"
-
       ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} midas_selected_${tt}.gpkg ${m_gps_midas_file} 
-      ogr2ogr -f "CSV" -lco SEPARATOR=TAB -dialect sql -sql "SELECT lon, lat, e_m_yr*1000, n_m_yr*1000, se_m_yr*1000, sn_m_yr*1000, 0, name, u_m_yr*1000, su_m_yr*1000, elev FROM midas WHERE ABS(n_m_yr) < 1 AND ABS(e_m_yr) < 1 AND ABS(u_m_yr) < 1" /vsistdout/ midas_selected_1.gpkg | gawk '
+      ogr2ogr -f "CSV" -lco SEPARATOR=TAB -dialect sql -sql "SELECT lon, lat, e_m_yr*1000, n_m_yr*1000, se_m_yr*1000, sn_m_yr*1000, 0, name, u_m_yr*1000, su_m_yr*1000, elev FROM midas WHERE ABS(n_m_yr) < 1 AND ABS(e_m_yr) < 1 AND ABS(u_m_yr) < 1" /vsistdout/ midas_selected_${tt}.gpkg | gawk '
         BEGIN {
           OFS="\t"
         }
@@ -268,13 +306,15 @@ function tectoplot_calc_gps()  {
       }' > gsrm_${tt}.txt
     fi
 
-    # For now, combine the files into a standard PSVELO format file
+    # For now, combine the files into a standard PSVELO format file, filtering based on uncertainties and preferring MIDAS sites
     touch midas_${tt}.txt gsrm_${tt}.txt
     cat midas_${tt}.txt gsrm_${tt}.txt | gawk '
         {
           if (id[tolower($8)]!=1) {
             id[tolower($8)]=1
-            print
+            if ($5 <= '${m_gps_maxerror[$tt]}' && $6 <= '${m_gps_maxerror[$tt]}') {
+              print
+            }
           }
         }' > combined_${tt}.txt
     m_gps_file[$tt]=combined_${tt}.txt
@@ -461,15 +501,20 @@ function tectoplot_calc_gps()  {
 
 function tectoplot_cpt_gps() {
   case $1 in
-  m_gps_g2)
-
+    m_gps_g2)
     if [[ ${m_gps_cpt[$tt]} != "none" ]]; then
-
       gmt makecpt -C${m_gps_cpt[$tt]} -I -Do -T${m_gps_minvel[$tt]}/${m_gps_maxvel[$tt]} -Z -N $VERBOSE > ${F_CPTS}gps_${tt}.cpt
       m_gps_cpt_used[$tt]=${F_CPTS}gps_${tt}.cpt
-
       tectoplot_cpt_caught=1
     fi
+    ;;
+    m_gps_gg2)
+      if [[ ${m_gps_gg2_maxshearflag[$tt]} -eq 1 ]]; then
+        gmt makecpt -Fr -T0/300/0.1 -Z -Cjet > shear.cpt
+      elif [[ ${m_gps_gg2_secinvflag[$tt]} -eq 1 ]]; then
+        gmt makecpt -Fr -T1/2000/1+l -Q -Z -D -Cjet > ${F_CPTS}secinv.cpt
+      fi
+      tectoplot_cpt_caught=1
     ;;
   esac
 }
@@ -478,112 +523,113 @@ function tectoplot_plot_gps() {
   case $1 in
     m_gps_g2)
 
-    info_msg "[-g2]: Plotting GPS velcocities: ${m_gps_file[$tt]}"
+      info_msg "[-g2]: Plotting GPS velcocities: ${m_gps_file[$tt]}"
 
-    unset m_gps_cmd
+      unset m_gps_cmd
 
-    case ${m_gps_arrow[$tt]} in
-      default)
-        m_gps_arrowfmt[$tt]=${ARROWFMT}
-        ;;
-      narrower)
-        m_gps_arrowfmt[$tt]="0.01/0.14/0.06"
-        ;;
-      narrow)
-        m_gps_arrowfmt[$tt]="0.02/0.14/0.06"
-        ;;
-      normal)
-        m_gps_arrowfmt[$tt]="0.06/0.12/0.06"
-        ;;
-      wide)
-        m_gps_arrowfmt[$tt]="0.08/0.14/0.1"
-        ;;
-      wider)
-        m_gps_arrowfmt[$tt]="0.1/0.3/0.2"
-        ;;
-      *)
-        m_gps_arrowfmt[$tt]=${ARROWFMT}
-        ;;
-    esac
+      case ${m_gps_arrow[$tt]} in
+        default)
+          m_gps_arrowfmt[$tt]=${ARROWFMT}
+          ;;
+        narrower)
+          m_gps_arrowfmt[$tt]="0.01/0.14/0.06"
+          ;;
+        narrow)
+          m_gps_arrowfmt[$tt]="0.02/0.14/0.06"
+          ;;
+        normal)
+          m_gps_arrowfmt[$tt]="0.06/0.12/0.06"
+          ;;
+        wide)
+          m_gps_arrowfmt[$tt]="0.08/0.14/0.1"
+          ;;
+        wider)
+          m_gps_arrowfmt[$tt]="0.1/0.3/0.2"
+          ;;
+        *)
+          m_gps_arrowfmt[$tt]=${ARROWFMT}
+          ;;
+      esac
 
-    if [[ ${m_gps_linewidth[$tt]} -ne 0 ]]; then
-      m_gps_strokecmd[$tt]="-W${m_gps_linewidth[$tt]}p,${m_gps_linecolor[$tt]}"
-    fi
-
-    if [[ ${m_gps_cpt[$tt]} != "none" ]]; then
-      m_gps_fillcmd[$tt]="-C${m_gps_cpt_used[$tt]}"
-    else
-      m_gps_fillcmd[$tt]="-G${m_gps_fill[$tt]}"
-    fi
-
-    if [[ ${m_gps_noplot[$tt]} -ne 1 ]]; then
-
-      if [[ ${m_gps_vertscale[$tt]} -eq 0 ]]; then
-
-        if [[ ${m_gps_zcolumn[$tt]} -eq 0 ]]; then
-          gmt psvelo ${m_gps_file[$tt]} ${m_gps_fillcmd[$tt]} ${m_gps_strokecmd[$tt]} -A${m_gps_arrowfmt[$tt]} -Se${VELSCALE}/${GPS_ELLIPSE}/0 $RJOK ${VERBOSE} >> map.ps
-        else
-          gawk < ${m_gps_file[$tt]} '{print $1, $2, $3, $4, $5, $6, $7, $'${m_gps_zcolumn[$tt]}'}' | gmt psvelo ${m_gps_fillcmd[$tt]} ${m_gps_strokecmd[$tt]} -Zu -A${m_gps_arrowfmt[$tt]} -Se${VELSCALE}/${GPS_ELLIPSE}/0 $RJOK ${VERBOSE} >> map.ps
-        fi
-
-        echo $m_gps_short_sourcestring >> ${SHORTSOURCES}
-        echo $m_gps_sourcestring >> ${LONGSOURCES}
-
-        if [[ ${m_gps_textflag[$tt]} -eq 1 ]]; then
-          gawk < ${m_gps_xyfile[$tt]} '{printf("%s %s %.1f\n", $1, $2, $4)}' | gmt pstext -Dj2p -F+f${m_gps_fontsize[$tt]}p,${m_gps_font[$tt]},${m_gps_fontcolor[$tt]}+jBL ${RJOK} ${VERBOSE} >> map.ps
-        fi
-        if [[ ${m_gps_sitetextflag[$tt]} -eq 1 ]]; then
-          gawk < ${m_gps_xyfile[$tt]} '{printf("%s %s %s\n", $1, $2, $5)}' | gmt pstext -Dj2p -F+f${m_gps_fontsize[$tt]}p,${m_gps_font[$tt]},${m_gps_fontcolor[$tt]}+jTR ${RJOK} ${VERBOSE} >> map.ps
-        fi
-      else
-        info_msg "[-g2]: plotting verticals from column ${m_gps_zcolumn[$tt]}"
-        # Velocity ellipses: in X,Y,Vx,Vy,SigX,SigY,CorXY,name format
-        local projw=$(gmt mapproject -Ww ${RJSTRING})
-        local projh=$(gmt mapproject -Wh ${RJSTRING})
-
-        if [[ ${m_gps_cpt[$tt]} == "none" ]]; then
-          # Draw arrows colored blue for down, red for up
-          gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } ($'${m_gps_zcolumn[$tt]}'>=0){print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot_pos.txt
-          gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } ($'${m_gps_zcolumn[$tt]}'<0){print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot_neg.txt
-          gmt mapproject toplot_pos.txt -R -J > toplot_project_pos.txt
-          gmt mapproject toplot_neg.txt -R -J > toplot_project_neg.txt
-          # | gmt psxy -Sv12p -W2p,black ${RJOK} ${VERBOSE} >> map.ps
-
-
-          gmt_init_tmpdir
-            gmt psvelo toplot_project_pos.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p,red -Gred -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-            gmt psvelo toplot_project_pos.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p,red -Gred -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-            gmt psvelo toplot_project_neg.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p,blue -Gblue -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-            gmt psvelo toplot_project_neg.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p,blue -Gblue -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-          gmt_remove_tmpdir
-        else
-          # Draw arrows using CPT
-          gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } {print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot.txt
-          gmt mapproject toplot.txt -R -J > toplot_project.txt
-
-          gmt_init_tmpdir
-          echo gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K
-            gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-            gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
-          gmt_remove_tmpdir
-        fi
-
-        # Vector: -Sv|V<size>[+a<angle>][+b][+e][+h<shape>][+j<just>][+l][+m][+n[<norm>[/<min>]]][+o<lon>/<lat>][+q][+r][+s][+t[b|e]<trim>][+z]
-       # Direction and length must be in columns 3-4. If -SV rather than -Sv is selected, psxy will expect azimuth and length and convert azimuths based on the chosen map projection.
-       # Append length of vector head. Note: Left and right sides are defined by looking from start to end of vector. Optional modifiers:
-       # +a Set <angle> of the vector head apex [30]
-       # +b Place a vector head at the beginning of the vector [none]. Append t for terminal, c for circle, s for square, a for arrow [Default], i for tail, A for plain arrow, and I for plain tail. Append l|r to only draw left or right side of this head [both sides].
-       # +e Place a vector head at the end of the vector [none]. Append t for terminal, c for circle, s for square, a for arrow [Default], i for tail, A for plain arrow, and I for plain tail. Append l|r to only draw left or right side of this head [both sides].
-       # +h Set vector head shape in -2/2 range [0].
-       # +j Justify vector at (b)eginning [Default], (e)nd, or (c)enter.
-
+      if [[ ${m_gps_linewidth[$tt]} -ne 0 ]]; then
+        m_gps_strokecmd[$tt]="-W${m_gps_linewidth[$tt]}p,${m_gps_linecolor[$tt]}"
       fi
-    fi
+
+      if [[ ${m_gps_cpt[$tt]} != "none" ]]; then
+        m_gps_fillcmd[$tt]="-C${m_gps_cpt_used[$tt]}"
+      else
+        m_gps_fillcmd[$tt]="-G${m_gps_fill[$tt]}"
+      fi
+
+      if [[ ${m_gps_noplot[$tt]} -ne 1 ]]; then
+
+        if [[ ${m_gps_vertscale[$tt]} -eq 0 ]]; then
+
+          if [[ ${m_gps_zcolumn[$tt]} -eq 0 ]]; then
+            gmt psvelo ${m_gps_file[$tt]} ${m_gps_fillcmd[$tt]} ${m_gps_strokecmd[$tt]} -A${m_gps_arrowfmt[$tt]} -Se${VELSCALE}/${GPS_ELLIPSE}/0 $RJOK ${VERBOSE} >> map.ps
+          else
+            gawk < ${m_gps_file[$tt]} '{print $1, $2, $3, $4, $5, $6, $7, $'${m_gps_zcolumn[$tt]}'}' | gmt psvelo ${m_gps_fillcmd[$tt]} ${m_gps_strokecmd[$tt]} -Zu -A${m_gps_arrowfmt[$tt]} -Se${VELSCALE}/${GPS_ELLIPSE}/0 $RJOK ${VERBOSE} >> map.ps
+          fi
+
+          echo $m_gps_short_sourcestring >> ${SHORTSOURCES}
+          echo $m_gps_sourcestring >> ${LONGSOURCES}
+
+          if [[ ${m_gps_textflag[$tt]} -eq 1 ]]; then
+            gawk < ${m_gps_xyfile[$tt]} '{printf("%s %s %.1f\n", $1, $2, $4)}' | gmt pstext -Dj2p -F+f${m_gps_fontsize[$tt]}p,${m_gps_font[$tt]},${m_gps_fontcolor[$tt]}+jBL ${RJOK} ${VERBOSE} >> map.ps
+          fi
+          if [[ ${m_gps_sitetextflag[$tt]} -eq 1 ]]; then
+            gawk < ${m_gps_xyfile[$tt]} '{printf("%s %s %s\n", $1, $2, $5)}' | gmt pstext -Dj2p -F+f${m_gps_fontsize[$tt]}p,${m_gps_font[$tt]},${m_gps_fontcolor[$tt]}+jTR ${RJOK} ${VERBOSE} >> map.ps
+          fi
+        else
+          info_msg "[-g2]: plotting verticals from column ${m_gps_zcolumn[$tt]}"
+          # Velocity ellipses: in X,Y,Vx,Vy,SigX,SigY,CorXY,name format
+          local projw=$(gmt mapproject -Ww ${RJSTRING})
+          local projh=$(gmt mapproject -Wh ${RJSTRING})
+
+          if [[ ${m_gps_cpt[$tt]} == "none" ]]; then
+            # Draw arrows colored blue for down, red for up
+            gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } ($'${m_gps_zcolumn[$tt]}'>=0){print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot_pos.txt
+            gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } ($'${m_gps_zcolumn[$tt]}'<0){print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot_neg.txt
+            gmt mapproject toplot_pos.txt -R -J > toplot_project_pos.txt
+            gmt mapproject toplot_neg.txt -R -J > toplot_project_neg.txt
+            # | gmt psxy -Sv12p -W2p,black ${RJOK} ${VERBOSE} >> map.ps
+
+
+            gmt_init_tmpdir
+              gmt psvelo toplot_project_pos.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p,red -Gred -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+              gmt psvelo toplot_project_pos.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p,red -Gred -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+              gmt psvelo toplot_project_neg.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p,blue -Gblue -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+              gmt psvelo toplot_project_neg.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p,blue -Gblue -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+            gmt_remove_tmpdir
+          else
+            # Draw arrows using CPT
+            gawk < ${m_gps_file[$tt]} 'BEGIN { OFMT="%.12f" } {print $1, $2, 0, $'${m_gps_zcolumn[$tt]}', 0, 0, 0, "id"}' > toplot.txt
+            gmt mapproject toplot.txt -R -J > toplot_project.txt
+
+            gmt_init_tmpdir
+            echo gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K
+              gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+bc+et+n+p -W0.2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+              gmt psvelo toplot_project.txt -Se${m_gps_vertscale[$tt]}p/0/0 -A+e+n+p -W2p+c ${m_gps_fillcmd[$tt]} -Zn -R0/${projw}/0/${projh} -JX${projw}/${projh} -O -K >> map.ps
+            gmt_remove_tmpdir
+          fi
+
+          # Vector: -Sv|V<size>[+a<angle>][+b][+e][+h<shape>][+j<just>][+l][+m][+n[<norm>[/<min>]]][+o<lon>/<lat>][+q][+r][+s][+t[b|e]<trim>][+z]
+        # Direction and length must be in columns 3-4. If -SV rather than -Sv is selected, psxy will expect azimuth and length and convert azimuths based on the chosen map projection.
+        # Append length of vector head. Note: Left and right sides are defined by looking from start to end of vector. Optional modifiers:
+        # +a Set <angle> of the vector head apex [30]
+        # +b Place a vector head at the beginning of the vector [none]. Append t for terminal, c for circle, s for square, a for arrow [Default], i for tail, A for plain arrow, and I for plain tail. Append l|r to only draw left or right side of this head [both sides].
+        # +e Place a vector head at the end of the vector [none]. Append t for terminal, c for circle, s for square, a for arrow [Default], i for tail, A for plain arrow, and I for plain tail. Append l|r to only draw left or right side of this head [both sides].
+        # +h Set vector head shape in -2/2 range [0].
+        # +j Justify vector at (b)eginning [Default], (e)nd, or (c)enter.
+
+        fi
+      fi
 
     tectoplot_plot_caught=1
     ;;
 
     m_gps_gx)
+
       # xdist, comp1, err1, comp2, err2, lon, lat, projlon, projlat, azss, az[fracint], comp1_vn, comp1_ve, comp2_vn, comp2_ve, id, source
 
       for this_data in ${F_PROFILES}*gps_data.txt; do
@@ -596,6 +642,265 @@ function tectoplot_plot_gps() {
       done
       tectoplot_plot_caught=1
     ;;
+
+    m_gps_gg2)
+
+      if [[ -s ${m_gps_file[$tt]} ]]; then
+
+        gawk < ${m_gps_file[$tt]} '
+          {
+            seen[$1,$2]++
+            if(seen[$1,$2]==1) {
+              if (NF<5) {
+                $5=0
+                $6=0
+                $7=0
+              }
+              print $1, $2, $3, $4, $5, $6, $7
+            }
+          }' > ${F_GPS}gps_init_${tt}.txt
+
+        gmt_init_tmpdir
+
+        # Use blockmean to avoid aliasing
+        gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init_${tt}.txt -fg -i0,1,2,4 -W -Vn > blk.llu 2>/dev/null
+        gmt blockmean -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -I1m ${F_GPS}gps_init_${tt}.txt -fg -i0,1,3,5 -W -Vn > blk.llv  2>/dev/null
+        gmt convert -A blk.llu blk.llv -o0-2,6,3,7 > ${F_GPS}gps_cull_${tt}.txt
+
+        # cp ${F_GPS}gps_init_${tt}.txt ${F_GPS}gps_cull_${tt}.txt
+
+        num_eigs=$(wc -l < ${F_GPS}gps_cull_${tt}.txt | gawk '{print $1/2}')
+
+        gmt gpsgridder ${F_GPS}gps_cull_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Cn$num_eigs+eigen.txt -S${m_gps_gg2_poisson[$tt]} -I${m_gps_gg2_res[$tt]} -Fd4 -fg -W -r -G${F_GPS}gps_strain_${tt}_%s.nc -Vn 2>/dev/null
+
+        # The following code is from Hackl et al., 2009; it generates various strain rate grids
+
+        crosssize=0.0001					# scaling factor for direction of max shear strain
+        orderofmagnitude=1000000	# scaling factor for colorbar of strain rate magnitude
+
+        # ---------------------------------------------------
+        # calculate velo gradient
+        #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        gmt grdgradient ${F_GPS}gps_strain_${tt}_u.nc -Gtmp.grd -A270 ${VERBOSE} -M
+        gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = e_e_${tt}.grd
+        gmt grdgradient ${F_GPS}gps_strain_${tt}_u.nc -Gtmp.grd -A180 ${VERBOSE} -M
+        gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = e_n_${tt}.grd
+        gmt grdgradient ${F_GPS}gps_strain_${tt}_v.nc -Gtmp.grd -A270 ${VERBOSE} -M
+        gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = n_e_${tt}.grd
+        gmt grdgradient ${F_GPS}gps_strain_${tt}_v.nc -Gtmp.grd -A180 ${VERBOSE} -M
+        gmt grdmath ${VERBOSE} tmp.grd $orderofmagnitude MUL = n_n_${tt}.grd
+
+        # i,j component of strain tensor (mean of e_n and n_e component):
+        gmt grdmath ${VERBOSE} e_n_${tt}.grd n_e_${tt}.grd ADD 0.5 MUL = mean_e_n_${tt}.grd
+
+        # second invariant of strain rate tensor is
+        # ell = (exx^2 + eyy^2 + 2*exy^2)^(1/2)
+        gmt grdmath ${VERBOSE} e_e_${tt}.grd SQR n_n_${tt}.grd SQR ADD mean_e_n_${tt}.grd SQR 2 MUL ADD SQRT = second_inv_${tt}.grd
+
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # calc eigenvalues, max shear strain rate, and dilatational strain rate
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        gmt grdmath ${VERBOSE} e_e_${tt}.grd n_n_${tt}.grd ADD e_e_${tt}.grd n_n_${tt}.grd SUB 2 POW mean_e_n_${tt}.grd 2 POW 4 MUL ADD SQRT ADD 2 DIV = lambda1_${tt}.grd
+        gmt grdmath ${VERBOSE} e_e_${tt}.grd n_n_${tt}.grd ADD e_e_${tt}.grd n_n_${tt}.grd SUB 2 POW mean_e_n_${tt}.grd 2 POW 4 MUL ADD SQRT SUB 2 DIV = lambda2_${tt}.grd
+        gmt grdmath ${VERBOSE} lambda1_${tt}.grd lambda2_${tt}.grd SUB 2 DIV = max_shear_${tt}.grd
+
+        gmt grdmath ${VERBOSE} lambda1_${tt}.grd lambda2_${tt}.grd ADD = str_dilatational_${tt}.grd
+
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # calc strain crosses
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+        gmt grdmath ${VERBOSE} 90 0.5 2 mean_e_n_${tt}.grd MUL e_e_${tt}.grd n_n_${tt}.grd SUB DIV 1 ATAN2 MUL 180 MUL 3.14 DIV SUB 45 ADD = phi1_${tt}.grd
+        gmt grdmath ${VERBOSE} 90 lambda2_${tt}.grd e_e_${tt}.grd SUB mean_e_n_${tt}.grd DIV 1 ATAN2 180 MUL 3.14 DIV SUB = phi2_${tt}.grd
+
+        if [[ ${m_gps_gg2_subsample[$tt]} -gt 1 ]]; then
+
+          GG_SUBSAMPLE_VAL=$(echo "${m_gps_gg2_res[$tt]} ${m_gps_gg2_subsample[$tt]}" | gawk '{print (($1+0)*$2) substr($1, length($1), 1)}')
+
+          gmt grdsample max_shear_${tt}.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gmax_shear_resample_${tt}.grd -Vn 2>/dev/null
+          gmt grdsample lambda1_${tt}.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Glambda1_resample_${tt}.grd -Vn 2>/dev/null
+          gmt grdsample lambda2_${tt}.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Glambda2_resample_${tt}.grd -Vn 2>/dev/null
+          gmt grdsample phi1_${tt}.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gphi1_resample_${tt}.grd -Vn 2>/dev/null
+          gmt grdsample phi2_${tt}.grd -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -Gphi2_resample_${tt}.grd -Vn 2>/dev/null
+
+          gmt grd2xyz max_shear_resample_${tt}.grd > max_shear_${tt}.xyz
+          gmt grd2xyz phi1_resample_${tt}.grd > phi1_${tt}.xyz
+          gmt grd2xyz phi2_resample_${tt}.grd > phi2_${tt}.xyz
+          gmt grd2xyz lambda1_resample_${tt}.grd > lambda1_${tt}.xyz
+          gmt grd2xyz lambda2_resample_${tt}.grd > lambda2_${tt}.xyz
+
+
+        else
+
+          gmt grd2xyz max_shear_${tt}.grd > max_shear_${tt}.xyz
+          gmt grd2xyz phi1_${tt}.grd > phi1_${tt}.xyz
+          gmt grd2xyz phi2_${tt}.grd > phi2_${tt}.xyz
+          gmt grd2xyz lambda1_${tt}.grd > lambda1_${tt}.xyz
+          gmt grd2xyz lambda2_${tt}.grd > lambda2_${tt}.xyz
+
+        fi
+
+
+        paste lambda1_${tt}.xyz lambda2_${tt}.xyz phi2_${tt}.xyz | gawk '{print($1, $2, $3/100, $6/100, $9)}'  > phi_shear_${tt}.xyl1l2p
+
+        # paste max_shear.xyz phi1.xyz | awk '{print($1, $2, $3, $6)}'  > phi_shear.xysp
+        # 	gawk '
+        # 		function acos(x) { return atan2((1.-x^2)^0.5,x) }
+        # 		function asin(x) { return atan2(x,(1.-x^2)^0.5) }
+        # 		{
+        # 		    pi = atan2(0,-1)
+        #         lat = $2
+        #         lon = $1
+        #         alpha = $4*pi/180
+        #         a = $3*'${crosssize}';
+        # 		    lat_right = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha)) *180/pi
+        # 		    lon_right = lon + asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+        # 		    lat_left = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha-pi)) *180/pi
+        # 		    lon_left = lon - asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+        #     }
+        # 		{
+        #       printf ("> -Z%.2f\n %9.5f %9.5f \n %9.5f %9.5f \n %9.5f %9.5f \n", a, lon_left, lat_left, lon, lat, lon_right, lat_right)
+        #     }' phi_shear.xysp > dir1
+        # 	gawk '
+        # 		function acos(x) { return atan2((1.-x^2)^0.5,x) }
+        # 		function asin(x) { return atan2(x,(1.-x^2)^0.5) }
+        # 		{
+        # 		    pi = atan2(0,-1)
+        #         lat = $2; lon = $1
+        #         alpha = $4*pi/180+pi/2
+        #         a = $3*'${crosssize}'
+        # 		    lat_right = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha)) *180/pi
+        # 		    lon_right = lon + asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi
+        # 		    lat_left = 90 - acos(cos(a)*cos((90 - lat)*pi/180) + sin(a)*sin((90 - lat)*pi/180)*cos(alpha-pi)) *180/pi
+        # 		    lon_left = lon - asin(sin(a)/sin((90-lat_right)*pi/180) * sin(alpha)) * 180/pi;
+        #     }
+        # 		{
+        #         printf ("> -Z%.2f\n %9.5f %9.5f \n %9.5f %9.5f \n %9.5f %9.5f \n", a, lon_left, lat_left, lon, lat, lon_right, lat_right)
+        #     }' phi_shear.xysp > dir2
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # calc rotational strain rate
+        #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        gmt grdmath ${VERBOSE} n_e_${tt}.grd e_n_${tt}.grd SUB 0.5 MUL = omega_${tt}.grd
+
+        gmt_remove_tmpdir
+
+        # gmt psxy dir1 -W2p,black ${RJOK} ${VERBOSE} >> map.ps
+        # gmt psxy dir2 -W2p,red ${RJOK} ${VERBOSE} >> map.ps
+
+
+        if [[ ${m_gps_gg2_rot[$44]} -eq 1 ]]; then
+          gmt grdimage omega_${tt}.grd -Ccyclic -t${m_gps_gg2_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+        fi
+        if [[ ${m_gps_gg2_strdilflag[$tt]} -eq 1 ]]; then
+          gmt grdimage str_dilatational_${tt}.grd -Cturbo -t${m_gps_gg2_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+        fi
+
+        if [[ ${m_gps_gg2_maxshearflag[$tt]} -eq 1 ]]; then
+          gmt makecpt -Fr -T0/300/0.1 -Z -Cjet > shear.cpt
+          gmt grdimage max_shear_${tt}.grd -Q -Cjet -t${m_gps_gg2_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+        fi
+
+        if [[ ${m_gps_gg2_secinvflag[$tt]} -eq 1 ]]; then
+          gmt makecpt -Fr -T1/2000/1+l -Q -Z -D -Cjet > ${F_CPTS}secinv.cpt
+          gmt grdimage second_inv_${tt}.grd -Q -C${F_CPTS}secinv.cpt -t${m_gps_gg2_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+          m_gps_gg2_bars+=("m_gps_secinv")
+        fi
+
+        # Plot strain crosses
+
+        if [[ ${m_gps_gg2_cross[$tt]} -eq 1 ]]; then
+          gmt psvelo phi_shear_${tt}.xyl1l2p -Sx0.15i -W0.2p,black -Gblack ${RJOK} ${VERBOSE} >> map.ps
+        fi
+
+
+        # Plot velocity arrows
+        if [[ -s ${F_GPS}gps_strain_${tt}_u.nc && -s ${F_GPS}gps_strain_${tt}_v.nc ]]; then
+
+          gmt_init_tmpdir
+
+          gmt grdmath ${F_GPS}gps_strain_${tt}_u.nc SQR ${F_GPS}gps_strain_${tt}_v.nc SQR ADD SQRT = ${F_GPS}gps_vel_${tt}.nc
+          # gmt grdimage ${F_GPS}gps_vel.nc -Cturbo ${RJOK} ${VERBOSE} >> map.ps
+
+          # Recover the GPS velocity components
+          gmt grd2xyz ${F_GPS}gps_strain_${tt}_u.nc > ${F_GPS}gps_strain_${tt}_u.txt
+          gmt grd2xyz ${F_GPS}gps_strain_${tt}_v.nc | gawk '{print $3, 0, 0, 0}' > ${F_GPS}gps_strain_${tt}_v.txt
+
+          if [[ ${m_gps_gg2_subsample[$tt]} -gt 1 ]]; then
+
+          GG_SUBSAMPLE_VAL=$(echo "${m_gps_gg2_res[$tt]} ${m_gps_gg2_subsample[$tt]}" | gawk '{print (($1+0)*$2) substr($1, length($1), 1)}')
+
+            gmt grdsample ${F_GPS}gps_strain_${tt}_u.nc -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -G${F_GPS}gps_strain_${tt}_u_resample.nc -Vn 2>/dev/null
+            gmt grdsample ${F_GPS}gps_strain_${tt}_v.nc -I${GG_SUBSAMPLE_VAL}/${GG_SUBSAMPLE_VAL} -G${F_GPS}gps_strain_${tt}_v_resample.nc -Vn 2>/dev/null
+            gmt grd2xyz ${F_GPS}gps_strain_${tt}_u_resample.nc > ${F_GPS}gps_strain_${tt}_u_resample.txt
+            gmt grd2xyz ${F_GPS}gps_strain_${tt}_v_resample.nc > ${F_GPS}gps_strain_${tt}_v_resample.txt
+
+            paste ${F_GPS}gps_strain_${tt}_u_resample.txt ${F_GPS}gps_strain_${tt}_v_resample.txt | gawk '{print $1, $2, $3, $6, 0, 0, 0} '> ${F_GPS}gps_strain_${tt}.txt
+
+            # gmt blockmean ${F_GPS}gps_cull_${tt}.txt -Sn -R${F_GPS}gps_strain_${tt}_v_resample.nc -C -E -fg | gawk '{print $1, $2, $3}' > ${F_GPS}gps_ptnum.txt
+            gmt xyz2grd ${F_GPS}gps_cull_${tt}.txt -R${F_GPS}gps_strain_${tt}_v_resample.nc -An -G${F_GPS}gps_number_${tt}.nc
+
+          else
+            paste ${F_GPS}gps_strain_${tt}_u.txt ${F_GPS}gps_strain_${tt}_v.txt > ${F_GPS}gps_strain_${tt}.txt
+
+            # Get the number of GPS velocities within each cell
+            # gmt blockmean ${F_GPS}gps_cull_${tt}.txt -Sn -R${F_GPS}gps_strain_${tt}_v.nc -C -E -fg | gawk '{print $1, $2, $3}' > ${F_GPS}gps_ptnum.txt
+            gmt xyz2grd ${F_GPS}gps_cull_${tt}.txt -R${F_GPS}gps_strain_${tt}_v.nc -An -G${F_GPS}gps_number_${tt}.nc
+          fi
+
+          gmt grdtrack ${F_GPS}gps_strain_${tt}.txt -G${F_GPS}gps_number_${tt}.nc -Z -N | gawk '
+            {
+              if ($1=="NaN") {
+                $1=0
+              }
+              printf("%.0f\n", $1)
+            } '> ${F_GPS}near_num_${tt}.txt
+
+          rm -f ./gps_g_withdata.txt
+          rm -f ./gps_g_withonedata.txt
+          rm -f ./gps_g_withoutdata.txt
+
+          paste ${F_GPS}near_num_${tt}.txt ${F_GPS}gps_strain_${tt}.txt | gawk '
+            {
+              if ($1>1) {
+                $1=""
+                print $0 > "./gps_g_withdata.txt"
+              } else if ($1==1){
+                $1=""
+                print $0 > "./gps_g_withonedata.txt"
+              } else {
+                $1=""
+                print $0 > "./gps_g_withoutdata.txt"
+              }
+            }'
+
+          mv gps_g_* ${F_GPS}
+
+          gmt_remove_tmpdir
+
+          if [[ ${m_gps_gg2_noaveflag[$tt]} -ne 1 ]]; then
+            [[ -s ${F_GPS}gps_g_withdata.txt ]] && gmt psvelo ${F_GPS}gps_g_withdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gblack -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+            [[ -s ${F_GPS}gps_g_withonedata.txt ]] && gmt psvelo ${F_GPS}gps_g_withonedata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggray -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+
+            if [[ ${m_gps_gg2_noave0flag[$tt]} -ne 1 ]]; then
+              [[ -s ${F_GPS}gps_g_withoutdata.txt ]] && gmt psvelo ${F_GPS}gps_g_withoutdata.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Gwhite -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+            fi
+          fi
+          # gmt grdvector -Ix10/10 ${F_GPS}gps_strain_${tt}_u.nc ${F_GPS}gps_strain_${tt}_v.nc ${RJOK} ${VERBOSE} -Q0.03i+e -Gblue -W.4,blue -S120i --MAP_VECTOR_SHAPE=0.2  >> map.ps
+        fi
+
+        if [[ ${m_gps_gg2_residflag[$tt]} -eq 1 ]]; then
+          # Calculate and plot the residuals
+          gmt grdtrack ${F_GPS}gps_cull_${tt}.txt -G${F_GPS}gps_strain_${tt}_u.nc -G${F_GPS}gps_strain_${tt}_v.nc -Z > ${F_GPS}gps_extract.txt
+          paste ${F_GPS}gps_cull_${tt}.txt ${F_GPS}gps_extract.txt | gawk '{ print $1, $2, $3-$8, $4-$9, 0, 0, 0}' > ${F_GPS}gps_g_residual.txt
+
+          if [[ -s ${F_GPS}gps_g_residual.txt ]]; then
+            gmt psvelo ${F_GPS}gps_g_residual.txt -W${GPS_LINEWIDTH},${GPS_LINECOLOR} -Ggreen -A${ARROWFMT} -Se$VELSCALE/${GPS_ELLIPSE}/0 -L $RJOK $VERBOSE >> map.ps
+          fi
+        fi
+      fi
+      tectoplot_plot_caught=1
+
+      ;;
   esac
 }
 
@@ -613,6 +918,19 @@ function tectoplot_legendbar_gps() {
         barplotcount=$barplotcount+1
       fi
       tectoplot_legendbar_caught=1
+    ;;
+    m_gps_gg2)
+      for this_bar in ${m_gps_gg2_bars[@]}; do
+        case $this_bar in
+          m_gps_secinv)
+            echo "G ${LEGEND_BAR_GAP}" >> ${LEGENDDIR}legendbars.txt
+            echo "B ${F_CPTS}secinv.cpt 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"Second invariant of strain rate\"" >> ${LEGENDDIR}legendbars.txt
+            barplotcount=$barplotcount+1
+          ;;
+        esac
+      done
+      tectoplot_legendbar_caught=1
+
     ;;
   esac
 }
