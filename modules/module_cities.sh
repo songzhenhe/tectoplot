@@ -357,13 +357,11 @@ function tectoplot_plot_cities() {
           return
         fi
 
-        cat cat cities.dat cities_left.dat cities_right.dat > cities_combined.dat
-
         touch cities.dat cities_left.dat cities_right.dat
-        # Use the range of the points to establish the range of plot
 
-        echo cities are
-        cat cities_combined.dat
+        cat cat cities.dat cities_left.dat cities_right.dat > cities_combined.dat 
+
+        # Use the range of the points to establish the range of plot
 
         projrange=($(cat cities_combined.dat | gawk -F'\t' '
           BEGIN {
@@ -408,8 +406,6 @@ function tectoplot_plot_cities() {
 
         llcoordP[1]=$(echo "${llcoord[1]} - 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
         urcoordP[1]=$(echo "${urcoord[1]} + 0.2*(${urcoord[1]} - ${llcoord[1]})" | bc -l)
-
-        echo llcoord ${llcoord[@]}  urcoord ${urcoord[@]}
 
         # Set the width in pixels of the PNG containing the label text
         labelres=10000
