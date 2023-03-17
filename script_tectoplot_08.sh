@@ -1002,7 +1002,9 @@ do
 
       echo "Compiling mdenoise"
       if [[ ! -x ${MDENOISE} ]]; then
+        echo ${CXXCOMPILER} -o ${MDENOISE} ${MDENOISEDIR}mdenoise.cpp ${MDENOISEDIR}triangle.c
         ${CXXCOMPILER} -o ${MDENOISE} ${MDENOISEDIR}mdenoise.cpp ${MDENOISEDIR}triangle.c
+        # ${CXXCOMPILER} -o ${MDENOISE}_svf ${MDENOISEDIR}mdenoise_svf.cpp ${MDENOISEDIR}triangle.c
       fi
 
       echo "Compiling QRSOLVE"
@@ -11327,6 +11329,12 @@ fi
     fasttopoflag=0
     topoctrlstring=${topoctrlstring}"i"
     useowntopoctrlflag=1
+
+    if arg_is_float $2; then
+      TRI_FACT=$2
+      shift
+    fi
+
     ;;
 
   -tint) # -tint: derive terrain intensity directly from input grid dataset
@@ -13197,7 +13205,10 @@ fi
         fi
 
         if [[ $tectoplot_module_caught -eq 1 ]]; then
-          TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
+        # only add if not already in there 
+          if [[ ! " ${this_mod} " =~ " ${TECTOPLOT_ACTIVE_MODULES[@]} " ]]; then
+            TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
+          fi
           break
         fi
       fi
@@ -14857,7 +14868,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           echo "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
           ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}anss_selected.gpkg ${ANSSDIR}anss.gpkg
           rm -f ogr2ogr_spat.where
-          echo outputting csv
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}anss_select.sql anss_selected.csv ${F_SEIS}anss_selected.gpkg
             gawk < anss_selected.csv '
               @include "tectoplot_functions.awk"
@@ -21994,7 +22004,7 @@ EOF
               q)
                 gmt_init_tmpdir
                 info_msg "Calculating height above local quantile"
-                gmt grdfilter ${TOPOGRAPHY_DATA} -D2 -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE} -R${TOPOGRAPHY_DATA} -G${F_TOPO}quantile.nc
+                gmt grdfilter ${TOPOGRAPHY_DATA} -D2 -Fm${DEM_QUANTILE_RADIUS}+q${DEM_QUANTILE}  -G${F_TOPO}quantile.nc
                 gmt grdmath ${TOPOGRAPHY_DATA} ${F_TOPO}quantile.nc SUB = ${F_TOPO}quantile_diff.nc ${VERBOSE}
                 gmt_remove_tmpdir
 
@@ -22058,7 +22068,7 @@ EOF
               # Compute and render a one-sun hillshade
               h)
                 info_msg "Creating unidirectional hillshade"
-                gdaldem hillshade -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
+                gdaldem hillshade -combined -compute_edges -alt ${HS_ALT} -az ${HS_AZ} -s $MULFACT ${TOPOGRAPHY_DATA} ${F_TOPO}single_hillshade.tif -q
                 weighted_average_combine ${F_TOPO}single_hillshade.tif ${F_TOPO}intensity.tif ${UNI_FACT} ${F_TOPO}intensity.tif
               ;;
 
@@ -22069,7 +22079,11 @@ EOF
                 echo "5 254 254 254" > ${F_TOPO}slope.txt
                 echo "80 30 30 30" >> ${F_TOPO}slope.txt
                 gdaldem color-relief ${F_TOPO}slopedeg.tif ${F_TOPO}slope.txt ${F_TOPO}slope.tif -q
+                
                 weighted_average_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${SLOPE_FACT} ${F_TOPO}intensity.tif
+                # multiply_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
+                # overlay_combine ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
+                # darken_combine_alpha ${F_TOPO}slope.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity.tif
               ;;
 
               # Compute and render the sky view factor
@@ -22097,17 +22111,25 @@ EOF
                   MERCMINLAT=$DEM_MINLAT
                 fi
 
-                # start_time=`date +%s`
-                ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}svf.flt -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
-                # echo run time is $(expr `date +%s` - $start_time) s
+                NUM_SVF_ANGLES=8
+                start_time=`date +%s`
+                ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}svf.flt -cores 8 -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+                echo svf run time is $(expr `date +%s` - $start_time) s
                 # project back to WGS1984
                 gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
 
                 zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
                 gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
 
+                # histogram stretch it
+                zrange=($(grid_zrange ${F_TOPO}svf.tif -R${F_TOPO}svf.tif  -Vn))
+
+                histogram_percentcut_byte ${F_TOPO}svf.tif 1 99 ${F_TOPO}svf_cut.tif
+
+
                 # Combine it with the existing intensity
-                weighted_average_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
+                weighted_average_combine ${F_TOPO}svf_cut.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif
+                # multiply_combine ${F_TOPO}svf.tif ${F_TOPO}intensity.tif ${F_TOPO}intensity_svmult.tif
               ;;
 
               # Compute and render the cast shadows
@@ -22239,7 +22261,7 @@ shadowalldirflag=0
                 gdal_translate -r cubic -of GTiff -ot Byte -a_nodata 255 -scale $MAX_SHADOW 0 1 254 ${F_TOPO}shadow_back_add.tif ${F_TOPO}shadowed.tif -q
 
                 # cp ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
-                gmt grdmath ${F_TOPO}shadowed.tif ISNAN 254 ${F_TOPO}shadowed.tif IFELSE = ${F_TOPO}shadowed_fixed.tif
+                gmt grdmath ${F_TOPO}shadowed.tif ISNAN 254 ${F_TOPO}shadowed.tif IFELSE = ${F_TOPO}shadowed_fixed.tif=gd:GTiff/u8
                 # gdal_calc.py -A ${F_TOPO}shadowed.tif --outfile=${F_TOPO}shadowed_fixed.tif --calc="nan_to_num(A, nan=254)" --NoDataValue=254
                 # gdal_fillnodata.py -q -md 5 ${F_TOPO}shadowed.tif ${F_TOPO}shadowed_fixed.tif
                 # gdal_calc.py --overwrite --type=Byte --format=GTiff --quiet -A ${F_TOPO}shadowed.tif --calc="((A==127)*254 + (A!=127)*A)" --outfile=${F_TOPO}shadowed_fixed.tif
@@ -22253,7 +22275,7 @@ shadowalldirflag=0
 
                 # echo "SHADOW"
                 # gdalinfo ${F_TOPO}shadow.tif
-                smoothshadowsflag=1
+                smoothshadowsflag=0
                 if [[ $smoothshadowsflag -eq 1 ]]; then
                   info_msg Smoothing shadow map
                   gmt grdfilter -fg -Fg3 ${F_TOPO}shadowed_fixed.tif -G${F_TOPO}shadow_smoothed.tif=gd:GTiff/u8 -D2
@@ -23798,6 +23820,7 @@ fi
 
 # RUN MODULE POST-PROCESSING
 # Maybe this should be outside the if..fi $noplotflag -eq 1?
+
 for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
   if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
     info_msg "Running module post-processing for ${this_mod}"

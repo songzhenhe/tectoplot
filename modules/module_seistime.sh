@@ -50,10 +50,6 @@ opn width m_seistimehist_width word "7i"
   width of plot in inches
 opn height m_seistimehist_height word "2i"
   height of plot in inches
-opn bin m_seistimehist_minmag word "auto"
-  minimum magnitude
-opn maxmag m_seistimehist_maxmag word "auto"
-  maximum magnitude
 opn mintime m_seistimehist_mintime word "auto"
   start time, ISO8601 format
 opn maxtime m_seistimehist_maxtime word "auto"
@@ -408,8 +404,6 @@ function tectoplot_post_seistime() {
         timeunit=${m_seistimehist_timecode}
       fi
 
-      echo timeunit is ${timeunit}
-      echo counttype is ${m_seistimehist_counttype}
       case ${m_seistimehist_counttype} in
         0) m_seistimehist_ylabel="Earthquake count" ;;
         1) m_seistimehist_ylabel="Earthquake freq%" ;;
@@ -419,22 +413,17 @@ function tectoplot_post_seistime() {
         5) m_seistimehist_ylabel="Earthquake freq% (log10)" ;;
       esac
 
-      echo gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit} -i0,1 -Vn -I
-
       maxcount=($(gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -I))
-      echo ${maxcount[@]}
+
       maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
 
       gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblack -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
-      echo started with $(wc -l < ${F_SEIS}seistimehist.txt)
       
       for i in $(seq 0 4); do
-        echo selecting less than ${seistimehist_mags[$i]}
         gawk < ${F_SEIS}seistimehist.txt -v cut=${seistimehist_mags[$i]} '
           ($2 < cut) {
             print
           }' > seistimehist_tmpcut.txt
-        echo selected $(wc -l < seistimehist_tmpcut.txt)
         [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
       done
       gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O >> m_seistimehist.ps

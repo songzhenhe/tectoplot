@@ -1,5 +1,5 @@
 /*
- * shadow.c
+ * svf.c
  *
  * New function implemented by Kyle Bradley, NTU
  * Created by Leland Brown on 2011 Feb 19.
@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h> // for ptrdiff_t
+#include <pthread.h>
 
 #include <math.h>
 #include <assert.h>
@@ -60,6 +61,24 @@ static const char sw_date[]    = __DATE__;
 static const char sw_format[] = "%s v%s %s";
 
 static const char *command_name;
+
+
+// global variables and global pointers to the data arrays
+static int num_threads=4;
+static int num_angles=8;
+static int dist_step=3;
+static int dist_cutoff=12;
+
+static pthread_t *threads;
+
+static float *data;                // allocated upon data load
+static float *pos_open;             // allocated after data load
+static float *neg_open;             // allocated after data load
+static int nrows;                  // set upon data load
+static int ncols;                  // set upon data load
+static int size;                   // number of rows per thread, calculated after data load
+static double xdim;
+static double ydim;
 
 static const char *get_command_name( const char *argv[] )
 {
@@ -259,7 +278,143 @@ static double fix_azimuth(double az, double xdim, double ydim )
   return val;
 }
 
+static void *processRow(void *threadId) {
+    int i,j;
+    
+    float z_max=-999999;
+
+    float *ptr;
+    float *ptr2;
+    float *ptr3;
+    float *ptr4;
+
+    double zval;
+    int lit;
+    int xp_int;
+    int yp_int;
+
+    double const_deg_m=111132;
+
+    double xp;
+    double yp;
+
+    double high_angles[num_angles];
+    double low_angles[num_angles];
+    int a;
+    double this_angle;
+    double base_zval;
+    double this_zval;
+    double last_high_el;
+    double last_low_el;
+
+    double this_el;
+    double ang_x;
+    double ang_y;
+    int d_run;
+    double low_sum;
+    double high_sum;
+    double x;
+    double y;
+    int x_int;
+    int y_int;
+    int high_angle_count;
+    int low_angle_count;
+    double ang_d;
+
+    int start = (int)threadId*(int)size;
+    int end = (int)(threadId+1)*(int)size;    
+
+    if (end > nrows) {
+        end=nrows;
+    }
+
+    for (i=start; i<end; ++i) {
+        // this is the pointer to the data array (ptr) and the output data array (ptr2)
+        ptr = data + (LONG)i * (LONG)ncols;
+        ptr2 = pos_open + (LONG)i * (LONG)ncols;
+        ptr3 = neg_open + (LONG)i * (LONG)ncols;
+
+        // Required info is: ncols, num_angles, xdim, ydim, ptr (data), ptr2 (out), dist_cutoff
+        // Declare new variables ptr3, high
+
+        for(j=0;j<ncols;j++) {
+            for(a=0;a<num_angles;a++) {
+                this_angle=deg2rad(fix_azimuth(a*360/num_angles, xdim, ydim)); // Fix azimuth
+                x=j;
+                y=i;
+                base_zval=ptr[j];
+                last_low_el=deg2rad(90);
+                last_high_el=deg2rad(-90);
+                x_int=x;
+                y_int=y;
+                d_run=0;
+                ang_x=sin(this_angle);
+                ang_y=cos(this_angle);
+                ang_d=sqrt(xdim*xdim*ang_x*ang_x+ydim*ydim*ang_y*ang_y);
+
+                while(x_int > 0 && x_int < ncols && y_int > 0 && y_int < nrows && d_run <= dist_cutoff) {
+                    d_run += dist_step;
+                    x=x+dist_step*ang_x;
+                    y=y+dist_step*ang_y;
+                    x_int=(int) x;
+                    y_int=(int) y;
+                    if (x_int < 0 || y_int < 0 || x_int >= ncols | y_int >= nrows) {
+                    break;
+                    }
+                    ptr4 = data + (LONG)y_int * (LONG)ncols;
+
+                    this_zval=ptr4[x_int];
+
+                    this_el=atan((this_zval-base_zval)/(d_run*ang_d));
+                    if (this_el > last_high_el) {
+                        last_high_el = this_el;
+                    }
+                    if (this_el < last_low_el) {
+                        last_low_el = this_el;
+                    }
+                }
+                high_angles[a]=last_high_el;
+                low_angles[a]=last_low_el;
+            }
+
+            high_sum=0;
+            low_sum=0;
+            high_angle_count=0;
+            low_angle_count=0;
+            // Avoid very steep estimates in case we have elevation outliers (such as -9999 NaNs)
+            for(int k=0;k<num_angles;k++) {
+            if (high_angles[k] > deg2rad(-70) && high_angles[k] < deg2rad(70)) {
+                high_angle_count++;
+                high_sum=high_sum+sin(high_angles[k]);
+            }
+            if (low_angles[k] < deg2rad(70) && low_angles[k] > deg2rad(-70)) {
+                low_angle_count++;
+                low_sum=low_sum+sin(low_angles[k]);
+            }
+            }
+            // ptr2[j]=((high_sum)/high_angle_count - (low_sum)/low_angle_count)/2;
+            ptr2[j]=((high_sum)/high_angle_count);
+            ptr2[j]=((low_sum)/low_angle_count);
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
+static void rowManager() {
+    int i;
+    for(i=0; i<num_threads; ++i) {
+        if (pthread_create(&threads[i], NULL, processRow, (void *)i)) {
+            printf("ERROR; return code from pthread_create()\n");
+            exit(-1);
+        }
+    }
+}
+
 #ifndef NOMAIN
+
+
 
 int main( int argc, const char *argv[] )
 {
@@ -291,15 +446,10 @@ int main( int argc, const char *argv[] )
     FILE *out_hdr_file;
     FILE *out_prj_file;
 
-    int nrows;
-    int ncols;
     double xmin;
     double xmax;
     double ymin;
     double ymax;
-    double xdim;
-    double ydim;
-    float *data;
     char *software;
 
     enum Terrain_Coord_Type coord_type;
@@ -320,7 +470,7 @@ int main( int argc, const char *argv[] )
 
     // Validate parameters:
 
-//  command_name = "SHADOW";
+//  command_name = "SVF";
     command_name = get_command_name( argv );
 
     if (argc == 1) {
@@ -396,6 +546,14 @@ int main( int argc, const char *argv[] )
             if (lat1 <= -90.0 || lat2 >= 90.0) {
                 usage_exit( "Mercator latitude limits must be between -90 and +90 (exclusive)." );
             }
+        } else if (strncmp( thisarg, "cores", 4 ) == 0)
+        {
+            if (argnum+1 >= argc) {
+                usage_exit( "Option -cores must be followed by one integer value." );
+            }
+            thisarg = argv[argnum++];
+            num_threads = strtod( thisarg, &endptr );
+            // ignore flag - cellreg is currently assumed
         } else if (strncmp( thisarg, "cellreg", 4 ) == 0 ||
                    strncmp( thisarg, "corner",  6 ) == 0)
         {
@@ -518,111 +676,19 @@ int main( int argc, const char *argv[] )
     // check pixel aspect ratio and size of map extent
     check_aspect( xmin, xmax, ymin, ymax, xdim, ydim, proj_type );
 
-    float *skyview = (float *)malloc( (LONG)nrows * (LONG)ncols * sizeof( float ) );
+    pos_open = (float *)malloc( (LONG)nrows * (LONG)ncols * sizeof( float ) );
 
-    float z_max=-999999;
+    threads = (pthread_t *)malloc(num_threads*sizeof(pthread_t));
 
-    float *ptr;
-    float *ptr2;
-    float *ptr3;
-
-    double zval;
-    int lit;
-    int xp_int;
-    int yp_int;
-    int i_smooth=4;
-
-    double const_deg_m=111132;
-
-    double xp;
-    double yp;
-
-    int dist_cutoff=10;
-    double high_angles[num_angles];
-    double low_angles[num_angles];
-    double min_skyview=1;
-    double max_skyview=-1;
-    int a;
-    double this_angle;
-    double base_zval;
-    double this_zval;
-    double last_high_el;
-    double last_low_el;
-
-    double this_el;
-    double ang_x;
-    double ang_y;
-    int d_run;
-    double low_sum;
-    double high_sum;
-    double x;
-    double y;
-    int x_int;
-    int y_int;
-    int high_angle_count;
-    int low_angle_count;
-    double ang_d;
-
-    for(i=0;i<nrows;i++) {
-      ptr = data + (LONG)i * (LONG)ncols;
-      ptr2 = skyview + (LONG)i * (LONG)ncols;
-      for(j=0;j<ncols;j++) {
-        for(a=0;a<num_angles;a++) {
-          this_angle=deg2rad(fix_azimuth(a*360/num_angles, xdim, ydim)); // Fix azimuth
-          x=j;
-          y=i;
-          base_zval=ptr[j];
-          last_low_el=deg2rad(90);
-          last_high_el=deg2rad(-90);
-          x_int=x;
-          y_int=y;
-          d_run=0;
-          ang_x=sin(this_angle);
-          ang_y=cos(this_angle);
-          ang_d=sqrt(xdim*xdim*ang_x*ang_x+ydim*ydim*ang_y*ang_y);
+    size=nrows/num_threads;
 
 
-          while(x_int > 0 && x_int < ncols && y_int > 0 && y_int < nrows && d_run <= dist_cutoff) {
-            d_run++;
-            x=x+ang_x;
-            y=y+ang_y;
-            x_int=(int) x;
-            y_int=(int) y;
-            if (x_int < 0 || y_int < 0 || x_int >= ncols | y_int >= nrows) {
-              break;
-            }
-            ptr3 = data + (LONG)y_int * (LONG)ncols;
+    rowManager();
 
-            this_zval=ptr3[x_int];
-            this_el=atan((this_zval-base_zval)/(d_run*ang_d));
-            if (this_el > last_high_el) {
-              last_high_el = this_el;
-            }
-            if (this_el < last_low_el) {
-              last_low_el = this_el;
-            }
-          }
-          high_angles[a]=last_high_el;
-          low_angles[a]=last_low_el;
-        }
-        high_sum=0;
-        low_sum=0;
-        high_angle_count=0;
-        low_angle_count=0;
-        for(int k=0;k<num_angles;k++) {
-          if (high_angles[k] > deg2rad(-70)) {
-            high_angle_count++;
-            high_sum=high_sum+sin(high_angles[k]);
-          }
-          if (low_angles[k] < deg2rad(70)) {
-            low_angle_count++;
-            low_sum=low_sum+sin(low_angles[k]);
-          }
-        }
-        // skyview[i][j]=((high_sum)/high_angle_count + (low_sum)/low_angle_count)/2;
-        ptr2[j]=((high_sum)/high_angle_count);
-      }
+    for (i=0; i<nrows; i++) {
+        pthread_join(threads[i], NULL);
     }
+
 
     if (error) {
         assert( error == TERRAIN_FILTER_MALLOC_ERROR );
@@ -641,7 +707,7 @@ int main( int argc, const char *argv[] )
     fflush( stdout );
 
     write_flt_hdr_files(
-        out_dat_file, out_hdr_file, nrows, ncols, xmin, xmax, ymin, ymax, skyview, software );
+        out_dat_file, out_hdr_file, nrows, ncols, xmin, xmax, ymin, ymax, pos_open, software );
 
     fclose( out_dat_file );
     fclose( out_hdr_file );
