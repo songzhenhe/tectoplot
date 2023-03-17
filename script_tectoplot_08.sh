@@ -22113,10 +22113,10 @@ EOF
 
                 NUM_SVF_ANGLES=8
                 start_time=`date +%s`
-                ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}svf.flt -cores 8 -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+                ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}pos.flt ${F_TOPO}neg.flt -cores 8 -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
                 echo svf run time is $(expr `date +%s` - $start_time) s
                 # project back to WGS1984
-                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}svf.flt ${F_TOPO}svf_back.tif -q
+                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}pos.flt ${F_TOPO}svf_back.tif -q
 
                 zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
                 gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q

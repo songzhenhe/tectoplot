@@ -394,7 +394,7 @@ static void *processRow(void *threadId) {
             }
             // ptr2[j]=((high_sum)/high_angle_count - (low_sum)/low_angle_count)/2;
             ptr2[j]=((high_sum)/high_angle_count);
-            ptr2[j]=((low_sum)/low_angle_count);
+            ptr3[j]=((low_sum)/low_angle_count);
         }
     }
 
@@ -436,6 +436,9 @@ int main( int argc, const char *argv[] )
     char *out_dat_name;
     char *out_hdr_name;
     char *out_prj_name;
+    char *out_dat_name_2;
+    char *out_hdr_name_2;
+    char *out_prj_name_2;
 
     double detail;
 
@@ -445,6 +448,9 @@ int main( int argc, const char *argv[] )
     FILE *out_dat_file;
     FILE *out_hdr_file;
     FILE *out_prj_file;
+    FILE *out_dat_file_2;
+    FILE *out_hdr_file_2;
+    FILE *out_prj_file_2;
 
     double xmin;
     double xmax;
@@ -508,6 +514,8 @@ int main( int argc, const char *argv[] )
 
     strncpy( extension, "flt", 4 );
     get_filenames( argv[argnum++], &out_dat_name, &out_hdr_name, &out_prj_name, extension );
+    strncpy( extension, "flt", 4 );
+    get_filenames( argv[argnum++], &out_dat_name_2, &out_hdr_name_2, &out_prj_name_2, extension );
 
     if (!strcmp( in_hdr_name, out_hdr_name )) {
         usage_exit( "Input and outfile filenames must not be the same." );
@@ -604,8 +612,25 @@ int main( int argc, const char *argv[] )
         usage_exit( 0 );
     }
 
+    out_hdr_file_2 = fopen( out_hdr_name_2, "wb" ); // use binary mode for compatibility
+    if (!out_hdr_file_2) {
+        prefix_error();
+        fprintf( stderr, "Could not open output file '%s'.\n", out_hdr_name_2 );
+        usage_exit( 0 );
+    }
+
+    out_dat_file_2 = fopen( out_dat_name_2, "wb" );
+    if (!out_dat_file_2) {
+        prefix_error();
+        fprintf( stderr, "Could not open output file '%s'.\n", out_dat_name_2 );
+        usage_exit( 0 );
+    }
+
+
     free( out_dat_name );
     free( out_hdr_name );
+    free( out_dat_name_2 );
+    free( out_hdr_name_2 );
 
     // Read .flt and .hdr files:
 
@@ -677,6 +702,7 @@ int main( int argc, const char *argv[] )
     check_aspect( xmin, xmax, ymin, ymax, xdim, ydim, proj_type );
 
     pos_open = (float *)malloc( (LONG)nrows * (LONG)ncols * sizeof( float ) );
+    neg_open = (float *)malloc( (LONG)nrows * (LONG)ncols * sizeof( float ) );
 
     threads = (pthread_t *)malloc(num_threads*sizeof(pthread_t));
 
@@ -709,8 +735,14 @@ int main( int argc, const char *argv[] )
     write_flt_hdr_files(
         out_dat_file, out_hdr_file, nrows, ncols, xmin, xmax, ymin, ymax, pos_open, software );
 
+    write_flt_hdr_files(
+        out_dat_file_2, out_hdr_file_2, nrows, ncols, xmin, xmax, ymin, ymax, neg_open, software );
+
     fclose( out_dat_file );
-    fclose( out_hdr_file );
+    fclose( out_hdr_file );    
+    
+    fclose( out_dat_file_2 );
+    fclose( out_hdr_file_2 );
 
     free( data );
     free( software );
@@ -732,8 +764,25 @@ int main( int argc, const char *argv[] )
         fclose( in_prj_file );
     }
 
+    in_prj_file = fopen( in_prj_name, "rb" );   // use binary mode for compatibility
+    if (in_prj_file) {
+        out_prj_file = fopen( out_prj_name_2, "wb" ); // use binary mode for compatibility
+        if (!out_prj_file) {
+            fprintf( stderr, "*** WARNING: " );
+            fprintf( stderr, "Could not open output file '%s'.\n", out_prj_name_2 );
+        } else {
+            // copy file and change any "ZUNITS" line to "ZUNITS NO"
+            copy_prj_file( in_prj_file, out_prj_file );
+
+            fclose( out_prj_file );
+        }
+        fclose( in_prj_file );
+    }
+
+
     free( in_prj_name );
     free( out_prj_name );
+    free( out_prj_name_2 );
 
     printf( "DONE.\n" );
 
