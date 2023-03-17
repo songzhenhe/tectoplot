@@ -198,7 +198,6 @@ function unitstring_from_two_dates_and_bincount() {
     secv[count]=60*60*24*30*12*100;   intv[count++]="100y"
 
     for (thisc=2; thisc<count; thisc++) {
-      print epoch_diff/bincount "vs" secv[thisc] > "/dev/stderr"
       if ( epoch_diff/bincount < secv[thisc]) {
         print intv[thisc-1]
         break
@@ -211,6 +210,11 @@ function unitstring_from_two_dates_and_bincount() {
 }
 
 function tectoplot_post_seistime() {
+
+  echo 1 is $1
+  case $1 in
+
+  seistime)
 
   if [[ -s ${F_SEIS}eqs.txt && $doseistimeflag -eq 1 ]]; then
     date_and_mag_range=($(gawk < ${F_SEIS}eqs.txt '
@@ -426,8 +430,8 @@ function tectoplot_post_seistime() {
           }' > seistimehist_tmpcut.txt
         [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
       done
-      gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O >> m_seistimehist.ps
-      gmt psbasemap -R -J -Bxaf -BrlSt -O >> m_seistimehist.ps
+      gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
+      gmt psbasemap -R -J -Bxaf -BrlSt -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
       
       # echo gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/50+n -F -i0,1 -Vn -Gblack -IO 
 
@@ -462,6 +466,7 @@ function tectoplot_post_seistime() {
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
   fi
-
+  ;;
+  esac
 
 }

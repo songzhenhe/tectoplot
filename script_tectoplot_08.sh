@@ -13206,9 +13206,12 @@ fi
 
         if [[ $tectoplot_module_caught -eq 1 ]]; then
         # only add if not already in there 
-          if [[ ! " ${this_mod} " =~ " ${TECTOPLOT_ACTIVE_MODULES[@]} " ]]; then
+          echo adding ${this_mod} to TECTOPLOT_ACTIVE_MODULES
+          if [[ ! " ${TECTOPLOT_ACTIVE_MODULES[@]} "  =~ " ${this_mod} " ]]; then
             TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
           fi
+          echo Now ${TECTOPLOT_ACTIVE_MODULES[@]}
+
           break
         fi
       fi
@@ -23821,10 +23824,14 @@ fi
 # RUN MODULE POST-PROCESSING
 # Maybe this should be outside the if..fi $noplotflag -eq 1?
 
+  echo modules are ${TECTOPLOT_ACTIVE_MODULES[@]}
+
 for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
+echo post $this_mod searching
   if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
     info_msg "Running module post-processing for ${this_mod}"
     cmd="tectoplot_post_${this_mod}"
+    echo "$cmd" ${this_mod}
     "$cmd" ${this_mod}
   fi
 done
