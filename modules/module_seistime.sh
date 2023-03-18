@@ -399,8 +399,8 @@ function tectoplot_post_seistime() {
 
       # M0 = 1/sqrt(2)  sqrt( sum over all i,j { Mij^2 }) 
 
-      seistimehist_colors=(red orange yellow green blue)
-      seistimehist_mags=(6 5 4 3 2)
+      seistimehist_colors=(green yellow orange red black)
+      seistimehist_mags=(2 3 4 5 6)
 
       if [[ ${m_seistimehist_timecode} == "none" ]]; then
         timeunit=$(unitstring_from_two_dates_and_bincount ${m_seistimehist_mintime} ${m_seistimehist_maxtime} 50)
@@ -421,17 +421,17 @@ function tectoplot_post_seistime() {
 
       maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
 
-      gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblack -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
+      gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblue -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
       
       for i in $(seq 0 4); do
         gawk < ${F_SEIS}seistimehist.txt -v cut=${seistimehist_mags[$i]} '
-          ($2 < cut) {
+          ($2 > cut) {
             print
           }' > seistimehist_tmpcut.txt
         [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
       done
-      gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
-      gmt psbasemap -R -J -Bxaf -BrlSt -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
+      gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
+      gmt psbasemap -R -J -Bxaf -BrlSt -O -K --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
       
       # echo gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/50+n -F -i0,1 -Vn -Gblack -IO 
 
@@ -449,7 +449,55 @@ function tectoplot_post_seistime() {
       # gmt pshistogram ${F_SEIS}seistimehist.txt -Q -T1d -JX${m_gridhist_width}/${m_gridhist_height} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=10p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
       # -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > m_seistimehist.ps
 
-       gmt psconvert m_seistimehist.ps -Tf -A+m0.5i
+      # Make the legend
+      timetext=$(echo ${timeunit} | gawk '{
+         num=$1+0
+         code=substr($1, length(num)+1, length($1)-length(num)) 
+
+         if (num==1) {
+            plural=""
+         } else {
+            plural="s"
+         }
+         if (code=="y" || code=="Y") {
+            code="year"
+         } else if (code=="O" || code=="o") {
+            code="month"
+         } else if (code=="U" || code=="u") {
+            code="week"
+         } else if (code=="K" || code=="k" || code=="d" || code=="R") {
+            code="day"
+         } else if (code=="H" || code=="h") {
+            code="hour"
+         } else if (code=="M" || code=="m") {
+            code="minute"
+         } else if (code=="S" || code=="s") {
+            code="second"
+         } else {
+            num=$1
+            code=""
+            plural=""
+         }
+         print num, code plural
+      }')
+
+
+      echo "N 7" > m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i black 0.25p 0.3i M > 6" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i red 0.25p 0.3i M 5-6" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i orange 0.25p 0.3i M 4-5" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i yellow 0.25p 0.3i M 3-4" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i green 0.25p 0.3i M 2-3" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i blue 0.25p 0.3i 2 > M" >> m_seistimehist_legend.txt
+      echo "S 0i s 0.i white 0p,white 0.i Bin: ${timetext}" >> m_seistimehist_legend.txt
+      # Close the PS file
+
+
+      gmt pslegend m_seistimehist_legend.txt -Dn0/1+w7i -R -J -O -K >> m_seistimehist.ps
+
+      gmt psxy -T -R -O >> m_seistimehist.ps
+
+      gmt psconvert m_seistimehist.ps -Tf -A+m0.5i
 
       if [[ ${m_seistimehist_onmapflag} -eq 1 ]]; then
 

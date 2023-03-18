@@ -13206,12 +13206,9 @@ fi
 
         if [[ $tectoplot_module_caught -eq 1 ]]; then
         # only add if not already in there 
-          echo adding ${this_mod} to TECTOPLOT_ACTIVE_MODULES
           if [[ ! " ${TECTOPLOT_ACTIVE_MODULES[@]} "  =~ " ${this_mod} " ]]; then
             TECTOPLOT_ACTIVE_MODULES+=("${this_mod}")
           fi
-          echo Now ${TECTOPLOT_ACTIVE_MODULES[@]}
-
           break
         fi
       fi
