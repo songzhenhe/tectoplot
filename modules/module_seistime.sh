@@ -376,7 +376,7 @@ function tectoplot_post_seistime() {
         m_seistimehist_maxtime=$(date -u +"%FT%T")
       fi
 
-      # local bopts=($(bstring_from_two_dates ${m_seistime_mintime} ${m_seistime_maxtime}))
+      local bopts=($(bstring_from_two_dates ${m_seistimehist_mintime} ${m_seistimehist_maxtime}))
 
       gawk < ${F_SEIS}eqs.txt '
       {
@@ -430,9 +430,25 @@ function tectoplot_post_seistime() {
           }' > seistimehist_tmpcut.txt
         [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
       done
-      gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
-      gmt psbasemap -R -J -Bxaf -BrlSt -O -K --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
+
+
+      if [[ ${bopts[0]} == "label" ]]; then
+        gmt psbasemap ${bopts[1]}+l"${m_seistime_mintime}   to   ${m_seistime_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+      else
+        gmt psbasemap ${bopts[1]} ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+
+        gmt psbasemap -BtrbW -Byaf+l"${m_seistimehist_ylabel}" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+      fi
+
+      # worked before
+      # gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
+      # gmt psbasemap -R -J -Bxaf -BrlSt -O -K --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
       
+
+
+
+
       # echo gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/50+n -F -i0,1 -Vn -Gblack -IO 
 
       # CUMHISTRANGE=($(gmt pshistogram ${F_SEIS}seistimehist.txt -Z1+w -Q -T1d -F -i0,1 -Vn -I))
