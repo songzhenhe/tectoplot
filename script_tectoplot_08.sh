@@ -8292,7 +8292,7 @@ fi
   scaletextoverbarflag=0  # should we plot text above the bar instead of in?
 
   SCALE_LENGTH=""  # Default
-  SCALEBAR_WIDTH_P=30
+  SCALEBAR_WIDTH_P=20
   SCALE_MAPLENGTH="1.25" # inches or cm???
   SCALE_MAPLENGTH_DIVISIBLE=0   # Increment that we round to; 0 by default
   SCALE_JUST_CODE="TL"
@@ -22111,21 +22111,22 @@ EOF
                   MERCMINLAT=$DEM_MINLAT
                 fi
 
+                # We currently calclate both positive and negative openness and use pos as the sky view factor layer...
+
                 NUM_SVF_ANGLES=8
                 start_time=`date +%s`
                 ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}pos.flt ${F_TOPO}neg.flt -cores 8 -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
                 echo svf run time is $(expr `date +%s` - $start_time) s
                 # project back to WGS1984
-                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}pos.flt ${F_TOPO}svf_back.tif -q
+                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}neg.flt ${F_TOPO}svf_back.tif -q
 
                 zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
-                gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
+                gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 254 1 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
 
                 # histogram stretch it
                 zrange=($(grid_zrange ${F_TOPO}svf.tif -R${F_TOPO}svf.tif  -Vn))
 
                 histogram_percentcut_byte ${F_TOPO}svf.tif 1 99 ${F_TOPO}svf_cut.tif
-
 
                 # Combine it with the existing intensity
                 weighted_average_combine ${F_TOPO}svf_cut.tif ${F_TOPO}intensity.tif ${SKYVIEW_FACT} ${F_TOPO}intensity.tif

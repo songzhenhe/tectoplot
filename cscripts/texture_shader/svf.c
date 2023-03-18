@@ -66,8 +66,8 @@ static const char *command_name;
 // global variables and global pointers to the data arrays
 static int num_threads=4;
 static int num_angles=8;
-static int dist_step=3;
-static int dist_cutoff=12;
+static int dist_step=5;
+static int dist_cutoff=45;
 
 static pthread_t *threads;
 
@@ -286,7 +286,8 @@ static void *processRow(void *threadId) {
     float *ptr;
     float *ptr2;
     float *ptr3;
-    float *ptr4;
+
+    float *ptr_tm;
 
     double zval;
     int lit;
@@ -361,9 +362,9 @@ static void *processRow(void *threadId) {
                     if (x_int < 0 || y_int < 0 || x_int >= ncols | y_int >= nrows) {
                     break;
                     }
-                    ptr4 = data + (LONG)y_int * (LONG)ncols;
+                    ptr_tm = data + (LONG)y_int * (LONG)ncols;
 
-                    this_zval=ptr4[x_int];
+                    this_zval=ptr_tm[x_int];
 
                     this_el=atan((this_zval-base_zval)/(d_run*ang_d));
                     if (this_el > last_high_el) {
@@ -392,9 +393,9 @@ static void *processRow(void *threadId) {
                 low_sum=low_sum+sin(low_angles[k]);
             }
             }
-            // ptr2[j]=((high_sum)/high_angle_count - (low_sum)/low_angle_count)/2;
             ptr2[j]=((high_sum)/high_angle_count);
             ptr3[j]=((low_sum)/low_angle_count);
+
         }
     }
 
