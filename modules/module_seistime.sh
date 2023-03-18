@@ -504,7 +504,7 @@ function tectoplot_post_seistime() {
       echo "S 0.1i s 0.15i orange 0.25p 0.3i M 4-5" >> m_seistimehist_legend.txt
       echo "S 0.1i s 0.15i yellow 0.25p 0.3i M 3-4" >> m_seistimehist_legend.txt
       echo "S 0.1i s 0.15i green 0.25p 0.3i M 2-3" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i blue 0.25p 0.3i 2 > M" >> m_seistimehist_legend.txt
+      echo "S 0.1i s 0.15i blue 0.25p 0.3i M < 2" >> m_seistimehist_legend.txt
       echo "S 0i s 0.i white 0p,white 0.i Bin: ${timetext}" >> m_seistimehist_legend.txt
       # Close the PS file
 
