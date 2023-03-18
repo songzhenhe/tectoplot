@@ -10863,6 +10863,11 @@ fi
     ;;
 
   -tsky) # -tsky: add sky view factor to intensity
+  NUM_SVF_DIST=45
+  NUM_SVF_SKIP=5
+  NUM_SVF_ANGLES=8 
+  NUM_SVF_CORES=8
+
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tsky:         add sky view factor to terrain intensity
@@ -10878,14 +10883,62 @@ EOF
 shift && continue
 fi
     fasttopoflag=0
-    if arg_is_float $2; then   # first arg is a number
-      NUM_ANGLES="$2"
-      shift
-    fi
-    if arg_is_float $2; then
-      SKYVIEW_FACT=$2
-      shift
-    fi
+
+    while ! arg_is_flag $2; do
+      case $2 in
+        skip)
+          shift
+          if ! arg_is_float $2; then
+            echo "[-tsky]: skip option requires positive integer argument"
+            exit 1
+          fi
+          NUM_SVF_SKIP=$2
+          shift
+        ;;
+        dist)
+          shift
+          if ! arg_is_float $2; then
+            echo "[-tsky]: skip option requires positive integer argument"
+            exit 1
+          fi
+          NUM_SVF_DIST=$2
+          shift
+        ;;
+        angles)
+          shift
+          if ! arg_is_float $2; then
+            echo "[-tsky]: skip option requires positive integer argument"
+            exit 1
+          fi
+          NUM_SVF_ANGLES=$2
+          shift
+        ;;
+        cores)
+          shift
+          if ! arg_is_float $2; then
+            echo "[-tsky]: skip option requires positive integer argument"
+            exit 1
+          fi
+          NUM_SVF_CORES=$2
+          shift
+        ;;
+        fact)
+          shift
+          if ! arg_is_float $2; then
+            echo "[-tsky]: fact option requires positive float argument"
+            exit 1
+          fi
+          SKYVIEW_FACT=$2
+          shift
+        ;;
+        *)
+          echo "[-tsky]: unknown option $2"
+          exit 1
+        ;;
+
+      esac
+    done
+
     info_msg "[-tsky]: Number of angles=${NUM_ANGLES}; combine factor=${SKYVIEW_FACT}"
     topoctrlstring=${topoctrlstring}"v"
     useowntopoctrlflag=1
@@ -22113,15 +22166,14 @@ EOF
 
                 # We currently calclate both positive and negative openness and use pos as the sky view factor layer...
 
-                NUM_SVF_ANGLES=8
                 start_time=`date +%s`
-                ${SVF} ${NUM_SVF_ANGLES} ${F_TOPO}dem_flt.flt ${F_TOPO}pos.flt ${F_TOPO}neg.flt -cores 8 -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
+                ${SVF} ${F_TOPO}dem_flt.flt ${F_TOPO}pos.flt ${F_TOPO}neg.flt -dist ${NUM_SVF_DIST} -skip ${NUM_SVF_SKIP} -angles ${NUM_SVF_ANGLES} -cores ${NUM_SVF_CORES} -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
                 echo svf run time is $(expr `date +%s` - $start_time) s
                 # project back to WGS1984
-                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}neg.flt ${F_TOPO}svf_back.tif -q
+                gdalwarp -s_srs EPSG:3395 -t_srs EPSG:4326 -ts $demwidth $demheight -te $demxmin $demymin $demxmax $demymax ${F_TOPO}pos.flt ${F_TOPO}svf_back.tif -q
 
                 zrange=($(grid_zrange ${F_TOPO}svf_back.tif -R${F_TOPO}svf_back.tif  -Vn))
-                gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 254 1 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
+                gdal_translate -of GTiff -ot Byte -a_nodata 255 -scale ${zrange[1]} ${zrange[0]} 1 254 ${F_TOPO}svf_back.tif ${F_TOPO}svf.tif -q
 
                 # histogram stretch it
                 zrange=($(grid_zrange ${F_TOPO}svf.tif -R${F_TOPO}svf.tif  -Vn))

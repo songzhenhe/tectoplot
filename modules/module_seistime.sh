@@ -122,13 +122,13 @@ function bstring_from_two_dates() {
       print "label -Bpxa5Mf1m"
     } else if (epoch_diff < 60*60*24) {
       # less than one day - annotate in hours
-            print "day"
+      #      print "day"
       # -Bp         primary
       #    a        major tick
       #     1H      1 hour (FORMAT_CLOCK_MAP)
       #       f     minor tick
       #        10m  1 minutes  (0-24)
-      print "label -Bpxa1Hf10m"
+      print "label -Bpxa1Hf10m --FORMAT_CLOCK_MAP=hh:mm"
     } else if (epoch_diff < 60*60*24*7) {
       # less than one week - annotate in days
       # -Bp         primary
@@ -140,7 +140,6 @@ function bstring_from_two_dates() {
       # -Bs         secondary
       #    a        major tick
       #     1K      name of weekday
-
       print "nolabel -Bpa6hf1h -Bsa1D"
     } else if (epoch_diff < 60*60*24*31) {
       # less than one month - annotate in weeks+days
@@ -306,12 +305,10 @@ function tectoplot_post_seistime() {
 
       if [[ ${bopts[0]} == "label" ]]; then
         gmt psbasemap ${bopts[1]}+l"${m_seistime_mintime}   to   ${m_seistime_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistime.ps
-
-        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  m_seistime.ps
+        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  m_seistime.ps
       else
         gmt psbasemap ${bopts[1]} ${bopts[2]} ${bopts[3]} -BS -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistime.ps
-
-        gmt psbasemap -BtrbW -Byaf+l"Magnitude" -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  m_seistime.ps
+        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O ${VERBOSE} >>  m_seistime.ps
       fi
 # --FORMAT_DATE_MAP="o dd" --FORMAT_CLOCK_MAP="hh:mm"
       # gmt psbasemap ${bopts[1]}'${timelabel}' ${bopts[2]} -BtESW -Byaf+l"Magnitude" -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -Byaf+lMagnitude --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=6p,Helvetica,black -O ${VERBOSE} >>  m_seistime.ps
@@ -326,9 +323,8 @@ function tectoplot_post_seistime() {
         # origin to allow concatenation of figure parts below the map.
 
         # echo "Map height is currently ${PS_HEIGHT_IN}"
-        SEISTIME_PS_DIM=($(gmt psconvert m_seistime.ps -Fseistime -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, $10/2.54-(mapwidth+0) }'))
+        SEISTIME_PS_DIM=($(gmt psconvert m_seistime.ps -Fseistime -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, ($10/2.54-(mapwidth+0))/2 }'))
 
-        # echo "It is" ${SEISTIME_PS_DIM[@]}
         gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i seistime.eps -Xa${m_seistime_shiftx} $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
 
         # Set PS_HEIGHT_IN so another module can concatenate a panel
@@ -417,53 +413,37 @@ function tectoplot_post_seistime() {
         5) m_seistimehist_ylabel="Earthquake freq% (log10)" ;;
       esac
 
+
+      gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -IO
       maxcount=($(gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -I))
 
-      maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
+      if [[ $(echo "${maxcount[3]} == 0" | bc) -eq 1 ]]; then
+        echo "[-seistimehist]: no event within requested window"
+        maxc=10
+        gmt psxy -T -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -K > m_seistimehist.ps
+      else      
 
-      gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblue -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
-      
-      for i in $(seq 0 4); do
-        gawk < ${F_SEIS}seistimehist.txt -v cut=${seistimehist_mags[$i]} '
-          ($2 > cut) {
-            print
-          }' > seistimehist_tmpcut.txt
-        [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
-      done
+        maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
+
+        gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblue -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
+        
+        for i in $(seq 0 4); do
+          gawk < ${F_SEIS}seistimehist.txt -v cut=${seistimehist_mags[$i]} '
+            ($2 > cut) {
+              print
+            }' > seistimehist_tmpcut.txt
+          [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
+        done
+      fi
 
 
       if [[ ${bopts[0]} == "label" ]]; then
-        gmt psbasemap ${bopts[1]}+l"${m_seistime_mintime}   to   ${m_seistime_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap ${bopts[1]}+l"${m_seistimehist_mintime}   to   ${m_seistimehist_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
         gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
       else
         gmt psbasemap ${bopts[1]} ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
-
-        gmt psbasemap -BtrbW -Byaf+l"${m_seistimehist_ylabel}" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap -BtEbW -Byaf+l"${m_seistimehist_ylabel}" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
       fi
-
-      # worked before
-      # gmt psbasemap -R -J -Bxaf -Byaf+l"${m_seistimehist_ylabel}" -BW -K -O --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
-      # gmt psbasemap -R -J -Bxaf -BrlSt -O -K --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --FONT_ANNOT_SECONDARY=8p,Helvetica,black >> m_seistimehist.ps
-      
-
-
-
-
-      # echo gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/50+n -F -i0,1 -Vn -Gblack -IO 
-
-      # CUMHISTRANGE=($(gmt pshistogram ${F_SEIS}seistimehist.txt -Z1+w -Q -T1d -F -i0,1 -Vn -I))
-
-      # echo histrange ${HISTRANGE[@]}
-      # echo cumhistrange ${CUMHISTRANGE[@]}
-
-      # HISTYDIFF=$(echo "${HISTRANGE[3]} - ${HISTRANGE[2]}" | bc -l)
-      # HISTRANGE[3]=$(echo "${HISTRANGE[3]} + ${HISTYDIFF}/3" | bc -l)
-
-      # Adding -N to the following command will draw the equivalent normal distribution
-
-      # gmt pshistogram ${F_SEIS}seistimehist.txt -T1d -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${HISTRANGE[2]}/${HISTRANGE[3]} -JX7i/2i -Z1+w -BtSEW -Bxaf+l"Time" --FONT_LABEL=10p,black -Byaf+l"Relative frequency" -F -i0,1 -Vn -A -K > m_seistimehist.ps
-      # gmt pshistogram ${F_SEIS}seistimehist.txt -Q -T1d -JX${m_gridhist_width}/${m_gridhist_height} -R${HISTRANGE[0]}/${HISTRANGE[1]}/0/100 -Z1+w -BNE -Bxaf -Byaf+l"Cumulative frequency" --FONT_LABEL=10p,red -W0.05p,red,- -i2,3 -Vn -A -S -O >> module_gridhist/gridhist.ps
-      # -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > m_seistimehist.ps
 
       # Make the legend
       timetext=$(echo ${timeunit} | gawk '{
@@ -521,7 +501,7 @@ function tectoplot_post_seistime() {
         # origin to allow concatenation of figure parts below the map.
 
         # echo "Map height is currently ${PS_HEIGHT_IN}"
-        SEISTIME_PS_DIM=($(gmt psconvert m_seistimehist.ps -Fm_seistimehist -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, $10/2.54-(mapwidth+0) }'))
+        SEISTIME_PS_DIM=($(gmt psconvert m_seistimehist.ps -Fm_seistimehist -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, ($10/2.54-(mapwidth+0))/2 }'))
 
         # echo "It is" ${SEISTIME_PS_DIM[@]}
         gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i m_seistimehist.eps -Xa${m_seistimehist_shiftx} $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps

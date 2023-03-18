@@ -119,22 +119,22 @@ static void usage_exit( const char *message )
         fprintf( stderr, "%s\n", message );
     }
     fprintf( stderr, "\n" );
-    fprintf( stderr, "USAGE:    %s sun_az sun_elev elev_file [-options ...]\n", command_name );
-    fprintf( stderr, "          %s 120 22 rainier_elev -mercator -32.5 45\n", command_name );
+    fprintf( stderr, "USAGE:    %s elev_file pos_outfile neg_outfile [-options ...]\n", command_name );
     fprintf( stderr, "\n" );
     fprintf( stderr, "Requires both .flt and .hdr files as input  " );
     fprintf( stderr, "(e.g., rainier_elev.flt and rainier_elev.hdr).\n" );
-    fprintf( stderr, "Writes   both .flt and .hdr files as output " );
-    fprintf( stderr, "(e.g., rainier_tex.flt  and rainier_tex.hdr).\n" );
+    fprintf( stderr, "Writes _pos.flt, _pos.hdr, _neg.flt, _neg.hdr files as output " );
     fprintf( stderr, "Also reads & writes optional .prj file if present " );
-    fprintf( stderr, "(e.g., elev.prj to tex.prj).\n" );
     fprintf( stderr, "Input and output filenames must not be the same.\n" );
     fprintf( stderr, "NOTE: Output files will be overwritten if they already exist.\n" );
     fprintf( stderr, "\n" );
-    fprintf( stderr, "Available option:\n" );
-    fprintf( stderr, "    -mercator lat1 lat2    " );
-    fprintf( stderr, "input is in normal Mercator projection (not UTM)\n" );
-    fprintf( stderr, "Values lat1 and lat2 must be in decimal degrees.\n" );
+    fprintf( stderr, "Available options:\n" );
+    fprintf( stderr, "  -mercator [lat1] [lat2]\n" );
+    fprintf( stderr, "  -cores [integer=%d]   : number of threads for parallel processing\n", num_threads);
+    fprintf( stderr, "  -angles [integer=%d]  : number of radial profiles at each point\n", num_angles);
+    fprintf( stderr, "  -dist [integer=%d]    : length of radial profiles in grid cell units\n", dist_cutoff );
+    fprintf( stderr, "  -skip [integer=%d]    : sample only every nth cell along each profile\n", dist_step );
+
     fprintf( stderr, "\n" );
     exit( EXIT_FAILURE );
 }
@@ -493,12 +493,7 @@ int main( int argc, const char *argv[] )
     char c;
 
     argnum = 1;
-    thisarg = argv[argnum++];
-    // read decimal number
-    int num_angles = strtod( thisarg, &endptr );
-    if (endptr == thisarg || *endptr != '\0') {
-        usage_exit( "First parameter (num_angles) must be a number." );
-    }
+    thisarg = argv[argnum];
 
     software = (char *)malloc( strlen(sw_format) + strlen(sw_name) + strlen(sw_version) + strlen(sw_date) );
     if (!software) {
@@ -515,6 +510,8 @@ int main( int argc, const char *argv[] )
 
     strncpy( extension, "flt", 4 );
     get_filenames( argv[argnum++], &out_dat_name, &out_hdr_name, &out_prj_name, extension );
+
+
     strncpy( extension, "flt", 4 );
     get_filenames( argv[argnum++], &out_dat_name_2, &out_hdr_name_2, &out_prj_name_2, extension );
 
@@ -529,6 +526,7 @@ int main( int argc, const char *argv[] )
             fprintf( stderr, "Extra command-line parameter '%s' not recognized.\n", thisarg );
             usage_exit( 0 );
         }
+        // This makes no sense, incrementing a string? Oh, it chops off the first -
         ++thisarg;
         if (strncmp( thisarg, "mercator", 4 ) == 0 || strncmp( thisarg, "Mercator", 4 ) == 0) {
             if (argnum+1 >= argc) {
@@ -555,6 +553,30 @@ int main( int argc, const char *argv[] )
             if (lat1 <= -90.0 || lat2 >= 90.0) {
                 usage_exit( "Mercator latitude limits must be between -90 and +90 (exclusive)." );
             }
+        } else if (strncmp( thisarg, "angles", 6) == 0) 
+        {
+            // read decimal number
+            if (argnum+1 >= argc) {
+                usage_exit( "Option -angles must be followed by one integer value." );
+            }
+            thisarg = argv[argnum++];
+            num_angles = strtod( thisarg, &endptr );
+        } else if (strncmp( thisarg, "skip", 4) == 0) 
+        {
+            // read decimal number
+            if (argnum+1 >= argc) {
+                usage_exit( "Option -skip must be followed by one integer value." );
+            }
+            thisarg = argv[argnum++];
+            dist_step = strtod( thisarg, &endptr );
+        } else if (strncmp( thisarg, "dist", 4) == 0) 
+        {
+            // read decimal number
+            if (argnum+1 >= argc) {
+                usage_exit( "Option -dist must be followed by one integer value." );
+            }
+            thisarg = argv[argnum++];
+            dist_cutoff = strtod( thisarg, &endptr );
         } else if (strncmp( thisarg, "cores", 4 ) == 0)
         {
             if (argnum+1 >= argc) {
@@ -563,18 +585,6 @@ int main( int argc, const char *argv[] )
             thisarg = argv[argnum++];
             num_threads = strtod( thisarg, &endptr );
             // ignore flag - cellreg is currently assumed
-        } else if (strncmp( thisarg, "cellreg", 4 ) == 0 ||
-                   strncmp( thisarg, "corner",  6 ) == 0)
-        {
-            // ignore flag - cellreg is currently assumed
-        } else if (strncmp( thisarg, "gridreg", 4 ) == 0 ||
-                   strncmp( thisarg, "center",  6 ) == 0)
-        {
-            fprintf( stderr, "\n" );
-            fprintf( stderr, "*** WARNING: " );
-            fprintf( stderr, "Option -%s is not yet implemented.\n", thisarg );
-            fprintf( stderr, "***          " );
-            fprintf( stderr, "Treating data as cell-registered (corner-aligned).\n" );
         } else {
             prefix_error();
             fprintf( stderr, "Command-line option '-%s' not recognized.\n", thisarg );
