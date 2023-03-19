@@ -77,6 +77,70 @@ range="minlatitude=-90&maxlatitude=90&minlongitude=-180&maxlongitude=180"
 
 function emsc_update_catalog() {
 
+  # If emsc.gpkg does not exist, we will create it in emsc_download_catalog
+  if [[ -s emsc.gpkg ]]; then
+
+    # The time of interest is the time range of the existing catalog
+    # The update period is the time between the last catalog event and now
+
+    # Upserting (update + insert) plus the use of a unique id index means
+    # we cannot somehow delete or duplicate an event - only add/replace 
+
+    mintime=$(ogr2ogr -f CSV -dialect sqlite -sql "SELECT MIN(time) FROM emsc" /vsistdout/ emsc.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
+    maxtime=$(ogr2ogr -f CSV -dialect sqlite -sql "SELECT MAX(time) FROM emsc" /vsistdout/ emsc.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
+
+    echo "Downloading events added or update for period ${mintime} to ${maxtime}, but only if updates occurred after ${maxtime}"
+
+    rm -f update.json
+    while [[ ! -s update.json ]]; do
+      curl -0 "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&starttime=${mintime}&endtime=${maxtime}&updatedafter=${maxtime}&limit=20000&orderby=time-asc" > update.json
+      if [[ ! -s update.json ]]; then
+        echo "No update data downloaded... retrying after 30 seconds"
+        sleep 30
+      fi
+      if grep -i "<HTML>" update.json; then
+        echo "Got actual error message when downloading update data... retrying after 30 seconds"
+        sleep 30
+        rm update.json
+      fi
+    done
+
+    # Entries can be upserted (updated or inserted) because we have a single UNIQUE id index
+    if grep -m 1 "{\"type\":\"Feature" update.json >/dev/null; then
+      ogr2ogr -nln emsc -upsert emsc.gpkg update.json
+      echo "Updated or added $(wc -l < update.json | gawk '{print $1}') events"
+    fi
+    # rm -f update.json
+  fi
+}
+
+# Delete events in the emsc catalog that have a lastupdated datetime later than the given datetime
+# Delete the ID index and add a new UNIQUE index on id
+
+function emsc_repair_catalog() {
+  echo "Repairing emsc.gpkg be deleting events with update time after ${1}"
+  if [[ -s emsc.gpkg ]]; then
+      beforecount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
+
+      ogrinfo -dialect sqlite -sql "DELETE FROM emsc WHERE lastupdate > '${1}'" emsc.gpkg
+
+      # ogrinfo -dialect sqlite -sql "DELETE FROM emsc WHERE lastupdate > CAST(\"${1}\" AS DateTime)" emsc.gpkg
+      aftercount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
+
+      addedcount=$(echo "$aftercount - $beforecount" | bc)
+
+      echo "Operation changed number of events by ${addedcount}"
+
+      echo "Recreating ID index"
+      ogrinfo -sql "DROP INDEX id_index" emsc.gpkg
+      ogrinfo -sql "CREATE UNIQUE INDEX id_index ON emsc (id)" emsc.gpkg
+
+  fi  
+}
+
+
+function emsc_download_catalog() {
+
   [[ $EMSC_VERBOSE -eq 1 ]] && echo "Scraping EMSC data in directory $(pwd)"
 
   if [[ ! -s emsc.gpkg ]]; then
@@ -109,7 +173,7 @@ function emsc_update_catalog() {
 
     echo "Adding indexes to GPKG"
     ogrinfo -sql "CREATE INDEX time_index ON emsc (time)" emsc.gpkg
-    ogrinfo -sql "CREATE INDEX id_index ON emsc (id)" emsc.gpkg
+    ogrinfo -sql "CREATE UNIQUE INDEX id_index ON emsc (id)" emsc.gpkg
     ogrinfo -sql "CREATE INDEX mag_index ON emsc (mag)" emsc.gpkg
 
   fi
@@ -205,12 +269,19 @@ function emsc_update_catalog() {
       got_events=0
       echo "No new events found between ${mintime} and requested ${maxtime}"
     else
+
+
+      beforecount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
+
       ogr2ogr -f GPKG -append -nln emsc emsc.gpkg batchN.json
+
+      aftercount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
+
+      addedcount=$(echo "$aftercount - $beforecount" | bc)
 
       maxtime2=$(ogr2ogr -f CSV -dialect spatialite -sql "SELECT MAX(time) FROM emsc" /vsistdout/ emsc.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
 
-      echo "Added some events between ${mintime} and ${maxtime2} (requested until ${maxtime})"
-      ogrinfo -so emsc.gpkg emsc | grep Count
+      echo "Added $addedcount events between ${mintime} and ${maxtime2} (requested until ${maxtime})"
 
     fi
   done
@@ -231,6 +302,17 @@ fi
 
 cd $EMSCDIR
 
-# Update the EMSC catalog data
 
-emsc_update_catalog
+  echo 2 is $2 3 is $3
+if [[ ${2} == "rebuild" && ! -z ${3} ]]; then
+  echo "Repairing EMSC catalog with backdate to ${3}"
+  emsc_repair_catalog ${3}
+else 
+
+  # Update events in the catalog 
+  emsc_update_catalog
+
+  # Download new events to the EMSC catalog
+
+  emsc_download_catalog
+fi

@@ -359,7 +359,7 @@ function tectoplot_plot_cities() {
 
         touch cities.dat cities_left.dat cities_right.dat
 
-        cat cat cities.dat cities_left.dat cities_right.dat > cities_combined.dat 
+        cat cities.dat cities_left.dat cities_right.dat > cities_combined.dat 
 
         # Use the range of the points to establish the range of plot
 

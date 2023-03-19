@@ -8641,6 +8641,10 @@ fi
     elif [[ $2 =~ "rebuild" ]]; then
       REBUILD="rebuild"
       shift
+      if ! arg_is_flag $2; then
+        REBUILDARG="${2}"
+        shift
+      fi
     fi
 
     if [[ ${SCRAPESTRING} =~ .*g.* ]]; then
@@ -8669,7 +8673,9 @@ fi
     fi
     if [[ ${SCRAPESTRING} =~ .*m.* ]]; then
       info_msg "Scraping EMSC seismicity"
-      source $SCRAPE_EMSC ${EMSCDIR} ${REBUILD}
+      echo       source $SCRAPE_EMSC ${EMSCDIR} ${REBUILD} ${REBUILDARG}
+
+      source $SCRAPE_EMSC ${EMSCDIR} ${REBUILD} ${REBUILDARG}
     fi
 
     # if [[ ${SCRAPESTRING} =~ .*m.* ]]; then
@@ -17812,8 +17818,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
   # tectoplot_calc_module() is registered by functions within modules
   # using calcs+=("module_id"). Any module that relies on calculating
-  # data to be used in plot() should ensure that calcs+=("module_id")
-  # is paired with plots+=("module_id") to ensure synchronization of
+  # data to be used in plot() should run calcs+=("module_id")
+  # along with plots+=("module_id") to ensure synchronization of
   # the [$tt] variable. 
 
   for this_calc in ${calcs[@]}; do
@@ -23874,14 +23880,11 @@ fi
 # RUN MODULE POST-PROCESSING
 # Maybe this should be outside the if..fi $noplotflag -eq 1?
 
-  echo modules are ${TECTOPLOT_ACTIVE_MODULES[@]}
 
 for this_mod in ${TECTOPLOT_ACTIVE_MODULES[@]}; do
-echo post $this_mod searching
   if type "tectoplot_post_${this_mod}" >/dev/null 2>&1; then
     info_msg "Running module post-processing for ${this_mod}"
     cmd="tectoplot_post_${this_mod}"
-    echo "$cmd" ${this_mod}
     "$cmd" ${this_mod}
   fi
 done
