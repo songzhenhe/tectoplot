@@ -419,7 +419,7 @@ function tectoplot_calc_gps()  {
     wc -l < gps_gmat_mn.txt | gawk '{print $1*3}' > gps_gmat_mn_actual.txt
     # Number of columns is 3
     echo "3" >> gps_gmat_mn_actual.txt
-    cat gps_gmat_mn_actual.txt gps_gmat_vec.txt gps_gmat_mat.txt | ~/Dropbox/scripts/tectoplot/cscripts/qrsolve/gps_solve > euler_bestfit.txt
+    cat gps_gmat_mn_actual.txt gps_gmat_vec.txt gps_gmat_mat.txt | ${TECTOPLOTDIR}cscripts/qrsolve/gps_solve > euler_bestfit.txt
     gawk < euler_bestfit.txt '
     @include "tectoplot_functions.awk"
     {

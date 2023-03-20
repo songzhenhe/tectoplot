@@ -7011,7 +7011,12 @@ fi
       elif [[ -s "${2}" ]]; then
         info_msg "[-r]: File specified; trying to determine extent."
 
-        EPSG=$(gdalsrsinfo $2 -o epsg 2>/dev/null | sed '/^$/d' | cut -f 2 -d ":")
+        EPSG=$(gdalsrsinfo $2 -o epsg 2>/dev/null | grep "^EPSG" | sed '/^$/d' | head -n 1 | cut -f 2 -d ":")
+
+        if [[ $(echo "$EPSG == 0" | bc) -eq 1 ]]; then
+          EPSG="4326"
+        fi
+
 
         # If we got a result, the file is readable by OGR
         if [[ ! -z ${EPSG} ]]; then
@@ -14554,7 +14559,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         # We have to cut GMRT to our -R domain or else our downloaded tiles will bug out
         # in subsequent grdimage commands for some reason
         BATHY=$name
-        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+        gmt grdcut ${BATHY} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
         clipdemflag=0
         name=${F_TOPO}dem.tif
         TOPOGRAPHY_DATA=${F_TOPO}dem.tif
@@ -21813,6 +21818,7 @@ EOF
      # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
      # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
 
+    echo gdalinfo ${F_TOPO}dem.tif
      rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Size is" | gawk '{print substr($3,1,length($3)-1), $4}'))
      info_msg "[-t]: dpi is $(echo "$rasterinfo / ${PSSIZE}" | bc)"
      # info_msg "[-t]: topography dpi is $(echo "")"
@@ -22156,7 +22162,10 @@ EOF
 
                 info_msg "Creating sky view factor"
 
-                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight ${TOPOGRAPHY_DATA} ${F_TOPO}dem_flt.flt -q
+                gdal_fillnodata.py ${TOPOGRAPHY_DATA} fill.tif
+
+
+                [[ ! -e ${F_TOPO}dem_flt.flt ]] && gdalwarp -srcnodata nan -dstnodata -9999 -t_srs EPSG:3395 -s_srs EPSG:4326 -if GTiff -of EHdr -ot Float32 -ts $demwidth $demheight fill.tif ${F_TOPO}dem_flt.flt -q
 
                 # texture the DEM. Pipe output to /dev/null to silence the program
                 if [[ $(echo "$DEM_MAXLAT >= 90" | bc) -eq 1 ]]; then
@@ -22172,6 +22181,7 @@ EOF
 
                 # We currently calclate both positive and negative openness and use pos as the sky view factor layer...
 
+                # cp ${F_TOPO}dem_flt.hdr ${F_TOPO}dem_flt_fill.hdr
                 start_time=`date +%s`
                 ${SVF} ${F_TOPO}dem_flt.flt ${F_TOPO}pos.flt ${F_TOPO}neg.flt -dist ${NUM_SVF_DIST} -skip ${NUM_SVF_SKIP} -angles ${NUM_SVF_ANGLES} -cores ${NUM_SVF_CORES} -mercator ${MERCMINLAT} ${MERCMAXLAT} > /dev/null
                 echo svf run time is $(expr `date +%s` - $start_time) s

@@ -91,12 +91,17 @@ function emsc_update_catalog() {
 
     echo "Downloading events added or update for period ${mintime} to ${maxtime}, but only if updates occurred after ${maxtime}"
 
+
+    
+
+
     rm -f update.json
     while [[ ! -s update.json ]]; do
+
       curl -0 "https://www.seismicportal.eu/fdsnws/event/1/query?format=json&starttime=${mintime}&endtime=${maxtime}&updatedafter=${maxtime}&limit=20000&orderby=time-asc" > update.json
       if [[ ! -s update.json ]]; then
-        echo "No update data downloaded... retrying after 30 seconds"
-        sleep 30
+        echo "No update data downloaded. Likely too long between updates."
+        break
       fi
       if grep -i "<HTML>" update.json; then
         echo "Got actual error message when downloading update data... retrying after 30 seconds"
