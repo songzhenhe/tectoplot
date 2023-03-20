@@ -2899,6 +2899,10 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
         echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -N -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${CMT_CPT} $RJOK "${VERBOSE}" >> "${PSFILE}"" >> plot.sh
         echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -N -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"${CMTRESCALE}"i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${CMT_CPT} $RJOK "${VERBOSE}" >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
+
+        # PLOT ON THE OBLIQUE SECTION PS
+        [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psmeca ${F_PROFILES}${LINEID}_${i}cmt_fixed.txt -p -N -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}${CMTRESCALE}i/0 -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${cmtcommandlist[$i]} -C${CMT_CPT} $RJOK ${VERBOSE} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
+
       fi
     done
     # fi
