@@ -11,6 +11,10 @@ cscripts/texture_shader/shadow
 cscripts/texture_shader/svf
 cscripts/texture_shader/texture
 cscripts/texture_shader/texture_image
+cscripts/qrsolve/gps_solve
+cscripts/qrsolve/libc/qr_solve.o
+cscripts/qrsolve/libc/r8lib.o
+cscripts/qrsolve/libc/test_lls.o
 tectoplot.docx
 info_messages.txt
 tectoplot_opts/

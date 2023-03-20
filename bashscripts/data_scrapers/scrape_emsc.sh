@@ -91,10 +91,6 @@ function emsc_update_catalog() {
 
     echo "Downloading events added or update for period ${mintime} to ${maxtime}, but only if updates occurred after ${maxtime}"
 
-
-    
-
-
     rm -f update.json
     while [[ ! -s update.json ]]; do
 
@@ -278,7 +274,7 @@ function emsc_download_catalog() {
 
       beforecount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
 
-      ogr2ogr -f GPKG -append -nln emsc emsc.gpkg batchN.json
+      ogr2ogr -f GPKG -upsert -nln emsc emsc.gpkg batchN.json
 
       aftercount=$(ogrinfo -so emsc.gpkg emsc | grep Count | gawk '{print $(NF)}')
 

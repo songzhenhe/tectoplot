@@ -2,9 +2,7 @@
 TECTOPLOT_MODULES+=("geography")
 
 # UPDATED
-
 # NEW OPTS
-
 
 # plot geographic elements like coastlines, country borders
 
