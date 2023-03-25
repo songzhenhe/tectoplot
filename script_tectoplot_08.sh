@@ -1880,7 +1880,7 @@ fi
             "-b" \
             "-af" \
             "-p" "MORVEL" "-pf" "300" "-i" "2" \
-            "-z" "1" "50" "-zmag" "2" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
+            "-z" "1" "50" "-zmag" "3.5" "10" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
             "-seistimeline_c" "${start_time}" "today" "4" \
             "-seistimeline_eq" "${EQID}" "30" \
             "-noframe" "right" \
@@ -1890,10 +1890,10 @@ fi
             "-pa" "notext" \
             "-aosm" "fixdem" "color" "black" "width" "0.25p"  \
             "-pl" "13p,Bookman-Demi,black"  \
-            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" "font" "10p,Helvetica-Bold,black" \
+            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" "outline" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
-            "-cprof" "eq" "eq" "slab2" "1000" "50k" "2k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
+            "-cprof" "eq" "eq" "slab2" "1000" "2k" "-pw" "50k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
             "-preview" "300" \
             "-arrow" "wide" \
             "-tpct" "1" "99"
@@ -8666,7 +8666,7 @@ fi
     fi
     if [[ ${SCRAPESTRING} =~ .*a.* ]]; then
       info_msg "Scraping ANSS seismic data"
-      source $SCRAPE_ANSS ${ANSSDIR}
+      source $SCRAPE_ANSS ${ANSSDIR} ${REBUILD} ${REBUILDARG}
     fi
     if [[ ${SCRAPESTRING} =~ .*c.* ]]; then
       info_msg "Scraping ISC seismic data"
@@ -13342,31 +13342,33 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
         case ${this_catalog} in
           ANSS)
           info_msg "[-r eq]: Looking for ANSS event ${REGION_EQ}"
-          # COMEBACK
-          # This also has to be rethought - how to search ANSS catalog? Must look in tiles.
-          # Check the list of possible matches and only return if ID is exact match. Remove
-          # whitespaces before comparison as we are using , as delimiter
+          
+          mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')
 
-          grep -h ${REGION_EQ} -r ${ANSS_TILEDIR} | sed 's/[[:blank:]]//g' | gawk -F, -v key=${REGION_EQ} '
-          {
-            if ($12==key) {
-              print
-            }
-          }' | head -n 1 > anss_result.txt
+          if [[ -s ${ANSSDIR}anss.gpkg ]]; then
+            ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM anss WHERE id=='${REGION_EQ}'" ${mytmpdir}/anss_result.csv ${ANSSDIR}anss.gpkg
 
-          if [[ -s anss_result.txt ]]; then
-            info_msg "[-r eq]: Found event in ANSS tile data"
-            # echo "Found EQ region hypocenter $REGION_EQ"
-            REGION_EQ_LON=$(gawk -F, < anss_result.txt '{print $3}')
-            REGION_EQ_LAT=$(gawk -F, < anss_result.txt '{print $2}')
-            REGION_EQ_DEPTH=$(gawk -F, < anss_result.txt '{print $4}')
-            REGION_EQ_MAG=$(gawk -F, < anss_result.txt '{print $5}')
-            REGION_EQ_MAGTYPE=$(gawk -F, < anss_result.txt  '{print $6}')
-            REGION_EQ_AUTHOR=$(gawk -F, < anss_result.txt '{print $11}')
-            REGION_EQ_TIME=$(gawk -F, < anss_result.txt '{ print substr($1,1,19)}')
-            REGION_EQ_TYPE="ANSS"
-            rm -f anss_result.txt
-            break
+
+            if [[ -s ${mytmpdir}/anss_result.csv ]]; then
+
+            cat ${mytmpdir}/anss_result.csv
+              # info_msg "[-r eq]: Found event in ANSS catalog"
+              # echo "Found EQ region hypocenter $REGION_EQ"
+              REGION_EQ_LON=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $1}')
+              REGION_EQ_LAT=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $2}')
+              REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $3}')
+              REGION_EQ_MAG=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $4}')
+              REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $5}')
+              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $6}')
+              REGION_EQ_TIME=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) { print substr($7,1,19)}')
+              REGION_EQ_TYPE="ANSS"
+              rm -f ${mytmpdir}/anss_result.txt
+
+              echo REGION_EQ_LAT=${REGION_EQ_LAT} time is ${REGION_EQ_TIME}
+              break
+            fi
+            rm ${mytmpdir}/*
+            rmdir ${mytmpdir}
           fi
           ;;
         ISC)
@@ -14620,7 +14622,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         info_msg "[-t]: auto resolution was determined to be ${BATHYMETRY}"
       fi
 
-      # BIG CHANGE: NOW STORING TILES AS GEOTIFF
+      # BIG CHANGE: NOW STORING TILES AS GEOTIFF due to some issues with NetCDF files 
     	name=${GRIDDIR}"${EARTHRELIEFPREFIX}_${BATHYMETRY}_${DEM_MINLON}_${DEM_MAXLON}_${DEM_MINLAT}_${DEM_MAXLAT}.tif"
 
     	if [[ -s $name ]]; then
@@ -14659,7 +14661,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             TOPOGRAPHY_DATA=${F_TOPO}dem.tif
           ;;
           SRTM15|SRTM30|GEBCO20|GEBCO1)
-          # GMT grdcut works on these
+          # GMT grdcut works on these rasters, including across the dateline
             gmt grdcut ${GRIDFILE} -G${name}=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             cp ${name} ${F_TOPO}dem.tif
             clipdemflag=0
@@ -14983,8 +14985,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
           if [[ -s ${ISC_EQS_DIR}iscseis.gpkg ]]; then
             # ISC event types have 'e' in the second character position if the event is a natural earthquake
-
-            echo "SUBSTRING(type,2,1) IS ${noteqstring}'e' ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
+            eqselstring="SUBSTRING(type,2,1) IS ${noteqstring}'e'"
+            # eqselstring="SUBSTRING(type,2,1) IS ${noteqstring}'m'"
+            echo "${eqselstring} ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
             ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}iscseis_selected.gpkg ${ISC_EQS_DIR}iscseis.gpkg
             rm -f ogr2ogr_spat.where
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}isc_select.sql iscseis_selected.csv ${F_SEIS}iscseis_selected.gpkg
@@ -21818,7 +21821,7 @@ EOF
      # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
      # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
 
-    echo gdalinfo ${F_TOPO}dem.tif
+      # echo gdalinfo ${F_TOPO}dem.tif
      rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Size is" | gawk '{print substr($3,1,length($3)-1), $4}'))
      info_msg "[-t]: dpi is $(echo "$rasterinfo / ${PSSIZE}" | bc)"
      # info_msg "[-t]: topography dpi is $(echo "")"
@@ -23674,7 +23677,7 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
   SEISTIMELINEWIDTH=0
 
   if [[ ! -z ${SEISTIMELINE_C_START_EQID} ]]; then
-    ststarttime=$(gawk < ${EQSTOPLOT} -v id=${SEISTIMELINE_C_START_EQID} '($6==id) { print $5 }')
+    ststarttime=$(gawk < ${F_SEIS}eqs.txt -v id=${SEISTIMELINE_C_START_EQID} '($6==id) { print $5 }')
     SEISTIMELINE_C_BREAK_TIME[0]=$(echo $ststarttime | gawk -v shiftyear=${SEISTIMELINE_TIME_BEFORE_BUFFER} '{
       split($1, a, "-")
       printf("%04d-%s",a[1]-shiftyear,substr($1, 6, length($1)-5))

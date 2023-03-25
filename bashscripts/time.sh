@@ -210,3 +210,40 @@ function iso8601_from_partial() {
         printf("%04d-%02d-%02dT%02d:%02d:%02d%s\n", dstring[1]+0, dstring[2]+0, dstring[3]+0, tstring[1]+0, tstring[2]+0, tstring[3]+0, end)
       }'
 }
+
+# Read in a whitespace separated text file and replace the specified datetime column with the day of the week
+
+function day_of_week_UTC() {
+  TZ=UTC0     # use UTC
+  export TZ
+
+  gawk -v datecol=$2 '
+      {
+      timestr=$(datecol)
+      date = substr(timestr,1,10);
+      split(date,dstring,"-");
+      time = substr(timestr,12,8);
+      split(time,tstring,":");
+      the_time = sprintf("%i %i %i %i %i %i",dstring[1],dstring[2],dstring[3],tstring[1],tstring[2],int(tstring[3]+0.5));
+      secs = mktime(the_time);
+      newtime = strftime("%u", secs);
+      $(datecol)=newtime
+      print $0
+  }' "${1}"
+}
+
+function hour_of_day_UTC() {
+  TZ=UTC0     # use UTC
+  export TZ
+
+  gawk -v datecol=$2 '
+      {
+      timestr=$(datecol)
+      date = substr(timestr,1,10);
+      split(date,dstring,"-");
+      time = substr(timestr,12,8);
+      split(time,tstring,":");
+      $(datecol)=int(tstring[1])
+      print $0
+  }' "${1}"
+}

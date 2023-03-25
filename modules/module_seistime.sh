@@ -45,7 +45,7 @@ opn shiftx m_seistime_shiftx string "0i"
 
   -seistimehist)
   tectoplot_get_opts_inline '
-des -seistime_hist create a histogram of seismicity vs time
+des -seistimehist create a histogram of seismicity vs time
 opn width m_seistimehist_width word "7i"
   width of plot in inches
 opn height m_seistimehist_height word "2i"
@@ -64,6 +64,41 @@ opn shiftx m_seistimehist_shiftx string "0i"
   shift plot horizontally by this amount when using onmap
 ' "${@}" || return
     doseistimehistflag=1
+    ;;
+
+  -seistimebin)
+  tectoplot_get_opts_inline '
+des -seistimebin create a histogram of earthquakes binned by day of week
+opn width m_seistimebin_width word "3i"
+  width of plot in inches
+opn height m_seistimebin_height word "2i"
+  height of plot in inches
+opn onmap m_seistimebin_onmapflag flag 0
+  place histogram onto map below map frame
+opn type m_seistimebin_counttype float 0
+  count type: 0=count 2=log(1+count) 4=log10(1+count)
+opn shiftx m_seistimebin_shiftx string "0i"
+  shift plot horizontally by this amount when using onmap
+' "${@}" || return
+    doseistimebinflag=1
+    ;;
+
+
+  -seistimehourbin)
+  tectoplot_get_opts_inline '
+des -seistimehourbin create a histogram of earthquakes binned by hour of day
+opn width m_seistimehourbin_width word "3i"
+  width of plot in inches
+opn height m_seistimehourbin_height word "2i"
+  height of plot in inches
+opn onmap m_seistimehourbin_onmapflag flag 0
+  place histogram onto map below map frame
+opn type m_seistimehourbin_counttype float 0
+  count type: 0=count 2=log(1+count) 4=log10(1+count)
+opn shiftx m_seistimehourbin_shiftx string "0i"
+  shift plot horizontally by this amount when using onmap
+' "${@}" || return
+    doseistimehourbinflag=1
     ;;
   esac
 }
@@ -210,7 +245,6 @@ function unitstring_from_two_dates_and_bincount() {
 
 function tectoplot_post_seistime() {
 
-  echo 1 is $1
   case $1 in
 
   seistime)
@@ -510,6 +544,151 @@ function tectoplot_post_seistime() {
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
   fi
+
+  if [[ -s ${F_SEIS}eqs.txt && $doseistimebinflag -eq 1 ]]; then
+
+    day_of_week_UTC ${F_SEIS}eqs.txt 5 | gawk '{print $5, $4}' > ${F_SEIS}seistimebin.txt
+
+    m_seistimebin_colors=(green yellow orange red black)
+    m_seistimebin_mags=(2 3 4 5 6)
+
+    case ${m_seistimebin_counttype} in
+      0) m_seistimebin_ylabel="Earthquake count" ;;
+      1) m_seistimebin_ylabel="Earthquake freq%" ;;
+      2) m_seistimebin_ylabel="Earthquake count (log)" ;;
+      3) m_seistimebin_ylabel="Earthquake freq% (log)" ;;
+      4) m_seistimebin_ylabel="Earthquake count (log10)" ;;
+      5) m_seistimebin_ylabel="Earthquake freq% (log10)" ;;
+    esac
+
+    maxcount=($(gmt pshistogram ${F_SEIS}seistimebin.txt -Z${m_seistimebin_counttype} -T1/8/1 -F -I))
+
+    if [[ $(echo "${maxcount[3]} == 0" | bc) -eq 1 ]]; then
+      echo "[-seistimebin]: no event within requested window"
+      maxc=10
+      gmt psxy -T -R0/8/0/${maxc} -K > m_seistimebin.ps
+    else      
+
+      maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
+
+      gmt pshistogram ${F_SEIS}seistimebin.txt -Z${m_seistimebin_counttype} -R1/8/0/${maxc} -T1/8/1  -i0,1 -Vn -Gblue -W0.5p,black -JX${m_seistimebin_width}/${m_seistimebin_height} -K > m_seistimebin.ps
+      
+      for i in $(seq 0 4); do
+        gawk < ${F_SEIS}seistimebin.txt -v cut=${m_seistimebin_mags[$i]} '
+          ($2 > cut) {
+            print
+          }' > seistimebin_tmpcut.txt
+        [[ -s seistimebin_tmpcut.txt ]] && gmt pshistogram seistimebin_tmpcut.txt  -R1/8/0/${maxc} -T1/8/1  -i0,1 -Vn -G${m_seistimebin_colors[$i]} -W0.5p,black -JX${m_seistimebin_width}/${m_seistimebin_height} -K -O >> m_seistimebin.ps
+      done
+    fi
+    gmt psbasemap -BtESW -Bxa1f1+l"Day of week (UTC, 1=Monday)" -Byaf+l"${m_seistimebin_ylabel}" -R0.5/7.5/0/${maxc}  -JX${m_seistimebin_width}/${m_seistimebin_height} --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >> m_seistimebin.ps
+
+    echo "N 7" > m_seistimebin_legend.txt
+    echo "S 0i s 0i white 0p 0i M" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i black 0.25p 0.2i >6" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i red 0.25p 0.2i 5-6" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i orange 0.25p 0.2i 4-5" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i yellow 0.25p 0.2i 3-4" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i green 0.25p 0.2i 2-3" >> m_seistimebin_legend.txt
+    echo "S 0.1i s 0.15i blue 0.25p 0.2i <2" >> m_seistimebin_legend.txt
+    # Close the PS file
+
+
+    gmt pslegend m_seistimebin_legend.txt -Dn0/1+w${m_seistimebin_width} -R -J -O -K >> m_seistimebin.ps
+
+    gmt psxy -T -R -O >> m_seistimebin.ps
+
+    gmt psconvert m_seistimebin.ps -Tf -A+m0.5i
+
+    if [[ ${m_seistimebin_onmapflag} -eq 1 ]]; then
+
+      # Expects the variable PS_HEIGHT_IN to contain the current vertical offset below the map
+      # origin to allow concatenation of figure parts below the map.
+
+      # echo "Map height is currently ${PS_HEIGHT_IN}"
+      SEISTIME_PS_DIM=($(gmt psconvert m_seistimebin.ps -Fm_seistimebin -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, ($10/2.54-(mapwidth+0))/2 }'))
+
+      # echo "It is" ${SEISTIME_PS_DIM[@]}
+      gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i m_seistimebin.eps -Xa${m_seistimebin_shiftx} $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
+
+      # Set PS_HEIGHT_IN so another module can concatenate a panel
+      PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
+    fi
+  fi
+
+  if [[ -s ${F_SEIS}eqs.txt && $doseistimehourbinflag -eq 1 ]]; then
+
+    hour_of_day_UTC ${F_SEIS}eqs.txt 5 | gawk '{print $5, $4}' > ${F_SEIS}seistimehourbin.txt
+
+    m_seistimehourbin_colors=(green yellow orange red black)
+    m_seistimehourbin_mags=(2 3 4 5 6)
+
+    case ${m_seistimehourbin_counttype} in
+      0) m_seistimehourbin_ylabel="Earthquake count" ;;
+      1) m_seistimehourbin_ylabel="Earthquake freq%" ;;
+      2) m_seistimehourbin_ylabel="Earthquake count (log)" ;;
+      3) m_seistimehourbin_ylabel="Earthquake freq% (log)" ;;
+      4) m_seistimehourbin_ylabel="Earthquake count (log10)" ;;
+      5) m_seistimehourbin_ylabel="Earthquake freq% (log10)" ;;
+    esac
+
+    maxcount=($(gmt pshistogram ${F_SEIS}seistimehourbin.txt -Z${m_seistimehourbin_counttype} -T0/24/1 -F -I))
+
+    if [[ $(echo "${maxcount[3]} == 0" | bc) -eq 1 ]]; then
+      echo "[-seistimehourbin]: no event within requested window"
+      maxc=10
+      gmt psxy -T -R0/8/0/${maxc} -K > m_seistimehourbin.ps
+    else      
+
+      maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
+      echo maxc is ${maxc}
+      
+      gmt pshistogram ${F_SEIS}seistimehourbin.txt -Z${m_seistimehourbin_counttype} -R0/24/0/${maxc} -T0/24/1  -i0,1 -Vn -Gblue -W0.5p,black -JX${m_seistimehourbin_width}/${m_seistimehourbin_height} -K > m_seistimehourbin.ps
+      
+      for i in $(seq 0 4); do
+        gawk < ${F_SEIS}seistimehourbin.txt -v cut=${m_seistimehourbin_mags[$i]} '
+          ($2 > cut) {
+            print
+          }' > seistimehourbin_tmpcut.txt
+        [[ -s seistimehourbin_tmpcut.txt ]] && gmt pshistogram seistimehourbin_tmpcut.txt  -R0/24/0/${maxc} -T0/24/1  -i0,1 -Vn -G${m_seistimehourbin_colors[$i]} -W0.5p,black -JX${m_seistimehourbin_width}/${m_seistimehourbin_height} -K -O >> m_seistimehourbin.ps
+      done
+    fi
+    gmt psbasemap -BtESW -Bxa1f1+l"Hour of day (UTC)" -Byaf+l"${m_seistimehourbin_ylabel}" -R-0.5/23.5/0/${maxc}  -JX${m_seistimehourbin_width}/${m_seistimehourbin_height} --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >> m_seistimehourbin.ps
+
+    echo "N 7" > m_seistimehourbin_legend.txt
+    echo "S 0i s 0i white 0p 0i M" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i black 0.25p 0.2i >6" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i red 0.25p 0.2i 5-6" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i orange 0.25p 0.2i 4-5" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i yellow 0.25p 0.2i 3-4" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i green 0.25p 0.2i 2-3" >> m_seistimehourbin_legend.txt
+    echo "S 0.1i s 0.15i blue 0.25p 0.2i <2" >> m_seistimehourbin_legend.txt
+    # Close the PS file
+
+
+    gmt pslegend m_seistimehourbin_legend.txt -Dn0/1+w${m_seistimehourbin_width} -R -J -O -K >> m_seistimehourbin.ps
+
+    gmt psxy -T -R -O >> m_seistimehourbin.ps
+
+    gmt psconvert m_seistimehourbin.ps -Tf -A+m0.5i
+
+    if [[ ${m_seistimehourbin_onmapflag} -eq 1 ]]; then
+
+      # Expects the variable PS_HEIGHT_IN to contain the current vertical offset below the map
+      # origin to allow concatenation of figure parts below the map.
+
+      # echo "Map height is currently ${PS_HEIGHT_IN}"
+      SEISTIME_PS_DIM=($(gmt psconvert m_seistimehourbin.ps -Fm_seistimehourbin -Te -A+m0i -V 2> >(grep Width) | gawk  -F'[ []' -v mapwidth=${MAP_PS_WIDTH_NOLABELS_IN} -v prevheight=$PS_HEIGHT_IN '{print $10/2.54, $17/2.54+0.5+prevheight, ($10/2.54-(mapwidth+0))/2 }'))
+
+      # echo "It is" ${SEISTIME_PS_DIM[@]}
+      gmt psimage -Dx"-${SEISTIME_PS_DIM[2]}i/-${SEISTIME_PS_DIM[1]}i"+w${SEISTIME_PS_DIM[0]}i m_seistimehourbin.eps -Xa${m_seistimehourbin_shiftx} $RJOK ${VERBOSE} --GMT_HISTORY=false >> map.ps
+
+      # Set PS_HEIGHT_IN so another module can concatenate a panel
+      PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
+    fi
+  fi
+
+
   ;;
   esac
 

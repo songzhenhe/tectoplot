@@ -86,6 +86,34 @@ function add_one_second() {
     }'
 }
 
+function anss_repair_catalog() {
+  echo "Repairing anss.gpkg by deleting events with update time after ${1}"
+  if [[ -s anss.gpkg ]]; then
+      beforecount=$(ogrinfo -so anss.gpkg anss | grep Count | gawk '{print $(NF)}')
+      local fixtime=$(echo $1 | iso8601_from_partial)
+
+      local updatedtime_pre=$(iso8601_to_epoch ${fixtime})
+
+
+      local updatedtime=$(echo "1000 * ${updatedtime_pre}" | bc -l)
+
+      echo "updatedtime is ${updatedtime}"
+      if arg_is_float ${updatedtime}; then
+        ogrinfo -dialect sqlite -sql "DELETE FROM anss WHERE updated > '${updatedtime}'" anss.gpkg
+
+        aftercount=$(ogrinfo -so anss.gpkg anss | grep Count | gawk '{print $(NF)}')
+
+        addedcount=$(echo "$aftercount - $beforecount" | bc)
+
+        echo "Operation changed number of events by ${addedcount}"
+
+        echo "Recreating ID index"
+        ogrinfo -sql "DROP INDEX id_index" anss.gpkg
+        ogrinfo -sql "CREATE UNIQUE INDEX id_index ON anss (id)" anss.gpkg
+      fi
+  fi  
+}
+
 # Download any events that span the existing catalog epoch, and apply any updates
 # to those events, from the last event up to the present moment.
 
@@ -291,6 +319,11 @@ fi
 
 cd $ANSSDIR
 
+if [[ ${2} == "rebuild" && ! -z ${3} ]]; then
+  echo "Repairing ANSS catalog with backdate to ${3}"
+  anss_repair_catalog ${3}
+else 
+
 # Download and apply any updates done between the previous scrape time and the current time
 echo "Finding updates for existing ANSS catalog..."
 anss_update_catalog
@@ -298,3 +331,7 @@ anss_update_catalog
 echo "Scraping new ANSS events..."
 # Update the ANSS catalog with newly scraped data
 anss_download_catalog
+fi
+
+
+
