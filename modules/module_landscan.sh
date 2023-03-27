@@ -16,6 +16,8 @@ function tectoplot_defaults_landscan() {
 
     LANDSCAN_SOURCESTRING="Population density data from LandScan"
     LANDSCAN_SHORT_SOURCESTRING="LANDSCAN"
+
+    m_landscan_maxpop=999999999
 }
 
 function tectoplot_args_landscan()  {
@@ -32,6 +34,8 @@ function tectoplot_args_landscan()  {
 des -landscan plot population density from LandScan
 opt lowcut m_landscan_lowcut float 0.1
     minimum population density; lower is transparent
+opt highcut m_landscan_highcut float ${m_landscan_maxpop}
+    maximum population density; higher is max color range
 opt cpt m_landscan_cpt string "hot"
     cpt to color the grid
 opt trans m_landscan_trans float 0
@@ -58,7 +62,11 @@ function tectoplot_calculate_landscan()  {
 function tectoplot_cpt_landscan()  {
   case $1 in
     m_landscan)
-      gmt makecpt -C${m_landscan_cpt[$tt]} -T1/175000/1+l -Z -I --COLOR_BACKGROUND="white" --COLOR_FOREGROUND="white" --COLOR_NAN="white" > ${F_CPTS}landscan_${tt}.cpt
+      if [[ ${m_landscan_highcut[$tt]} -eq ${m_landscan_maxpop} ]]; then
+        gmt makecpt -C${m_landscan_cpt[$tt]} -T1/175000/1+l -Z -I --COLOR_NAN="white" > ${F_CPTS}landscan_${tt}.cpt
+      else
+        gmt makecpt -C${m_landscan_cpt[$tt]} -T1/${m_landscan_highcut[$tt]}/1+l -Z -I  --COLOR_NAN="white" > ${F_CPTS}landscan_${tt}.cpt
+      fi
     ;;
   esac
 }
@@ -74,12 +82,14 @@ function tectoplot_plot_landscan() {
 
     gmt_init_tmpdir
     gmt grdclip ${LANDSCANDATA} -Sb${m_landscan_lowcut[$tt]}/NaN -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} ${VERBOSE} -Glandscan_${tt}.nc
-    gmt grdimage landscan_${tt}.nc -E${m_landscan_res[$tt]} -C${F_CPTS}landscan_${tt}.cpt -t${m_landscan_trans[$tt]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Alandscan_image_${tt}.tif ${VERBOSE}
+    # -E${m_landscan_res[$tt]}
+    gmt grdimage landscan_${tt}.nc -C${F_CPTS}landscan_${tt}.cpt -t${m_landscan_trans[$tt]} -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Alandscan_image_${tt}.tif ${VERBOSE}
     gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} landscan_image_${tt}.tif
     gmt_remove_tmpdir
 
     if [[ ${m_landscan_noplot[$tt]} -eq 0 ]]; then
-      gmt grdimage landscan_${tt}.nc -E${m_landscan_res[$tt]} -C${F_CPTS}landscan_${tt}.cpt -Q -t${m_landscan_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+      # -E${m_landscan_res[$tt]}
+      gmt grdimage landscan_${tt}.nc -C${F_CPTS}landscan_${tt}.cpt -Q -t${m_landscan_trans[$tt]} ${RJOK} ${VERBOSE} >> map.ps
       echo ${LANDSCAN_SOURCESTRING} >> ${LONGSOURCES}
       echo ${LANDSCAN_SHORT_SOURCESTRING} >> ${SHORTSOURCES}
     fi

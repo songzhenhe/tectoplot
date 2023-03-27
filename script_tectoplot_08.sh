@@ -11501,7 +11501,7 @@ fi
             TIMG_FACTS[$timg_index]="${2}"
             shift
           else
-            TIMG_FACTS[$timg_index]=0  # Default value is fully opaque
+            TIMG_FACTS[$timg_index]=0.01  # Default value is fully opaque
           fi
           ((timg_index++))
           ;;
