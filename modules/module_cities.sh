@@ -541,8 +541,9 @@ EOF
           print "%%EndPageSetup"
           print "2 setlinecap"
           print "1 setlinejoin"
-        }
-        else {
+        } else if ($(NF) == "rectclip") {
+          # do not print the rectclip command to avoid clipping the wider outline
+        } else {
           print
         }
       }' > cities_stroke_fixed.eps
@@ -639,8 +640,9 @@ EOF
           print "%%EndPageSetup"
           print "2 setlinecap"
           print "1 setlinejoin"
-        }
-        else {
+        } else if ($(NF) == "rectclip") {
+          # do not print the rectclip command to avoid clipping the wider outline
+        } else {
           print
         }
       }' > cities_right_stroke_fixed.eps
@@ -738,8 +740,9 @@ EOF
               print "%%EndPageSetup"
               print "2 setlinecap"
               print "1 setlinejoin"
-            }
-            else {
+            } else if ($(NF) == "rectclip") {
+              # do not print the rectclip command to avoid clipping the wider outline
+            } else {
               print
             }
           }' > cities_left_stroke_fixed.eps

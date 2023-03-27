@@ -29,7 +29,7 @@ function tectoplot_args_gpwv4()  {
   -popdens)
 
   tectoplot_get_opts_inline '
-des -popdens plot river channels from GLORIC database
+des -popdens plot population density from GPWV4
 opt lowcut m_gpwv4_popdens_lowcut float 0
     minimum population density; lower is transparent
 opt trans m_gpwv4_popdens_trans float 0
@@ -52,8 +52,6 @@ function tectoplot_calculate_gpwv4()  {
       print size*(minlat-maxlat)/(minlon-maxlon)
     }')
 }
-
-
 
 function tectoplot_cpt_gpwv4()  {
   case $1 in

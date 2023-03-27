@@ -8611,20 +8611,25 @@ fi
   -scrapedata) # -scrapedata: download and manage online seismic data
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--scrapedata:   download and manage online seismic data
-Usage: -scrapedata [[controlstring]]
+-scrapedata:   download and update online seismic data catalogs
+Usage: -scrapedata [[controlstring]]  [[rebuild date]]
 
   letters in controlstring determine what gets scraped/updated:
   Default = giace
   g = GCMT focal mechanisms
   i = ISC focal mechanisms
-  a = ANSS (Comcat) seismicity
+  a = ANSS (Comcat) seismicity  - rebuildable
   c = ISC seismicity catalog
-  e = ISC-EHB seismicity catalog
-  m = EMSC seismicity catalog
+  e = ISC-EHB seismicity catalog  
+  m = EMSC seismicity catalog  - rebuildable
 
   z = GFZ focal mechanisms (optional - takes a long time!)
 
+
+  [[rebuild date]] example: tectoplot -scrapedata a rebuild 2023-01-01
+  This option removes all events updated after the specified datetime and
+  then rebuilds the unique id index in the GPKG file to ensure nonduplication 
+  of events. Subsequent scrapedata commands will update the catalog.
 
   Equivalent mechanisms from each subsequent dataset are removed by default
 

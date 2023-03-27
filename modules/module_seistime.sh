@@ -249,29 +249,53 @@ function tectoplot_post_seistime() {
 
   seistime)
 
-  if [[ -s ${F_SEIS}eqs.txt && $doseistimeflag -eq 1 ]]; then
-    date_and_mag_range=($(gawk < ${F_SEIS}eqs.txt '
-      BEGIN {
-        getline
-        maxdate=$5
-        mindate=$5
-        maxmag=$4
-        minmag=$4
-      }
-      {
-        maxdate=($5>maxdate)?$5:maxdate
-        mindate=($5<mindate)?$5:mindate
-        if ($4>0) {
-          maxmag=($4>maxmag)?$4:maxmag
-          minmag=($4<minmag)?$4:minmag
-        }
-      }
-      END {
-        print mindate, maxdate, minmag-0.1, maxmag+0.1
-      }'))
+  if [[ $doseistimeflag -eq 1 ]]; then
+   
 
-      # Default source file
-      SEISTIMEFILE=${F_SEIS}eqs.txt
+    [[ -s ${F_SEIS}eqs.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}seistimeline.txt
+
+    if [[ -s ${F_CMT}usgs_foc.cat ]]; then
+      gawk < ${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3}' >> ${F_SEIS}seistimeline.txt
+      # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> m_seistime.ps
+    fi
+    if [[ -s ${F_CMT}cmt_global_aoi.dat ]]; then
+      gawk < ${F_CMT}cmt_global_aoi.dat -v cent=${CENTROIDFLAG} '
+        {
+          if (cent==1) {
+            lon=$5
+            lat=$6
+            depth=$7
+          } else {
+            lon=$8
+            lat=$9
+            depth=$10
+          }
+          print lon, lat, depth, $13, $3, $2, $4
+        }' >> ${F_SEIS}seistimeline.txt
+      # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> m_seistime.ps
+    fi
+
+    if [[ -s ${F_SEIS}seistimeline.txt ]]; then
+
+      date_and_mag_range=($(gawk < ${F_SEIS}seistimeline.txt '
+        BEGIN {
+          getline
+          maxdate=$5
+          mindate=$5
+          maxmag=$4
+          minmag=$4
+        }
+        {
+          maxdate=($5>maxdate)?$5:maxdate
+          mindate=($5<mindate)?$5:mindate
+          if ($4>0) {
+            maxmag=($4>maxmag)?$4:maxmag
+            minmag=($4<minmag)?$4:minmag
+          }
+        }
+        END {
+          print mindate, maxdate, minmag-0.1, maxmag+0.1
+        }'))
 
       if [[ $m_seistime_minmag == "auto" ]]; then
         m_seistime_minmag=${date_and_mag_range[2]}
@@ -297,32 +321,7 @@ function tectoplot_post_seistime() {
         m_seistime_maxtime=$(date -u +"%FT%T")
       fi
 
-      local bopts=($(bstring_from_two_dates ${m_seistime_mintime} ${m_seistime_maxtime}))
-
-      cp ${F_SEIS}eqs.txt ${F_SEIS}seistimeline.txt
-
-      if [[ -s ${F_CMT}usgs_foc.cat ]]; then
-        gawk < ${F_CMT}usgs_foc.cat '{print $5, $6, $7, $13, $3}' >> ${F_SEIS}seistimeline.txt
-        # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> m_seistime.ps
-      fi
-      if [[ -s ${F_CMT}cmt_global_aoi.dat ]]; then
-        gawk < ${F_CMT}cmt_global_aoi.dat -v cent=${CENTROIDFLAG} '
-          {
-            if (cent==1) {
-              lon=$5
-              lat=$6
-              depth=$7
-            } else {
-              lon=$8
-              lat=$9
-              depth=$10
-            }
-            print lon, lat, depth, $13, $3, $2, $4
-          }' >> ${F_SEIS}seistimeline.txt
-        # cat ${F_CMT}usgs_foc.cat | gmt_psxy zcol 7 ycol 13 xcol 3 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -K -O ${VERBOSE} >> m_seistime.ps
-      fi
-
-      cat ${F_SEIS}seistimeline.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > m_seistime.ps
+      cat ${F_SEIS}seistimeline.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -N -B+gwhite -K ${VERBOSE} > m_seistime.ps
 
       m_seistime_datecmd=""
       m_seistime_timecmd=""
@@ -334,6 +333,8 @@ function tectoplot_post_seistime() {
       fi
 
       labelflag=1
+
+      local bopts=($(bstring_from_two_dates ${m_seistime_mintime} ${m_seistime_maxtime}))
 
       # echo read bopts ${bopts[@]}
 
@@ -349,7 +350,7 @@ function tectoplot_post_seistime() {
 
       # gmt psbasemap -R -J -Bxaf+sD -BtrSW -Bxaf+l"Date" -By+l"Magnitude" -O --MAP_FRAME_PEN=thinner,black --FONT_LABEL=12p,Helvetica,black --FONT_ANNOT_PRIMARY=10p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --LABEL_OFFSET=12p --GMT_HISTORY=false >>  m_seistime.ps
 
-       gmt psconvert m_seistime.ps -Tf -A+m0.5i
+      gmt psconvert m_seistime.ps -Tf -A+m0.5i
 
       if [[ ${m_seistime_onmapflag} -eq 1 ]]; then
 
@@ -364,6 +365,7 @@ function tectoplot_post_seistime() {
         # Set PS_HEIGHT_IN so another module can concatenate a panel
         PS_HEIGHT_IN=${SEISTIME_PS_DIM[1]}
       fi
+    fi
   fi
 
   if [[ -s ${F_SEIS}eqs.txt && $doseistimehistflag -eq 1 ]]; then
