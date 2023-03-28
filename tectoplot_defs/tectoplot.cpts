@@ -38,7 +38,7 @@ F_CPTS="cpts/"
 
 # Default builtin CPTs used to generate own CPTs
 
-TOPO_CPT_DEF="geo"                  # or oleron?
+TOPO_CPT_DEF="${TECTOPLOTDIR}CPT/geoblue.cpt"             # or oleron?
 GRAV_CURV_DEF="gray"                # Gravity gradient stretch
 EQ_TIME_DEF="turbo"                 # Time color stretch
 SEIS_CPT="seis"                     # Seismicity vs depth

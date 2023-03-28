@@ -1747,6 +1747,32 @@ fi
   set -- "blank" "-t" "-t0" "-tr" "-scale" ${scalelen} "inlegend" "horz" "-aprof" "${aprofcode}" "50k" "1k" "-inset" "topo" "size" "1.5i" "onmap" "BL" "-legend" "onmap" "TL" "-showprof" "all" "-RJ" "B" "-rect" "$@"
   ;;
 
+    -tgl) # -tgl: recipe for slopeshade terrain visualization
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-tgl:          recipe for blue ocean and white land shaded relief
+Usage: -tgl
+
+  Plot topography using a white color stretch for land
+
+Example: Slopeshade map
+tectoplot -t -t0 -o example_t0
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    topoctrlstring="msg"
+    useowntopoctrlflag=1
+    fasttopoflag=0
+    SLOPE_FACT=0.5
+    HS_GAMMA=1.4
+    HS_ALT=45
+    shift
+
+    set -- "blank" "-tmult" "-tsl" "-tcpt" "grayland" -tca "0.3" "$@"
+    ;;
+
   -sunlit)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -9314,7 +9340,8 @@ Usage: -t [[datasource=determined by extent]]
   Use GMT GEBCO21 online data
   -t [[options]] gebco
 
-
+  Don't clip the DEM to the map area when processing
+  -t [[options]] noclip
 
   The default visualization is GMT standard CPT+hillshade.
 
@@ -9416,6 +9443,7 @@ fi
         auto|*)
           plottopo=1
           plotcustomtopo=1
+
           info_msg "Using custom grid"
           # GRIDDIR=$(abs_dir $BATHYMETRY)
           GRIDFILE=$(abs_path $BATHYMETRY)  # We already shifted
@@ -9451,6 +9479,10 @@ fi
           reproject)
             shift
             reprojecttopoflag=1
+          ;;
+          noclip)
+            shift
+            clipdemflag=0
           ;;
           # rescale)
           #   shift
@@ -10232,6 +10264,7 @@ fi
     HS_GAMMA=1.4
     HS_ALT=45
     ;;
+
 
   -tzero) # -tzero: subtract 0.1 meters from any topo cells with elevation=0
 if [[ $USAGEFLAG -eq 1 ]]; then
