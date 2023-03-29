@@ -12946,8 +12946,8 @@ fi
           GFZ)
             CMT_CATALOG_TYPE+=("GFZ")
             CCAT_STRING=${CCAT_STRING}"Z"
-            # EQ_SOURCESTRING=$ISCEHB_EQ_SOURCESTRING
-            # EQ_SHORT_SOURCESTRING=$ISCEHB_EQ_SHORT_SOURCESTRING
+            # EQ_SOURCESTRING=$GFZ_SOURCESTRING
+            # EQ_SHORT_SOURCESTRING=$GFZ_SHORT_SOURCESTRING
           ;;
           GCMT)
             CMT_CATALOG_TYPE+=("GCMT")
@@ -15603,10 +15603,29 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             }
           }
         }' > ${F_CMT}sub_extract.cat
-        info_msg "Extracted $(wc -l < ${F_CMT}sub_extract.cat) CMT events from $THIS_CMTFILE"
-        cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
-        rm -f ${F_CMT}sub_extract.cat
+
+        if [[ -s ${F_CMT}sub_extract.cat ]]; then
+          info_msg "Extracted $(wc -l < ${F_CMT}sub_extract.cat) CMT events from $THIS_CMTFILE"
+          cat ${F_CMT}sub_extract.cat >> ${F_CMT}cmt_global_aoi.dat
+          rm -f ${F_CMT}sub_extract.cat
+
+          case $this_ccat in
+            GCMT)
+                echo $GCMT_SOURCESTRING >> ${LONGSOURCES}
+                echo $GCMT_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            ;;
+            ISC)
+                echo $ISC_SOURCESTRING >> ${LONGSOURCES}
+                echo $ISC_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            ;;
+            GFZ)
+                echo $GFZ_SOURCESTRING >> ${LONGSOURCES}
+                echo $GFZ_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+            ;;
+          esac
+        fi
       fi
+
     done
 
     # Restrict events to those falling within the map region.
