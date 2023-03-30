@@ -515,15 +515,15 @@ function miniconda_deps() {
     case "$OSTYPE" in
       linux*)
         echo "Detected linux... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
+        conda install -y python=3.9 pdftk git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf gcc_linux-64 gxx_linux-64 gfortran_linux-64 -c conda-forge
         ;;
       darwin*)
         echo "Detected OSX... assuming x86_64"
-        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
+        conda install -y python=3.9 pdftk git gmt=6.4 gawk gnuplot ghostscript imagemagick mupdf clang_osx-64 clangxx_osx-64 gfortran_osx-64 -c conda-forge
       ;;
       *)
         echo "Unrecognized system type ${OSTYPE}. Only installing non-system-specific packages."
-        conda install -y python=3.9 git gmt=6.4 gawk gnuplot ghostscript mupdf imagemagick -c conda-forge
+        conda install -y python=3.9 pdftk git gmt=6.4 gawk gnuplot ghostscript mupdf imagemagick -c conda-forge
       ;;
     esac
 
