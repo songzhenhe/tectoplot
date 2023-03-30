@@ -335,12 +335,13 @@ function eq_event_parse() {
 
 # expects lines in the tectoplot CMT format
 # 161.104 -10.0564 64.5 1.14754 0.595994 -1.74404 -0.358607 -0.19092 0.873788 21 none none 621112211 none 1625621059 0 2021-07-07T01:24:19
+# outputs the original line followed by the Mw value
 
 function mw_from_tensor_and_exponent() {
   gawk '
   {
     m0=sqrt(($4^2+$5^2+$6^2+2*$7^2+2*$8^2+2*$9^2)/2)*10^$10
-    print 2/3*log(m0)/log(10)-10.7
+    print $0, 2/3*log(m0)/log(10)-10.7
   }'
 }
 
