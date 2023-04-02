@@ -777,9 +777,15 @@ function ogr2ogr_spat() {
 
   case ${SPAT_TYPE} in
     1)
+      echo "ogr2ogr_spat one only"
+      echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
       ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
     ;;
     2)
+      echo "ogr2ogr_spat twice"
+      echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
+      echo ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" ${wherecmd} selected_2.gpkg ${input_file}
+
       ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
       ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" ${wherecmd} selected_2.gpkg ${input_file}
       ogr2ogr -f "GPKG" -upsert ${output_file} selected_2.gpkg && rm -f selected_2.gpkg
