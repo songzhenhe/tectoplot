@@ -55,8 +55,23 @@ function tectoplot_args_geography()  {
 des -roads plot global road network
 ' "${@}" || return
   plots+=("m_geography_roads")
+  ;;
+
+  -lakes)
+  tectoplot_get_opts_inline '
+des -lakes plot lakes
+opt fill m_geography_lakes_fill string "none"
+  fill color
+opt stroke m_geography_lakes_line string ""
+  line stroke definition (e.g. 1p,black)
+opt res m_geography_lakes_res string "f"
+  resolution: a=auto f=full h=high i=intermediate l=low c=crude
+' "${@}" || return
+  plots+=("m_geography_lakes")
 
   ;;
+
+
   -aosm)
   tectoplot_get_opts_inline '
 des -aosm plot high quality coastlines from Open Street Map database
@@ -318,6 +333,22 @@ function tectoplot_calculate_geography()  {
 function tectoplot_plot_geography() {
 
   case $1 in
+
+  m_geography_lakes)
+
+    if [[ ! -z ${m_geography_lakes_line[$tt]} ]]; then
+      m_geography_lakes_linecmd="-W2/${m_geography_lakes_line[$tt]}"
+    else
+      m_geography_lakes_linecmd=""
+    fi
+
+    gmt pscoast ${m_geography_lakes_linecmd} -A0/2/2 -S${m_geography_lakes_fill[$tt]} -D${m_geography_lakes_res[$tt]} $RJOK $VERBOSE >> map.ps
+
+    echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
+    echo $COASTS_SOURCESTRING >> ${LONGSOURCES}
+
+  ;;
+
 
   m_geography_roads)
     echo $ROADS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
