@@ -60,7 +60,7 @@ des -roads plot global road network
   -lakes)
   tectoplot_get_opts_inline '
 des -lakes plot lakes
-opt fill m_geography_lakes_fill string "none"
+opt fill m_geography_lakes_fill string "lightblue"
   fill color
 opt stroke m_geography_lakes_line string ""
   line stroke definition (e.g. 1p,black)
