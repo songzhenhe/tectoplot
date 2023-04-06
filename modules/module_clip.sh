@@ -136,7 +136,7 @@ function tectoplot_plot_clip() {
         gmt_remove_tmpdir
       fi
       if [[ -s clip_poly_${tt}.txt ]]; then
-        gmt psclip ${m_clip_clipoutfile[$tt]} ${RJOK} ${VERBOSE} >> map.ps
+        gmt psclip clip_poly_${tt}.txt -N ${RJOK} ${VERBOSE} >> map.ps
         m_clip_currentclip=clip_poly_${tt}.txt
       fi
 

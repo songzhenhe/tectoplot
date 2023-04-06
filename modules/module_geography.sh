@@ -482,7 +482,7 @@ function tectoplot_plot_geography() {
 
     m_geography_acb_rescmd="-D${m_geography_acb_res[$tt]}"
 
-    gmt pscoast ${m_geography_acb_rescmd} -N1/${m_geography_acb_line[$tt]} -t${m_geography_acb_trans[$tt]} $RJOK $VERBOSE >> map.ps
+    gmt pscoast ${m_geography_acb_rescmd} -N1/${m_geography_acb_line[$tt]} -t${m_geography_acb_trans[$tt]} $RJOK $VERBOSE --PS_LINE_JOIN=round >> map.ps
 
     echo $COASTS_SHORT_SOURCESTRING >> ${SHORTSOURCES}
     echo $COASTS_SOURCESTRING >> ${LONGSOURCES}

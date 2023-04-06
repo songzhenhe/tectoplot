@@ -1903,6 +1903,7 @@ fi
 
       set -- "blank" "-timeme" "-r" "eq" "${EQID}" "750k" "-RJ" "UTM" "-rect" \
             "-t" "GEBCO20" "-t0" \
+            "-acb" "line" "0.5p,white" "trans" "30" \
             "-b" \
             "-af" \
             "-p" "MORVEL" "-pf" "300" "-i" "2" \
@@ -1914,14 +1915,15 @@ fi
             "-inset" "country" "offmap" "BR" "xoff" "9.5" "yoff" "-1" "degw" "90" "size" "2.7i" "args" "\"-z -zcat ${F_SEIS}eqs_highlight.txt -zhigh ${EQID} \"" \
             "-pe" \
             "-pa" "notext" \
-            "-aosm" "fixdem" "color" "black" "width" "0.25p"  \
-            "-pl" "13p,Bookman-Demi,black"  \
-            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" "outline" \
+            "-aosm" "fixdem" "color" "white" "width" "0.25p"  \
+            "-pl" "13p,Bookman-Demi,black" "full" \
+            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" "outline" "white" "lang" "en" "only" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
             "-cprof" "eq" "eq" "slab2" "1000" "2k" "-pw" "50k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
             "-preview" "300" \
             "-arrow" "wide" \
+            "-author" "Figure by Earthquake Insights" "font" "10p,Helvetica-Bold,black" "date" \
             "-tpct" "1" "99"
 
             # "-tcycle" "num" "10"
@@ -2481,7 +2483,7 @@ cat <<-EOF
   This option stores and prints author information to facilitate map
   attribution. There are several formats:
 
-Usage: -author "Author ID"
+Usage: -author set "Author ID"
   Store author information
 Usage: -author
   Plot stored author and datestring at lower left corner of map
@@ -2493,47 +2495,38 @@ Usage: -author reset
   Delete stored author information and then exit
 
 Example: Reset a stored author ID and then update it to "Author 1"
-tectoplot -author print -noplot
-tectoplot -author reset -noplot
 tectoplot -author "Author 1" -o example_author
 ExampleEnd
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
-    authortimestampflag=1
+    authortimestampflag=0
     authorflag=1
-    if arg_is_flag $2; then
-      info_msg "[-author]: No author indicated."
-      if [[ -e $TECTOPLOT_AUTHOR ]]; then
-        info_msg "Using author info in ${OPTDIR}tectoplot.author"
-        AUTHOR_ID=$(head -n 1 $OPTDIR"tectoplot.author")
-      else
-        info_msg "No author in ${OPTDIR}tectoplot.author and no author indicated"
-        AUTHOR_ID=""
-      fi
-    else
-      AUTHOR_ID="${2}"
-      shift
-      if [[ $AUTHOR_ID == "reset" ]]; then
-        info_msg "Resetting ${OPTDIR}tectoplot.author"
-        rm -f $TECTOPLOT_AUTHOR
-        touch $TECTOPLOT_AUTHOR
-        AUTHOR_ID=""
-        exit
-      elif [[ $AUTHOR_ID == "print" ]]; then
-        info_msg "Printing ${OPTDIR}tectoplot.author"
-        cat ${OPTDIR}tectoplot.author
-        exit
-      elif [[ $AUTHOR_ID == "nodate" ]]; then
-        info_msg "[-author]: Not printing timestamp"
-        AUTHOR_ID=$(head -n 1 $OPTDIR"tectoplot.author")
-        authortimestampflag=0
-      else
-        info_msg "Setting author information in ${OPTDIR}tectoplot.author: ${2}"
-        echo "$AUTHOR_ID" > $TECTOPLOT_AUTHOR
-      fi
-    fi
+    authorspace=""
+    AUTHOR_FONT=12p,Helvetica,black
+    AUTHOR_DATE_FORMAT=""
+
+    while ! arg_is_flag $2; do
+      case ${2} in    
+        date)
+          shift
+          info_msg "[-author]: Not printing timestamp"
+          authortimestampflag=1
+        ;;
+        font)
+          shift
+          AUTHOR_FONT=$2
+          shift
+        ;;
+        *)
+          AUTHOR_ID="${AUTHOR_ID}${authorspace}${2}"
+          authorspace=" "
+          shift
+        ;;
+      esac
+    done
+
     DATE_ID=$(date -u $DATE_FORMAT)
     ;;
 
@@ -6570,6 +6563,7 @@ fi
 
     if [[ $2 == "full" ]]; then
       PLATELABEL_FULL=1
+      shift
     fi
 
     plots+=("platelabel")
@@ -13376,61 +13370,52 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       fi
     else
 
+      mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')
+
+      echo types are ${EQ_CATALOG_TYPE[@]}
       for this_catalog in ${EQ_CATALOG_TYPE[@]}; do
         case ${this_catalog} in
           ANSS)
           info_msg "[-r eq]: Looking for ANSS event ${REGION_EQ}"
           
-          mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')
-
           if [[ -s ${ANSSDIR}anss.gpkg ]]; then
-            ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM anss WHERE id=='${REGION_EQ}'" ${mytmpdir}/anss_result.csv ${ANSSDIR}anss.gpkg
 
-
-            if [[ -s ${mytmpdir}/anss_result.csv ]]; then
-
-            cat ${mytmpdir}/anss_result.csv
+            ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM anss WHERE id=='${REGION_EQ}'" ${mytmpdir}/result.csv ${ANSSDIR}anss.gpkg
+            
+            if [[ $(echo "$(wc -l < ${mytmpdir}/result.csv) > 1" | bc) -eq 1 ]]; then
+            # -s ${mytmpdir}/anss_result.csv ]]; then
               # info_msg "[-r eq]: Found event in ANSS catalog"
               # echo "Found EQ region hypocenter $REGION_EQ"
-              REGION_EQ_LON=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $1}')
-              REGION_EQ_LAT=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $2}')
-              REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $3}')
-              REGION_EQ_MAG=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $4}')
-              REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $5}')
-              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) {print $6}')
-              REGION_EQ_TIME=$(gawk < ${mytmpdir}/anss_result.csv '(NR==2) { print substr($7,1,19)}')
+              REGION_EQ_LON=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $1}')
+              REGION_EQ_LAT=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $2}')
+              REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $3}')
+              REGION_EQ_MAG=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $4}')
+              REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $5}')
+              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $6}')
+              REGION_EQ_TIME=$(gawk < ${mytmpdir}/result.csv '(NR==2) { print substr($7,1,19)}')
               REGION_EQ_TYPE="ANSS"
-              rm -f ${mytmpdir}/anss_result.txt
-
-              echo REGION_EQ_LAT=${REGION_EQ_LAT} time is ${REGION_EQ_TIME}
+              rm -f ${mytmpdir}/result.csv
               break
             fi
-            rm ${mytmpdir}/*
-            rmdir ${mytmpdir}
           fi
           ;;
         ISC)
-          grep -h ${REGION_EQ} -r ${ISC_TILE_DIR} | sed 's/[[:blank:]]//g' | gawk -F, -v key=${REGION_EQ} '
-          {
-            if ($1==key) {
-              print
-            }
-          }' | head -n 1 > isc_result.txt
-          if [[ -s isc_result.txt ]]; then
-            info_msg "[-r eq]: Found event in ISC tile data: ${EQ_SEARCH}"
-            # echo "Found EQ region hypocenter $REGION_EQ"
-            REGION_EQ_LON=$(gawk -F, < isc_result.txt '{print $7}')
-            REGION_EQ_LAT=$(gawk -F, < isc_result.txt '{print $6}')
-            REGION_EQ_DEPTH=$(gawk -F, < isc_result.txt '{print $8}')
-            REGION_EQ_MAG=$(gawk -F, < isc_result.txt '{print $12}')
-            REGION_EQ_MAGTYPE=$(gawk -F, < isc_result.txt '{print $11}')
-            REGION_EQ_AUTHOR=$(gawk -F, < isc_result.txt '{print $10}')
-            REGION_EQ_TIME=$(gawk -F, < isc_result.txt '{print $4 "T" $5}')
-            REGION_EQ_TYPE="ISC"
-            rm -f isc_result.txt
-            break
-          fi
-          ;;
+          ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM iscseis WHERE id=='${REGION_EQ}'" ${mytmpdir}/result.csv ${ISC_EQS_DIR}iscseis.gpkg
+            if [[ $(echo "$(wc -l < ${mytmpdir}/result.csv) > 1" | bc) -eq 1 ]]; then
+              # info_msg "[-r eq]: Found event in ANSS catalog"
+              # echo "Found EQ region hypocenter $REGION_EQ"
+              REGION_EQ_LON=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $1}')
+              REGION_EQ_LAT=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $2}')
+              REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $3}')
+              REGION_EQ_MAG=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $4}')
+              REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $5}')
+              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $6}')
+              REGION_EQ_TIME=$(gawk < ${mytmpdir}/result.csv '(NR==2) { print substr($7,1,19)}')
+              REGION_EQ_TYPE="ISC"
+              rm -f ${mytmpdir}/result.csv
+              break
+            fi          
+            ;;
         GHEC)
 # 109.700 34.500 10 8.25 1556-02-02T01:01:01 1556.0202000 -1
           EQ_SEARCH=$(gawk < ${GEMGHEC_DATA} -v id=${REGION_EQ} '($6 == id) { print }')
@@ -13455,6 +13440,13 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
 
       # fi
       done
+
+      ls ${mytmpdir}
+      rm -f ${mytmpdir}/*
+      rmdir ${mytmpdir}
+
+
+
     fi
 
     # Check if width is in km or in degrees
@@ -18586,7 +18578,7 @@ fi
         echo "T ${AUTHOR_ID} " >> author.txt
       fi
       AUTHOR_W=$(echo "$MAP_PS_WIDTH_IN * 8 / 10" | bc -l)
-      gmt pslegend author.txt -Dx0/0+w${AUTHOR_W}i+jTL+l1.1 $RJOK $VERBOSE >> map.ps
+      gmt pslegend author.txt -Dx0/0+w${AUTHOR_W}i+jTL+l1.1 $RJOK $VERBOSE --FONT_ANNOT_PRIMARY=${AUTHOR_FONT} >> map.ps
       gmt psxy -T -Y${OFFSETV}i $RJOK $VERBOSE >> map.ps
     elif [[ $authorflag -eq 0 && $printcommandflag -eq 1 ]]; then
       COMMAND_W=$(echo "$MAP_PS_WIDTH_IN * 9 / 10" | bc -l)
@@ -21686,7 +21678,10 @@ EOF
               }
               print "L 10p,Times-Roman L Longitude: " lon "@.  Latitude: " lat "@."
               print "L 10p,Times-Roman L Depth: " depth " km"
-              print "L 10p,Times-Roman L Event ID: " id " (source: " toupper(source) ")"
+              if (source == "US" || source == "OFFICIAL") {
+                source="USGS"
+              } 
+              print "L 10p,Times-Roman L Event ID: " id " (catalog: " toupper(source) ")"
 
           }' > zbox.box
 
