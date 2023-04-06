@@ -89,6 +89,8 @@ opn fixdem m_geography_aosm_fixdem flag 0
     repair DEM so that land/sea areas match OSM coastlines
 opn noplot m_geography_aosm_noplot flag 0
     do not plot coastlines
+opn seg m_geography_aosm_seg flag 0
+    plot line segments as great circles
 mes -aosm should only be called once; subsequent calls will overwrite all options
 exa tectoplot -aosm width 1p fill green
 ' "${@}" || return
@@ -436,7 +438,13 @@ function tectoplot_plot_geography() {
   m_geography_aosm)
 
     if [[ -s osmcoasts.bf2 ]]; then
-      gmt psxy osmcoasts.bf2 -A -bi2f -t${m_geography_aosm_trans} ${OSMCOAST_PLOTFILLCMD} -W${m_geography_aosm_width},${m_geography_aosm_color}  ${RJOK} ${VERBOSE} >> map.ps
+
+      if [[ ${m_geography_aosm_seg} -eq 0 ]]; then
+        m_geography_aosm_segcmd=""
+      else 
+        m_geography_aosm_segcmd="-A"
+      fi
+      gmt psxy osmcoasts.bf2 ${m_geography_aosm_segcmd} -bi2f -t${m_geography_aosm_trans} ${OSMCOAST_PLOTFILLCMD} -W${m_geography_aosm_width},${m_geography_aosm_color}  ${RJOK} ${VERBOSE} >> map.ps
       echo $OSMCOAST_SHORT_SOURCESTRING >> ${SHORTSOURCES}
       echo >> ${SHORTSOURCES}
       echo $OSMCOAST_SOURCESTRING >> ${LONGSOURCES}
