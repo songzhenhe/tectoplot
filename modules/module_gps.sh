@@ -308,7 +308,7 @@ function tectoplot_calc_gps()  {
 
     # For now, combine the files into a standard PSVELO format file, filtering based on uncertainties and preferring MIDAS sites
     touch midas_${tt}.txt gsrm_${tt}.txt
-    cat midas_${tt}.txt gsrm_${tt}.txt | gawk '
+    cat midas_${tt}.txt  | gawk '
         {
           if (id[tolower($8)]!=1) {
             id[tolower($8)]=1
@@ -316,7 +316,30 @@ function tectoplot_calc_gps()  {
               print
             }
           }
-        }' > combined_${tt}.txt
+        }' > combined_midas.txt
+
+      cat gsrm_${tt}.txt  | gawk '
+        {
+          if (id[tolower($8)]!=1) {
+            id[tolower($8)]=1
+            if ($5 <= '${m_gps_maxerror[$tt]}' && $6 <= '${m_gps_maxerror[$tt]}') {
+              print
+            }
+          }
+        }' > combined_gsrm.txt
+
+    if [[ $(echo "$(wc -l < combined_midas.txt) > 0" | bc -l) -eq 1 ]]; then
+      echo ${m_gps_midas_short_sourcestring} >> $SHORTSOURCES
+      echo ${m_gps_midas_sourcestring} >> $LONGSOURCES
+    fi
+
+    if [[ $(echo "$(wc -l < combined_gsrm.txt) > 0" | bc -l) -eq 1 ]]; then
+      echo ${m_gps_gsrm_short_sourcestring} >> $SHORTSOURCES
+      echo ${m_gps_gsrm_sourcestring} >> $LONGSOURCES
+    fi
+
+    cat combined_midas.txt combined_gsrm.txt > combined_${tt}.txt
+    rm -f combined_midas.txt combined_gsrm.txt
     m_gps_file[$tt]=combined_${tt}.txt
 
   else
