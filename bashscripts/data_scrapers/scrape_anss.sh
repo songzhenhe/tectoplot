@@ -301,7 +301,7 @@ EOF
       fi
     else
       cat batchN.json | repair_anss_time_json > batchN_fixed.json
-      ogr2ogr -f GPKG -append -nln anss anss.gpkg batchN_fixed.json
+      ogr2ogr -f GPKG -upsert -nln anss anss.gpkg batchN_fixed.json
       maxtime2=$(ogr2ogr -f CSV -dialect sqlite -sql "SELECT MAX(time) FROM anss" /vsistdout/ anss.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
       echo "Added $(wc -l < batchN_fixed.json | gawk '{print $1}') events between ${mintime} and ${maxtime2} (requested until ${maxtime})"
     fi

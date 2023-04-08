@@ -27,7 +27,7 @@ SELECT
     ELSE mag
   END,
   CAST(time as VARCHAR),
-  id
+  cAST(id as VARCHAR)
 FROM emsc
 WHERE
   X(geom) is NOT NULL AND
