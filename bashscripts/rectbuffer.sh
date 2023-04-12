@@ -225,7 +225,13 @@ EOF
         # rm -f piece_${segind}_trackfile_buffer.txt
       done
 
+      cat trackfile_merged_buffers.gmt 
+      fix_dateline_trackfile trackfile_merged_buffers.gmt > trackfile_merged_buffers_2.gmt
+      mv trackfile_merged_buffers_2.gmt trackfile_merged_buffers.gmt
+      echo now
+      cat trackfile_merged_buffers.gmt
       ogr2ogr -f "GeoJSON" trackfile_buffer.json trackfile_merged_buffers.gmt
+      
       gawk < trackfile_merged_buffers.gmt '($1+0==$1 || $1==">") { print }' > trackfile_buffer.txt
 
       cp trackfile_buffer.txt trackfile_final_buffer.txt

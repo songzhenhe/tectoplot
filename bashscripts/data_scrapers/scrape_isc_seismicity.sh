@@ -240,7 +240,7 @@ function iscseis_update_catalog() {
     echo "EVENTID,TYPE,AUTHOR,DATE,LAT,LON,DEPTH,DEPFIX,ORIGAUTHOR,MAGTYPE,MAG " > iscseis.csv
     cat batchN.csv | sed -n '/^  EVENTID/,/^STOP/p' | sed '1d;$d' | sed '$d' | sed 's/^\(.\{35\}\)./\1T/' | cut -b 1-101 | gawk -F '[[:space:]]*,[[:space:]]*' '{$1=$1}1' OFS=, | sed 's/^ *//g' >> iscseis.csv
 
-    ogr2ogr -f GPKG -append -nln iscseis iscseis.gpkg iscseis.vrt
+    ogr2ogr -f GPKG -upsert -nln iscseis iscseis.gpkg iscseis.vrt
 
     maxtime2=$(ogr2ogr -f CSV -dialect spatialite -sql "SELECT MAX(time) FROM iscseis" /vsistdout/ iscseis.gpkg | sed '1d; s/\"//g' | cut -f 1 -d '.')
 

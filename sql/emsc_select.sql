@@ -26,8 +26,10 @@ SELECT
       END
     ELSE mag
   END,
+  -- CAST time as VARCHAR to get ISO8601 time format
   CAST(time as VARCHAR),
-  cAST(id as VARCHAR)
+  -- CAST id as VARCHAR to avoid quotation marks for events with a numeric ID code
+  CAST(id as VARCHAR)
 FROM emsc
 WHERE
   X(geom) is NOT NULL AND

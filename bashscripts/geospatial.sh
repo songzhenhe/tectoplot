@@ -171,7 +171,7 @@ function azimuth_to_justcode() {
 
 # args: 1=input file 2,3=RJSTRING{@} (e.g. "-R0/1/0/1 -JX5i")
 function select_in_gmt_map {
-  gmt select ${@} -f0x,1y,2s -i0,1,t -o0,1,t ${VERBOSE} | tr '\t' ' ' > a.tmp
+  gmt select ${@} -f0x,1y,2s -i0,1,t -o0,1,t ${VERBOSE} > a.tmp
   mv a.tmp "${1}"
 }
 
@@ -442,6 +442,173 @@ function fix_dateline_poly() {
   }'
 }
 
+# Updated to return longitudes > 0 for all points
+function fix_dateline_trackfile() {
+  OFMT='%f' gawk < $1 '
+  function abs(x) { return (x>0)?x:-x }
+  function addf(u,v, a, b) {
+    split(u,a,".")
+    split(v,b,".")
+    return sprintf("%d.%d", a[1]+b[1], a[2]+b[2])
+  }
+
+  BEGIN {
+    getmore=1
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      print
+    }
+    modifier=0
+  }
+
+  ($1+0!=$1) {
+    getmore=1
+    print
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      print
+      modifier=0
+    }
+  }
+  ($1+0==$1) {
+    lon=$1+0
+    lat=$2+0
+    # Check to see if we crossed the dateline
+    if (abs(lon-oldlon)>350) {
+      if (oldlon > lon) {
+        modifier=modifier+360.0
+      } else {
+        modifier=modifier-360.0
+      }
+    }
+    oldlon=lon
+    oldlat=lat
+    print (addf(lon,modifier)+360), lat
+  }'
+}
+
+
+function poly_crosses_dateline() {
+  OFMT='%f' gawk < $1 '
+  function abs(x) { return (x>0)?x:-x }
+
+  BEGIN {
+    returncode=0
+    getmore=1
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        if (abs(lon-oldlon)>330) {
+          returncode=1
+          exit
+        }
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+    }
+    modifier=0
+  }
+
+  ($1+0!=$1) {
+    getmore=1
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        lon=$1+0
+        lat=$2+0
+        if (abs(lon-oldlon)>330) {
+          returncode=1
+          exit
+        }
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      modifier=0
+    }
+  }
+  ($1+0==$1) {
+    lon=$1+0
+    lat=$2+0
+    # Check to see if we crossed the dateline
+    if (abs(lon-oldlon)>330) {
+      returncode=1
+      exit
+    }
+    oldlon=lon
+    oldlat=lat
+  }
+  END {
+    print returncode
+  }'
+}
+
+function fix_dateline_poly_plusfields() {
+  OFMT='%f' gawk < $1 '
+  function abs(x) { return (x>0)?x:-x }
+  function addf(u,v, a, b) {
+    split(u,a,".")
+    split(v,b,".")
+    return sprintf("%d.%d", a[1]+b[1], a[2]+b[2])
+  }
+
+  BEGIN {
+    getmore=1
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      print
+    }
+    modifier=0
+  }
+
+  ($1+0!=$1) {
+    getmore=1
+    print
+    while (getmore==1) {
+      getline
+      if ($1+0==$1) {
+        oldlon=$1+0
+        oldlat=$2+0
+        getmore=0
+      }
+      print
+      modifier=0
+    }
+  }
+  ($1+0==$1) {
+    lon=$1+0
+    lat=$2+0
+    # Check to see if we crossed the dateline
+    if (abs(lon-oldlon)>350) {
+      if (oldlon > lon) {
+        modifier=modifier+360.0
+      } else {
+        modifier=modifier-360.0
+      }
+    }
+    oldlon=lon
+    oldlat=lat
+    $1=""
+    $2=""
+    print addf(lon,modifier)%360, lat, $0
+  }'
+}
 
 # gawk code inspired by lat_lon_parser.py by Christopher Barker
 # https://github.com/NOAA-ORR-ERD/lat_lon_parser
@@ -777,14 +944,14 @@ function ogr2ogr_spat() {
 
   case ${SPAT_TYPE} in
     1)
-      echo "ogr2ogr_spat one only"
-      echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
+      # echo "ogr2ogr_spat one only"
+      # echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
       ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
     ;;
     2)
-      echo "ogr2ogr_spat twice"
-      echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
-      echo ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" ${wherecmd} selected_2.gpkg ${input_file}
+      # echo "ogr2ogr_spat twice"
+      # echo ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
+      # echo ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" ${wherecmd} selected_2.gpkg ${input_file}
 
       ogr2ogr -spat ${SPAT_MINLON_1} ${MINLAT} ${SPAT_MAXLON_1} ${MAXLAT} -f "GPKG" ${wherecmd} ${output_file} ${input_file}
       ogr2ogr -spat ${SPAT_MINLON_2} ${MINLAT} ${SPAT_MAXLON_2} ${MAXLAT} -f "GPKG" ${wherecmd} selected_2.gpkg ${input_file}

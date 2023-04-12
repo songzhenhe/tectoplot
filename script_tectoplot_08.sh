@@ -229,6 +229,11 @@ source ${TECTOPLOTDIR}tectoplot.version
 
 # if ((maxlon < 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon)))
 
+ALPHA=( {A..Z} {1..99} ) 
+alphaind=0
+function get_profcode() { profcode=${ALPHA[${alphaind:-0}]}; ((alphaind++)); }
+
+
 # Replacement for tac and tail -r (bad compliance across different systems!)
 # Outputs the input file in reverse line order
 function tecto_tac() {
@@ -1907,7 +1912,7 @@ fi
             "-b" \
             "-af" \
             "-p" "MORVEL" "-pf" "300" "-i" "2" \
-            "-z" "1" "50" "-zmag" "3.5" "10" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
+            "-z" "1" "50" "-zmag" "3.5" "-zline" "0" "-zcat" "ANSS" "ISC" "GHEC" "-ztarget" "${EQID}" "-zcsort" "mag" "down" \
             "-seistimeline_c" "${start_time}" "today" "4" \
             "-seistimeline_eq" "${EQID}" "30" \
             "-noframe" "right" \
@@ -1923,8 +1928,10 @@ fi
             "-cprof" "eq" "eq" "slab2" "1000" "2k" "-pw" "50k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
             "-preview" "300" \
             "-arrow" "wide" \
-            "-author" "Figure by Earthquake Insights" "font" "10p,Helvetica-Bold,black" "date" \
+            "-watermark" "Earthquake Insights 2023" \
             "-tpct" "1" "99"
+
+            # "-author" "Figure by Earthquake Insights" "font" "10p,Helvetica-Bold,black" "date" \
 
             # "-tcycle" "num" "10"
             # "-time" "eq" "${EQID}" "30" \
@@ -2473,6 +2480,29 @@ EOF
 shift && continue
 fi
   plots+=("regionreport")
+  ;;
+
+  -watermark)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-watermark: place a semi-transparent watermark on map
+Usage: -watermark "Watermark text"
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+  if arg_is_flag $2; then
+    echo "[-watermark]: argument required"
+    exit 1
+  else 
+    watermark_text="${2}"
+    shift
+  fi
+
+  plots+=("watermark")
+echo watermark text is "${watermark_text}"
   ;;
 
   -author)
@@ -5288,12 +5318,14 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -lprof:       Create equally spaced profiles locally orthogonal to a polyline
-Usage: -lprof [line_file] [profile_length] [resolution] [distance_sep]
+Usage: -lprof [line_file] [profile_length] [resolution] [distance_sep]   [[flip]]
 
   line_file                   file containing at least one polyline (1 used only)
   profile_length              length of each cross-profile (e.g. 100k)
   resolution                  sampling interval for grid data (e.g. 1k)
   distance_sep                along-profile spacing of cross-profile lines
+
+  [[flip]]                    reverse head and tail of polyline before profiling
 
   Input line formats accepted:
   Google Earth KML
@@ -5879,17 +5911,34 @@ fi
   fi
   ;;
 
+  -maponly)
+
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-maponly:       only open map PDF at end of processing
+Usage: -maponly 
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+    openflag=1
+    openallflag=0
+  ;;
+
   -noopen)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--noopen:       don't open PDF at end of processing
-Usage: -noopen
+-noopen:       don't open any PDFs at end of processing
+Usage: -noopen 
 
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
     openflag=0
+    openallflag=0
+
     ;;
 
   -oto)
@@ -9298,7 +9347,7 @@ fi
   ;;
 
   -t) # -t: visualize topography
-  TMIN=-12000 # Challenger Deep
+  TMIN=-11000 # Challenger Deep
   TMAX=9000 # Everest summit
   TOPO_MODIFIER=1
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9477,6 +9526,7 @@ fi
           noclip)
             shift
             clipdemflag=0
+            dontcuttopoflag=1
           ;;
           # rescale)
           #   shift
@@ -12289,6 +12339,22 @@ fi
   exit 0
   ;;
 
+  -noprofletter)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-noprofletter:          turn off labeling of automatic profiles as A-A', B-B', ...
+Usage: -profletter
+
+Example:
+tectoplot -t -aprof AY 1k -pw 10k -noprofletter
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+  plotlineidprimeflag=0
+  ;;
+
 	-z) # -z: plot seismicity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -13381,9 +13447,8 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
           if [[ -s ${ANSSDIR}anss.gpkg ]]; then
 
             ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM anss WHERE id=='${REGION_EQ}'" ${mytmpdir}/result.csv ${ANSSDIR}anss.gpkg
-            
             if [[ $(echo "$(wc -l < ${mytmpdir}/result.csv) > 1" | bc) -eq 1 ]]; then
-            # -s ${mytmpdir}/anss_result.csv ]]; then
+              # -s ${mytmpdir}/anss_result.csv ]]; then
               # info_msg "[-r eq]: Found event in ANSS catalog"
               # echo "Found EQ region hypocenter $REGION_EQ"
               REGION_EQ_LON=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $1}')
@@ -13391,9 +13456,8 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
               REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $3}')
               REGION_EQ_MAG=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $4}')
               REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $5}')
-              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $6}')
+              REGION_EQ_AUTHOR="USGS"
               REGION_EQ_TIME=$(gawk < ${mytmpdir}/result.csv '(NR==2) { print substr($7,1,19)}')
-              REGION_EQ_TYPE="ANSS"
               rm -f ${mytmpdir}/result.csv
               break
             fi
@@ -13401,17 +13465,17 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
           ;;
         ISC)
           ogr2ogr -f CSV -lco SEPARATOR=TAB  -dialect sqlite -sql "SELECT X(geom), Y(geom), Z(geom), mag, magType, id, CAST(time as VARCHAR) FROM iscseis WHERE id=='${REGION_EQ}'" ${mytmpdir}/result.csv ${ISC_EQS_DIR}iscseis.gpkg
+            
             if [[ $(echo "$(wc -l < ${mytmpdir}/result.csv) > 1" | bc) -eq 1 ]]; then
-              # info_msg "[-r eq]: Found event in ANSS catalog"
+              # info_msg "[-r eq]: Found event in ISC catalog"
               # echo "Found EQ region hypocenter $REGION_EQ"
               REGION_EQ_LON=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $1}')
               REGION_EQ_LAT=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $2}')
               REGION_EQ_DEPTH=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $3}')
               REGION_EQ_MAG=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $4}')
               REGION_EQ_MAGTYPE=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $5}')
-              REGION_EQ_AUTHOR=$(gawk < ${mytmpdir}/result.csv '(NR==2) {print $6}')
+              REGION_EQ_AUTHOR="ISC"
               REGION_EQ_TIME=$(gawk < ${mytmpdir}/result.csv '(NR==2) { print substr($7,1,19)}')
-              REGION_EQ_TYPE="ISC"
               rm -f ${mytmpdir}/result.csv
               break
             fi          
@@ -13430,7 +13494,6 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
             REGION_EQ_MAGTYPE="Historic"
             REGION_EQ_AUTHOR="GHEC"
             REGION_EQ_TIME=$(echo $EQ_SEARCH | gawk '{print $5}')
-            REGION_EQ_TYPE="GHEC"
             break
           fi
 
@@ -13441,7 +13504,9 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
       # fi
       done
 
-      ls ${mytmpdir}
+
+
+
       rm -f ${mytmpdir}/*
       rmdir ${mytmpdir}
 
@@ -14188,6 +14253,9 @@ if [[ $BOOKKEEPINGFLAG -eq 1 ]]; then
   # Project aprof_database.txt back to geographic coordinates and rearrange
   gmt mapproject ${F_MAPELEMENTS}aprof_database_proj.txt ${RJSTRING} -I ${VERBOSE} | tr '\t' ' ' | gawk '($1!="NaN"){print}' > ${F_MAPELEMENTS}aprof_database.txt
 
+  # # Check whether we cross the dateline
+  # fix_dateline_poly_plusfields ${F_MAPELEMENTS}aprof_database_prefix.txt > ${F_MAPELEMENTS}aprof_database.txt
+
   ################################################################################
   ##### Check if the reference point is within the data frame
 
@@ -14606,30 +14674,38 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # If we are NOT using GMRT data, either alone or in BEST mode
     if [[ ! $BATHYMETRY =~ "GMRT" && $bestexistsflag -eq 0 ]]; then
 
-      # We have specified a custom topo file
+    #   # We have specified a custom topo file
       if [[ $plotcustomtopo -eq 1 ]]; then
-    #     info_msg "[-t]: Using custom topography file ${GRIDFILE}"
-        if [[ $reprojecttopoflag -eq 1 ]]; then
-          info_msg "[-t]: reprojecting source file to WGS1984"
-          gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.tif -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -of "GTiff" -et 2 -t_srs "+proj=longlat +ellps=WGS84"
-          GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.tif)
-        fi
-    #   # gmt grdcut sometimes does strange things with DEMs
-    #   # Probably need some logic here to not use -projwin for some rasters...
-    #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif"
-    #     gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
-    #     GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.tif ${VERBOSE}))
-    #     DEM_MINLON=${GRDINFO[1]}
-    #     DEM_MAXLON=${GRDINFO[2]}
-    #     DEM_MINLAT=${GRDINFO[3]}
-    #     DEM_MAXLAT=${GRDINFO[4]}
-    #     BATHY=${F_TOPO}dem.tif
-    #     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
-        BATHYMETRY="custom_$(basename ${GRIDFILE})"
-        # gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-        gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
-        # We should have a different way of marking these types of files by basename
+          BATHYMETRY="custom_$(basename ${GRIDFILE})"
       fi
+
+    # #     info_msg "[-t]: Using custom topography file ${GRIDFILE}"
+    #     if [[ $reprojecttopoflag -eq 1 ]]; then
+    #       info_msg "[-t]: reprojecting source file to WGS1984"
+    #       gdalwarp ${GRIDFILE} ${F_TOPO}custom_wgs.tif -te ${DEM_MINLON} ${DEM_MINLAT} ${DEM_MAXLON} ${DEM_MAXLAT} -of "GTiff" -et 2 -t_srs "+proj=longlat +ellps=WGS84"
+    #       GRIDFILE=$(abs_path ${F_TOPO}custom_wgs.tif)
+    #     fi
+    # #   # gmt grdcut sometimes does strange things with DEMs
+    # #   # Probably need some logic here to not use -projwin for some rasters...
+    # #     echo "gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif"
+    # #     gdal_translate -q -of "NetCDF" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
+    # #     GRDINFO=($(gmt grdinfo -C ${F_TOPO}dem.tif ${VERBOSE}))
+    # #     DEM_MINLON=${GRDINFO[1]}
+    # #     DEM_MAXLON=${GRDINFO[2]}
+    # #     DEM_MINLAT=${GRDINFO[3]}
+    # #     DEM_MAXLAT=${GRDINFO[4]}
+    # #     BATHY=${F_TOPO}dem.tif
+    # #     TOPOGRAPHY_DATA=${F_TOPO}dem.tif
+    #     BATHYMETRY="custom_$(basename ${GRIDFILE})"
+    #     # gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+    #     if [[ $dontcuttopoflag -eq 1 ]]; then
+    #       echo "Not cutting custom DEM - copying"
+    #       gmt grdconvert ${GRIDFILE} -G${F_TOPO}dem.tif=gd:GTiff
+    #     else
+    #       gmt grdcut ${GRIDFILE} -G${BATHYMETRY} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+    #     fi
+    #     # We should have a different way of marking these types of files by basename
+    #   fi
 
       # We have not specified a custom topo file. GRIDDIR is the destination directory for tiles
       # and BATHYMETRY contains the code for the data type
@@ -14716,8 +14792,17 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
             # gmt grdconvert ${GRIDFILE} ${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
 
+            if [[ $dontcuttopoflag -eq 1 ]]; then
+              echo "Not cutting custom DEM - copying"
+              gdal_translate -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
+            else
+              gdal_translate -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
 
-            gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+              # gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
+            fi
+
+           
+            # gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             # Just convert the whole grid to tiff?
             # gdal_translate -q -of "GTiff" -r bilinear -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
             # gdal_translate -q -of "GTiff" -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} ${GRIDFILE} ${F_TOPO}dem.tif
@@ -14725,6 +14810,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             name=${F_TOPO}dem.tif
             clipdemflag=0
             TOPOGRAPHY_DATA=${F_TOPO}dem.tif
+            BATHYMETRY=${F_TOPO}dem.tif
             # demiscutflag=1
           ;;
         esac
@@ -14948,7 +15034,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               (NR>1) {
                 $(NF+1) = iso8601_to_epoch($5)
                 print
-              }'>> ${F_SEIS}eqs.txt
+              }' | sed 's/\"//g' >> ${F_SEIS}eqs.txt
           else
             echo "No EMSC GPKG file found. Delete EMSC directory and rerun -scrapedata to rebuild from scratch?"
             exit 1
@@ -14962,8 +15048,10 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
           if [[ -s ${ANSSDIR}anss.gpkg ]]; then
           echo "type IS ${noteqstring}'earthquake' ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
+            
           ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}anss_selected.gpkg ${ANSSDIR}anss.gpkg
           rm -f ogr2ogr_spat.where
+
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}anss_select.sql anss_selected.csv ${F_SEIS}anss_selected.gpkg
             gawk < anss_selected.csv '
               @include "tectoplot_functions.awk"
@@ -14975,7 +15063,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               (NR>1) {
                 $(NF+1) = iso8601_to_epoch($5)
                 print
-              }'>> ${F_SEIS}eqs.txt
+              }' | sed 's/\"//g' >> ${F_SEIS}eqs.txt
           else
             echo "No ANSS GPKG file found. Delete ANSS directory and rerun -scrapedata to rebuild from scratch?"
             exit 1
@@ -15018,6 +15106,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             eqselstring="SUBSTRING(type,2,1) IS ${noteqstring}'e'"
             # eqselstring="SUBSTRING(type,2,1) IS ${noteqstring}'m'"
             echo "${eqselstring} ${timeselstring} ${magselstring} ${depselstring}" > ogr2ogr_spat.where
+
             ogr2ogr_spat ${MINLON} ${MAXLON} ${MINLAT} ${MAXLAT} ${F_SEIS}iscseis_selected.gpkg ${ISC_EQS_DIR}iscseis.gpkg
             rm -f ogr2ogr_spat.where
             CPL_LOG=/dev/null ogr2ogr -lco SEPARATOR=TAB -f "CSV" -sql @${SQLDIR}isc_select.sql iscseis_selected.csv ${F_SEIS}iscseis_selected.gpkg
@@ -15031,7 +15120,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               (NR>1) {
                 $(NF+1) = iso8601_to_epoch($5)
                 print
-              }'>> ${F_SEIS}eqs.txt
+              }' | sed 's/\"//g' >> ${F_SEIS}eqs.txt
           else
             echo "No ISC seismicity GPKG file found. Delete ISC_SEIS directory and rerun -scrapedata to rebuild from scratch?"
             exit 1
@@ -15180,7 +15269,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     else
 
         # Cull the combined catalogs by removing equivalent events based on a
-        # specified space-time-magnitude window, keeping first-specified catalog
+        # specified space-time-magnitude window, keeping earlier-specified catalog data
 
       [[ $NUMEQCATS -le 1 ]] && CULL_EQ_CATALOGS=0
       [[ $forceeqcullflag -eq 1 ]] && CULL_EQ_CATALOGS=1
@@ -15204,7 +15293,9 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           lat_cutoff=0.3   # Latitude difference
           depth_cutoff=300  # depth difference
         }
+        # Create a sortable data vector with impossible character separators
         (NR <= n) {
+          # isimportedflag is just 1 for all events now
           data[NR]=$5"\x99"$0"\x99"1"\x99"iso8601_to_epoch($5)"\x99"NR
         }
         # (NR > n) {
@@ -15215,6 +15306,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           if (verbose==1) {
             print "EQ cull: sorting data (N==" n ")" > "/dev/stderr"
           }
+          # Sort the data by time
           asort(data)
           if (verbose==1) {
             print "EQ cull: Data have been sorted" > "/dev/stderr"
@@ -15261,8 +15353,17 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
               # is_imported[] is no longer used and should be removed
               if (j>=1 && j<=NR && j != i && is_imported[j] == 1)
               {
-                if ((abs(m_epoch[i]-m_epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff) && (linenumber[i] > linenumber[j]) )
-                {
+                # If both events are older than 1940, loosen the criteria
+                if (m_epoch[i] < -949536000 && m_epoch[j] < 1940) {
+                  if ((abs(m_epoch[i]-m_epoch[j]) < 60*60) && (abs(mag[i]-mag[j]) < 1) && (abs(lon[i]-lon[j]) < 3) && (abs(lat[i]-lat[j]) < 3) && (abs(depth[i]-depth[j]) < 10000) && (linenumber[i] > linenumber[j]) ) {
+                      # There is an equivalent event in the catalog that has a
+                      # lower line number, so do not print this event
+                      print event[i] > "./culled_seismicity.txt"
+                      print event[i], "[" linenumber[i], m_epoch[i] "]", "was removed because it matches", event[j], "[" linenumber[j], m_epoch[j] "]" > "./culled_seismicity_info.txt"
+                      printme=0
+                      break
+                  }
+                } else if ((abs(m_epoch[i]-m_epoch[j]) < epoch_cutoff) && (abs(mag[i]-mag[j]) < mag_cutoff) && (abs(lon[i]-lon[j]) < lon_cutoff) && (abs(lat[i]-lat[j]) < lat_cutoff) && (abs(depth[i]-depth[j]) < depth_cutoff) && (linenumber[i] > linenumber[j]) ) {
                       # There is an equivalent event in the catalog that has a
                       # lower line number, so do not print this event
                       print event[i] > "./culled_seismicity.txt"
@@ -16990,7 +17091,11 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       X1=$(echo "$REFPTLON-$REFWINDOW" | bc -l)
       X2=$(echo "$REFPTLON+$REFWINDOW" | bc -l)
 
-      nREFPLATE=$(gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE  | grep "> " | head -n 1 | gawk  '{print $2}')
+      echo gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE 
+      gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE 
+      echo done
+
+      nREFPLATE=$(gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE -fg  | grep "> " | head -n 1 | gawk  '{print $2}')
       info_msg "Automatic reference plate is $nREFPLATE"
 
       if [[ -z "$nREFPLATE" ]]; then
@@ -17570,7 +17675,15 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       thispt=($(grep "[${code:i:1}]" ${F_MAPELEMENTS}aprof_database.txt))
       profpts="${profpts} ${thispt[0]} ${thispt[1]}"
     done
-    echo "P A_${code} black 0 N ${profpts}" >> ${F_PROFILES}aprof_profs.txt
+
+    if [[ $plotlineidprimeflag -eq 1 ]]; then
+      get_profcode
+      thiscode=${profcode}
+    else
+      thiscode="A_${code}"
+    fi
+
+    echo "P ${thiscode} black 0 N ${profpts}" >> ${F_PROFILES}aprof_profs.txt
     # p1=($(grep "[${code:0:1}]" ${F_MAPELEMENTS}aprof_database.txt))
     # p2=($(grep "[${code:1:1}]" ${F_MAPELEMENTS}aprof_database.txt))
     # if [[ ${#p1[@]} -eq 3 && ${#p2[@]} -eq 3 ]]; then
@@ -17737,7 +17850,15 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
        fi
      fi
 
-     echo "P C_${cprofnum} black 0 N ${POINT1[0]} ${POINT1[1]} ${POINT2[0]} ${POINT2[1]}" >> ${F_PROFILES}cprof_profs.txt
+
+    if [[ $plotlineidprimeflag -eq 1 ]]; then
+      get_profcode
+      thiscode=${profcode}
+    else
+      thiscode="C_${cprofnum}"
+    fi
+
+     echo "P ${thiscode} black 0 N ${POINT1[0]} ${POINT1[1]} ${POINT2[0]} ${POINT2[1]}" >> ${F_PROFILES}cprof_profs.txt
      cprofnum=$(echo "${cprofnum} + 1" | bc)
 
      info_msg "[-cprof]: Added profile ${CPLON}/${CPLAT}/${CPROFAZ}/${CPHALFLEN}; Updated res to ${SPROF_RES}"
@@ -17798,6 +17919,18 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           printf("P L_%d black 0 %s %s %s %s %s\n", count++, align, $7, $8, $10, $11)
         }
         ' >> ${F_PROFILES}lprof_profs.txt
+
+      if [[ $plotlineidprimeflag -eq 1 ]]; then
+        while read p; do
+          get_profcode
+          thiscode=${profcode}
+          echo $p | gawk -v code=$thiscode '{ $2=code; print $0 }' >> ${F_PROFILES}lprof_profcode.txt
+        done < ${F_PROFILES}lprof_profs.txt
+        mv ${F_PROFILES}lprof_profcode.txt ${F_PROFILES}lprof_profs.txt
+      fi
+
+
+
        rm -f 1.grd
     fi
   fi
@@ -17846,7 +17979,14 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         printf("\n")
       }' >> ${F_PROFILES}kprof_profs.txt
 
-
+      if [[ $plotlineidprimeflag -eq 1 ]]; then
+        while read p; do
+          get_profcode
+          thiscode=${profcode}
+          echo $p | gawk -v code=$thiscode '{ $2=code; print $0 }' >> ${F_PROFILES}kprof_profcode.txt
+        done < ${F_PROFILES}kprof_profs.txt
+        mv ${F_PROFILES}kprof_profcode.txt ${F_PROFILES}kprof_profs.txt
+      fi
 
   fi
 
@@ -18103,9 +18243,11 @@ for cptfile in ${cpts[@]} ; do
         # Determine the range of data if it exists
 
         if [[ -s ${TOPOGRAPHY_DATA} ]]; then
+        echo grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}
           zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}))
           TMIN=${zrange[0]}
           TMAX=${zrange[1]}
+          echo ${zrange[@]}
         fi
 
         # Check and see if the CPT has a zero slice
@@ -18125,11 +18267,15 @@ for cptfile in ${cpts[@]} ; do
 
         if [[ $rescaletopoflag -ne 1 ]]; then
 
+
+  echo j
           gmt makecpt -C${TOPO_CPT_DEF} -T-11000/9000 -Fr -Vn >> ${F_CPTS}topo_prep.cpt
 
           # Make the new CPT by truncating the prep CPT to the data range
+          echo gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn
           gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn > ${F_CPTS}topo_temp.cpt
         else
+  echo k
           [[ $rescaletopominflag -eq 1 ]] && TMIN=${RESCALE_TMIN}
           [[ $rescaletopomaxflag -eq 1 ]] && TMAX=${RESCALE_TMAX}
 
@@ -18595,6 +18741,14 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
+      watermark)
+            WATERMARK_W=$(echo "$MAP_PS_WIDTH_IN / 2" | bc -l)
+
+        echo "H 14p,Helvetica-Bold,white ${watermark_text}" > watermark.txt
+        gmt pslegend watermark.txt -DjTR+w${WATERMARK_W}i+jTR -t20 $RJOK $VERBOSE >> map.ps
+
+      ;;
+
       zproj)
 
         # This is a custom implementation for Sumatra - needs to be generalized
@@ -21119,20 +21273,40 @@ EOF
         if [[ -e ${F_PROFILES}all_intersect.txt ]]; then
           info_msg "Plotting intersection of tracks with zeroline"
           gmt psxy ${F_PROFILES}xy_intersect.txt -W0.5p,black $RJOK $VERBOSE >> map.ps
-          gmt psxy ${F_PROFILES}all_intersect.txt -St0.1i -Gwhite -W0.7p,black $RJOK $VERBOSE >> map.ps
+          gmt psxy ${F_PROFILES}all_intersect.txt 0.1i -Gwhite -W0.7p,black $RJOK $VERBOSE >> map.ps
         fi
 
         # This is used to offset the profile name so it doesn't overlap the track line
-        PTEXT_OFFSET=$(echo ${PROFILE_TRACK_WIDTH} | gawk  '{ print ($1+0)*2 "p" }')
+        PTEXT_OFFSET=$(echo ${PROFILE_TRACK_WIDTH} | gawk -v ptext_fac=${PTEXT_FAC} '{ print ($1+0)*ptext_fac "p" }')
 
+
+        echo PTEXT_OFFSET is ${PTEXT_OFFSET}
+        
         plotlineidflag=1
         if [[ $plotlineidflag -eq 1 ]]; then
 
-          while read d; do
-            p=($(echo $d))
-            # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
-            echo "${p[0]},${p[1]},${p[5]}" | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jRB+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
-          done < ${F_PROFILES}start_points.txt
+          # If profiles are labeled e.g. A-A', print at both beginning and end
+          if [[ $plotlineidprimeflag -eq 1 ]]; then
+            while read d; do
+              p=($(echo $d))
+              # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
+              echo "${p[0]},${p[1]},${p[5]} " | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jLM+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
+            done < ${F_PROFILES}start_points.txt
+            while read d; do
+              p=($(echo $d))
+              # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
+              echo "${p[0]},${p[1]},${p[5]}'" | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jRM+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
+            done < ${F_PROFILES}end_points.txt
+          else
+
+          # Otherwise, print at beginning only
+
+            while read d; do
+              p=($(echo $d))
+              # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
+              echo "${p[0]},${p[1]},${p[5]}" | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jRB+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
+            done < ${F_PROFILES}start_points.txt
+          fi
         fi
 
         MAP_PROF_SPACING=0.25 # inches
@@ -21872,7 +22046,6 @@ EOF
      # Requires: dem.nc sentinel_img.jpg TOPO_CPT
      # Variables: topoctrlstring MINLON/MAXLON/MINLAT/MAXLAT P_IMAGE F_TOPO *_FACT
      # Flags: FILLGRIDNANS SMOOTHGRID ZEROHINGE
-
       # echo gdalinfo ${F_TOPO}dem.tif
      rasterinfo=($(gdalinfo ${F_TOPO}dem.tif | grep "Size is" | gawk '{print substr($3,1,length($3)-1), $4}'))
      info_msg "[-t]: dpi is $(echo "$rasterinfo / ${PSSIZE}" | bc)"
@@ -24179,7 +24352,7 @@ if [[ $outputdirflag -eq 1 ]]; then
   move_exit ${TMP}
 fi
 
-if [[ $openflag -eq 1 ]]; then
+if [[ $openallflag -eq 1 ]]; then
   PDF_FILES=($(find . -type f -name "*.pdf"))
   for open_file in ${PDF_FILES[@]}; do
     open_pdf $open_file

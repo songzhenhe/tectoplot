@@ -1296,9 +1296,28 @@ while read thisline; do
     # If the track is too long, then a single UTM zone cannot be used,
     # so split it into 500 km long segments.
 
+    crosses_dl=$(poly_crosses_dateline ${F_PROFILES}${LINEID}_trackfile.txt)
+
+    trackfiletochop=${F_PROFILES}${LINEID}_trackfile.txt
+
+    if [[ ${crosses_dl} -eq 1 ]]; then
+      info_msg "Trackfile ${LINEID} crosses dateline; shifting longitude to create track"
+      gawk < ${F_PROFILES}${LINEID}_trackfile.txt '
+        ($1+0!=$1) {
+          print
+        }
+        ($1+0==$1) {
+          $1=($1-90+360)%360
+          print $0
+        }
+      ' > ${F_PROFILES}${LINEID}_trackfile_m90.txt
+      trackfiletochop=${F_PROFILES}${LINEID}_trackfile_m90.txt
+    fi
+
+
     if [[ $(echo "${PROFILE_LEN_KM} > 500" | bc) -eq 1 ]]; then
       info_msg "Need to subsample track in order to buffer ${LINEID}"
-      gmt sample1d ${F_PROFILES}${LINEID}_trackfile.txt -Af -T500k > ${F_PROFILES}${LINEID}_trackfile_subsample.txt
+      gmt sample1d ${trackfiletochop} -Af -T500k > ${F_PROFILES}${LINEID}_trackfile_subsample.txt
       trackfiletouse=${F_PROFILES}${LINEID}_trackfile_subsample.txt
     else
       trackfiletouse=${F_PROFILES}${LINEID}_trackfile.txt
@@ -1351,6 +1370,13 @@ EOF
         rm -f piece_${segind}_trackfile_buffer.txt
       done
 
+      # echo "begfore"
+      # cat ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt
+      # fix_dateline_trackfile ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt > ${F_PROFILES}${LINEID}_trackfile_merged_buffers_2.gmt
+      # mv ${F_PROFILES}${LINEID}_trackfile_merged_buffers_2.gmt ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt
+      # echo "after"
+      # cat ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt
+      
       ogr2ogr -f "GeoJSON" ${F_PROFILES}${LINEID}_trackfile_buffer.json ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt
       gawk < ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt '($1+0==$1 || $1==">") { print }' > ${F_PROFILES}${LINEID}_trackfile_buffer.txt
 
@@ -1362,6 +1388,21 @@ EOF
 
       ogr2ogr -f "OGR_GMT" ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.gmt ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.json
       gawk < ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.gmt '($1+0==$1) { print }' > ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.txt
+
+      if [[ ${crosses_dl} -eq 1 ]]; then
+        info_msg "Trackfile ${LINEID} crosses dateline; shifting longitude back"
+        gawk < ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.txt '
+          ($1+0!=$1) {
+            print
+          }
+          ($1+0==$1) {
+            $1=($1+90+360)%360
+            print $0
+          }
+        ' > ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers_p90.txt
+        mv ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers_p90.txt ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.txt
+      fi
+
 
 cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.gmt ${F_PROFILES}${LINEID}_trackfile_dissolved_buffers.json ${F_PROFILES}${LINEID}_trackfile_merged_buffers.gmt
 
@@ -2066,12 +2107,12 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable_rgb.txt
       # !!!!! This could easily be simplified to be a list of numbers starting with 0 and incrementing by 1!
 
       grep ">" ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiletable.txt | gawk -F- '{print $3}' | gawk -F" " '{print $1}' > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
-cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
+      cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt
 
       # Shift the X coordinates of each cross-profile according to XOFFSET_NUM value
       # In gawk, adding +0 to dinc changes "0.3k" to "0.3"
       gawk -v xoff="${XOFFSET_NUM}" -v dinc="${gridspacinglist[$i]}" '{ print ( $1 * (dinc + 0) + xoff ) }' < ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilepts.txt > ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
-cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
+      cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profilekm.txt
 
       # Construct the profile data table. This is where we can correct by ZSCALE
       gawk -v zscale=${gridzscalelist[$i]} '{
@@ -3212,10 +3253,33 @@ EOF
     echo "halfz=\$(echo \"(\$line_max_z + \$line_min_z)/2\" | bc -l)" >> ${LINEID}_temp_plot.sh
 
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + ${XOFFSET_NUM}, z}' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR} -G${COLOR} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+
     plotlineidflag=1
+
     if [[ $plotlineidflag -eq 1 ]]; then
-      echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + ${XOFFSET_NUM}, z, \"${LINEID}\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBL -D8p/0 -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      if [[ $plotlineidprimeflag -eq 1 ]]; then
+        echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + ${XOFFSET_NUM}, z, \"${LINEID}\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBC -D0p/5p -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+        echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz -v maxx=\$line_max_x '(NR==1) { print \$1 + ${XOFFSET_NUM} + maxx, z, \"${LINEID}\\047\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBC -D0p/5p -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      else
+        echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz '(NR==1) { print \$1 + ${XOFFSET_NUM}, z, \"${LINEID}\"}' | gmt pstext -F+f10p,Helvetica,black+a0+jBR -D8p/0 -N -Ya\${Ho2} -J -R -O -K >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
+      fi
     fi
+
+
+# if [[ $plotlineidprimeflag -eq 1 ]]; then
+#             while read d; do
+#               p=($(echo $d))
+#               # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
+#               echo "${p[0]},${p[1]},${p[5]} " | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jLM+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
+#             done < ${F_PROFILES}start_points.txt
+#             while read d; do
+#               p=($(echo $d))
+#               # echo "${p[0]},${p[1]},${p[5]}  angle ${p[2]}"
+#               echo "${p[0]},${p[1]},${p[5]}'" | gmt pstext -A -Dj${PTEXT_OFFSET} -F+f${PROFILE_FONT_LABEL_SIZE},Helvetica+jRM+a$(echo "${p[2]}-90" | bc -l) $RJOK $VERBOSE >> map.ps
+#             done < ${F_PROFILES}end_points.txt
+#           else
+
+
     echo "gawk < ${F_PROFILES}xpts_${LINEID}_dist_km.txt -v z=\$halfz 'BEGIN {runtotal=0} (NR>1) { print \$1+runtotal+${XOFFSET_NUM}, z; runtotal=\$1+runtotal; }' | gmt psxy -J -R -K -O -N -Si0.1i -Ya\${Ho2} -W0.5p,${COLOR}>> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
     # ON THE OBLIQUE PLOTS

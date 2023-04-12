@@ -232,6 +232,9 @@ NUM_SVF_ANGLES=8  # Sky view factor number of look angles
 DEM_ALPHA=0.5       # Alpha of color stretch
 SHADOW_ALPHA=0.5      # Alpha of cast shadows
 
+plotlineidprimeflag=1   # Label profiles as A-A' etc by default
+PTEXT_FAC=8             # Spacing between profile labels and profile end points, in pts
+
 ################################################################################
 # Not sure what these variables do currently or whether they are used...
 ILLUM="-I+d"                # Default option for shaded relief (not used now?)

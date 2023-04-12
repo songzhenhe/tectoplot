@@ -104,8 +104,8 @@ function tectoplot_calc_volcanoes()  {
 
     case ${m_volcanoes_age[$tt]} in
       pleistocene) sed '1d' < pleistocene.csv > ${F_VOLC}volcanoes_${tt}.dat ;;
-      holocene) sed '1d' < holocene.csv > ${F_VOLC}volcanoes_${tt}.dat ;;
-      all)  sed '1d' < pleistocene.csv > ${F_VOLC}volcanoes_${tt}.dat; sed '1d' < holocene.csv >> ${F_VOLC}volcanoes_${tt}.dat ;; 
+      holocene) sed '1d' < holocene.csv >> ${F_VOLC}volcanoes_${tt}.dat ;;
+      all)  sed '1d' < pleistocene.csv >> ${F_VOLC}volcanoes_${tt}.dat; sed '1d' < holocene.csv >> ${F_VOLC}volcanoes_${tt}.dat ;; 
     esac
 
     # # lon lat elevation elevation
@@ -123,15 +123,16 @@ function tectoplot_calc_volcanoes()  {
     # }' >> ${F_VOLC}volcanoes_${tt}.dat
 
     # Map region select
+    # echo select_in_gmt_map ${F_VOLC}volcanoes_${tt}.dat ${RJSTRING}
     select_in_gmt_map ${F_VOLC}volcanoes_${tt}.dat ${RJSTRING}
 
     # Polygon select
-    if [[ $polygonselectflag -eq 1 ]]; then
-      info_msg "Selecting volcanoes within AOI polygon ${POLYGONAOI}"
-      mv ${F_VOLC}volcanoes_${tt}.dat ${F_VOLC}volcanoes_preselect.dat
-      gmt select ${F_VOLC}volcanoes_preselect.dat -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_VOLC}volcanoes_${tt}.dat
-      cleanup ${F_SEIS}eqs_preselect.txt
-    fi
+    # if [[ $polygonselectflag -eq 1 ]]; then
+    #   info_msg "Selecting volcanoes within AOI polygon ${POLYGONAOI}"
+    #   mv ${F_VOLC}volcanoes_${tt}.dat ${F_VOLC}volcanoes_preselect.dat
+    #   gmt select ${F_VOLC}volcanoes_preselect.dat -F${POLYGONAOI} -Vn | tr '\t' ' ' > ${F_VOLC}volcanoes_${tt}.dat
+    #   cleanup ${F_SEIS}eqs_preselect.txt
+    # fi
 }
 
 function tectoplot_plot_volcanoes() {
