@@ -1922,10 +1922,10 @@ fi
             "-pa" "notext" \
             "-aosm" "fixdem" "color" "white" "width" "0.25p"  \
             "-pl" "13p,Bookman-Demi,black" "full" \
-            "-pp" "min" "100000" "bin" "5" "label" "1" "fill" "black" "outline" "white" "lang" "en" "only" \
+            "-pp" "min" "100000" "bin" "4" "label" "1" "fill" "white" "stroke" "0.25p,black" "outline" "white" "lang" "en" "only" \
             "-scale" "inlegend" "horz" "length" "250k" "divs" "5" "skiplabel" "75" "height" "20" \
             "-zbox" "${EQID}" "-zhigh" "${EQID}" \
-            "-cprof" "eq" "eq" "slab2" "1000" "2k" "-pw" "50k" "-oto" "change_h" "-proftopo" "-profdepth" "-250" "10" "-showprof" "all" \
+            "-cprof" "eq" "eq" "slab2" "1000" "2k" "-pw" "50k" "-oto" "change_h" "-proftopo" "-profdepth" "-350" "10" "-showprof" "all" \
             "-preview" "300" \
             "-arrow" "wide" \
             "-watermark" "Earthquake Insights 2023" \
@@ -3356,19 +3356,22 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -eqlabel:      label earthquake events using various criteria
-Usage: -eqlabel [selectoptions] [formatoptions]
+Usage: -eqlabel [selectoptions] [formatoptions] [[offset offset_x offset_y]]
 
   [selectoptions] are: { list min_magnitude r }
     list:           label events with IDS from -eqlist
     min_magnitude:  label events with magnitude larger than this (e.g. 7.5)
     r:              use the earthquake specified by -eventmap [earthquakeID]
 
-  [displayoptions] are: { idmag datemag dateid id date mag year yearmag }
+  [formatoptions] are: { idmag datemag dateid id date mag year yearmag }
     date:           YYYY-MM-DD
     datetime:       YYYY-MM-DD HH:MM:SS
     mag:            Magnitude (1 decimal place)
     id:             ID code
     year:           YYYY
+
+  [[offset]] takes two arguments and uses those values as the x/y label offset
+    distances
 
   This option attempts to label all earthquake events on maps and cross sections
   that comply with specified criteria, using different label formats.
@@ -3384,8 +3387,24 @@ EOF
 shift && continue
 fi
       labeleqminmag=0
-      while [[ ${2:0:1} != [-] && ! -z $2 ]]; do
-        if [[ $2 == "list" ]]; then
+      while ! arg_is_flag $2; do
+        if [[ $2 == "offset" ]]; then
+          shift
+          if arg_is_flag $2; then
+            echo "[-eqlabel]: offset option takes two arguments"
+            exit 1
+          else
+            EQ_LABEL_DISTX=$2
+            shift
+          fi
+          if arg_is_flag $2; then
+            echo "[-eqlabel]: offset option takes two arguments"
+            exit 1
+          else
+            EQ_LABEL_DISTY=$2
+            shift
+          fi        
+        elif [[ $2 == "list" ]]; then
           labeleqlistflag=1
           shift
         elif arg_is_float $2; then
@@ -3412,6 +3431,9 @@ fi
       fi
       [[ $eqlabelflag -ne 1 ]]  && plots+=("eqlabel")
       eqlabelflag=1
+
+     
+
     ;;
 
   -eqlist)
@@ -7082,14 +7104,13 @@ fi
 
         EPSG=$(gdalsrsinfo $2 -o epsg 2>/dev/null | grep "^EPSG" | sed '/^$/d' | head -n 1 | cut -f 2 -d ":")
 
-        if [[ $(echo "$EPSG == 0" | bc) -eq 1 ]]; then
-          EPSG="4326"
-        fi
-
-
         # If we got a result, the file is readable by OGR
         if [[ ! -z ${EPSG} ]]; then
 
+          if [[ $(echo "${EPSG} == 0" | bc) -eq 1 ]]; then
+            EPSG="4326"
+          fi
+          echo asasa
           # Try to use ogrinfo to get the extent
           # EXTENT={MINLON MAXLON MINLAT MAXLAT}
           # Extent: (-118.146888, 33.992453) - (-118.144898, 34.716438)
@@ -8836,16 +8857,19 @@ fi
     ;;
 
   -showprof) # -showprof: plot a selected profile or stacked profile on map PDF
+  shiftprofvalue=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -showprof:     plot a selected profile or stacked profile on map PS file
-Usage: -showprof [[all]] [[stacked]] [[ID1 ... IDN]]
+Usage: -showprof [[all]] [[stacked]] [[ID1 ... IDN]] [[shift distance]]
 
   Places profile EPS files below the map.
 
   all          plot every generated profile on the map (-showprof all)
   IDN          plot the Nth generated profile (e.g. -showprof 1 3 5)
   stacked      plot the stacked profile
+
+  [[shift]] option takes a distance argument and shifts each profile horizontally
 
 --------------------------------------------------------------------------------
 EOF
@@ -8865,6 +8889,19 @@ fi
   if [[ $2 =~ "all" ]]; then
     showprofallflag=1
     shift
+  fi
+
+  if [[ $2 =~ "shift" ]]; then 
+    shiftprofflag=1
+    shift
+    if ! arg_is_flag $2; then
+      shiftprofvalue=$2
+      shift
+    else
+      echo "[-showprof]: shift option requires argument"
+      exit 1
+    fi
+
   fi
 
   while arg_is_positive_float $2; do
@@ -9173,33 +9210,43 @@ shift && continue
 fi
 
   # Check if a file exists, if so, translate it to lon lat depth V
+
+  if [[ $2 == "raw" ]]; then
+    rawflag=1
+    shift
+  fi
+
   while [[ -s $2 ]]; do
 
     if [[ "${2}" == *.cpt ]]; then
       tomocpt=$(abs_path $2)
       tomoowncptflag=1
     else
-      gawk < $2 '
-      function sqr(x)        { return x*x                     }
-      function getpi()       { return atan2(0,-1)             }
-      function rad2deg(rad)  { return (180 / getpi()) * rad   }
-      ($1+0==$1 && $2+0==$2 && $3+0==$3) {
-        x=$1
-        y=$2
-        z=$3
-        rxy = sqrt(sqr(x)+sqr(y))
-        # print "rxy:", rxy
-        lon = rad2deg(atan2($2, $1))
-        lat = rad2deg(atan2($3, rxy))
-        val=($1*$1) + ($2*$2) + ($3*$3)
-        if (val<0) {
-          print "What:", $1, $2, $3, val
-        }
-        rxyz = sqrt(sqr(x)+sqr(y)+sqr(z))
-        depth = 6371.0 - rxyz
+      if [[ $rawflag -ne 1 ]]; then
+        gawk < $2 '
+        function sqr(x)        { return x*x                     }
+        function getpi()       { return atan2(0,-1)             }
+        function rad2deg(rad)  { return (180 / getpi()) * rad   }
+        ($1+0==$1 && $2+0==$2 && $3+0==$3) {
+          x=$1
+          y=$2
+          z=$3
+          rxy = sqrt(sqr(x)+sqr(y))
+          # print "rxy:", rxy
+          lon = rad2deg(atan2($2, $1))
+          lat = rad2deg(atan2($3, rxy))
+          val=($1*$1) + ($2*$2) + ($3*$3)
+          if (val<0) {
+            print "What:", $1, $2, $3, val
+          }
+          rxyz = sqrt(sqr(x)+sqr(y)+sqr(z))
+          depth = 6371.0 - rxyz
 
-        print lon, lat, depth, $4
-      }' >> ${TMP}tomography.txt
+          print lon, lat, depth, $4
+        }' >> ${TMP}tomography.txt
+      else
+        cp "$2" ${TMP}tomography.txt
+      fi
     fi
     shift
   done
@@ -12138,6 +12185,54 @@ fi
     exit 1
   fi
 
+  ztarget_exterior_rad=50
+  ztarget_interior_rad=25
+
+  ztarget_linecolor=black
+  ztarget_fillcolor=white
+
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      linecolor)
+        shift
+        if arg_is_flag $2; then
+          echo "[-ztarget]: linecolor option requires string argument"
+          exit 1
+        fi
+        ztarget_linecolor=$2
+        shift
+      ;;
+      fillcolor)
+        shift
+        if arg_is_flag $2; then
+          echo "[-ztarget]: fillolor option requires string argument"
+          exit 1
+        fi
+        ztarget_fillcolor=$2
+        shift
+      ;;
+      inrad)
+        shift
+        if ! arg_is_positive_float $2; then
+          echo "[-ztarget]: inrad option requires positive number argument"
+          exit 1
+        fi
+        ztarget_interior_rad=$2
+        shift
+      ;;
+      exrad)
+        shift
+        if ! arg_is_positive_float $2; then
+          echo "[-ztarget]: exrad option requires positive number argument"
+          exit 1
+        fi
+        ztarget_exterior_rad=$2
+        shift
+      ;;
+    esac
+  done
+
   plots+=("ztarget")
 
   ;;
@@ -12208,15 +12303,29 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -zcull:           remove an event based on ID
-Usage: -zcull [id]
+Usage: -zcull [ids | file]
+
+  ids are a comma separated list of earthquake IDs
+  If argument is a file, read each line as a separate ID 
 --------------------------------------------------------------------------------
 EOF
 shift && continue
 fi
 
   zcullflag=1
-  zcullid=$2
-  shift
+
+  if arg_is_flag $2; then
+    echo "[-zcull]: requires a file or ID argument"
+    exit 1
+  fi
+
+  if [[ -s $2 ]]; then
+    zcullfile=$(abs_path $2)
+    shift
+  else
+    zcullids=$2
+    shift
+  fi
   ;;
 
   -cullparams)
@@ -15521,9 +15630,24 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       # Remove events based on id
 
       if [[ $zcullflag -eq 1 ]]; then
-        gawk < ${F_SEIS}eqs.txt -v id=${zcullid} '
-        ($6 != id) {
-          print
+
+        if [[ -s ${zcullfile} ]]; then
+          zcullids=$(tr '\n' ',' < ${zcullfile})
+        fi
+
+        gawk < ${F_SEIS}eqs.txt -v id=${zcullids} '
+        BEGIN {
+          split(id, idstr, ",")
+          for (i in idstr) {
+            idelems[idstr[i]]=1
+          }
+        }
+        {
+          if ($6 in idelems) {
+            # nothing, I am bad at awk
+          } else {
+            print
+          }
         }' > ${F_SEIS}eqs_2.txt
         [[ -s ${F_SEIS}eqs_2.txt ]] && mv ${F_SEIS}eqs_2.txt ${F_SEIS}eqs.txt
 
@@ -21015,11 +21139,11 @@ EOF
             echo "C ${F_CMT}cmt_thrust.txt -1 -E${CMT_THRUSTCOLOR}" >> sprof.control
           fi
 
-          if [[ -e ${F_VOLC}volcanoes.dat ]]; then
-            # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
-            info_msg "Adding volcanoes to sprof as xyz"
-            echo "X ${F_VOLC}volcanoes.dat 0.001 -St0.1i -W0.1p,black" >> sprof.control
-          fi
+          # if [[ -e ${F_VOLC}volcanoes.dat ]]; then
+          #   # We need to sample the DEM at the volcano point locations, or else use 0 for elevation.
+          #   info_msg "Adding volcanoes to sprof as xyz"
+          #   echo "X ${F_VOLC}volcanoes.dat 0.001 -St0.1i -W0.1p,black" >> sprof.control
+          # fi
 
           if [[ -e ${F_PROFILES}profile_labels.dat ]]; then
             info_msg "Adding profile labels to sprof as xyz [lon/lat/km]"
@@ -21278,9 +21402,6 @@ EOF
 
         # This is used to offset the profile name so it doesn't overlap the track line
         PTEXT_OFFSET=$(echo ${PROFILE_TRACK_WIDTH} | gawk -v ptext_fac=${PTEXT_FAC} '{ print ($1+0)*ptext_fac "p" }')
-
-
-        echo PTEXT_OFFSET is ${PTEXT_OFFSET}
         
         plotlineidflag=1
         if [[ $plotlineidflag -eq 1 ]]; then
@@ -21350,7 +21471,7 @@ EOF
                 PS_WIDTH_IN=$(echo $PS_DIM | gawk '{print $1/2.54} ')
                 PS_WIDTH_SHIFT=$(echo $PS_DIM | gawk -v p_orig=${MAP_PS_WIDTH_NOLABELS_IN} '{print ($1/2.54-(p_orig+0))/2}')
                 PS_HEIGHT_IN=$(echo $PS_DIM | gawk -v prevheight=$PS_HEIGHT_IN -v vbuf=${MAP_PROF_SPACING} '{print $2/2.54+vbuf + prevheight}')
-                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${profile_name}.eps -Xa${PROFILE_X_SHIFT} $RJOK ${VERBOSE} >> map.ps
+                gmt psimage -Dx"-${PS_WIDTH_SHIFT}i/-${PS_HEIGHT_IN}i"+w${PS_WIDTH_IN}i ${F_PROFILES}${profile_name}.eps -Xa${shiftprofvalue} $RJOK ${VERBOSE} >> map.ps
               # fi
             # fi
           done
@@ -21787,17 +21908,64 @@ EOF
 
       ztarget)
           # Find the relevant item in eqs.txt
-          gawk < ${F_SEIS}eqs_precull.txt -v id=${EQID} '($6==id){ print; exit }' > ztarget.cat
+          if [[ -s ${F_SEIS}eqs_precull.txt ]]; then
+            gawk < ${F_SEIS}eqs_precull.txt -v id=${ztarget_id} '($6==id){ print; exit }' > ztarget.cat
+          else
+            gawk < ${F_SEIS}eqs.txt -v id=${ztarget_id} '($6==id){ print; exit }' > ztarget.cat
+          fi
 
-          ztargetloc=($(gawk -F, < ztarget.cat '{print $1, $2}'))
+          if [[ -s ztarget.cat ]]; then
 
+            # We build a target symbol by plotting several circles of alternating color and decreasing 
+            # outward transparency.
 
-          echo ${ztargetloc[@]} | gmt psxy -Skcircle/43p -W4p,white@40  ${RJOK} ${VERBOSE} >> map.ps
-          echo ${ztargetloc[@]} | gmt psxy -Skcircle/29p -W4p,white@40  ${RJOK} ${VERBOSE} >> map.ps
+            ztargetloc=($(gawk -F, < ztarget.cat '{print $1, $2}'))
 
-          echo ${ztargetloc[@]} | gmt psxy -Skcircle/50p -W2.5p,black@50 ${RJOK} ${VERBOSE} >> map.ps
-          echo ${ztargetloc[@]} | gmt psxy -Skcircle/36p -W3.5p,black@40  ${RJOK} ${VERBOSE} >> map.ps
-          echo ${ztargetloc[@]} | gmt psxy -Skcircle/22p -W4p,black@30  ${RJOK} ${VERBOSE} >> map.ps
+            # the primary rings are equally spaced
+            rad1=${ztarget_interior_rad}
+            rad5=${ztarget_exterior_rad}
+            rad3=$(echo "(${rad5} - ${rad1})*2/4 + ${rad1}" | bc -l)
+
+            # echo rad1,3,5 are $rad1 $rad3 $rad5
+
+            strokewidth1=$(echo "(${rad3} - ${rad1})/6" | bc -l)
+            strokewidth3=$(echo "(${rad3} - ${rad1})/7" | bc -l)
+            strokewidth5=$(echo "(${rad3} - ${rad1})/10" | bc -l)
+
+            # echo strokewidth1,3,5 are $strokewidth1 $strokewidth3 $strokewidth5
+
+            # Fill rings are placed between the primary rings, accounting for stroke width
+            rad2=$(echo "(${rad1} + ${strokewidth1} + ${rad3} - ${strokewidth3})/2" | bc -l)
+            rad4=$(echo "(${rad3} + ${strokewidth3} + ${rad5} - ${strokewidth5})/2" | bc -l)
+
+            # echo rad2,4 are $rad2 a $rad4
+
+            strokewidth2=$(echo "(${rad3} - ${strokewidth3} - ${rad1} - ${strokewidth1})/2" | bc -l)
+            strokewidth4=$(echo "(${rad5} - ${strokewidth5} - ${rad3} - ${strokewidth3})/2" | bc -l)
+
+            # echo strokewidth2,4 are $strokewidth2 a $strokewidth4
+
+            echo ${ztargetloc[@]} | gmt psxy -Skcircle/${rad2}p -W${strokewidth2}p,${ztarget_fillcolor}@40  ${RJOK} ${VERBOSE} >> map.ps
+            echo ${ztargetloc[@]} | gmt psxy -Skcircle/${rad4}p -W${strokewidth4}p,${ztarget_fillcolor}@40  ${RJOK} ${VERBOSE} >> map.ps
+            echo ${ztargetloc[@]} | gmt psxy -Skcircle/${rad1}p -W${strokewidth1}p,${ztarget_linecolor}@30  ${RJOK} ${VERBOSE} >> map.ps
+            echo ${ztargetloc[@]} | gmt psxy -Skcircle/${rad3}p -W${strokewidth3}p,${ztarget_linecolor}@40  ${RJOK} ${VERBOSE} >> map.ps
+            echo ${ztargetloc[@]} | gmt psxy -Skcircle/${rad5}p -W${strokewidth5}p,${ztarget_linecolor}@50  ${RJOK} ${VERBOSE} >> map.ps
+
+            # echo ${ztargetloc[@]} | gmt psxy -Skcircle/43p -W4p,white@40  ${RJOK} ${VERBOSE} >> map.ps
+            # echo ${ztargetloc[@]} | gmt psxy -Skcircle/29p -W4p,white@40  ${RJOK} ${VERBOSE} >> map.ps
+            # echo ${ztargetloc[@]} | gmt psxy -Skcircle/50p -W2.5p,black@50 ${RJOK} ${VERBOSE} >> map.ps
+            # echo ${ztargetloc[@]} | gmt psxy -Skcircle/36p -W3.5p,black@40  ${RJOK} ${VERBOSE} >> map.ps
+            # echo ${ztargetloc[@]} | gmt psxy -Skcircle/22p -W4p,black@30  ${RJOK} ${VERBOSE} >> map.ps
+
+            echo ${ztargetloc[@]} > ${F_PROFILES}ztarget.txt
+
+            echo "F ${F_PROFILES}ztarget.txt -1 gmt psxy -Skcircle/${rad2}p -W${strokewidth2}p,${ztarget_fillcolor}@40" >> ${F_PROFILES}profile_commands.txt
+            echo "F ${F_PROFILES}ztarget.txt -1 gmt psxy -Skcircle/${rad4}p -W${strokewidth4}p,${ztarget_fillcolor}@40" >> ${F_PROFILES}profile_commands.txt
+            echo "F ${F_PROFILES}ztarget.txt -1 gmt psxy -Skcircle/${rad1}p -W${strokewidth1}p,${ztarget_linecolor}@30" >> ${F_PROFILES}profile_commands.txt
+            echo "F ${F_PROFILES}ztarget.txt -1 gmt psxy -Skcircle/${rad3}p -W${strokewidth3}p,${ztarget_linecolor}@40" >> ${F_PROFILES}profile_commands.txt
+            echo "F ${F_PROFILES}ztarget.txt -1 gmt psxy -Skcircle/${rad5}p -W${strokewidth5}p,${ztarget_linecolor}@50" >> ${F_PROFILES}profile_commands.txt
+          fi
+
       ;;
 
       zbox)

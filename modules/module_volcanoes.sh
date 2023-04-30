@@ -141,6 +141,9 @@ function tectoplot_plot_volcanoes() {
     info_msg "[-vc]: Plotting volcanoes >${tt}<"
     gmt psxy ${F_VOLC}volcanoes_${tt}.dat -W${m_volcanoes_line[$tt]} -G${m_volcanoes_fill[$tt]} -S${m_volcanoes_symbol[$tt]}${m_volcanoes_size[$tt]}  $RJOK $VERBOSE >> map.ps
 
+    echo "Adding volcanoes to sprof as xyz"
+    echo "X ${F_VOLC}volcanoes_${tt}.dat 1 -W${m_volcanoes_line[$tt]} -G${m_volcanoes_fill[$tt]} -S${m_volcanoes_symbol[$tt]}${m_volcanoes_size[$tt]}" >> ${F_PROFILES}profile_commands.txt
+
     if [[ ${m_volcanoes_label[$tt]} -eq 1 ]]; then
       gawk < ${F_VOLC}volcanoes_${tt}.dat '
       {
@@ -148,6 +151,8 @@ function tectoplot_plot_volcanoes() {
           print $0
       }' | gmt pstext -Dj${VC_LABEL_DISTX}/${VC_LABEL_DISTY}+v0.7p,black -F+f+a+j $RJOK $VERBOSE >> map.ps
     fi
+
+
     ;;
   esac
 }

@@ -62,6 +62,8 @@ opn type m_seistimehist_counttype float 0
   count type: 0=count 2=log(1+count) 4=log10(1+count)
 opn shiftx m_seistimehist_shiftx string "0i"
   shift plot horizontally by this amount when using onmap
+opn minmag m_seistimehist_minmag float 0
+  do not plot legend items lower than specified magnitude
 ' "${@}" || return
     doseistimehistflag=1
     ;;
@@ -450,7 +452,7 @@ function tectoplot_post_seistime() {
       esac
 
 
-      gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -IO
+      # gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -IO
       maxcount=($(gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -I))
 
       if [[ $(echo "${maxcount[3]} == 0" | bc) -eq 1 ]]; then
@@ -461,24 +463,24 @@ function tectoplot_post_seistime() {
 
         maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
 
-        gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblue -W0.5p,black -JX7i/2i -K > m_seistimehist.ps
+        gmt pshistogram ${F_SEIS}seistimehist.txt -Z${m_seistimehist_counttype} -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -Gblue -W0.5p,black -JX${m_seistimehist_width}/${m_seistimehist_height} -K > m_seistimehist.ps
         
         for i in $(seq 0 4); do
           gawk < ${F_SEIS}seistimehist.txt -v cut=${seistimehist_mags[$i]} '
             ($2 > cut) {
               print
             }' > seistimehist_tmpcut.txt
-          [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
+          [[ -s seistimehist_tmpcut.txt ]] && gmt pshistogram seistimehist_tmpcut.txt -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX${m_seistimehist_width}/${m_seistimehist_height}  -Z${m_seistimehist_counttype} -T${m_seistimehist_mintime}/${m_seistimehist_maxtime}/${timeunit}  -i0,1 -Vn -G${seistimehist_colors[$i]} -W0.5p,black -O -K >> m_seistimehist.ps
         done
       fi
 
 
       if [[ ${bopts[0]} == "label" ]]; then
-        gmt psbasemap ${bopts[1]}+l"${m_seistimehist_mintime}   to   ${m_seistimehist_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
-        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap ${bopts[1]}+l"${m_seistimehist_mintime}   to   ${m_seistimehist_maxtime}" ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX${m_seistimehist_width}/${m_seistimehist_height} -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap -BtEbW -Byaf+l"Magnitude" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX${m_seistimehist_width}/${m_seistimehist_height} -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
       else
-        gmt psbasemap ${bopts[1]} ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
-        gmt psbasemap -BtEbW -Byaf+l"${m_seistimehist_ylabel}" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX7i/2i -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap ${bopts[1]} ${bopts[2]} ${bopts[3]} -BS -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX${m_seistimehist_width}/${m_seistimehist_height} -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
+        gmt psbasemap -BtEbW -Byaf+l"${m_seistimehist_ylabel}" -R${m_seistimehist_mintime}/${m_seistimehist_maxtime}/0/${maxc} -JX${m_seistimehist_width}/${m_seistimehist_height} -Byaf+l"${m_seistimehist_ylabel}" --MAP_FRAME_PEN=1p,black --FONT_LABEL=10p,Helvetica,black --FONT_ANNOT_PRIMARY=8p,Helvetica,black --ANNOT_OFFSET_PRIMARY=4p --MAP_TICK_LENGTH_PRIMARY=4p --LABEL_OFFSET=10p  --GMT_HISTORY=false --FONT_ANNOT_SECONDARY=8p,Helvetica,black -O -K ${VERBOSE} >>  m_seistimehist.ps
       fi
 
       # Make the legend
@@ -513,14 +515,15 @@ function tectoplot_post_seistime() {
          print num, code plural
       }')
 
+    echo minmag is ${m_seistimehist_minmag}
 
       echo "N 7" > m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i black 0.25p 0.3i M > 6" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i red 0.25p 0.3i M 5-6" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i orange 0.25p 0.3i M 4-5" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i yellow 0.25p 0.3i M 3-4" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i green 0.25p 0.3i M 2-3" >> m_seistimehist_legend.txt
-      echo "S 0.1i s 0.15i blue 0.25p 0.3i M < 2" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 6" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i black 0.25p 0.3i M > 6" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 5" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i red 0.25p 0.3i M 5-6" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 4" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i orange 0.25p 0.3i M 4-5" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 3" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i yellow 0.25p 0.3i M 3-4" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 2" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i green 0.25p 0.3i M 2-3" >> m_seistimehist_legend.txt
+      [[ $(echo "${m_seistimehist_minmag} <= 1" | bc -l) -eq 1 ]] && echo "S 0.1i s 0.15i blue 0.25p 0.3i M < 2" >> m_seistimehist_legend.txt
       echo "S 0i s 0.i white 0p,white 0.i Bin: ${timetext}" >> m_seistimehist_legend.txt
       # Close the PS file
 
@@ -593,6 +596,7 @@ function tectoplot_post_seistime() {
     echo "S 0.1i s 0.15i yellow 0.25p 0.2i 3-4" >> m_seistimebin_legend.txt
     echo "S 0.1i s 0.15i green 0.25p 0.2i 2-3" >> m_seistimebin_legend.txt
     echo "S 0.1i s 0.15i blue 0.25p 0.2i <2" >> m_seistimebin_legend.txt
+
     # Close the PS file
 
 
@@ -643,7 +647,7 @@ function tectoplot_post_seistime() {
     else      
 
       maxc=$(echo "${maxcount[3]} * 1.1" | bc -l)
-      echo maxc is ${maxc}
+      # echo maxc is ${maxc}
       
       gmt pshistogram ${F_SEIS}seistimehourbin.txt -Z${m_seistimehourbin_counttype} -R0/24/0/${maxc} -T0/24/1  -i0,1 -Vn -Gblue -W0.5p,black -JX${m_seistimehourbin_width}/${m_seistimehourbin_height} -K > m_seistimehourbin.ps
       
@@ -665,9 +669,7 @@ function tectoplot_post_seistime() {
     echo "S 0.1i s 0.15i yellow 0.25p 0.2i 3-4" >> m_seistimehourbin_legend.txt
     echo "S 0.1i s 0.15i green 0.25p 0.2i 2-3" >> m_seistimehourbin_legend.txt
     echo "S 0.1i s 0.15i blue 0.25p 0.2i <2" >> m_seistimehourbin_legend.txt
-    # Close the PS file
-
-
+    
     gmt pslegend m_seistimehourbin_legend.txt -Dn0/1+w${m_seistimehourbin_width} -R -J -O -K >> m_seistimehourbin.ps
 
     gmt psxy -T -R -O >> m_seistimehourbin.ps

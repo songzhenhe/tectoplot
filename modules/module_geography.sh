@@ -416,11 +416,11 @@ function tectoplot_plot_geography() {
       m_geography_a_rj+=("-R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT}")
       m_geography_a_rj+=("-JX${PSSIZE}i/${M_GEOGRAPHY_A_PSSIZE_ALT}id")
       # Plot the map in Cartesian coordinates
-      gmt pscoast -D${m_geography_a_res[$tt]} -W1/${m_geography_a_line[$tt]} ${m_geography_a_seafillcmd} ${m_geography_a_fillcmd} ${m_geography_a_sizecmd} -t${m_geography_a_trans[$tt]} ${m_geography_a_rj[@]} -Bxaf -Byaf -Btlrb -Xc -Yc --MAP_FRAME_PEN=0p,black --GMT_HISTORY=false > module_a_tmp.ps 2>/dev/null
+      gmt pscoast -D${m_geography_a_res[$tt]} -W1/${m_geography_a_line[$tt]} ${m_geography_a_seafillcmd} ${m_geography_a_fillcmd} ${m_geography_a_sizecmd} -t${m_geography_a_trans[$tt]} ${m_geography_a_rj[@]} -Xc -Yc --MAP_FRAME_PEN=0p,black --GMT_HISTORY=false > module_a_tmp.ps 2>/dev/null
       # Convert to a TIFF file at specified resolution
       gmt psconvert module_a_tmp.ps -A+m0i -Tt -W+g ${VERBOSE}
       rm -f module_a_tmp.tiff
-      # Update the coordinates in basin.tif to be correct
+      # Update the coordinates in module_a_tmp.tif to be correct
       gdal_edit.py -a_ullr ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} module_a_tmp.tif
       # rm -f module_a_tmp.ps
       gmt_remove_tmpdir

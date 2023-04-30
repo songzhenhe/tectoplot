@@ -232,6 +232,8 @@ function tectoplot_plot_cities() {
           printf("%s\t%s\t%d\n", $1, $2, NR)
         }' > cities_binprep_${tt}.txt 
         
+        m_cities_usedbinflag=1
+
         gmt_init_tmpdir
           gmt binstats cities_binprep_${tt}.txt -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Th -I${m_cities_bin[$tt]} -Cu -i0,1,2 ${VERBOSE} > cities_bin_${tt}.dat 2>/dev/null
         gmt_remove_tmpdir
@@ -821,12 +823,18 @@ function tectoplot_legend_cities() {
 
       init_legend_item "cities_${tt}"
 
-      if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
-        m_cities_legendstring="City with population <= ${m_cities_maxpop[$tt]}"
-      elif [[ ${m_cities_maxpop[$tt]} -eq 100000000 ]]; then
-        m_cities_legendstring="City with population >= ${m_cities_minpop[$tt]}"
+      if [[ ${m_cities_usedbinflag} -eq 1 ]]; then 
+        m_cities_cityname="Selected cities"
       else
-        m_cities_legendstring="City with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"
+        m_cities_cityname="Cities"
+      fi
+
+      if [[ ${m_cities_minpop[$tt]} -eq 0 ]]; then
+        m_cities_legendstring="${m_cities_cityname} with population <= ${m_cities_maxpop[$tt]}"
+      elif [[ ${m_cities_maxpop[$tt]} -eq 100000000 ]]; then
+        m_cities_legendstring="${m_cities_cityname}with population >= ${m_cities_minpop[$tt]}"
+      else
+        m_cities_legendstring="${m_cities_cityname} with population ${m_cities_minpop[$tt]}-${m_cities_maxpop[$tt]}"
       fi
 
       echo "${CENTERLON} ${CENTERLAT} 10000" | gmt psxy -S${m_cities_symbol[$tt]}${m_cities_size[$tt]} -W${m_cities_stroke[$tt]} ${m_cities_fillcmd[$tt]} $RJOK $VERBOSE -X.175i >> ${LEGFILE}

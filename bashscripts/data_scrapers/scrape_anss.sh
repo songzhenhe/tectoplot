@@ -323,14 +323,13 @@ if [[ ${2} == "rebuild" && ! -z ${3} ]]; then
   echo "Repairing ANSS catalog with backdate to ${3}"
   anss_repair_catalog ${3}
 else 
+  # Download and apply any updates done between the previous scrape time and the current time
+  echo "Finding updates for existing ANSS catalog..."
+  anss_update_catalog
 
-# Download and apply any updates done between the previous scrape time and the current time
-echo "Finding updates for existing ANSS catalog..."
-anss_update_catalog
-
-echo "Scraping new ANSS events..."
-# Update the ANSS catalog with newly scraped data
-anss_download_catalog
+  echo "Scraping new ANSS events..."
+  # Update the ANSS catalog with newly scraped data
+  anss_download_catalog
 fi
 
 
