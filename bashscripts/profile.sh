@@ -2,6 +2,8 @@
 
 axeslabelcmd="tESW"
 
+# trap 'now=$SECONDS; dur=$(echo "$now - $last" | bc -l); printf "Profile line $LINENO, time: $dur\n";' DEBUG
+
 # axeslabelcmd="trSW"
 
 # tectoplot
@@ -909,12 +911,15 @@ while read thisline; do
     ;;
     Q)
       # Q defines a 3D NetCDF grid that will be cut using grdinterpolate
-      # Q 3DGRIDFILE DATATYPE RES CPT
+      # Q 3DGRIDFILE DATATYPE HRES VRES CPT [[BUFFER=unused]]
       threedgrididnum[$i]=$(echo "3dgrid${i}")
       threedgridfilelist[$i]=$(echo "$(cd "$(dirname "${myarr[1]}")"; pwd)/$(basename "${myarr[1]}")")
-      threeddatatype[$i]="${myarr[2]}"      # The name of the NetCDF z variable (e.g. vs)
-      threedres[$i]="${myarr[3]}"           # Sampling resolution for the vertical profile (e.g. 1k)
-      threedcptlist[$i]="${myarr[4]}"           # Optional CPT file or cpt name
+      threeddatatype[$i]="${myarr[2]}"       # The name of the NetCDF z variable (e.g. vs)
+      threedhres[$i]="${myarr[3]}"           # Horizontal sample spacing (e.g. 1k or 1000)
+      threedvres[$i]="${myarr[4]}"           # Vertical sample spacing (e.g. 1k or 1000 or auto)
+      threedcptlist[$i]="${myarr[5]}"        # Optional CPT file or cpt name
+      threedzmin[$i]="${myarr[6]}"
+      threedzmax[$i]="${myarr[7]}"
     ;;
     S|G|W)
       # S is swath profile visualized as quantile envelopes
@@ -1914,18 +1919,13 @@ cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_track
       # [[ $litho1nogridflag -ne 1 ]] && echo "gmt grdimage ${F_PROFILES}${LINEID}_polar_litho1.tif -t${LITHO1_TRANS} -R -JX\${PROFILE_WIDTH_IN} -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
       #  [[ $litho1nogridflag -ne 1 ]] && echo "gmt_remove_tmpdir" >> ${LINEID}_polar_temp_plot.sh
 
+      # We can't create a TIFF and plot that easily, so just plot the polygons using psxy and deal with the annoying lines between them
+
       echo "cat ${F_PROFILES}${LINEID}_litho1_poly.dat | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy -L -G+z -C$LITHO1_CPT -Vn -R -J -K -O -B+gwhite >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
       # echo "gmt psconvert -Tt -A+m0i ${F_PROFILES}${LINEID}_polar_litho1.ps" >> ${LINEID}_polar_temp_plot.sh
       # [[ $litho1nogridflag -ne 1 ]] && echo "gmt grdimage ${F_PROFILES}${LINEID}_polar_litho1.tif -t${LITHO1_TRANS} -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
       [[ $litho1plotlabflag -eq 1 ]] && echo "cat ${F_PROFILES}${LINEID}_lab.xy | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy  -W0.5p,black,- -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
       [[ $litho1plotmohoflag -eq 1 ]] && echo "cat ${F_PROFILES}${LINEID}_moho.xy | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy  -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
-
-
-      # echo "cat ${F_PROFILES}${LINEID}_litho1_poly.dat | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy -L -G+z -C$LITHO1_CPT -Vn -R -J -K -O -B+gwhite >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
-      # # echo "gmt psconvert -Tt -A+m0i ${F_PROFILES}${LINEID}_polar_litho1.ps" >> ${LINEID}_polar_temp_plot.sh
-      # # [[ $litho1nogridflag -ne 1 ]] && echo "gmt grdimage ${F_PROFILES}${LINEID}_polar_litho1.tif -t${LITHO1_TRANS} -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
-      # [[ $litho1plotlabflag -eq 1 ]] && echo "cat ${F_PROFILES}${LINEID}_lab.xy | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy  -W0.5p,black,- -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
-      # [[ $litho1plotmohoflag -eq 1 ]] && echo "cat ${F_PROFILES}${LINEID}_moho.xy | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy  -W0.5p,black -Vn -R -J -O -K >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
 
 
       # PLOT ON THE OBLIQUE PROFILE PS
@@ -1943,21 +1943,49 @@ cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_track
     fi
 
     # 3D grids (NetCDF)
+
+    # The problem is that grdinterpolate -E requires a multipoint line with EQUALLY SPACED points which may be impossible
+    # or impractical for some (most) profiles. So we have to do a segment-by-segment process and merge the images.
+
     for i in ${!threedgridfilelist[@]}; do
 
       numprofpts=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | wc -l)
       numsegs=$(echo "$numprofpts - 1" | bc -l)
 
-      # Manage the CPTs
+      # Determine the vertical extent and resolution of the data cube
+      #  1    2 3 4 5  6 7  8  9  10 11  12
+      # <file w e s n {b t} v0 v1 dx dy {dz} n_columns n_rows {n_layers} [x0 y0 {z0} x1 y1 {z1}
+      # zinfo = { b t dz dx dy}
+      zinfo=($(gmt grdinfo -Q -C ${threedgridfilelist[$i]} | gawk '{print $6, $7, $12, $10, $11}'))
 
-      # Determine the resolution and extents of the data cube
-      zinfo=($(gmt grdinfo -Q -C ${threedgridfilelist[$i]} | gawk '{print $6, $7, $12}'))
-      if [[ ${zinfo[2]} -eq 0 ]]; then
-        zinfo[2]=${zinfo[0]}
-        echo "[-prof3dgrid]: Warning: changed zinfo to ${zinfo[0]}"
+      if [[ ${threedzmin[$i]} != "auto" ]]; then
+        zinfo[0]=${threedzmin[$i]}
+      fi
+      if [[ ${threedzmax[$i]} != "auto" ]]; then
+        zinfo[1]=${threedzmax[$i]}
       fi
 
-      # For each segment of the track
+      if [[ ${threedvres[$i]} == "auto" ]]; then
+
+        # zinfo[2] is the increment in Z level at which we will interpolate the data
+
+        # If zinfo[2] is equal to 0, then the data cube probably has a zlevels list rather than a
+        # Z increment. So use the average of dx and dy to get an approximately equivalent resolution
+
+        if [[ $(echo "${zinfo[2]} == 0" | bc -l) -eq 1 ]]; then
+
+          zsamplecmd=$(gmt grdinfo ${threedgridfilelist[$i]} | grep z_levels | gawk '{$1=""; $2=""; print $0}' | sed 's/ //g')
+          echo "[-prof3dgrid]: Sampling file at z_levels: ${zsamplecmd}"
+          
+        else
+          zsamplecmd="${zinfo[0]}/${zinfo[1]}/${zinfo[2]}"
+        fi
+      else
+          echo "Applying requested vres"
+          zsamplecmd="${zinfo[0]}/${zinfo[1]}/$(echo ${threedvres[$i]} | gawk '{print $1+0}')"
+      fi
+      unset cpttiffs
+
       cur_x=0
       for segind in $(seq 1 $numsegs); do
         segind_p=$(echo "$segind + 1" | bc -l)
@@ -1967,70 +1995,147 @@ cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_track
         p2_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
 
-        # Slice the 3D grid
-        # echo gmt grdinterpolate ${threedgridfilelist[$i]}?vs -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -Gvs_${segind}.nc ${VERBOSE}
+        echo doing segment $segind ${p1_x}/${p1_z}/${p2_x}/${p2_z}
+        # # trackpoints=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | tr '\n ' '/' | sed 's/.$//')
+        # trackpoints=$(gawk < ${F_PROFILES}${LINEID}_trackfile.txt '
+        # {
+        #   lon[NR]=$1
+        #   lat[NR]=$2
+        # }
+        # END {
+        #   for(i=1;i<NR;++i) {
+        #     if (i>1) {
+        #       printf(",")
+        #     }
+        #     printf("%s/%s/%s/%s", lon[i], lat[i], lon[i+1], lat[i+1])
+            
+        #   }
+        # }')
+
+        # echo trackpoints are ${trackpoints}
+
         INTERPTYPE="-Fa"
 
-        # echo gmt grdinterpolate ${threedgridfilelist[$i]}?${threeddatatype[$i]} ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
-        echo "Interpolating 3D grid"
-        gmt grdinterpolate ${threedgridfilelist[$i]}?${threeddatatype[$i]} ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
+        thislen=${threedhres[$i]}
+        if [ "${thislen: -1}" == "k" ]; then
+          echo "Length has unit k; multiplying"
+          threedhres[$i]=$(echo "${threedhres[$i]}" | gawk '{print ($1+0)*1000}')
+          echo new is ${threedhres[$i]}
+        fi
 
-        # Convert to text, adjust to add X offset and make Z negative (assuming grid is in depth)
-        gmt grd2xyz ${threeddatatype[$i]}_${segind}.nc | gawk -v curx=${cur_x} '{print $1+curx, 0-$2, $3}' >> ${LINEID}_threed.txt
+        echo gmt grdinterpolate "${threedgridfilelist[$i]}?${threeddatatype[$i]}" ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]}k -T${zsamplecmd} -G${threeddatatype[$i]}_${segind}_full.nc ${VERBOSE}
+        # gmt grdinterpolate "${threedgridfilelist[$i]}?${threeddatatype[$i]}" ${INTERPTYPE} -E${trackpoints}+i${threedhres[$i]}k -T${zsamplecmd} -G${threeddatatype[$i]}_full.nc ${VERBOSE}
+        gmt grdinterpolate "${threedgridfilelist[$i]}?${threeddatatype[$i]}" ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]}k -T${zsamplecmd} -G${threeddatatype[$i]}_${segind}_full.nc ${VERBOSE}
 
-        # echo "Segment ${segind}: slicing 3d grid from ${p1_x}/${p1_z} to ${p2_x}/${p2_z}, X=[${cur_x}, $(echo "$cur_x + ${add_x}" | bc -l)]"
+
+        # # For each segment of the track
+        # cur_x=0
+        # for segind in $(seq 1 $numsegs); do
+        #   segind_p=$(echo "$segind + 1" | bc -l)
+        #   p1_x=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $1}')
+        #   p1_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind} | tail -n 1 | gawk '{print $2}')
+        #   p2_x=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $1}')
+        #   p2_z=$(cat ${F_PROFILES}${LINEID}_trackfile.txt | head -n ${segind_p} | tail -n 1 | gawk '{print $2}')
+        #   add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
+
+        #   # Slice the 3D grid
+        #   # echo gmt grdinterpolate ${threedgridfilelist[$i]}?vs -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -Gvs_${segind}.nc ${VERBOSE}
+        #   INTERPTYPE="-Fa"
+
+        #   # echo gmt grdinterpolate ${threedgridfilelist[$i]}?${threeddatatype[$i]} ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]} -T${zinfo[0]}/${zinfo[1]}/${zinfo[2]} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
+        #   echo gmt grdinterpolate "${threedgridfilelist[$i]}?${threeddatatype[$i]}" ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]} -T${zsamplecmd} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
+          
+        #   gmt grdinterpolate "${threedgridfilelist[$i]}?${threeddatatype[$i]}" ${INTERPTYPE} -E${p1_x}/${p1_z}/${p2_x}/${p2_z}+i${threedhres[$i]} -T${zsamplecmd} -G${threeddatatype[$i]}_${segind}.nc ${VERBOSE}
+
+        #   # Convert to text, adjust to add X offset and make Z negative (assuming grid is in depth)
+        #   gmt grd2xyz ${threeddatatype[$i]}_${segind}.nc | gawk -v curx=${cur_x} '{print $1+curx, 0-$2, $3}' >> ${LINEID}_threed.txt
+
+        #   # echo "Segment ${segind}: slicing 3d grid from ${p1_x}/${p1_z} to ${p2_x}/${p2_z}, X=[${cur_x}, $(echo "$cur_x + ${add_x}" | bc -l)]"
+        #   add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
+        #   cur_x=$(echo "$cur_x + $add_x" | bc -l)
+        # done
+
+        # # Reconstruct a single grid from the combined segments
+
+        # neg1=$(echo "0 - ${zinfo[1]}" | bc -l)
+        # neg2=$(echo "0 - ${zinfo[0]}" | bc -l)
+
+        # # This removes the horizontal average from each profile. Not really a great way to do this
+        # # We should probably just allow people to correct their own data beforehand.
+        # if [[ $threedhresidflag -eq 1 ]]; then
+        #   # file is X Z V
+        #   gawk < ${LINEID}_threed.txt '
+        #   {
+        #     x[NR]=$1
+        #     z[NR]=$2
+        #     v[NR]=$3
+        #     if ($2 != "NaN") {
+        #       sum[$2]+=$3
+        #       num[$2]++
+        #     }
+        #   }
+        #   END {
+        #     for (key in sum) {
+        #       ave[key]=sum[key]/num[key]
+        #       print "Average of level", key, "is", ave[key] "from", sum[key], "over", num[key] > "/dev/stderr"
+        #     }
+        #     for (i=1; i<=NR; i++) {
+        #       if (v[$i]=="NaN") {
+        #         print x[$i], z[$i], "NaN"
+        #       } else {
+        #         print x[$i], z[$i], (v[$i]-ave[z[$i]])/ave[z[$i]]
+        #       }
+        #     }
+        #   }' > ${LINEID}_threed_resid.txt
+        #   TRIANGFILE=${LINEID}_threed_resid.txt
+        # else
+        #   TRIANGFILE=${LINEID}_threed.txt
+        # fi
+
+        # Adjust the output grid to have X units in km and Z negative downward
+        gridrange=($(gmt grdinfo -C -Q ${threeddatatype[$i]}_${segind}_full.nc | gawk -v x=${cur_x} '{print $2/1000+x, $3/1000+x, (0-$4), (0-$5)}'))
+        gmt grdedit ${threeddatatype[$i]}_${segind}_full.nc -Ev -Gflip.nc
+        gdal_translate -if NetCDF -a_ullr ${gridrange[0]} ${gridrange[2]} ${gridrange[1]} ${gridrange[3]} -of GTIFF flip.nc ${LINEID}_${segind}_${threeddatatype[$i]}_out.tif
+
+        # gmt grdedit flip.nc -R${gridrange[0]}/${gridrange[1]}/${gridrange[3]}/${gridrange[2]}+uk -D+xx+yy -G${LINEID}_${threeddatatype[$i]}_out.nc
+        # gmt grd2xyz ${threeddatatype[$i]}_full.nc | gawk '{print $1, 0-$2, $3}'
+        # gmt triangulate ${TRIANGFILE} -R0/${line_max_x}/${line_min_z}/${line_max_z} -I$(echo ${threedhres[$i]}k | gawk '{print $1+0}')+e -G${F_PROFILES}${LINEID}_threed.nc
+
+        # Plot the grid on the FLAT PROFILE
+
+        cpttiffs+=("${LINEID}_${segind}_${threeddatatype[$i]}_out.tif")
+
         add_x=$(cat ${F_PROFILES}${LINEID}_dist_km.txt | head -n $segind_p | tail -n 1)
         cur_x=$(echo "$cur_x + $add_x" | bc -l)
       done
 
-      # Reconstruct a grid from the combined segments
-      neg1=$(echo "0 - ${zinfo[1]}" | bc -l)
-      neg2=$(echo "0 - ${zinfo[0]}" | bc -l)
+      gdal_merge.py -o ${LINEID}_${threeddatatype[$i]}_out.tif ${cpttiffs[@]} 
 
-      # This removes the horizontal average from each profile. Not really a great way to do this
-      # We should probably just allow people to correct their own data beforehand.
-      if [[ $threedresidflag -eq 1 ]]; then
-        # file is X Z V
-        gawk < ${LINEID}_threed.txt '
-        {
-          x[NR]=$1
-          z[NR]=$2
-          v[NR]=$3
-          if ($2 != "NaN") {
-            sum[$2]+=$3
-            num[$2]++
-          }
-        }
-        END {
-          for (key in sum) {
-            ave[key]=sum[key]/num[key]
-            print "Average of level", key, "is", ave[key] "from", sum[key], "over", num[key] > "/dev/stderr"
-          }
-          for (i=1; i<=NR; i++) {
-            if (v[$i]=="NaN") {
-              print x[$i], z[$i], "NaN"
-            } else {
-              print x[$i], z[$i], (v[$i]-ave[z[$i]])/ave[z[$i]]
-            }
-          }
-        }' > ${LINEID}_threed_resid.txt
-        TRIANGFILE=${LINEID}_threed_resid.txt
-      else
-        TRIANGFILE=${LINEID}_threed.txt
-      fi
+      echo "gmt grdimage ${LINEID}_${threeddatatype[$i]}_out.tif -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
 
-      gmt triangulate ${TRIANGFILE} -R0/${cur_x}/${neg1}/${neg2} -I$(echo ${threedres[$i]} | gawk '{print $1+0}')+e -G${F_PROFILES}${LINEID}_threed.nc
+
+      # POLAR profile
+
+      gridrange=($(gmt grdinfo -C -Q ${LINEID}_${threeddatatype[$i]}_out.tif | gawk '{ print $2/6371 * 180/3.14159265, $3/6371 * 180/3.14159265, (0-$4), (0-$5)}'))
+
+    echo new gridrange is ${gridrange[@]}
+
+      # gridinfo=($(gmt grdinfo -C xyzgrid_${FNAME}.nc))
+
+      gmt grdedit ${LINEID}_${threeddatatype[$i]}_out.tif -Ev -Ggridflip.tif
+      gmt grdedit gridflip.tif -R${gridrange[0]}/${gridrange[1]}/${gridrange[3]}/${gridrange[2]} -G${LINEID}_${threeddatatype[$i]}_polar.tif
+
+
+      echo "gmt grdimage ${LINEID}_${threeddatatype[$i]}_polar.tif -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
 
       # Create this CPT only once as there may be different data ranges on different profiles
       if [[ ${threedcptlist[$i]} == "" && ! -s ${F_CPTS}prof3d.cpt ]]; then
-        echo "#D grid: making own cpt"
-        gmt grd2cpt -C${THREED_DEFAULTCPT} ${F_PROFILES}${LINEID}_threed.nc > ${F_CPTS}prof3d.cpt
+        echo "3D grid: making own cpt"
+        gmt grd2cpt ${LINEID}_${threeddatatype[$i]}_out.tif -C${THREED_DEFAULTCPT} > ${F_CPTS}prof3d.cpt
       else
         THREEDCPT=${threedcptlist[$i]}
       fi
 
-      # Plot the grid
-      echo "gmt grdimage ${F_PROFILES}${LINEID}_threed.nc -Q -Vn -R -J -O -K -C${THREEDCPT} >> ${F_PROFILES}${LINEID}_flat_profile.ps" >> ${LINEID}_temp_plot.sh
     done
 
     # Point grid files (e.g. slab2, fault model, etc.)
@@ -2081,7 +2186,9 @@ cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_track
       	paste ${F_PROFILES}dat.txt ${F_PROFILES}dat1.txt | gawk -v zscale=${ptgridzscalelist[$i]} '
           {
             if ($7 && $6 != "NaN" && $12 != "NaN") {
-              print "> -Z"($6+$12)/2*zscale; print $3, $6*zscale*-1; print $9, $12*zscale*-1
+
+              # Is this just a hack for Slab2.0? Multiplying by -1 seems strange here...
+              print "> -Z"($6+$12)/2*zscale; print $3, $6*zscale; print $9, $12*zscale
             }
           }' > ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt
 
@@ -2099,7 +2206,6 @@ cleanup ${F_PROFILES}${LINEID}_trackfile_buffer.txt ${F_PROFILES}${LINEID}_track
         # PLOT ON THE POLAR PROFILE PS
 
         echo "cat ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt | gawk '{ if (\$1+0==\$1) {\$1=\$1/6371 * 180/3.14159265; \$2=0-\$2; print \$0} else { print } }' | gmt psxy ${ptgridcommandlist[$i]} ${RJOK} ${VERBOSE} >> ${F_PROFILES}${LINEID}_polar_profile.ps" >> ${LINEID}_polar_temp_plot.sh
-
 
         # PLOT ON THE OBLIQUE PROFILE PS
         [[ $PLOT_SECTIONS_PROFILEFLAG -eq 1 ]] &&  echo "gmt psxy -p -Vn -R -J -O -K -L ${F_PROFILES}${LINEID}_${ptgrididnum[$i]}_data.txt ${ptgridcommandlist[$i]} >> ${F_PROFILES}${LINEID}_perspective_profile.ps" >> ${LINEID}_plot.sh
@@ -2799,21 +2905,46 @@ cleanup ${F_PROFILES}${LINEID}_${grididnum[$i]}_profiledataq13min.txt ${F_PROFIL
             # Generate the gridded image over the relevant XY range
 
             # What is the resolution we want from gmt surface? Calculate it from
-            # the input data using the difference between the first two unique
-            # sorted coordinates
-            gridresolutionX=0.1
-            gridresolutionY=0.1
-            
-            # if [[ ${gridresautoflag} -eq 1 ]]; then
-            #   gridresolutionX=$(cut -f 1 -d ' ' ${F_PROFILES}${FNAME_alt}  | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
-            #   gridresolutionY=$(cut -f 2 -d ' ' ${F_PROFILES}${FNAME_alt}  | sort -n | gawk 'BEGIN {diff=0; getline; oldval=$1} ($1 != oldval) { print (($1-oldval)>0)?($1-oldval):(oldval-$1); exit }')
-            # fi
+            # the input data using the average of the closest distance between points
+
+            echo tt ${F_PROFILES}${FNAME_alt}
+              gridresolution=$(gawk < ${F_PROFILES}${FNAME_alt} '
+                  ($1+0==$1) { 
+                    xval[NR]=$1
+                    yval[NR]=$2
+                  }
+                  END {
+                    for(i=1;i<=NR;i++) {
+                      for(j=i+1;j<=NR && j<=i+20;j++) {
+                        thisdist=sqrt(  (xval[i]-xval[j])^2 + (yval[i]-yval[j])^2 )
+                        # print "thisdist", xval[i], xval[j], yval[i], yval[j], "is", thisdist
+                        if (j==i+1 && thisdist != 0) {
+                          dist[i]=thisdist
+                        } else {
+                          if (thisdist < dist[i] && thisdist != 0) {
+                            # print "setting dist[i] to", thisdist
+                            dist[i]=thisdist
+                          }
+                        }
+                      }
+                      sumdist=sumdist+dist[i]
+                      print "sumdist=", sumdist > "/dev/stderr"
+                    }
+                    print sumdist/NR
+                  }'
+                )
+
+            # gridresolutionY=${gridresolution}
+            # gridresolutionX=${gridresolution}
+
+            echo "tomo resolution is ${gridresolution}"
+
 
             # change resolution by subsampling factor here
-            gridsubsampleX=1
-            gridsubsampleY=1
-            gridresolutionX=$(echo "${gridresolutionX} / ${gridsubsampleX}" | bc -l)
-            gridresolutionY=$(echo "${gridresolutionY} / ${gridsubsampleY}" | bc -l)
+            gridsubsampleX=10
+            gridsubsampleY=10
+            gridresolutionX=$(echo "${gridresolution} / ${gridsubsampleX}" | bc -l)
+            gridresolutionY=$(echo "${gridresolution} / ${gridsubsampleY}" | bc -l)
 
             gmt surface ${F_PROFILES}${FNAME_alt} -R${PROJRANGE[0]}/${PROJRANGE[1]}/${PROJRANGE[2]}/${PROJRANGE[3]} -Gxyzgrid_${FNAME}.nc -i0,1,3 -I${gridresolutionX}k/${gridresolutionY}k ${VERBOSE} >/dev/null 2>&1
 

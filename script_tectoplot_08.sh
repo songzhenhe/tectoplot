@@ -2197,7 +2197,7 @@ EOF
 shift && continue
 fi
 
-  # Create profiles by constructing a new mprof) file with relevant data types
+  # Create profiles by constructing a new profile control file with relevant data types
   # where the profile is specified by central point and azimuth
 
     if arg_is_float $2; then
@@ -2355,7 +2355,7 @@ EOF
 shift && continue
 fi
 
-    # Create profiles by constructing a new mprof) file with relevant data types
+    # Create profiles by constructing a new  control file with relevant data types
     aprofflag=1
 
     while [[ "${2}" == [A-Y]*[A-Y] ]]; do
@@ -5525,7 +5525,7 @@ EOF
 shift && continue
 fi
 
-    # Create a single profile across by constructing a new mprof) file with relevant data types
+    # Create a single profile across by constructing a new control file with relevant data types
     # Needs some argument checking logic as too few arguments will mess things up spectacularly
     xprofflag=1
     ((xprofnumber++))
@@ -8973,31 +8973,37 @@ fi
   ;;
 
   -prof3dgrid)
-  THREEDGRIDRES="1k"
+  THREEDGRID_HRES="1k"
+  THREEDGRID_VRES="auto"
+  THREEDZMIN="auto"
+  THREEDZMAX="auto"
   THREEDGRIDVAR="vs"
-  THREEDCPT=""
-  THREED_DEFAULTCPT="sealand"
+  THREEDCPT="polar"
 
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--prof3dgrid:       plot slices of 3D interpolated dasets on profiles
-Usage: -prof3dgrid [xyzvfile] [varname] [res] [[options]]
-Usage: -prof3dgrid [netcdf_file] [varname] [res] [[options]]
+-prof3dgrid:       plot vertical slices of 3D data cube/XYZV data on profiles
+Usage: -prof3dgrid [file] [[options]]
 
   Import (or create) a NetCDF data cube and slice it along profiles.
 
-  X,Y: degrees longitude/latitude
-  Z: depth (km, positive downward)
-  V: number - define name with [var] option (default=cube)
+  File formats:
 
-  Option res is required for both usage cases!
+  [netcdf]:  Plot profiles through an existing NetCDF datacube (*.nc)
 
-  xyzv [file]  Create a NetCDF 3D data cube from the input data (X Y Z V)
-               Resolution and domain are determined automatically from the data.
+  [xyzv]  Create a NetCDF 3D data cube from the input data (X Y Z V)
+               Resolution and domain are determined automatically from the data,
+               and the data do not have to be ordered in any way.
 
- [netcdf]:     Plot profiles through an existing NetCDF datacube
+               X,Y: degrees longitude/latitude
+               Z: depth (km, positive downward)
+               V: number - set name with [var] option (default=cube)
 
   Options:
+    var             Variable name to extract from datacube
+    hs              Horizontal sample spacing (meters (1000) or km (1k))
+    vs              Vertical sample spacing (meters (1000) or km (1k))
+    interp          Interpolation method code (l,a,c,n [[+1 or +2]])
     cpt             Name of or path to CPT
     resid           Remove horizontal average value from each profile
 
@@ -9021,29 +9027,38 @@ fi
     exit 1
   fi
 
-  if ! arg_is_flag $2; then
-    THREEDGRIDVAR="${2}"
-    shift
-  fi
-
-  if ! arg_is_flag $2; then
-    THREEDGRIDRES="${2}"
-    shift
-  fi
-
-  if [[ $makexyzvflag -eq 1 ]]; then
-    echo "Making 3D NetCDF: ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0"
-    ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0
-    if [[ -s ${TMP}datacube.nc ]]; then
-      PROF3DGRIDFILE=${TMP}datacube.nc
-    else
-      echo "[-prof3dgrid]: Creation of datacube failed"
-      exit 1
-    fi
-  fi
-
   while ! arg_is_flag $2; do
     case $2 in
+      var)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDGRIDVAR=$2
+          shift
+        else
+          echo "[-prof3dgrid]: option var requires argument"
+          exit 1
+        fi
+      ;;
+      vs)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDGRID_VRES=$2
+          shift
+        else
+          echo "[-prof3dgrid]: option vs requires argument"
+          exit 1
+        fi
+      ;;
+      hs)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDGRID_HRES=$2
+          shift
+        else
+          echo "[-prof3dgrid]: option hs requires argument"
+          exit 1
+        fi
+      ;;
       cpt)
         shift
         if ! arg_is_flag $2; then
@@ -9062,17 +9077,51 @@ fi
         shift
         threedresidflag=1
       ;;
-      buf)
+      zmin)
         shift
-        THREEDBUF=$2
-        shift
+        if ! arg_is_flag $2; then
+          THREEDZMIN=${2}
+          shift
+        else
+          echo "[-prof3dgrid]: zmin cpt requires number argument (e.g. 400)"
+          exit 1
+        fi
       ;;
+      zmin)
+        shift
+        if ! arg_is_flag $2; then
+          THREEDZMAX=${2}
+          shift
+        else
+          echo "[-prof3dgrid]: zmin cpt requires number argument (e.g. 400)"
+          exit 1
+        fi
+      ;;
+
       *)
         echo "[-prof3dgrid]: option ${2} not recognized"
         exit 1
       ;;
     esac
   done
+
+
+  # if ! arg_is_flag $2; then
+  #   THREEDGRID_HRES="${2}"
+  #   shift
+  # fi
+
+  if [[ $makexyzvflag -eq 1 ]]; then
+    echo "Making 3D NetCDF: ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0"
+    ${DATACUBE_SH} ${PROF3DGRIDFILE} ${TMP}datacube.nc ${THREEDGRIDVAR} 0
+    if [[ -s ${TMP}datacube.nc ]]; then
+      PROF3DGRIDFILE=${TMP}datacube.nc
+    else
+      echo "[-prof3dgrid]: Creation of datacube failed"
+      exit 1
+    fi
+  fi
+
   ;;
 
   -proflabel)
@@ -9197,9 +9246,10 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -tomo:         plot submachine tomography slice on profiles
-Usage: -tomo [file1] [[file2]] ... [[cptfile]]
+Usage: -tomo [[raw]] [file1] [[file2]] ... [[cptfile]]
 
-  Notes: Data file needs to already have been downloaded from Submachine
+  Notes: "raw" option indicates input file is lon lat depth V format
+         Data file needs to already have been downloaded from Submachine
          Data file has format X Y Z V
          Data will be added to -sprof, -aprof, etc profiles where close to lines
          If file ends in .cpt it will be used as the tomography CPT
@@ -9278,7 +9328,7 @@ EOF
 shift && continue
 fi
 
-    # Create a single profile across by constructing a new mprof) file with relevant data types
+    # Create a single profile across by constructing a new control file with relevant data types
     # Needs some argument checking logic as too few arguments will mess things up spectacularly
     sprofflag=1
     ((sprofnumber++))
@@ -12464,6 +12514,24 @@ fi
   plotlineidprimeflag=0
   ;;
 
+  -toposwath)
+if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-toposwath:        plot topographic swath profiles instead of line profiles
+Usage: -toposwath
+
+Example:
+tectoplot -t -aprof AY 1k -pw 10k -toposwath -showprof all
+ExampleEnd
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
+
+
+  swathtopoflag=1
+  ;;
+
 	-z) # -z: plot seismicity
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -12632,13 +12700,15 @@ fi
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -seistimeline_c:  create a seismicity vs time plot to the right of the map
-Usage: -seistimeline_c [startdate] [[breakdate1 panelwidth1]] ...
+Usage: -seistimeline_c [startdate] [[breakdate1 panelwidth1]] ... [[nolabels]]
 
   This option creates a -seistimeline plot with any number of panels, each of
   which has a specified width and break date. The start date must be specified.
 
   Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
   width is given in inches, without unit (e.g. 5)
+
+  Final [[nolabels]] option suppresses axis labeling
 
 Example:
 tectoplot -a -z -c -zline 0 -seistimeline_c 1970-01-01 2010-01-01 4 \
@@ -12660,6 +12730,13 @@ else
 fi
 
 while ! arg_is_flag $2; do
+
+  if [[ $2 == "nolabels" ]]; then
+    seistimeline_c_nolabelsflag=1
+    shift
+    continue
+  fi
+
   ((seistime_c_num++))
 
   if [[ $2 == "today" ]]; then
@@ -12667,8 +12744,8 @@ while ! arg_is_flag $2; do
   else
     SEISTIMELINE_C_BREAK_TIME[$seistime_c_num]=$2
   fi
-
   shift
+
   if arg_is_flag $2; then
     echo "[-seistimeline_c]: Must specify break time and panel width."
     exit 1
@@ -12690,10 +12767,10 @@ done
 plotseistimeline_c=1
   ;;
 
-  -seistimeline) # -seistimeline: create a seismicity vs time plot to the right of the map
+  -seistimeline) # -seistimeline: create a seismicity vs time plot
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--seistimeline:  create a seismicity vs time plot to the right of the map
+-seistimeline:  create a seismicity vs time plot 
 Usage: -seistimeline [[startdate]] [[breakdate]] [[enddate]] [[panelwidth]]
 
   Dates are specified in ISO8601 YYYY-MM-DDThh:mm:ss format (1900-01-0T00:00:00)
@@ -18513,7 +18590,7 @@ for cptfile in ${cpts[@]} ; do
         # Make a color stretch CPT
         SEISDEPTH_CPT=$(abs_path $SEISDEPTH_CPT)
         gmt makecpt -Fr -C${SEIS_CPT} ${SEIS_CPT_INV} > ${F_CPTS}origseis.cpt
-        gmt makecpt -N -C${SEIS_CPT} ${SEIS_CPT_INV} -Fr -Do -T"${EQMINDEPTH_COLORSCALE}"/"${EQMAXDEPTH_COLORSCALE}"/1 -Z $VERBOSE > $SEISDEPTH_CPT
+        gmt makecpt -N -C${SEIS_CPT} ${SEIS_CPT_INV} -Fr -Do -T${EQMINDEPTH_COLORSCALE}/${EQMAXDEPTH_COLORSCALE}/1 -Z > $SEISDEPTH_CPT
         cp $SEISDEPTH_CPT $SEISDEPTH_NODEEPEST_CPT
 
         CPTBOUNDS=($(gawk < $SEISDEPTH_CPT '
@@ -18537,15 +18614,23 @@ for cptfile in ${cpts[@]} ; do
         }'))
 
         # echo CPT bounds ${CPTBOUNDS[@]}
-
         # This needs to be customized!
         echo "${CPTBOUNDS[2]}	${CPTBOUNDS[3]}	6370	${CPTBOUNDS[3]}" >> $SEISDEPTH_CPT
         echo "B	${CPTBOUNDS[1]}" >> $SEISDEPTH_CPT
         echo "F	${CPTBOUNDS[3]}" >> $SEISDEPTH_CPT
         echo "N	127.5" >> $SEISDEPTH_CPT
+
         echo "B	${CPTBOUNDS[1]}" >> $SEISDEPTH_NODEEPEST_CPT
         echo "F	${CPTBOUNDS[3]}" >> $SEISDEPTH_NODEEPEST_CPT
         echo "N	127.5" >> $SEISDEPTH_NODEEPEST_CPT
+
+        echo "-6370 ${CPTBOUNDS[3]} $(echo "0 - ${CPTBOUNDS[2]}" | bc -l) ${CPTBOUNDS[3]}" > $SEISDEPTH_NEG_CPT
+        gmt makecpt -N -C${SEIS_CPT} ${SEIS_CPT_INV} -I -Fr -Do -T$(echo "0 - ${EQMAXDEPTH_COLORSCALE}" | bc -l)/$(echo "0 - ${EQMINDEPTH_COLORSCALE}" | bc -l)/1 -Z  >> ${SEISDEPTH_NEG_CPT}
+      
+        echo "B	${CPTBOUNDS[1]}" >> $SEISDEPTH_CPT
+        echo "F	${CPTBOUNDS[3]}" >> $SEISDEPTH_CPT
+        echo "N	127.5" >> $SEISDEPTH_CPT
+      
       fi
 
     ;;
@@ -21092,9 +21177,15 @@ EOF
           #   echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES}" >> sprof.control
 
           elif [[ -s ${TOPOGRAPHY_DATA} ]]; then
-            info_msg "Adding topography/bathymetry from map to sprof as swath and top tile"
+            info_msg "Adding topography/bathymetry from map to sprof as swath/box/pointgrid and top tile"
             # echo "S ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES}" >> sprof.control
-            echo "${SWATHORBOX} ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
+            if [[ $swathtopoflag -ne 1 ]]; then
+              echo "T ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} -W0.5p" >> sprof.control 
+            else
+              echo "${SWATHORBOX} ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
+            fi
+
+            # echo "${SWATHORBOX} ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
             echo "G ${TOPOGRAPHY_DATA} 0.001 ${SPROF_RES} ${SPROF_RES} ${TOPO_CPT}" >> sprof.control
             echo "M USE_SHADED_RELIEF_TOPTILE" >> sprof.control
           fi
@@ -21106,7 +21197,13 @@ EOF
 
           if [[ $prof3dgridflag -eq 1 ]]; then
             info_msg "Adding 3D datacube"
-            echo "Q $PROF3DGRIDFILE ${THREEDGRIDVAR} ${THREEDGRIDRES} ${THREEDCPT} ${THREEDBUF}" >> sprof.control
+            if [[ ${THREEDGRID_HRES} == "auto"} ]]; then
+              prof3dgrid_hresvalue=${SPROF_RES}
+            else
+              prof3dgrid_hresvalue=${THREEDGRID_HRES}
+            fi
+
+            echo "Q $PROF3DGRIDFILE ${THREEDGRIDVAR} ${prof3dgrid_hresvalue} ${THREEDGRID_VRES} ${THREEDCPT} ${THREEDZMIN} ${THREEDZMAX}" >> sprof.control
           fi
 
           if [[ -s tomography.txt ]]; then
@@ -21167,7 +21264,7 @@ EOF
               for i in $(seq 1 $numslab2inregion); do
                 info_msg "Adding slab grid ${slab2inregion[$i]} to sprof"
                 gridfile=$(echo ${SLAB2_GRIDDIR}${slab2inregion[$i]}.grd | sed 's/clp/dep/')
-                echo "T $gridfile -1 5k -W1p+cl -C$SEISDEPTH_CPT" >> sprof.control
+                echo "T $gridfile 1 5k -W1p+cl -C$SEISDEPTH_NEG_CPT" >> sprof.control
               done
             fi
           fi
@@ -21177,15 +21274,31 @@ EOF
 
           if [[ $sprofflag -eq 1 ]]; then
             while read p; do
+
               ((thissprof++))
+
+
+              if [[ $plotlineidprimeflag -eq 1 ]]; then
+                get_profcode
+                thiscode=${profcode}
+              else
+                thiscode="P${thissprof}"
+              fi
               # echo "P P${thissprof} black N N ${SPROFLON1[${thissprof}]} ${SPROFLAT1[${thissprof}]} ${SPROFLON2[${thissprof}]} ${SPROFLAT2[${thissprof}]}" >> sprof.control
-              echo "P P${thissprof} black N N ${p}" >> sprof.control
+              echo "P ${thiscode} black N N ${p}" >> sprof.control
             done < ${TMP}sprof.lines
           fi
           if [[ $xprofflag -eq 1 ]]; then
             for thisxprof in $(seq 1 $xprofnumber); do
               ((thissprof++))
-              echo "A A${thissprof} black N N ${XPROFPTS[${xprofnumber}]}" >> sprof.control
+
+              if [[ $plotlineidprimeflag -eq 1 ]]; then
+                get_profcode
+                thiscode=${profcode}
+              else
+                thiscode="A${thissprof}"
+              fi
+              echo "A ${thiscode} black N N ${XPROFPTS[${xprofnumber}]}" >> sprof.control
             done
           fi
 
@@ -24177,11 +24290,12 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
     fi
 
     # Plot the panel
-    plotframe=0
+    plotframe=1
 
     if [[ -s ${F_SEIS}proj_eqs.txt || -s ${F_CMT}proj_normal_scaled_y.txt || -s ${F_CMT}proj_thrust_scaled_y.txt || -s ${F_CMT}proj_strikeslip_scaled_y.txt ]]; then
-      plotframe=1
-      gmt psbasemap -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Blrtb+gwhite  ${VERBOSE} -K -O >> map.ps
+      gmt psbasemap -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Blrtb  ${VERBOSE} -K -O >> map.ps
+    else
+      gmt psxy -T -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i ${VERBOSE} -K -O >> map.ps
     fi
 
     if [[ -s ${F_SEIS}proj_eqs.txt ]]; then
@@ -24215,8 +24329,10 @@ if [[ $plotseistimeline_c -eq 1 ]]; then
         framecmd="-Br"
       fi
 
-      gmt psbasemap -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"${SC_LABEL}" --FONT_LABEL=12p,Helvetica,black -BSN  ${VERBOSE} -K -O >> map.ps
-      gmt psbasemap ${framecmd} -Bxa -Bya -Xa${PANEL_WIDTH}i ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --MAP_TICK_LENGTH_PRIMARY=6p >> map.ps
+      if [[ $seistimeline_c_nolabelsflag -ne 1 ]]; then
+        gmt psbasemap -Xa${secondX}i -R${SC_START_TIME}/${SC_END_TIME}/${MINPROJ_Y}/${MAXPROJ_Y} -JX${PANEL_WIDTH}i/${MAP_PS_HEIGHT_NOLABELS_IN}i -Bxaf+l"${SC_LABEL}" --FONT_LABEL=12p,Helvetica,black -BSN  ${VERBOSE} -K -O >> map.ps
+        gmt psbasemap ${framecmd} -Bxa -Bya -Xa${PANEL_WIDTH}i ${OBFRAMECMD} ${RJSTRING} -O -K $VERBOSE --FORMAT_FLOAT_OUT=${MAP_FORMAT_FLOAT_OUT} --MAP_TICK_LENGTH_PRIMARY=6p >> map.ps
+      fi
     fi
 
   done

@@ -197,7 +197,6 @@ function bstring_from_two_dates() {
   
 }
 
-
 function unitstring_from_two_dates_and_bincount() {
   local st_date=$1
   local en_date=$2
@@ -253,7 +252,6 @@ function tectoplot_post_seistime() {
 
   if [[ $doseistimeflag -eq 1 ]]; then
    
-
     [[ -s ${F_SEIS}eqs.txt ]] && cp ${F_SEIS}eqs.txt ${F_SEIS}seistimeline.txt
 
     if [[ -s ${F_CMT}usgs_foc.cat ]]; then
@@ -299,11 +297,14 @@ function tectoplot_post_seistime() {
           print mindate, maxdate, minmag-0.1, maxmag+0.1
         }'))
 
+      echo flags are ${m_seistime_minmag} ${m_seistime_maxmag} ${m_seistime_mintime} ${m_seistime_maxtime}
+
       if [[ $m_seistime_minmag == "auto" ]]; then
-        m_seistime_minmag=${date_and_mag_range[2]}
+        m_seistime_minmag=$(echo "${date_and_mag_range[2]} - 0.5" | bc -l)
       fi
+
       if [[ $m_seistime_maxmag == "auto" ]]; then
-        m_seistime_maxmag=${date_and_mag_range[3]}
+        m_seistime_maxmag=$(echo "${date_and_mag_range[3]} + 0.5" | bc -l)
       fi
 
       if [[ $m_seistime_mintime == "auto" ]]; then
@@ -319,11 +320,76 @@ function tectoplot_post_seistime() {
         tmpval=$(echo ${m_seistime_maxtime} | iso8601_from_partial)
         m_seistime_maxtime=${tmpval}
       fi
+
       if [[ $m_seistime_maxtime == "now" ]]; then
         m_seistime_maxtime=$(date -u +"%FT%T")
       fi
 
-      cat ${F_SEIS}seistimeline.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > m_seistime.ps
+      gmt psxy -T -R${m_seistime_mintime}/${m_seistime_maxtime}/${m_seistime_minmag}/${m_seistime_maxmag} -JX${m_seistime_width}T/${m_seistime_height} -B+gwhite -K ${VERBOSE} > m_seistime.ps
+
+      cat ${F_SEIS}eqs.txt | gmt_psxy zcol ${SEIS_ZCOL} ycol 4 xcol 5 scale ${SEISSCALE} stretch ${SEISSTRETCH} refmag ${SEISSTRETCH_REFMAG} cpt ${SEIS_CPT} trans ${SEISTRANS} stroke ${EQLINEWIDTH},${EQLINECOLOR} ${RJOK} ${VERBOSE} >> m_seistime.ps
+
+# gmt mapproject ${RJSTRING}  -f0x,1y,s > ${F_CMT}proj_cmt_thrust_2.txt
+
+      if [[ -s ${CMT_THRUSTPLOT} ]]; then
+        gawk '
+          (NR==FNR) {
+            time[$2]=$3
+            mag[$2]=$13
+          }
+          (NR!=FNR) {
+            split($13,a,"+") 
+            for(i=1;i<=length(a);++i) {
+              if (time[a[i]] != "") {
+                $1=time[a[i]]
+                $2=mag[a[i]]
+                print $0
+              }
+            }
+          }' ${F_CMT}cmt_global_aoi.dat ${CMT_THRUSTPLOT} > ${F_CMT}thrust_seistime.txt
+        
+        gmt_psmeca_wrapper ${CMT_CPT} -E"${CMT_THRUSTCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}thrust_seistime.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${RJOK} >> m_seistime.ps
+      fi
+
+      if [[ -s ${CMT_NORMALPLOT} ]]; then
+        gawk '
+          (NR==FNR) {
+            time[$2]=$3
+            mag[$2]=$13
+          }
+          (NR!=FNR) {
+            split($13,a,"+") 
+            for(i=1;i<=length(a);++i) {
+              if (time[a[i]] != "") {
+                $1=time[a[i]]
+                $2=mag[a[i]]
+                print $0
+              }
+            }
+          }' ${F_CMT}cmt_global_aoi.dat ${CMT_NORMALPLOT} > ${F_CMT}normal_seistime.txt
+        
+        gmt_psmeca_wrapper ${CMT_CPT} -E"${CMT_NORMALCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}normal_seistime.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${RJOK} >> m_seistime.ps
+      fi
+
+      if [[ -s ${CMT_STRIKESLIPPLOT} ]]; then
+        gawk '
+          (NR==FNR) {
+            time[$2]=$3
+            mag[$2]=$13
+          }
+          (NR!=FNR) {
+            split($13,a,"+") 
+            for(i=1;i<=length(a);++i) {
+              if (time[a[i]] != "") {
+                $1=time[a[i]]
+                $2=mag[a[i]]
+                print $0
+              }
+            }
+          }' ${F_CMT}cmt_global_aoi.dat ${CMT_STRIKESLIPPLOT} > ${F_CMT}ss_seistime.txt
+        
+        gmt_psmeca_wrapper ${CMT_CPT} -E"${CMT_SSCOLOR}" -Tn/${CMT_LINEWIDTH},${CMT_LINECOLOR} -S${CMTLETTER}"$CMTRESCALE"i/0 ${F_CMT}ss_seistime.txt -L${CMT_LINEWIDTH},${CMT_LINECOLOR} ${RJOK} >> m_seistime.ps
+      fi
 
       m_seistime_datecmd=""
       m_seistime_timecmd=""
