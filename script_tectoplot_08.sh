@@ -4440,10 +4440,9 @@ fi
     elif [[ $2 == "plates" ]]; then
       shift
       shift
-      set -- "blank" "size" "2i" "args" "\"-setvars { PLATEVEC_COLOR white } -t 10m -t0 -tx -tpct 2 90 -p MORVEL -a -pc random 60 -pf 1000 -pa notext -pvl -whiteframe 10p -pss 3\"" "$@"
+      # -pf 1000 -pa notext -pvl -t 10m -t0 -tx -tpct 2 90 
+      set -- "blank" "size" "2i" "args" "\"-setvars { PLATEVEC_COLOR white } -p MORVEL -a fill white seafill gray -pc seed 5 random 80 -pe  -pl font 8p,Helvetica-Bold,black -whiteframe 10p -pss 5\"" "$@"
     fi
-
-
 
     while ! arg_is_flag $2; do
       case $2 in
@@ -6155,11 +6154,12 @@ fi
   ;;
 
   -pc)              # PlateID1 color1 PlateID2 color2
+  P_POLYSEED=1
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pc:           color plates
-Usage: -pc [[random]] [[transparency]]
-Usage: -pc [[ID1]] [[ColorID1]] [[TransID1]] [[ID2]] ...
+Usage: -pc random [[transparency]]
+Usage: -pc [ID1] [[ID2]] ... [[transparency]]
 
   Color plate polygons using two different schemes:
   random: color all plates randomly using specified transparency
@@ -6172,6 +6172,17 @@ ExampleEnd
 EOF
 shift && continue
 fi
+    if [[ $2 == "seed" ]]; then
+      shift
+      if arg_is_positive_float $2; then
+        P_POLYSEED=$2
+        shift
+      else
+        echo "[-pc]: seed option requires number argument"
+        exit 1
+      fi
+    fi
+
     if [[ $2 =~ "random" ]]; then
       shift
       if arg_is_positive_float $2; then
@@ -6184,16 +6195,15 @@ fi
     else
       while : ; do
         arg_is_flag $2 && break
-        P_POLYLIST+=("${2}")
-        P_COLORLIST+=("${3}")
-        shift
-        shift
         if arg_is_positive_float $2; then
           P_POLYTRANS+=("${2}")
           shift
         else
-          P_POLYTRANS+=("50")
-        fi
+          P_POLYLIST+=("${2}")
+          shift
+        # P_COLORLIST+=("${3}")
+        # shift
+        fi        
       done
       info_msg "[-pc]: Plates to color: ${P_POLYLIST[@]}, colors: ${P_COLORLIST[@]}, trans: ${P_POLYTRANS[@]}"
       plots+=("platepolycolor_list")
@@ -6612,7 +6622,7 @@ PLATELABEL_FULL=0
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -pl:           label plates with their id code
-Usage: -pl [[font]] [[full]]
+Usage: -pl [[font fontspec]] [[full]]
 
   Use -p to set plate model.
 
@@ -6627,15 +6637,24 @@ EOF
 shift && continue
 fi
 
-    if ! arg_is_flag $2; then
-      PLATELABEL_FONT=$2
-      shift
-    fi
-
-    if [[ $2 == "full" ]]; then
-      PLATELABEL_FULL=1
-      shift
-    fi
+    while ! arg_is_flag $2; do
+      case $2 in
+        font)
+          shift
+          if ! arg_is_flag $2; then
+            PLATELABEL_FONT=$2
+            shift
+          else
+            echo "[-pl]: font option requires argument"
+            exit 1
+          fi
+        ;;
+        full)
+          shift
+          PLATELABEL_FULL=1
+        ;;
+      esac
+    done
 
     plots+=("platelabel")
     ;;
@@ -17292,9 +17311,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
       X1=$(echo "$REFPTLON-$REFWINDOW" | bc -l)
       X2=$(echo "$REFPTLON+$REFWINDOW" | bc -l)
 
-      echo gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE 
       gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE 
-      echo done
 
       nREFPLATE=$(gmt spatial ${F_PLATES}map_plates_clip.txt -R$X1/$X2/$Y1/$Y2 -C $VERBOSE -fg  | grep "> " | head -n 1 | gawk  '{print $2}')
       info_msg "Automatic reference plate is $nREFPLATE"
@@ -17366,15 +17383,38 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     # Iterate over the plates. We create plate polygons, identify Euler poles, etc.
 
     # Slurp the plate IDs from map_plates_clip.txt
-    v=($(grep ">" ${F_PLATES}map_plates_clip.txt | gawk  '{print $2}' | tr ' ' '\n'))
+
+    gawk < ${F_PLATES}map_plates_clip.txt -v path=${F_PLATES} '
+      {
+        if ($1==">") {
+          id=$2
+          output=sprintf("%s%s.pldat", path, id) 
+          if (id=="END") {
+            exit
+          }
+        }  
+        print >> output
+      }'
+
+    for i in ${F_PLATES}*.pldat; do
+      echo " " >> $i
+    done
+
+    v=($(ls ${F_PLATES}*.pldat | sed 's/.pldat//' | gawk -F'/' '{ print $NF}'))
+
+    # exit 1
   	i=0
   	j=1
+
   	while [[ $i -lt ${#v[@]}-1 ]]; do
 
       # Create plate files .pldat
       info_msg "Extracting between ${v[$i]} and ${v[$j]}"
-  		sed -n '/^> '${v[$i]}'$/,/^> '${v[$j]}'$/p' ${F_PLATES}map_plates_clip.txt | sed '$d' > "${F_PLATES}${v[$i]}.pldat"
-  		echo " " >> "${F_PLATES}${v[$i]}.pldat"
+      
+
+      # echo sed -n '/^> '${v[$i]}'$/,/^> '${v[$j]}'$/p' ${F_PLATES}map_plates_clip.txt \| sed '$d' \> "${F_PLATES}${v[$i]}.pldat"
+  		# sed -n '/^> '${v[$i]}'$/,/^> '${v[$j]}'$/p' ${F_PLATES}map_plates_clip.txt | sed '$d' > "${F_PLATES}${v[$i]}.pldat"
+  		# echo " " >> "${F_PLATES}${v[$i]}.pldat"
   		# PLDAT files now contain the X Y coordinates and segment azimuth with a > PL header line and a single empty line at the end
 
   		# Calculate the true centroid of each polygon and output it to the label file
@@ -17404,16 +17444,19 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
         # If AS is 0 which happens for degenerate polygons, return the first
         # coordinate. Otherwise, calculate and return the center point
         if (AS==0) {
-          print x[1] "," y[1]
+          print x[1] , y[1]
         } else {
           CX = 1/(6*AS)*SXS;
           CY = 1/(6*AS)*SYS;
-          print CX "," CY
+          print CX , CY
         }
 
   		}' > "${F_PLATES}${v[$i]}.centroid"
 
-      cat "${F_PLATES}${v[$i]}.centroid" >> ${F_PLATES}map_centroids.txt
+      gawk < ${F_PLATES}${v[$i]}.centroid -v plate=${v[$i]} '
+        {
+          print $0, plate
+        }' >> ${F_PLATES}map_centroids.txt
 
       # Calculate Euler poles relative to reference plate
       pllat=`grep "^${v[$i]}\s" < ${F_PLATES}polesextract.txt | gawk  '{print $2}'`
@@ -17457,8 +17500,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           info_msg "Not generating small circles for reference plate"
           touch ${F_PLATES}${v[$i]}.smallcircles
         else
-          centroidlat=`cat ${F_PLATES}${v[$i]}.centroid | gawk  -F, '{print $1}'`
-          centroidlon=`cat ${F_PLATES}${v[$i]}.centroid | gawk  -F, '{print $2}'`
+          centroidlat=`cat ${F_PLATES}${v[$i]}.centroid | gawk '{print $1}'`
+          centroidlon=`cat ${F_PLATES}${v[$i]}.centroid | gawk '{print $2}'`
           info_msg "Generating small circles around pole $polelat $polelon"
 
           # Calculate the minimum and maximum colatitudes of points in .pldat file relative to Euler Pole
@@ -17554,6 +17597,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
   	  j=$j+1
     done # while (Iterate over plates calculating pldat, centroids, and poles
 
+    echo platenames in ${PLATENAMES}
+
     # Create the plate labels at the centroid locations
     if [[ -s $PLATENAMES && ${PLATELABEL_FULL} -eq 1 ]]; then
       gawk '
@@ -17564,14 +17609,26 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
           plate[key]=string
         }
         (NR!=FNR) {
-          split($1, v, "_")
-          print plate[v[1]], "Plate"
+          split($3, v, "_")
+          print $1, $2, plate[v[1]], "Plate"
         }
-      ' ${PLATENAMES} ${F_PLATES}plate_id_list.txt > ${F_PLATES}plate_id_names.txt
-      paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_names.txt > ${F_PLATES}map_labels.txt
+      ' ${PLATENAMES} ${F_PLATES}map_centroids.txt > ${F_PLATES}map_labels.txt
+      # paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_names.txt > ${F_PLATES}map_labels.txt
 
   	else
-      paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_list.txt > ${F_PLATES}map_labels.txt
+      gawk '
+          (NR == FNR) {
+            key=$1
+            $1=""
+            string=$0
+            plate[key]=string
+          }
+          (NR!=FNR) {
+            split($3, v, "_")
+            print $1, $2, v[1]
+          }
+        ' ${PLATENAMES} ${F_PLATES}map_centroids.txt > ${F_PLATES}map_labels.txt
+      # paste -d ',' ${F_PLATES}map_centroids.txt ${F_PLATES}plate_id_list.txt > ${F_PLATES}map_labels.txt
     fi
     # EDGE CALCULATIONS. Determine the relative motion of each plate pair for each plate edge segment
     # by extracting the two Euler poles and calculating predicted motions at the segment midpoint.
@@ -17746,7 +17803,6 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
         mv ./id_pts.txt ${F_PLATES}id_pts.txt
 
-        echo gothere - need to troubleshoot and possibly revert code to EULERVECLIST_AWK until proved
        # gawk -f $EULERVECLIST_AWK ${F_PLATES}id_pts.txt > ${F_PLATES}id_pts_euler_half.txt
 
         gawk '
@@ -18444,11 +18500,9 @@ for cptfile in ${cpts[@]} ; do
         # Determine the range of data if it exists
 
         if [[ -s ${TOPOGRAPHY_DATA} ]]; then
-        echo grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}
           zrange=($(grid_zrange ${TOPOGRAPHY_DATA} -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT}))
           TMIN=${zrange[0]}
           TMAX=${zrange[1]}
-          echo ${zrange[@]}
         fi
 
         # Check and see if the CPT has a zero slice
@@ -18469,14 +18523,12 @@ for cptfile in ${cpts[@]} ; do
         if [[ $rescaletopoflag -ne 1 ]]; then
 
 
-  echo j
           gmt makecpt -C${TOPO_CPT_DEF} -T-11000/9000 -Fr -Vn >> ${F_CPTS}topo_prep.cpt
 
           # Make the new CPT by truncating the prep CPT to the data range
-          echo gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn
+          # echo gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn
           gmt makecpt -Fr -C${F_CPTS}topo_prep.cpt -G${TMIN}/${TMAX} -Z -Vn > ${F_CPTS}topo_temp.cpt
         else
-  echo k
           [[ $rescaletopominflag -eq 1 ]] && TMIN=${RESCALE_TMIN}
           [[ $rescaletopomaxflag -eq 1 ]] && TMAX=${RESCALE_TMAX}
 
@@ -20453,7 +20505,7 @@ EOF
           # Close the inset PS file
           gmt psxy -T -O >> insetmap/map.ps
 
-          PS_DIM=$(gmt psconvert insetmap/map.ps -TG -E700 -Finset -A+m0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
+          PS_DIM=$(gmt psconvert insetmap/map.ps -C-dALLOWPSTRANSPARENCY -TG -E700 -Finset -A+m0.01i -V 2> >(grep Width) | gawk  -F'[ []' '{print $10, $17}')
           INSET_PS_WIDTH="$(echo $PS_DIM | gawk '{print $1/2.54}')"
           INSET_PS_HEIGHT="$(echo $PS_DIM | gawk '{print $2/2.54}')"
 
@@ -21875,32 +21927,95 @@ EOF
           plate_files=($(ls ${F_PLATES}*.pldat 2>/dev/null))
           if [[ ${#plate_files} -gt 0 ]]; then
             gmt makecpt -Fr -T0/${#plate_files[@]}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' | head -n ${#plate_files[@]} > ${F_PLATES}platecolor_pre.dat
-            randomize_lines 2 ${F_PLATES}platecolor_pre.dat ${F_PLATES}platecolor.dat
-            P_COLORLIST=($(cat ${F_PLATES}platecolor.dat))
-            this_index=0
-            for p_example in ${plate_files[@]}; do
-              # echo gmt psxy ${p_example} -G"${P_COLORLIST[$this_index]}" -t${P_POLYTRANS} $RJOK ${VERBOSE}
-              gmt psxy ${p_example} -G"${P_COLORLIST[$this_index]}" -t${P_POLYTRANS} $RJOK ${VERBOSE} >> map.ps
-              this_index=$(echo "$this_index + 1" | bc)
-            done
+            randomize_lines ${P_POLYSEED} ${F_PLATES}platecolor_pre.dat ${F_PLATES}platecolor_1.dat
+            # Set plates with same ID to same color
+            echo "${plate_files[@]}" | tr ' ' '\n' > ${F_PLATES}platelist.txt
+
+            gawk '
+              (NR==FNR) {
+                color[FNR]=$1
+              } 
+              (NR!=FNR) {
+                split($1, a, "_")
+                file[FNR]=$1
+                prefix[FNR]=a[1]
+                id[a[1]]=FNR
+              }
+              END {
+                for(i=1;i<=FNR;++i) {
+                  print file[i], color[id[prefix[i]]]
+                }
+              }' ${F_PLATES}platecolor_1.dat ${F_PLATES}platelist.txt > ${F_PLATES}platecolor.dat
+
+            while read p; do
+              arglist=($(echo $p))
+              gmt psxy ${arglist[0]} -G"${arglist[1]}" -t${P_POLYTRANS} $RJOK ${VERBOSE} >> map.ps
+            done < ${F_PLATES}platecolor.dat
           else
             info_msg "[-pc]: No plate files found."
           fi
         ;;
 
       platepolycolor_list)
-        declare -p P_POLYLIST
-        numplatepoly=$(echo "${#P_POLYLIST[@]}-1" | bc)
-        for p_index in $(seq 0 $numplatepoly); do
-          plate_files=($(ls ${F_PLATES}${P_POLYLIST[$p_index]}_*.pldat 2>/dev/null))
-          if [[ ${#plate_files} -gt 0 ]]; then
-            for p_example in ${plate_files[@]}; do
-              gmt psxy ${p_example} -G${P_COLORLIST[$p_index]} -t${P_POLYTRANS[$p_index]} $RJOK ${VERBOSE} >> map.ps
+        # declare -p P_POLYLIST
+        echo plate list ${P_POLYLIST[@]}
+
+          if [[ ${#P_POLYLIST[@]} -gt 0 ]]; then
+            # Set plates with same ID to same color
+            for i in ${P_POLYLIST[@]}; do
+              vals=($(ls ${F_PLATES}${i}_*.pldat 2>/dev/null))
+              for j in ${vals[@]}; do
+                echo $j | gawk -F'/' '{print $(NF)}'  >> ${F_PLATES}platelist.txt
+              done
             done
+
+            numplates=$(wc -l < ${F_PLATES}platelist.txt | gawk '{print $1}')
+            gmt makecpt -N -Fr -T0/${numplates}/1 -Cwysiwyg ${VERBOSE} | gawk '{print $2}' > ${F_PLATES}platecolor_pre.dat
+            randomize_lines ${P_POLYSEED} ${F_PLATES}platecolor_pre.dat ${F_PLATES}platecolor_1.dat
+
+            gawk '
+              BEGIN {
+                ind=0
+              }
+              (NR==FNR) {
+                color[FNR]=$1
+              } 
+              (NR!=FNR) {
+                split($1, a, "_")
+                file[FNR]=$1
+                prefix[FNR]=a[1]
+                id[a[1]]=FNR
+                ind++
+              }
+              END {
+                for(i=1;i<=ind;++i) {
+                  print "'${F_PLATES}'"file[i], color[id[prefix[i]]]
+                }
+              }' ${F_PLATES}platecolor_1.dat ${F_PLATES}platelist.txt > ${F_PLATES}platecolor.dat
+
+            while read p; do
+              arglist=($(echo $p))
+              gmt psxy ${arglist[0]} -G"${arglist[1]}" -t${P_POLYTRANS} $RJOK ${VERBOSE} >> map.ps
+            done < ${F_PLATES}platecolor.dat
           else
-            info_msg "Plate file ${P_POLYLIST[$p_index]} does not exist."
+            info_msg "[-pc]: No plate files found."
           fi
-        done
+
+
+        # if [[ ! -z "${P_POLYLIST[@]}" ]]; then
+        #   numplatepoly=$(echo "${#P_POLYLIST[@]}-1" | bc)
+        #   for p_index in $(seq 0 $numplatepoly); do
+        #     plate_files=($(ls ${F_PLATES}${P_POLYLIST[$p_index]}_*.pldat 2>/dev/null))
+        #     P_COLORLIST=($(cat ${F_PLATES}platecolor.dat))
+        #     if [[ ${#plate_files} -gt 0 ]]; then
+        #       for p_example in ${plate_files[@]}; do
+        #         gmt psxy ${p_example} -G${P_COLORLIST[$p_index]} -t${P_POLYTRANS[$p_index]} $RJOK ${VERBOSE} >> map.ps
+        #       done
+        #     else
+        #       info_msg "Plate file ${P_POLYLIST[$p_index]} does not exist."
+        #     fi
+        #   done
+        # fi
         ;;
 
       platerelvel)

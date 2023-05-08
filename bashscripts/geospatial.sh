@@ -375,15 +375,25 @@ function xy_range() {
 # args 1:seed 2:infile 3:outfile
 function randomize_lines() {
   RANDOM=$1  # Confirmed to produce unique numbers for at least 300 calls
-  rm -f "${3}"
-  local a
-  while IFS= read -r line; do a+=("$line"); done < $2
-  for i in ${!a[@]}; do a[$((RANDOM+${#a[@]}))]="${a[$i]}"; unset a[$i]; done
-  for i in ${!a[@]}; do
-    echo ${a[${i}]} >> "${3}"
-  done
 
+  gawk -v seed=${1} '
+    BEGIN {
+      srand(seed); 
+      OFMT="%.17f"
+    } 
+    { 
+      print rand(), $0 
+    }' "${2}" | sort -k1,1n | cut -d ' ' -f2- > "${3}"
 }
+
+  # rm -f "${3}"
+  # local a
+  # while IFS= read -r line; do a+=("$line"); done < $2
+  # for i in ${!a[@]}; do a[$((RANDOM+${#a[@]}))]="${a[$i]}"; unset a[$i]; done
+  # for i in ${!a[@]}; do
+  #   echo ${a[${i}]} >> "${3}"
+  # done
+
 
 # function that takes in file of lon lat polyline/polygons and removes large
 # jumps in longitude across the dateline
