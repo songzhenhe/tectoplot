@@ -6995,6 +6995,10 @@ Flinn-Engdahl geographic or seismic region code(s)
 -r feg IDnum(1-757) ...
 -r fes IDnum(1-50) ...
 
+UTM zone and bounding Eastings/Northings
+
+-r UTM ZoneID [MinE] [MaxE] [MinN] [MaxN]
+
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -7057,6 +7061,58 @@ fi
           plotselectedfeflag=1
           shift
         fi
+
+      elif [[ ${2} == "UTM" ]]; then
+        shift
+
+        if ! arg_is_positive_integer $2; then
+          echo "[-r]: UTM option requires positive integer UTM zone"
+          exit 1
+        else
+          UTMZONE_NUM=$2
+          shift
+        fi
+
+        if ! arg_is_float $2; then
+          echo "[-r]: UTM option missing minimum easting"
+          exit 1
+        else
+          UTM_MINE=$2
+          shift
+        fi
+
+        if ! arg_is_float $2; then
+          echo "[-r]: UTM option missing maximum easting"
+          exit 1
+        else
+          UTM_MAXE=$2
+          shift
+        fi
+
+        if ! arg_is_float $2; then
+          echo "[-r]: UTM option missing minimum northing"
+          exit 1
+        else
+          UTM_MINN=$2
+          shift
+        fi
+
+        if ! arg_is_float $2; then
+          echo "[-r]: UTM option missing maximum northing"
+          exit 1
+        else
+          UTM_MAXN=$2
+          shift
+        fi
+
+        resultvec=($(echo "${UTM_MINE} ${UTM_MINN}a${UTM_MAXE} ${UTM_MAXN}" | tr 'a' '\n' | cs2cs EPSG:326${UTMZONE_NUM} EPSG:4326 -f "%f" -s | tr '\n' ' '))
+
+        echo resultvec is ${resultvec[@]}
+        MINLON=${resultvec[0]}
+        MINLAT=${resultvec[1]}
+        MAXLON=${resultvec[3]}
+        MAXLAT=${resultvec[4]}
+
       elif [[ ${2} == "g" ]]; then
         MINLON=-180
         MAXLON=180
