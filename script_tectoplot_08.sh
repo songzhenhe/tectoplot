@@ -46,207 +46,15 @@ CUSTOMEQCREDIT=""
 
 source ${TECTOPLOTDIR}tectoplot.version
 
-# Specific issues:
-# use gmt mapproject -W to get rectangular region of oblique projections
-# use gmtbinstats (6.2)?
-# 6.2 changed many -C arguments (grdimage, psmeca, etc)
-
-# July   0,    2021: Added PLY_MAXSIZE=800 to defaults
-
-# CHANGELOG - stopped updating in May
-
-# May    9,    2021: Added -zccluster to profiles, including CMT
-#                  : Updated earthquake culling code, fixed eqlabels on profiles
-# May    7,    2021: Many updates, added -zctime to profiles, remade git repo
-#                  : Updated installation script, miniconda+homebrew install, etc
-#                  : Updated -mprof to plot non-topo top tile
-# April 30,    2021: Fixed -cc on profiles, cleanup more files in profiles/
-# April 29,    2021: Added -bigbar, general fixes
-# April 26,    2021: Fixed legend, updated awk->gawk calls, added -checkdeps
-# April 25,    2021: Updated profile /legend plotting on map: -legend onmap / -showprof
-#                  : Updated mechanisms for -oto
-# April 20,    2021: Fixed ANSS scraper to use last day of month, avoid duplicates
-# April 10,    2021: Many updates, code reorganization, added -usage details
-# March 25,    2021: Added usage (or -usage) option and started to fill in details of commands
-#                  : Significant updates to data scraping tools to avoid epoch calculation
-# Pi Day,      2021: Added GMT country ID option to -clipon, -clipout, added -clipline, updated -clipoff
-#                  : Added full GMT country/continent/etc codes for -r regionID
-# March    13, 2021: Moved some AWK functions to library script
-#                  : Basic fix for plate models across -180/180 degree meridian
-# March    11, 2021: Incorporated smart_swath_update.sh as option -vres
-# March    10, 2021: ANSS catalog excludes some anthropogenic events
-#                  : Added Ms>Mw, mb>Mw, Ml>Mw conversion rules on ISC/ANSS data import
-#                  : Added -tsea flag to recolor sea areas of Sentinel imagery (z<=0)
-# March    08, 2021: Added -cprof option including Slab2 cross-strike azimuth
-#                  : Added -zdep option to set max/min EQ depths
-# March    02, 2021: Bug fixes, updated earthquake selection for 360° maps
-#                  : Added -pc option to plot colored plate polygons
-# March    01, 2021: Added TEMP/* option for paths which resolves to the absolute ${TMP}/* path
-# February 26, 2021: Updated topo visualizations, added grid plotting onto topo, clipping
-# February 19, 2021: Added -eventmap option, labels on profiles
-# February 17, 2021: Added -r lonlat and -r latlon, and coordinate_parse function
-# February 15, 2021: Added -tflat option to set below-sea-level cells to 0 elevation
-#                  : Added -topog, -seismo, -sunlit recipes
-# February 12, 2021: Large update to terrain visualizations
-#                  : Added -rdel, -rlist, and -radd for custom regions
-# February 04, 2021: Incomplete rework of DEM/hillshade/etc visualizations
-#                    Added -gls to list GPS plates; fixed path to GPS data
-# January  22, 2021: Added DEM shadowing option (-shade) in shadow_nc.sh, cleaned up code
-# January  13, 2021: Fixed 255>NaN in making topocolor.dat ()
-# January  06, 2021: Updated aprofcodes to work with any projection
-# January  05, 2021: Fixed SEISDEPTH_CPT issue, added -grid, updated -inset
-# January  05, 2021: Added Oblique Mercator (-RJ OA,OC) and updated -inset to show real AOI
-# December 31, 2020: Updated external dataset routines (Seis+Cmt), bug fixes
-# December 30, 2020: Fixed a bug in EQ culling that dropped earliest seismic events
-# December 30, 2020: Added -noplot option to skip plotting and just output data
-# December 30, 2020: Updated info_msg to save file, started building subdirectory structure
-# December 29, 2020: Updated -inset and -acb to take options
-# December 28, 2020: Added aprofcode option to locate scale bar.
-# December 28, 2020: Profile width indicators were 2x too wide...! Fixed.
-# December 28, 2020: Fixes to various parts of code, added -authoryx, -alignxy
-# December 28, 2020: Fixed bug in ANSS scraper that was stopping addition of most recent events
-# December 26, 2020: Fixed some issues with BEST topography, updated example script
-# December 26, 2020: Added -author, -command options. Reset topo raster range if lon<-180, lon>180 {maybe make a function?}
-# December 22, 2020: Significant update to projection options via -RJ. Recalc AOI as needed.
-# December 21, 2020: Solstice update (and great confluence) - defined THISP_HS_AZ to get hillshading correct on top tiles
-# December 20, 2020: Added -aprof and -aprofcodes options to allow easier -sprof type profile selection
-# December 19, 2020: Updated profile to include texture shading for top tile (kind of strange but seems to work...)
-# December 18, 2020: Added -tshade option to use Leland Brown's texture shading (added C code in tectoplot dir)
-# December 17, 2020: Removed buffering from profile script, as it is not needed and sqlite has annoying messages
-# December 17, 2020: Fixed -scale to accept negative lats/lons, creat EARTHRELIEF dir if it doesn't exist on load
-# December 17, 2020: Fixed LITHO1 path issue. Note that we need to recompile access_litho if its path changes after -getdata
-# December 16, 2020: Fixed issue where Slab2 was not found for AOI entirely within a slab clip polygon
-# December 15, 2020: Added -query option and data file headers in {DEFDIR}tectoplot.headers
-# December 13, 2020: Testing installation on a different machine (OSX Catalina)
-#  Updated -addpath to actually work and also check for empty ~/.profile first
-#  Changed tac to tail -r to remove a dependency
-# December 13, 2020: Added -zcat option to select ANSS/ISC seismicity catalog
-#  Note that earthquake culling may not work well for ISC catalog due to so many events?
-# December 12, 2020: Updated ISC earthquake scraping to download full ISC catalog in CSV format
-# December 10, 2020: Updated ANSS earthquake scraping to be faster
-# December  9, 2020: Added LITHO1.0 download and plotting on cross sections (density, Vp, Vs)
-# December  7, 2020: Updated -eqlabel options
-# December  7, 2020: Added option to center map on a hypocenter/CMT based on event_id (-r eq EVENT_ID).
-# December  7, 2020: Added GFZ focal mechanism scraping / reconciliation with GCMT/ISC
-# December  4, 2020: Added option to filter EQ/CMT by magnitude: -zmag
-# December  4, 2020: Added CMT/hypocenter labeling by provided list (file/cli) or by magnitude range, with some format options
-#                   -eqlist -eqlabel
-# December  4, 2020: Added ISC_MIRROR variable to tectoplot.paths to possibly speed up focal mechanism scraping
-# December  4, 2020: Major update to CMT data format, scraping, input formats, etc.
-#                    We now calculate all SDR/TNP/Moment tensor fields as necessary and do better filtering
-# November 30, 2020: Added code to input and process CMT data from several formats (cmt_tools.sh)
-# November 28, 2020: Added output of flat profile PDFs, V option in profile.control files
-# November 28, 2020: Updated 3d perspective diagram to plot Z axes of exaggerated top tile
-# November 26, 2020: Cleaned up usage, help messages and added installation/setup info
-# November 26, 2020: Fixed a bug whereby CMTs were selected for profiles from too large of an AOI
-# November 26, 2020: Added code to plot -cc alternative locations on profiles and oblique views
-# November 25, 2020: Added ability of -sprof to plot Slab2 and revamped Slab2 selection based on AOI
-# November 24, 2020: Added code to plot -gdalt style topo on oblique plots if that option is active for the map
-# November 24, 2020: Added -msl option to only plot the left half of the DEM for oblique profiles, colocating slice with profile
-# November 24, 2020: Added -msd option to use signed distance for profile DEM generation to avoid kink problems.
-# November 22, 2020: Added -mob option to set parameters for oblique profile component outputs
-# November 20, 2020: Added -psel option to plot only identified profiles from a profile.control file
-# November 19, 2020: Label profiles at their start point
-# November 16, 2020: Added code to download and verify online datasets, removed SLAB2 seismicity+CMTs
-# November 15, 2020: Added BEST option for topography that merges 01s resampled to 2s and GMRT tiles.
-# November 15, 2020: Added -gdalt option to use gdal to plot nice hillshade/slope shaded relief, with flexible options
-# November 13, 2020: Added -zs option to include supplemental seismic dataset (cat onto eqs.txt)
-# November 13, 2020: Fixed a bug in gridded data profile that added bad info to all_data.txt
-# November 12, 2020: Added -rect option for -RJ UTM to plot rectangular map (updating AOI as needed)
-# November 11, 2020: Added -zcsort option to sort EQs before plotting
-# November 11, 2020: Added ability to plot scale bar of specified length centered on lon/lat point
-# November 11, 2020: Fixed a bug in ISC focal mechanism scraper that excluded all Jan-April events! (!!!), also adds pre-1976 GCMT/ISC mechanisms, mostly deep focus
-# November 10, 2020: Updated topo contour plotting and CPT management scheme
-# November  9, 2020: Adjusted GMRT tile size check, added -countries and edited country selection code
-# November  3, 2020: Updated GMRT raster tile scraping and merging to avoid several crash issues
-# November  2, 2020: Fixed DEM format problem (save as .nc and not .tif). Use gdal_translate to convert if necessary.
-# October  28, 2020: Added -tt option back to change transparency of topo basemap
-# October  28, 2020: Added -cn option to plot contours from an input grid file (without plotting grid)
-# October  24, 2020: Range can be defined by a raster argument to -r option
-# October  23, 2020: Added GMRT 1° tile scraping option for DEM (best global bathymetry data)
-# October  23, 2020: Added -scrapedata, -reportdates, -recentglobaleq options
-# October  21, 2020: Added -oto option to ensure 1:1 vertical exaggeration of profile plot
-# October  21, 2020: Added -cc option to plot alternative location of CMT (centroid if plotting origin, origin if plotting centroid)
-# October  20, 2020: Updated CMT file format and updated scrape_gcmt and scrape_isc focal mechanism scripts
-# October  20, 2020: Added -clipdem to save a ${F_TOPO}dem.tif file in the temporary data folder, mainly for in-place profile control
-# October  19, 2020: Initial git commit at kyleedwardbradley/tectoplot
-# October  10, 2020: Added code to avoid double plotting of XYZ and CMT data on overlapping profiles.
-# October   9, 2020: Project data only onto the closest profile from the whole collection.
-# October   9, 2020: Add a date range option to restrict seismic/CMT data
-# October   9, 2020: Add option to rotate CMTs based on back azimuth to a specified lon/lat point
-# October   9, 2020: Update seismicity for legend plot using SEISSTRETCH
-
 # FUN FACTS:
 # You can make a Minecraft landscape in oblique perspective diagrams if you
 # undersample the profile relative to the top grid.
 # tectoplot -t -aprof HX 250k 5k -mob 130 20 5 0.1
-#
-# I have finally figured out how to call GMT without plotting anything: gmt psxy -T
-# I need to change a few places in the script where I am calling something like psxy/pstext instead
-#
-# # KNOWN BUGS:
-# tectoplot remake seems broken?
-# -command and -aprof do not get along
-#
-# DREAM LEVEL:
-# Generate a map_plot.sh script that contains all GMT/etc commands needed to replicate the plot.
-# This script would be editable and would quite quickly rerun the plotting as the
-# relevant data files would already be generated.
-# Not 100% sure that the script is linear enough to do this without high complexity...
-
-# TO DO:
-#
-# HIGHER PRIORITY:
-#
-# Litho1 end cap profile needs to go on one end or the other depending on view azimuth
-#
-# Update legend to include more plot elements
-# Update multi_profile to plot data in 3D on oblique block plots? Need X',Y',Z,mag for eqs.
-# Add option to plot GPS velocity vectors at the surface along profiles?
-#     --> e.g. sample elevation at GPS point; project onto profile, plot horizontal velocity since verticals are not usually in the data
-# Add option to profile.control to plot 3D datasets within the box?
-
-# Need to change program structure so that multiple grids can be overlaid onto shaded relief.
-# Add option to plot stacked data across a profile swath
-# Add option to take a data selection polygon from a plate model?
-# add option to plot NASA Blue Marble / day/night images, and crustal age maps, from GMT online server
-#
-# LOW PRIORITY
-#
-# add a box-and-whisker option to the -mprof command, taking advantage of our quantile calculations and gmt psxy -E
-# Check behavior for plots with areas that cross the Lon=0/360 meridian [general behavior is to FAIL HARD]
-# Add option to color/transparentify data based on distance from profile?
-#
-# Update script to apply gmt.conf at start and also at various other points
-# Update commands to use --GMT_HISTORY=false when necessary, rather than using extra tmp dirs
-# Add option to plot Euler poles of rotation with confidence ellipses. May need to specify a region or a list of plates, as poles will by anywhere on the globe
-# Add color and scaling options for -kg
-# Perform GPS velocity calculations from Kreemer2014 ITRF08 to any reference frame
-#     using Kreemer2014 Euler poles OR from other data using Model/ModelREF - ModelREF-ITRF08?
-# Find way to make accurate distance buffers (without contouring a distance grid...)
-# Develop a better description of scaling of map elements (line widths, arrow sizes, etc).
-# 1 point = 1/72 inches = 0.01388888... inches
-
-# if ((maxlon < 180 && (minlon <= $3 && $3 <= maxlon)) || (maxlon > 180 && (minlon <= $3+360 || $3+360 <= maxlon)))
-
-ALPHA=( {A..Z} {1..99} ) 
-alphaind=0
-function get_profcode() { profcode=${ALPHA[${alphaind:-0}]}; ((alphaind++)); }
 
 
-# Replacement for tac and tail -r (bad compliance across different systems!)
-# Outputs the input file in reverse line order
-function tecto_tac() {
-  gawk '{
-    data[NR]=$0
-  }
-  END {
-    num=NR
-    for(i=num;i>=1;i--) {
-      print data[i]
-    }
-  }' "$@"
-}
+
+
+
 
 # $1 is the program call, $2 is the file path
 function open_pdf() {
@@ -443,11 +251,7 @@ export AWKPATH=${AWKSCRIPTDIR}
 # Get rid of gmt.conf as it is likely to mess up our plots
 [[ -s ~/gmt.conf ]] && mv ~/gmt.conf ~/gmt.conf.tectoplot.saved
 
-################################################################################
-################################################################################
-##### FUNCTION DEFINITIONS
-
-# Source various bash functions
+# Source various functions contained in bash scripts
 source $ARGS_CLEANUP_SH
 source $IMAGE_SH
 source $TIME_SH
@@ -456,27 +260,54 @@ source $GEOSPATIAL_SH
 source $SEISMICITY_SH
 source $INFO_SH
 source $GMT_WRAPPERS
+source $PROFILE_FUNCTIONS_SH
+
+# Define the path to the temporary output directory
 
 FULL_TMP=$(abs_path ${TMP})
 
-##### Set up temporary directory to contain some files before moving to ${TMP}
+##### Set up a temporary directory to contain some files before moving to ${TMP}
 
 FILETMP=$(mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir')/
 
-
-
-# Set up the source listing files that will be moved to ${TMP}
+# Set up the data origin files that will ultimately be moved to ${TMP}
 SHORTSOURCES=${FILETMP}${SHORTSOURCES_FILE}
 LONGSOURCES=${FILETMP}${LONGSOURCES_FILE}
 
 touch ${SHORTSOURCES}
 touch ${LONGSOURCES}
 
-# Record the command
+# Record the tectoplot command as best as possible 
 echo $COMMAND > ${FILETMP}tectoplot.last
 
+# The full command is output into the ps file and .history file. We don't
+# include the full path to the script anymore.
+
+COMMANDBASE=$(basename $0)
+C2=${@}
+COMMAND="${COMMANDBASE} ${C2}"
+
+# Set up the file that will contain informational messages
 INFO_MSG=${FILETMP}${INFO_MSG_NAME}
 touch ${INFO_MSG}
+
+# Declare the associative array of items to be removed on exit
+# Those files are declared with the cleanup function
+
+declare -a on_exit_items
+declare -a on_exit_move_items
+
+# Always clean up these GMT files 
+cleanup gmt.conf gmt.history
+
+# Load all modules by sourcing their files
+
+for this_module in ${TECTOPLOTDIR}modules/module_*.sh; do
+  info_msg "Loading module ${this_module}"
+  source "${this_module}"
+done
+
+
 
 ################################################################################
 # These variables are array indices used to plot multiple versions of the same
@@ -486,26 +317,13 @@ cmtfilenumber=0
 seisfilenumber=0
 usergpsfilenumber=0
 cprofnum=0
-
-################################################################################
-################################################################################
-# MAIN BODY OF SCRIPT
-
-# Startup code that runs every time the script is called
-#
-# function open_prog() {
-#   nohup ${OPENPROGRAM} "${1}" &>/dev/null &
-# }
-
-# Declare the associative array of items to be removed on exit
-# Those files are declared with the cleanup function
-
-declare -a on_exit_items
-declare -a on_exit_move_items
-
-cleanup gmt.conf gmt.history
+sprofnumber=0
 
 # DEFINE FLAGS
+
+# The approach to using flags is a mess and need to be reorganized so that flags,
+# if needed, are more clearly associated with their functionality
+
   calccmtflag=0
   cptdirectflag=0
   defnodeflag=0
@@ -568,283 +386,71 @@ cleanup gmt.conf gmt.history
   np2flag=1
   platediffvcutoffflag=1
 
-sprofnumber=0
 
-###### The list of things to plot starts empty
+###### The list of things to plot starts as an empty array
 
 plots=()
 
-# Argument arrays that are slurped
+# Argument arrays that are slurped during argument processing
 
 customtopoargs=()
 imageargs=()
 topoargs=()
 
-# The full command is output into the ps file and .history file. We don't
-# include the full path to the script anymore.
 
-COMMANDBASE=$(basename $0)
-C2=${@}
-COMMAND="${COMMANDBASE} ${C2}"
+################################################################################
+# MAIN BODY OF SCRIPT
 
-# Load modules by sourcing in their files
-#
-for f in ${TECTOPLOTDIR}modules/module_*.sh; do
-  # echo "Loading module ${f}"
-  source "$f"
-done
 
-### MODULE DEFAULTS
+### LOAD ALL MODULE DEFAULTS
 
 for this_mod in ${TECTOPLOT_MODULES[@]}; do
   if type "tectoplot_defaults_${this_mod}" >/dev/null 2>&1; then
-    cmd="tectoplot_defaults_${this_mod}"
-    "$cmd"
+    tectoplot_defaults_${this_mod}
   fi
 done
 
-# Exit if no arguments are given
+# Print usage message and exit if no arguments are given
 if [[ $# -eq 0 ]]; then
   print_usage
   exit 1
 fi
 
-# SPECIAL CASE 1: If only one argument is given and it is '-remake', rerun
-# the command in file tectoplot.last and exit
-if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
-  info_msg "Rerunning last tectoplot command executed in the temporary directory"
-  [[ -s ${TMP}tectoplot.last ]] && cat ${TMP}tectoplot.last && source ${TMP}tectoplot.last
-  exit 1
-fi
 
-# SPECIAL CASE 2: If two arguments are given and the first is -remake, then
-# use the first line in the file given as the second argument as the command
-if [[ $# -eq 2 && ${1} =~ "-remake" ]]; then
-  if [[ ! -e ${2} ]]; then
-    error_msg "Error: no file ${2}"
-  fi
-  head -n 1 ${2} > tectoplot.cmd
-  info_msg "Rerunning last tectoplot command from first line in file ${2}"
-  cat tectoplot.cmd
-  . tectoplot.cmd
-  exit 0
-fi
+# NOTE: tectoplot -remake is no longer working due to many options taking quoted arguments
+#       which can easily break the command syntax as the quotation marks are not preserved
+#       in tectoplot.last
 
-if [[ "${@}" =~ "-usage" ]]; then
+        # SPECIAL CASE 1: If only one argument is given and it is '-remake', rerun
+        # the command in file tectoplot.last and exit
+        # if [[ $# -eq 1 && ${1} =~ "-remake" ]]; then
+        #   info_msg "Rerunning last tectoplot command executed in the temporary directory"
+        #   [[ -s ${TMP}tectoplot.last ]] && cat ${TMP}tectoplot.last && source ${TMP}tectoplot.last
+        #   exit 1
+        # fi
+
+        # # SPECIAL CASE 2: If two arguments are given and the first is -remake, then
+        # # use the first line in the file given as the second argument as the command
+        # if [[ $# -eq 2 && ${1} =~ "-remake" ]]; then
+        #   if [[ ! -e ${2} ]]; then
+        #     error_msg "Error: no file ${2}"
+        #   fi
+        #   head -n 1 ${2} > tectoplot.cmd
+        #   info_msg "Rerunning last tectoplot command from first line in file ${2}"
+        #   cat tectoplot.cmd
+        #   . tectoplot.cmd
+        #   exit 0
+        # fi
+
+# Set the usage flag if any part of argument string contains -usage
+
+if [[ " ${@} " =~ " -usage " ]]; then
   USAGEFLAG=1
 fi
 
-# SPECIAL CASE 3: If the first argument is -query, OR if the first argument is
-# -tm|--tempdir, the second argument is a file, and the third argument is -query,
-# then process the query request and exit.
-# tectoplot -tm this_dir/ -query seismicity/eqs.txt
+# Check for and, if necessary, run the -query option
 
-if [[ $# -ge 3 && ${1} == "-tm" && ${3} == "-query" ]]; then
-  # echo "Processing query request"
-  if [[ ! -d ${2} ]]; then
-    info_msg "[-query]: Temporary directory ${2} does not exist"
-    exit 1
-  else
-    tempdirqueryflag=1
-    cd "${2}"
-    shift
-    shift
-  fi
-fi
-
-if [[ $1 == "-query" ]]; then
-
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
---------------------------------------------------------------------------------
--query:        query and print from files produced by prior call to tectoplot
--query [[tmpdir]] [filename] [options...] [field1] ... [fieldn]
-
-Options:
-  tmpdir:      path to a temporary directory within which the query is run
-  noheader:    don't print field ID/units
-  nounits:     don't print units
-  csv:         print in CSV format
-  data:        print data from file
-  fieldnum:    print field number in an additional trailing bracket [n]
-
-field1 ... fieldn are field IDs of fields to be selected
-
-A field id is either a number (field number, starting from 1) or a field name.
-Field names are case sensitive.
-
-Example:
-  tectoplot -r GR -z
-  tectoplot -query eqs.txt csv data latitude magnitude
---------------------------------------------------------------------------------
-EOF
-else
-  USAGEFLAG=1
-fi
-  shift
-
-  if [[ -d $1 ]]; then
-    TMP=$(abs_path $1)
-    shift
-  fi
-
-  # echo "Entered query processing block"
-  if [[ ! $tempdirqueryflag -eq 1 ]]; then
-    if [[ ! -d ${TMP} ]]; then
-      echo "Temporary directory $TMP does not exist"
-      exit 1
-    else
-      # Change into the temporary directory
-      cd ${TMP}
-    fi
-  fi
-  query_headerflag=1
-
-  # First argument to -query needs to be a filename.
-
-  if [[ ! -e $1 ]]; then
-    # IF the file doesn't exist in the temporary directory, search for it in any
-    # subdirectory.
-    searchname=$(find . -name $1 -print)
-    if [[ -e $searchname ]]; then
-      fullpath=$(abs_path $searchname)
-      QUERYFILE=$fullpath
-      QUERYID=$(basename "$searchname")
-      shift
-    else
-      exit 1
-    fi
-  else
-    QUERYFILE=$(abs_path $1)
-    QUERYID=$(basename "$1")
-    shift
-  fi
-
-  headerline=($(grep "^$QUERYID" $TECTOPLOT_HEADERS))
-  # echo ${headerline[@]}
-  if [[ ${headerline[0]} != $QUERYID ]]; then
-    echo "query ID $QUERYID not found in headers file $TECTOPLOT_HEADERS"
-    exit 1
-  fi
-
-  while [[ $# -gt 0 ]]; do
-    key="${1}"
-    case ${key} in
-      # If a number, select the field with that number
-      [0-9]*)
-        keylist+=("$key")
-        if [[ "${headerline[$key]}" == "" ]]; then
-          fieldlist+=("none")
-        else
-          fieldlist+=("${headerline[$key]}")
-        fi
-        ;;
-      # Do not print the header
-      noheader)
-        query_headerflag=0
-        ;;
-      # Do not print units in the header
-      nounits)
-        query_nounitsflag=1
-        ;;
-      # Output fields separated by commas
-      csv)
-        query_csvflag=1
-        ;;
-      # Print the selected data
-      data)
-        query_dataflag=1
-        ;;
-      # Print the field number in the header
-      fieldnumber)
-        query_fieldnumberflag=1
-        ;;
-      # Select a field with the supplied name
-      *)
-        ismatched=0
-        for ((i=1; i < ${#headerline[@]}; ++i)); do
-          lk=${#key}
-          if [[ "${headerline[$i]:0:$lk}" == "${key}" && "${headerline[$i]:$lk:1}" == "[" ]]; then
-            keylist+=("$i")
-            fieldlist+=("${headerline[$i]}")
-            ismatched=1
-          fi
-        done
-        if [[ $ismatched -eq 0 ]]; then
-          echo "[-query]: Could not find field named $key"
-          exit 1
-        fi
-        ;;
-    esac
-    shift
-  done
-
-  # If no fields are selected, then the field list is all fields in the header line
-  if [[ ${#fieldlist[@]} -eq 0 ]]; then
-    fieldlist=(${headerline[@]:1})
-  fi
-
-  # Figure out how to print fields
-  if [[ $query_headerflag -eq 1 ]]; then
-    if [[ $query_nounitsflag -eq 1 ]]; then
-      if [[ $query_csvflag -eq 1 ]]; then
-        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' | tr ' ' ',' > queryheader.out
-      else
-        echo "${fieldlist[@]}" | sed 's/\[[^][]*\]//g' > queryheader.out
-      fi
-    else
-      if [[ $query_csvflag -eq 1 ]]; then
-        echo "${fieldlist[@]}" | tr ' ' ',' > queryheader.out
-      else
-        echo "${fieldlist[@]}" > queryheader.out
-      fi
-    fi
-  fi
-
-  # Print the field numbers if asked
-  [[ -s queryheader.out ]] && gawk < queryheader.out -v fnf=$query_fieldnumberflag '{
-    if (fnf != 1) {
-      print $0
-    } else {
-      for(i=1;i<NF;i++) {
-        printf("%s[%s] ", $(i), i)
-      }
-      printf("%s[%s]\n", $(NF), NF)
-    }
-  }'
-
-  # If we are printing the data, do so
-  if [[ $query_dataflag -eq 1 ]]; then
-    keystr="$(echo ${keylist[@]})"
-    gawk < ${QUERYFILE} -v keys="$keystr" -v csv=$query_csvflag '
-    BEGIN {
-      if (csv==1) {
-        sep=","
-      } else {
-        sep=" "
-      }
-      numkeys=split(keys, keylist, " ")
-      if (numkeys==0) {
-        getline
-        numkeys=NF
-        for(i=1; i<=NF; i++) {
-          keylist[i]=i
-        }
-        for(i=1; i<=numkeys-1; i++) {
-          printf "%s%s", $(keylist[i]), sep
-        }
-        printf("%s\n", $(keylist[numkeys]))
-      }
-    }
-    {
-      for(i=1; i<=numkeys-1; i++) {
-        printf "%s%s", $(keylist[i]), sep
-      }
-      printf("%s\n", $(keylist[numkeys]))
-    }'
-  fi
-  exit 1
-fi
+source ${CHECK_AND_RUN_QUERY_SH}
 
 DONTRESETCOMSFLAG=0
 
@@ -911,7 +517,7 @@ done
 if [[ $DONTRESETCOMSFLAG -eq 0 ]]; then
   set -- "${saved_args[@]}"
 fi
-##### End parse special command line arguments
+##### End parsing of special command line arguments
 
 
 ##### Parse command line arguments that always end with exit
@@ -920,10 +526,6 @@ while [[ $# -gt 0 ]]
 do
   key="${1}"
   case ${key} in
-
-  -usage)
-    USAGEFLAG=1
-  ;;
 
   -history) # Print/search tectoplot history and exit
     if [[ ! $USAGEFLAG -eq 1 ]]; then
@@ -1048,22 +650,6 @@ do
       fi
     fi
     ;;
-
-  # -countryid) # report country ID codes
-  #   if [[ ! $USAGEFLAG -eq 1 ]]; then
-  #
-  #     if arg_is_flag $2; then
-  #       gawk -F, < $COUNTRY_CODES '{ print $2, $3, $4 }' | gmt select ${RJSTRING}
-  #     else
-  #       while ! arg_is_flag $2; do
-  #         gawk -F, < $COUNTRY_CODES '{ print $1, $4 }' | grep "${2}"
-  #         shift
-  #       done
-  #     fi
-  #
-  #     exit
-  #   fi
-  #   ;;
 
   -data) # report datasets
     if [[ ! $USAGEFLAG -eq 1 ]]; then
@@ -1213,8 +799,11 @@ do
   shift
 done
 
+# Reset the command line arguments
 set -- "${saved_args[@]}"
-##### End command line arguments that always end with exit
+
+
+##### End command line arguments that always end with program exit
 
 # Create the temporary directory and subdirectory structure
 
@@ -1277,11 +866,21 @@ if [[ ! ${USAGEFLAG} -eq 1 ]]; then
 fi
 
 ##### Parse main command line arguments
-USAGEFLAG=0  # Reset to 0... if -usage is called it will work again.
+
+# Set usage to off
+USAGEFLAG=0  
 
 while [[ $# -gt 0 ]]
 do
   key="${1}"
+
+  # Commands that are sourced from the codes/ subdirectory of tectoplot
+  if [[ -s ${TECTOPLOTDIR}codes/${1:1} ]]; then
+    # echo "found code ${1}"
+    . ${TECTOPLOTDIR}codes/${1:1}
+  fi
+
+  # Commands that are stored in the following case statement
   case ${key} in
 
 # Options from high priority suite above need to be skipped intelligently
@@ -1295,24 +894,24 @@ do
 
   ;;
 
-  -whichutm) # -whichutm: report UTM zone for specified longitude
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--whichutm:      report UTM zone for specified longitude
-Usage: -whichutm [longitude]
+#   -whichutm) # -whichutm: report UTM zone for specified longitude
+#   if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -whichutm:      report UTM zone for specified longitude
+# Usage: -whichutm [longitude]
 
---------------------------------------------------------------------------------
-EOF
-  shift && continue
-  fi
+# --------------------------------------------------------------------------------
+# EOF
+#   shift && continue
+#   fi
 
-  if arg_is_float $2; then
-    AVELONp180o6=$(echo "(($2) + 180)/6" | bc -l)
-    UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
-    echo "UTM Zone for longitude ${2}: ${UTMZONE}"
-  fi
-  exit 0
-  ;;
+#   if arg_is_float $2; then
+#     AVELONp180o6=$(echo "(($2) + 180)/6" | bc -l)
+#     UTMZONE=$(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}')
+#     echo "UTM Zone for longitude ${2}: ${UTMZONE}"
+#   fi
+#   exit 0
+#   ;;
 
   -checkdep) # High priority option parsed earlier.
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -1362,23 +961,6 @@ EOF
 shift && continue
 fi
   ;;
-
-#   -countryid) # High priority option parsed earlier
-#   if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -countryid:    print list of recognized country codes and exit
-# Usage: -countryid [[string ...]]
-#
-#   If no argument is given, print all country ID codes. If arguments are given,
-#   then print country codes containing each string.
-#
-#   Exits.
-#
-# --------------------------------------------------------------------------------
-# EOF
-#     shift && continue
-#   fi
-#   ;;
 
   -data) # High priority option parsed earlier
   if [[ $USAGEFLAG -eq 1 ]]; then
@@ -1471,6 +1053,8 @@ EOF
 cat <<-EOF
 -query:        print information from data files in temp directory
 -query
+
+  For full usage, try tectoplot -query -usage
 --------------------------------------------------------------------------------
 EOF
 shift && continue
@@ -1506,26 +1090,26 @@ shift && continue
   if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
 -usage:        basic description of tools
-Usage: -usage   [command containing any number of -flags and arguments]
-Usage: -usage   [all|what|args]
-Usage: -usage   [topo]
+Usage: -usage [[vars]] [command containing any number of -flags and arguments]
+Usage: -usage [[vars]] [all | what]
+Usage: -usage [[vars]] module [module_name] [[module_name]] ... 
 
 Print explanations of options, arguments, and outputs for commands.
+
+[[vars]]: Print information about module variable names (for developers)
 
 General:
  all:  Print usage messages for all commands
  what: Print short descriptions of commands
- args: Print information about arguments, for all commands
-
-Collections of related commands:
- topo: Print short descriptions of topo-related commands
-
-Outputs:
- None
+ module:  Print usage messages for all commands in listed modules
 
 EOF
 fi
-USAGEFLAG=1
+
+ # usageskipflag is set to 1 when we are manually changing the command line arguments using set --
+ usageskipflag=0
+
+ USAGEFLAG=1
 
  if [[ $2 == "vars" ]]; then
    USAGEVARSFLAG=1
@@ -1535,56 +1119,35 @@ USAGEFLAG=1
  if [[ $2 =~ "all" ]]; then
    shift
    SCRIPTFILE="${BASH_SOURCE[0]}"
-   # COMMANDLIST=$(grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print $1 }' | uniq | sort -f)
+ 
+   grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '{ if (substr($1,length($1),1) == ":") {print substr($1,1,length($1)-1) }}' > commandlist.txt
+   
+   for f in ${TECTOPLOTDIR}modules/module_*.sh; do
+     grep "^des " ${f} | cut -f2- -d ' ' | gawk '{print $1}' >> commandlist.txt
+   done
 
-   # grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print $1 }' > commandlist.txt
+   cleanup commandlist.txt
 
-     grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '{ if (substr($1,length($1),1) == ":") {print substr($1,1,length($1)-1) }}' > commandlist.txt
-
-   # COMEBACK turned off for webpage development to skip modules for now
-   # Uncomment!
-   # for f in ${TECTOPLOTDIR}modules/module_*.sh; do
-   #   grep "^-" ${f} | grep -v -- "---" | gawk '{ if (substr($1,length($1),1) == ":") {print substr($1,1,length($1)-1) }}' >> commandlist.txt
-   # done
-
-   COMMANDLIST=$(cat commandlist.txt | uniq | sort -f)
+   COMMANDLIST=($(cat commandlist.txt | uniq | sort -f))
 
    echo "tectoplot commands:"
    echo ${COMMANDLIST[@]} | fold -s
-   echo "end tectoplot commands"
+   echo 
    echo "--------------------------------------------------------------------------------"
-   set -- "blank" ${COMMANDLIST[@]}
+   set -- "blank" "${COMMANDLIST[@]}"
+
+   usageskipflag=1
    DONTRESETCOMSFLAG=1
  elif [[ $2 =~ "what" ]]; then
    shift
    SCRIPTFILE="${BASH_SOURCE[0]}"
-   grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) == ":") { print }' | uniq | sort -f
+   grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) == ":") { printf("%-20s", $1); $1=""; printf("%s\n", $0) }' > ${FILETMP}commands.txt
 
-   echo "Modules:"
    for f in ${TECTOPLOTDIR}modules/module_*.sh; do
-     echo "$(basename ${f}):"
-     grep "^des " ${f} | cut -f2- -d ' ' | gawk '{ $1=sprintf("%s:", $1); print }' | uniq | sort -f
+     grep "^des " ${f} | cut -f2- -d ' ' | gawk '{ $1=sprintf("%s (m):", $1); printf("%-20s", $1); $1=""; printf("%s\n", $0) }' >> ${FILETMP}commands.txt
    done
+   uniq ${FILETMP}commands.txt | sort -f
    exit
- elif [[ $2 =~ "args" ]]; then
-   shift
-   SCRIPTFILE="${BASH_SOURCE[0]}"
-   grep "^-" ${SCRIPTFILE} | grep -v -- "---" | gawk '(substr($1,length($1),1) != ":" && substr($1,length($1),1) != ")") { print }' | uniq | sort -f > ./tectoplot.tmp.file
-   rm -f ./tectoplot.tmp2.file
-   while read p; do
-     echo $(eval "echo ${p}") >> ./tectoplot.tmp2.file
-   done < ./tectoplot.tmp.file
-   gawk < ./tectoplot.tmp2.file '{$1 = sprintf("%-16s", $1); print }'
-   rm -f ./tectoplot.tmp.file ./tectoplot.tmp2.file
-   exit
- elif [[ $2 =~ "topo" ]]; then
-   shift
-   usageskipflag=1
-   COMMANDLIST=($(echo "-t -t -ti -ts -tr -tc -tx -tt -clipdem -tflat -tshad -ttext -tmult -tuni -tsky -tgam -timg -tsent -tblue -tsent -tunsetflat -tsea -tclip -tsave -tload -tdelete -tn -tquant -tca"))
-   echo topo commands: ${COMMANDLIST[@]} | fold -s
-   echo "--------------------------------------------------------------------------------"
-   set -- "blank" ${COMMANDLIST[@]}
-   DONTRESETCOMSFLAG=1
  elif [[ $2 =~ "module" ]]; then
    shift
    usageskipflag=1
@@ -1600,7 +1163,6 @@ USAGEFLAG=1
    set -- "blank" ${m_commands_2[@]}
  else
    # Assume we will read flags one by one
-
    usageskipflag=1
    echo "--------------------------------------------------------------------------------"
  fi
@@ -1620,40 +1182,42 @@ fi
   shift
   ;;
 
-  -recenteq) # -recenteq: plot earthquakes that occurred recently
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--recenteq:     plot earthquakes that occurred recently
-Usage: -recenteq      [[number_of_days=${LASTDAYNUM}]] [[print]]
 
-  Sets options -a a -z -c -time date1 date2 where date1 is number_of_days ago
-  and date2 is current date and time (both in UTC).
-  Specification of -r is required, or the default region will be used.
+## RECIPES
 
-Example: Plot last 1 month of earthquakes in USA
-tectoplot -r US -t 01d -recenteq 31 -o example_recenteq
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
+#   -recenteq) # -recenteq: plot earthquakes that occurred recently
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -recenteq:     plot earthquakes that occurred recently
+# Usage: -recenteq      [[number_of_days=${LASTDAYNUM}]] [[print]]
 
+#   Sets options -a a -z -c -time date1 date2 where date1 is number_of_days ago
+#   and date2 is current date and time (both in UTC).
+#   Specification of -r is required, or the default region will be used.
 
-  if arg_is_flag $2; then
-    info_msg "[-recenteq]: No day number specified, using last 7 days"
-  else
-    info_msg "[-recenteq]: Using start of day ${2} days ago to end of today"
-    LASTDAYNUM="${2}"
-    shift
-  fi
+# Example: Plot last 1 month of earthquakes in USA
+# tectoplot -r US -t 01d -recenteq 31 -o example_recenteq
+# ExampleEnd
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
 
-  # Turn on time select
-  timeselectflag=1
-  STARTTIME=$(date_shift_utc -${LASTDAYNUM} 0 0 0)
-  ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
-  shift
-  set -- "blank" "-a" "a" "-z" "-c" "-time" "${STARTTIME}" "${ENDTIME}" "$@"
-  ;;
+#   if arg_is_flag $2; then
+#     info_msg "[-recenteq]: No day number specified, using last 7 days"
+#   else
+#     info_msg "[-recenteq]: Using start of day ${2} days ago to end of today"
+#     LASTDAYNUM="${2}"
+#     shift
+#   fi
+
+#   # Turn on time select
+#   timeselectflag=1
+#   STARTTIME=$(date_shift_utc -${LASTDAYNUM} 0 0 0)
+#   ENDTIME=$(date_shift_utc)    # COMPATIBILITY ISSUE WITH GNU date
+#   shift
+#   set -- "blank" "-a" "a" "-z" "-c" "-time" "${STARTTIME}" "${ENDTIME}" "$@"
+  # ;;
 
   -latesteqs)
   LATESTEQSORTTYPE="mag"
@@ -1699,7 +1263,7 @@ EOF
 shift && continue
 fi
     shift
-    set -- "blank" "-t" "-b" "c" "-z" "-c" "$@"
+    set -- "blank" "-t" "-b" "-z" "-c" "$@"
     ;;
 
   -topo)
@@ -2090,6 +1654,8 @@ fi
     plots+=("gemfaults")
     ;;
 
+
+
   -alignz)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -2140,34 +1706,6 @@ fi
         alignxyflag=1
       fi
     fi
-    ;;
-
-  -bigbar)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--bigbar:       plot a single large colorbar beneath the map
-Usage: -bigbar [cpt_name] [["Explanation string"]]
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-  if ! arg_is_flag ${2}; then
-    BIGBARCPT=${2}
-    shift
-  fi
-  if ! arg_is_flag ${2}; then
-    BIGBARANNO=${2}
-    shift
-  fi
-  if ! arg_is_flag ${2}; then
-    BIGBARLOW=${2}
-    shift
-  fi
-  if ! arg_is_flag ${2}; then
-    BIGBARHIGH=${2}
-    shift
-  fi
-  plotbigbarflag=1
     ;;
 
   -cprof) # args lon lat azimuth(degrees) length(km) width(km) res(km)
@@ -2271,26 +1809,6 @@ fi
     # antiaz foreaz centerlon|eqlon centerlat|eqlat cprofhalflen
     echo $CPROFAZ $CPROFLON $CPROFLAT $CPROFHALFLEN >> ${TMP}${F_PROFILES}cprof_prep.txt
     # Calculate the profile start and end points based on the given information
-  ;;
-
-  -margin)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--margin:    set the width of the blank margin surrounding the map document
-Usage: -margin [length]
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-  if ! arg_is_flag $2; then
-    MAPMARGIN=$2
-    shift
-  else
-    echo "[-margin]: requires a map length argument (e.g. 0.5i)"
-    exit 1
-  fi
-
   ;;
 
   -profopts)
@@ -2397,46 +1915,7 @@ fi
       plots+=("aprofcodes")
     ;;
 
-  -arrow)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--arrow:        change the width of arrow vectors
-Usage: -arrow [narrower | narrow | normal | wide | wider]
 
-Example: Plot GPS velocities with wide arrows
-tectoplot -a -g pa -arrow wide -o example_arrow
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-  case "${2}" in
-    # GMT 4 arrow format
-    # tailwidth/headlength/halfheadwidth
-    narrower)
-      ARROWFMT="0.01/0.14/0.06"
-      shift
-      ;;
-    narrow)
-      ARROWFMT="0.02/0.14/0.06"
-      shift
-      ;;
-    normal)
-      ARROWFMT="0.06/0.12/0.06"
-      shift
-      ;;
-    wide)
-      ARROWFMT="0.08/0.14/0.1"
-      shift
-      ;;
-    wider)
-      ARROWFMT="0.1/0.3/0.2"
-      shift
-      ;;
-    *)
-      info_msg "[-arrow]: wide | ... "
-  esac
-  ;;
 
   -datareport)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -2481,114 +1960,6 @@ shift && continue
 fi
   plots+=("regionreport")
   ;;
-
-  -watermark)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--watermark: place a semi-transparent watermark on map
-Usage: -watermark "Watermark text"
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-  if arg_is_flag $2; then
-    echo "[-watermark]: argument required"
-    exit 1
-  else 
-    watermark_text="${2}"
-    shift
-  fi
-
-  plots+=("watermark")
-echo watermark text is "${watermark_text}"
-  ;;
-
-  -author)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--author:       update or plot stored author information
-
-  This option stores and prints author information to facilitate map
-  attribution. There are several formats:
-
-Usage: -author set "Author ID"
-  Store author information
-Usage: -author
-  Plot stored author and datestring at lower left corner of map
-Usage: -author nodate
-  Plot stored author but not timestamp on map.
-Usage: -author print
-  Print stored author information and then exit
-Usage: -author reset
-  Delete stored author information and then exit
-
-Example: Reset a stored author ID and then update it to "Author 1"
-tectoplot -author "Author 1" -o example_author
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    authortimestampflag=0
-    authorflag=1
-    authorspace=""
-    AUTHOR_FONT=12p,Helvetica,black
-    AUTHOR_DATE_FORMAT=""
-
-    while ! arg_is_flag $2; do
-      case ${2} in    
-        date)
-          shift
-          info_msg "[-author]: Not printing timestamp"
-          authortimestampflag=1
-        ;;
-        font)
-          shift
-          AUTHOR_FONT=$2
-          shift
-        ;;
-        *)
-          AUTHOR_ID="${AUTHOR_ID}${authorspace}${2}"
-          authorspace=" "
-          shift
-        ;;
-      esac
-    done
-
-    DATE_ID=$(date -u $DATE_FORMAT)
-    ;;
-
-  -authoryx)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--authoryx:     shift -author text by specified inches on plot
-Usage: -authoryx [YSHIFT] [XSHITY]
-
-Example: Shift -author text to the right and up
-tectoplot -r GT -a -author -authoryx 3 3 -o example_authoryx
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-    if arg_is_float $2; then
-      AUTHOR_YSHIFT="${2}"
-      info_msg "[-authoryx]: Shifting author info (Y) by $AUTHOR_YSHIFT"
-      shift
-    else
-      info_msg "[-authoryx]: No Y shift indicated. Using $AUTHOR_YSHIFT (i)"
-    fi
-    if arg_is_float $2; then
-      AUTHOR_XSHIFT="${2}"
-      info_msg "[-authoryx]: Shifting author info (X) by $AUTHOR_XSHIFT"
-      shift
-    else
-      info_msg "[-authoryx]: No X shift indicated. Using $AUTHOR_XSHIFT (i)"
-    fi
-    ;;
 
   -B) # args: { ... }
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -2928,115 +2299,6 @@ fi
     clipdemflag=1
     ;;
 
-#   -clipon|-clipout)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -clipon:       activate clipping polygon, inside
-# Usage: -clipon [ polygonFile or regionID ]
-#
-#   Turn on PS clipping to mask areas that are subsequently plotted into.
-#
-#   polygonFile is a potentially multisegment (> dividing lines) LON LAT file.
-#   regionID is any GMT region recognized by pscoast (e.g. =NA ; FR,ES ; etc.)
-#   -clipline [ polygonFile | regionID ] will plot the clipping line
-#   -clipoff is necessary to release clipping before closing the PS file.
-#
-# Example: Use -clipon, -clipout, -clipoff to make a composite map of New Zealand
-# tectoplot -r NZ -clipon NZ -t -clipoff -clipout NZ -v BG 0 rescale -clipoff -clipline -o example_clipon
-# ExampleEnd
-# --------------------------------------------------------------------------------
-# -clipout:      activate clipping polygon, outside
-# Usage: -clipout [ polygonFile or regionID ]
-#
-#   Turn on PS clipping to mask areas that are subsequently plotted into.
-#
-#   polygonFile is a potentially multisegment (> dividing lines) LON LAT file.
-#   regionID is any GMT region recognized by pscoast (e.g. =NA ; FR,ES ; etc.)
-#
-# Related: -clipon -clipline -clipoff
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#
-#     clipcmd=$1
-#     CLIP_POLY_FILE=$(abs_path $2)
-#     if [[ -s ${CLIP_POLY_FILE} ]]; then
-#
-#       if [[ ${CLIP_POLY_FILE} == *.kml ]]; then
-#         echo "Making KML into poly"
-#         kml_to_first_xy ${CLIP_POLY_FILE} ${TMP}clip_poly.txt
-#         CLIP_POLY_FILE=$(abs_path ${TMP}clip_poly.txt)
-#         info_msg "[-clipon|clipout]: Using polygon file ${CLIP_POLY_FILE}"
-#       else
-#         cp $2 ${TMP}clip_poly.txt
-#         CLIP_POLY_FILE=$(abs_path ${TMP}clip_poly.txt)
-#       fi
-#       shift
-#       [[ $clipcmd =~ "-clipon" ]] && plots+=("clipon")
-#       [[ $clipcmd =~ "-clipout" ]] && plots+=("clipout")
-#     else
-#       info_msg "[-clipon|clipout]: No polygon file ${CLIP_POLY_FILE} found. Interpreting as GMT ID"
-#       # Extract the DCW borders and fix the longitude range if necessary
-#       gmt pscoast -E${2} -M ${VERBOSE} | gawk '
-#       BEGIN {ind=1}
-#       {
-#         if ($1+0>180) {
-#           print $1-360, $2
-#         } else if ($1+0<-180) {
-#           print $1+360, $2
-#         }
-#         else if ($1==">"){
-#          print "0 x"
-#         }
-#         else {
-#           print
-#         }
-#       }' > ${TMP}tectoplot_path.clip
-#
-#       CLIP_POLY_FILE=$(abs_path ${TMP}tectoplot_path.clip)
-#
-#       # gmt pscoast -E${2} -M ${VERBOSE}  > tectoplot_path.clip
-#       shift
-#       if [[ -s ${TMP}tectoplot_path.clip ]]; then
-#         copyandsetclippolyfileflag=1
-#         [[ $clipcmd =~ "-clipon" ]] && plots+=("clipon")
-#         [[ $clipcmd =~ "-clipout" ]] && plots+=("clipout")
-#       fi
-#     fi
-#     ;;
-#
-#   -clipoff)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -clipoff:      deactivate clipping polygon
-# Usage: -clipoff
-#
-#   Turn off all PS clipping.
-#
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#
-#     plots+=("clipoff")
-#     ;;
-#
-#   -clipline)
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -clipline:      plot line along clipping polygon boundary
-#
-#   Plot previously defined clipping polygon as a line.
-#
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#
-#     plots+=("clipline")
-#     ;;
-
   -cmag) # args: number number
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
@@ -3067,28 +2329,28 @@ fi
     cmagflag=1
     ;;
 
-  -command)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--command:      print the complete tectoplot command on the map
-Usage: -command
+#   -command)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -command:      print the complete tectoplot command on the map
+# Usage: -command
 
-  If -author is specified, justify lower right. If not, lower left.
+#   If -author is specified, justify lower right. If not, lower left.
 
-Example:
-tectoplot -a -command -o example_command
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    printcommandflag=1
-    ;;
+# Example:
+# tectoplot -a -command -o example_command
+# ExampleEnd
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     printcommandflag=1
+#     ;;
 
   -cpts)
 if [[ $USAGEFLAG -eq 1 ]]; then
 cat <<-EOF
--cpts:         rebuilt internal tectoplot cpts
+-cpts:         rebuild internal tectoplot cpts
 Usage: -cpts
 
 --------------------------------------------------------------------------------
@@ -3283,33 +2545,6 @@ fi
     CMT_SSCOLOR="gray100"
     ;;
 
-  -e) # args: file
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--e:            execute custom script
-Usage: -e [scriptfile] [arg1] [...]
-
-  Execute a script via bash sourcing (. script.sh). The script will run in the
-  current tectoplot environment and will have access to its variables.
-  Please be careful about running scripts in this fashion as there are no checks
-  on whether the script is safe.
-
-  All following non-flag arguments are passed to the script as arguments.
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    EXECUTEFILE=$(abs_path $2)
-    shift
-
-    while ! arg_is_flag $2; do
-      EXEC_ARGS+=("$2")
-      shift
-    done
-
-    plots+=("execute")
-    ;;
 
   -eps)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -3934,34 +3169,6 @@ fi
   plots+=("gps_gg")
   ;;
 
-  -pagegrid)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--pagegrid:     plot an inch- or cm-spaced grid around the map document
-Usage: -pagegrid [[unit=${PAGE_GRID_UNIT}]]
-
-  Plot an inch- or cm-spaced grid around the map document
-
-  Units:
-    i    inches
-    c    centimeters
-
-Example: Plot a page grid
-tectoplot -a -pagegrid c -o example_pagegrid
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    case $2 in
-      i|c)
-        PAGE_GRID_UNIT=$2
-        shift
-      ;;
-    esac
-    plots+=("pagegrid")
-  ;;
-
 	-g) # args: none || string
   gpsfontsize=6
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -4268,108 +3475,6 @@ fi
       done
     ;;
 
-  -gmtvars)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--gmtvars:      set internal gmt variables
-Usage: -gmtvars { PARAMETER1 value1 PARAMETER2 val2 ... }
-
-  Changes the state of a GMT variable (e.g. MAP_FRAME_PEN) using gmtset
-
-Example:
-tectoplot -gmtvars { MAP_ANNOT_OFFSET_PRIMARY 4p MAP_FRAME_TYPE fancy } -a -o example_gmtvars
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    if [[ ${2:0:1} == [{] ]]; then
-      info_msg "[-gmtvars]: GMT argument string detected"
-      shift
-      while : ; do
-          [[ ${2:0:1} != [}] ]] || break
-          gmtv+=("${2}")
-          shift
-      done
-      shift
-      GMTVARS="${gmtv[@]}"
-    fi
-    usecustomgmtvars=1
-    info_msg "[-gmtvars]: Custom GMT variables: ${GMVARS[@]}"
-    ;;
-
-  -gridlabels) # args: string (quoted)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--gridlabels:   specify how map axes are presented and labeled
-Usage: -gridlabels [optstring]
-
-  This option is used to set map axis labeling. Lower case
-  letters indicate no labelling, upper case letters indicate labeling.
-  b/S: bottom unlabeled / bottom labeled
-  l/W: left unlabeled / left labeled
-  t/N: top unlabeled / top labeled
-  r/E: right unlabeled / right labeled
-
-
-Example:
-tectoplot -r CR -gridlabels EWns -a -o example_gridlabels
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    GRIDCALL="${2}"
-    shift
-    ;;
-
-  -gres)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--gres:         specify dpi of most grid plotting options
-Usage: -gres [dpi]
-
-  GMT plots grids at their native resolution, creating very large files in some
-  cases. Use this option to set the dpi of plotted grids. Resampling is done at
-  the plotting step.
-
-  Note: Doesn't affect many grids currently!
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-    if arg_is_positive_float $2; then
-      info_msg "[-gres]: Set grid output resolution to ${2} dpi"
-      GRID_PRINT_RES="-E${2}"
-    else
-      info_msg "[-gres]: Cannot understand dpi value ${2}. Using native resolution."
-      GRID_PRINT_RES=""
-    fi
-    shift
-    ;;
-
-  -i) # args: number
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--i:            rescale velocity vectors
-Usage: -i [factor]
-
-  Rescale GPS, plate motion, and other velocity vectors by the given factor.
-
-Example:
-tectoplot -a -g PA -i 3 -a -arrow wider -o example_i
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    VELSCALE=$(echo "${2} * $VELSCALE" | bc -l)
-    info_msg "[-i]: Vectors scaled by factor of ${2}, result is ${VELSCALE}"
-    shift
-    ;;
-
   -inset)
   INSET_ONOFFCODE="j"
   INSET_JUST_CODE="TR"
@@ -4637,24 +3742,6 @@ fi
     if [[ $INSET_ARGS == "" ]]; then
       INSET_ARGS="-t -tdc -a -pgo -pss $(echo ${INSET_SIZE} -whiteframe 10p | gawk '{print $1+0}')"
     fi
-
-
-    ;;
-
-  -keepopenps) # args: none
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--keepopenps:    keep ps file open for subsequent plotting
-Usage: -keepopenps
-
-  Allow subsequent plotting and don't attempt to convert unclosed PS to PDF.
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    keepopenflag=1
-    KEEPOPEN="-K"
     ;;
 
 	-kg) # args: none
@@ -5212,23 +4299,23 @@ fi
 
   ;;
 
-  -megadebug)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--megadebug:    turn on set -x option in bash to see EVERYTHING
-Usage: -megadebug
+#   -megadebug)
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -megadebug:    turn on set -x option in bash to see EVERYTHING
+# Usage: -megadebug
 
-  Prints all processes and script commands with line and time stamps.
+#   Prints all processes and script commands with line and time stamps.
 
-  To save an exhaustive log to the file out.txt:
-    tectoplot [options] -megadebug > out.txt 2>&1
+#   To save an exhaustive log to the file out.txt:
+#     tectoplot [options] -megadebug > out.txt 2>&1
 
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    set -x
-    ;;
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     set -x
+#     ;;
 
   -mob)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -5730,62 +4817,6 @@ fi
     PERSPECTIVE_TOPO_HALF="+l"
     ;;
 
-  -nocleanup)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--nocleanup:    keep all intermediate files
-Usage: -nocleanup
-
-  tectoplot usually deletes various intermediate files; this option keep them.
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    CLEANUP_FILES=0
-    ;;
-
-  -noplot)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--noplot:       do not plot anything - exit after initial data management
-Usage: -noplot
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    noplotflag=1
-    ;;
-
-	-o)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--o:            specify name of output pdf
-Usage: -o [filename]
-
-  Final PDF is saved as filename.pdf
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-		outflag=1
-		MAPOUT="${2}"
-		shift
-		info_msg "[-o]: Output file is ${MAPOUT}"
-
-    if ! arg_is_flag "${2}"; then
-      if [[ -d "${2}" ]]; then
-        outputdirflag=1
-        OUTPUTDIRECTORY=$(abs_path "${2}")
-        shift
-      else
-        echo "Output directory ${2} does not exist. Exiting."
-        exit 1
-      fi
-    fi
-	  ;;
 
   -ob)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -5932,35 +4963,6 @@ fi
   fi
   ;;
 
-  -maponly)
-
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--maponly:       only open map PDF at end of processing
-Usage: -maponly 
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    openflag=1
-    openallflag=0
-  ;;
-
-  -noopen)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--noopen:       don't open any PDFs at end of processing
-Usage: -noopen 
-
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    openflag=0
-    openallflag=0
-
-    ;;
 
   -oto)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -6426,122 +5428,37 @@ fi
 
     ;;
 
-  -whiteframe)
-  WHITEFRAME_WIDTH=10p
-  WHITEFRAME_COLOR="white"
-  whiteframeflag=0
 
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--whiteframe:     plot a thick white map frame before any other layers
-Usage: -whiteframe [[width=${WHITEFRAME_WIDTH}]]
+#   -cutframe) # -cutframe: plot a frame element to facilitate cutting
+#   # Default cutframe distance is 2 inches
+#   CUTFRAME_DISTANCE=2
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -cutframe:       plot frame element to facilitate cutting
+# Usage: -cutframe [[distance=${CUTFRAME_DISTANCE}]]
 
-Example:
-tectoplot -r GR -a -noframe -o example_noframe
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
+#   Places an unadorned rectangular frame around the map beyond the label extent
+#   in order to allow uniform cropping of the page to make superimposition of
+#   PDFs easier.
 
-  if ! arg_is_flag $2; then
-    WHITEFRAME_WIDTH=$2
-    shift
-  fi
-  if ! arg_is_flag $2; then
-    WHITEFRAME_COLOR=$2
-    shift
-  fi
-  whiteframeflag=1
-  ;;
+#   distance is given without units, and is in inches
 
-  -navticks)
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--navticks:     plot navigation ticks
-Usage: -navticks
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
+# Example:
+# tectoplot -a -cutframe -o example_cutframe
+# ExampleEnd
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+# cutframeflag=1
 
-  plots+=("navticks")
+#   if arg_is_positive_float $2; then
+#     CUTFRAME_DISTANCE="${2}"
+#     shift
+#   fi
 
-  ;;
-
-  -noframe) # -noframe: do not plot coordinate grid or map frame
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--noframe:      do not plot coordinate grid or map frame
-Usage: -noframe [[top]] [[left]] [[bottom]] [[right]]
-
-  If no options are given, do not label the border at all.
-  If options are given, label all borders EXCEPT those listed.
-
-Example:
-tectoplot -r GR -a -noframe -o example_noframe
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-
-    GRIDCALL="NESW"
-
-    if arg_is_flag "${2}"; then
-      GRIDCALL="blrt"
-      dontplotgridflag=1
-    else
-      while ! arg_is_flag "${2}"; do
-        case "${2}" in
-          top)
-            GRIDCALL=$(echo $GRIDCALL | tr 'N' 't')
-            ;;
-          left)
-            GRIDCALL=$(echo $GRIDCALL | tr 'W' 'l')
-            ;;
-          bottom)
-            GRIDCALL=$(echo $GRIDCALL | tr 'S' 'b')
-            ;;
-          right)
-            GRIDCALL=$(echo $GRIDCALL | tr 'E' 'r')
-            ;;
-        esac
-        shift
-      done
-    fi
-    ;;
-
-  -cutframe) # -cutframe: plot a frame element to facilitate cutting
-  # Default cutframe distance is 2 inches
-  CUTFRAME_DISTANCE=2
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--cutframe:       plot frame element to facilitate cutting
-Usage: -cutframe [[distance=${CUTFRAME_DISTANCE}]]
-
-  Places an unadorned rectangular frame around the map beyond the label extent
-  in order to allow uniform cropping of the page to make superimposition of
-  PDFs easier.
-
-  distance is given without units, and is in inches
-
-Example:
-tectoplot -a -cutframe -o example_cutframe
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-cutframeflag=1
-
-  if arg_is_positive_float $2; then
-    CUTFRAME_DISTANCE="${2}"
-    shift
-  fi
-
-  plots+=("cutframe")
-  ;;
+#   plots+=("cutframe")
+#   ;;
 
   -pgo) # -pgo: plot parallel and meridian lines as a map layer
   GRIDLINE_COLOR=black
@@ -9196,7 +8113,6 @@ fi
       exit 1
     fi
   fi
-
   ;;
 
   -proflabel)
@@ -9498,7 +8414,18 @@ fi
 
 
   -zarea)
+  # Download seismicity within the AOI, do not use scraped datasets
+  if [[ $USAGEFLAG -eq 1 ]]; then
+cat <<-EOF
+-zarea:        download EMSC seismicity within the AOI, do not use scraped datasets
+Usage: -zarea
 
+Will fail if too many events are found. Not intended for most users - placeholder
+
+--------------------------------------------------------------------------------
+EOF
+shift && continue
+fi
   zareaflag=1
 
   ;;
@@ -10069,230 +8996,6 @@ fi
       shift
     fi
     ;;
-
-  -title) # -title: set and display a plot title
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--title:        set and display plot title
-Usage: -title "Title of Map"
-
-Example: Solomon Islands
-tectoplot -r SB -a -title "Solomon Islands" -o example_title
-ExampleEnd
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    PLOTTITLE=""
-    while : ; do
-      arg_is_flag $2 && break
-      TITLELIST+=("${2}")
-      shift
-    done
-    PLOTTITLE="${TITLELIST[@]}"
-    plottitleflag=1
-    plots+=("maptitle")
-    ;;
-
-
-
-#   -tn) # -tn: plot topographic contours
-# if [[ $USAGEFLAG -eq 1 ]]; then
-# cat <<-EOF
-# -tn:           plot topographic contours
-# Usage: -tn [[options]]
-#
-#   Plot contours of -t topography.
-#
-#   Options:
-#
-#   int [number | auto]
-#       Contour interval
-#   fontsize [number]
-#       Set font size for contour labels
-#   index [number]
-#       Set specified contour to be a major contour
-#   list [level1,level2,...]
-#       Use the comma-specified list, plot all as major contours
-#   minsize [arg]
-#       Suppresses plotting of small closed contours
-#       specify minimum numbner of points (e.g. 500) or length (e.g. 10k)
-#   smooth [arg]
-#       Smooth contours by a factor (e.g. 3)
-#   major [width] [[color]]
-#       Set appearance of major contours
-#   minor [width] [[color]]
-#       Set appearance of minor contours
-#   trans [percent]
-#       Set transparency of all contours
-#   space [distance]
-#       Set spacing between contour labels (inches, e.g. 0.5i)
-#
-#
-#
-# Example:
-# tectoplot -t -tn 1000 -o example_tn
-# ExampleEnd
-# --------------------------------------------------------------------------------
-# EOF
-# shift && continue
-# fi
-#     TOPOCONTOURTRANS=""
-#     TOPOCONTOURSPACE=""
-#     TOPOCONTOURMINSIZE=""
-#     TOPOCONTOURSMOOTH=""
-#     TOPOCONTOURINDEX=0       # Value of an index contour
-#     TOPOCONTOURINT=100       # Default contour interval
-#     TOPOCONTOURFONTSIZE=2    # small labels
-#
-#     topocontourindexflag=0
-#     CONTOURMAJORSPACE=5
-#     TOPOCONTOURSPACE=""
-#     TOPOCONTOURLABELSEP="0.5i"
-#
-#     TOPOCONTOURMINORWIDTH=0.1
-#     TOPOCONTOURMAJORWIDTH=0.25
-#     TOPOCONTOURMINORCOLOR="black"
-#     TOPOCONTOURMAJORCOLOR="black"
-#
-#     while ! arg_is_flag $2; do
-#       case $2 in
-#         fontsize)
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURFONTSIZE="${2}"
-#             shift
-#           else
-#             echo "[-tn]: fontsize option requires positive number argument"
-#             exit 1
-#           fi
-#         ;;
-#         int)
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURINT="${2}"
-#             shift
-#           elif [[ $2 == "auto" ]]; then
-#             topocontourcalcflag=1
-#             shift
-#           else
-#             echo "[-tn]: int option requires positive number argument"
-#             exit 1
-#           fi
-#         ;;
-#         index)
-#           shift
-#           if arg_is_float $2; then
-#             topocontourindexflag=1
-#             TOPOCONTOURINDEX="${2}"
-#             shift
-#           else
-#             echo "[-tn]: index option requires number argument"
-#             exit 1
-#           fi
-#         ;;
-#         list)
-#           shift
-#           if [[ $2 == "" ]]; then
-#             echo "[-tn]: list option requires comma-separated list argument"
-#             exit 1
-#           else
-#             if [[ $2 == *,* ]]; then
-#               TOPOCONTOURLIST="${2}"
-#             else
-#               TOPOCONTOURLIST="${2},"
-#             fi
-#             topocontourlistflag=1
-#             shift
-#           fi
-#           ;;
-#         number)
-#           shift
-#           if arg_is_positive_integer $2; then
-#             TOPOCONTOURNUMDEF=$2
-#             shift
-#           else
-#             echo "[-tn]: number option requires positive integer argument"
-#             exit 1
-#           fi
-#           ;;
-#         minsize)
-#           shift
-#           if ! arg_is_flag $2; then
-#             TOPOCONTOURMINSIZE="-Q${2}"
-#             shift
-#           else
-#             echo "[-tn]: minsize requires argument"
-#             exit 1
-#           fi
-#         ;;
-#         smooth) # int
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURSMOOTH="-S${2}"
-#             shift
-#           else
-#             echo "[-tn]: smooth requires positive float argument"
-#             exit 1
-#           fi
-#         ;;
-#         major) # [width] [[color]]
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURMAJORWIDTH=$2
-#             shift
-#             if ! arg_is_flag $2; then
-#               TOPOCONTOURMAJORCOLOR=$2
-#               shift
-#             fi
-#           else
-#             echo "[-tn]: major requires positive float width argument"
-#             exit 1
-#           fi
-#         ;;
-#         minor) # [width] [[color]]
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURMINORWIDTH=$2
-#             shift
-#             if ! arg_is_flag $2; then
-#               TOPOCONTOURMINORCOLOR=$2
-#               shift
-#             fi
-#           else
-#             echo "[-tn]: minor requires positive float width argument"
-#             exit 1
-#           fi
-#         ;;
-#         trans) # [percent]
-#           shift
-#           if arg_is_positive_float $2; then
-#             TOPOCONTOURTRANS="-t$2"
-#             shift
-#           else
-#             echo "[-tn]: trans requires positive float width argument"
-#             exit 1
-#           fi
-#         ;;
-#         space) # [degrees]
-#           shift
-#           if ! arg_is_flag $2; then
-#             TOPOCONTOURLABELSEP="$2"
-#             shift
-#           else
-#             echo "[-tn]: space requires positive float width argument"
-#             exit 1
-#           fi
-#         ;;
-#         *)
-#           echo "[-tn]: option $2 not recognized"
-#           exit 1
-#         ;;
-#       esac
-#     done
-#
-#     plots+=("contours")
-    # ;;
 
 
 
@@ -12131,22 +10834,23 @@ fi
 
   ;;
 
-  -vars) # -vars: define variables from a bash format file by sourcing it
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--vars:         define variables from a bash format file by sourcing it
--vars [filename]
+# vars is redundant vs -exec, so remove it
+#   -vars) # -vars: define variables from a bash format file by sourcing it
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -vars:         define variables from a bash format file by sourcing it
+# -vars [filename]
 
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
-    VARFILE=$(abs_path $2)
-    shift
-    info_msg "[-vars]: Sourcing variable assignments from $VARFILE"
-    source $VARFILE
-    cp ${VARFILE} ${TMP}input_vars.txt
-    ;;
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
+#     VARFILE=$(abs_path $2)
+#     shift
+#     info_msg "[-vars]: Sourcing variable assignments from $VARFILE"
+#     source $VARFILE
+#     cp ${VARFILE} ${TMP}input_vars.txt
+#     ;;
 
   -verbose) # -verbose: turn on gmt verbose option to get LOTS of feedback
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -13618,6 +12322,8 @@ fi
 
     for this_mod in ${TECTOPLOT_MODULES[@]}; do
 
+      tecoplot_current_module="${this_mod}"
+
       if type "tectoplot_args_${this_mod}" >/dev/null 2>&1; then
         cmd="tectoplot_args_${this_mod}"
         "$cmd" "$@"
@@ -13636,6 +12342,7 @@ fi
         fi
       fi
     done
+    unset tecoplot_current_module
 
     # If we aren't doing usage and we didn't catch the option in a module, it is unknown
     if [[ $tectoplot_module_caught -eq 0 && $usageskipflag -ne 1 ]]; then
@@ -16989,7 +15696,7 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     gawk < kin_normal.txt -v symsize=$SYMSIZE1 '{ print $1, $2, ($4+270) % 360, symsize }' > normal_slip_vectors_np2.txt
 
     cd ..
-  fi
+  fi # $calccmflag -eq 1
 
 
   #### Back to seismicity for some reason
@@ -17990,8 +16697,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     done
 
     if [[ $plotlineidprimeflag -eq 1 ]]; then
-      get_profcode
-      thiscode=${profcode}
+      get_automatic_profile_name
+      thiscode=${automatic_profile_name}
     else
       thiscode="A_${code}"
     fi
@@ -18165,8 +16872,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
 
     if [[ $plotlineidprimeflag -eq 1 ]]; then
-      get_profcode
-      thiscode=${profcode}
+      get_automatic_profile_name
+      thiscode=${automatic_profile_name}
     else
       thiscode="C_${cprofnum}"
     fi
@@ -18235,8 +16942,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
       if [[ $plotlineidprimeflag -eq 1 ]]; then
         while read p; do
-          get_profcode
-          thiscode=${profcode}
+          get_automatic_profile_name
+          thiscode=${automatic_profile_name}
           echo $p | gawk -v code=$thiscode '{ $2=code; print $0 }' >> ${F_PROFILES}lprof_profcode.txt
         done < ${F_PROFILES}lprof_profs.txt
         mv ${F_PROFILES}lprof_profcode.txt ${F_PROFILES}lprof_profs.txt
@@ -18294,8 +17001,8 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
       if [[ $plotlineidprimeflag -eq 1 ]]; then
         while read p; do
-          get_profcode
-          thiscode=${profcode}
+          get_automatic_profile_name
+          thiscode=${automatic_profile_name}
           echo $p | gawk -v code=$thiscode '{ $2=code; print $0 }' >> ${F_PROFILES}kprof_profcode.txt
         done < ${F_PROFILES}kprof_profs.txt
         mv ${F_PROFILES}kprof_profcode.txt ${F_PROFILES}kprof_profs.txt
@@ -18991,66 +17698,6 @@ fi
   current_usergpsfilenumber=1
 
 
-  # Print the author information, date, and command used to generate the map,
-  # beneath the map.
-  # There are options for author only, command only, and author+command
-
-  # Honestly, it is a bit strange to do this here as we haven't plotted anything
-  # including the profile. So our text will overlap the profile. We can fix this
-  # by calling the profile psbasemap to add onto base_fake.ps and moving this
-  # section to AFTER the plotting commands. But that happens in multi_profile_tectoplot.sh...
-  # Currently there is no solution except pushing the profile downward
-
-  # We need to SUBTRACT the AUTHOR_YSHIFT as we are SUBTRACTING $OFFSETV
-
-  if [[ $printcommandflag -eq 1 || $authorflag -eq 1 ]]; then
-    OFFSETV=$(echo $COMMAND_FONTSIZE $AUTHOR_YSHIFT | gawk '{print ($1+8)/72 - $2}')
-    OFFSETV_M=$(echo $OFFSETV | gawk '{print 0-$1}')
-
-    if [[ $printcommandflag -eq 1 ]]; then
-      echo "T $COMMAND" >> command.txt
-    fi
-
-    gmt psxy -T -Y${OFFSETV_M}i $RJOK $VERBOSE >> map.ps
-    gmt psxy -T -X${AUTHOR_XSHIFT}i $RJOK $VERBOSE >> map.ps
-
-    AUTHOR_XSHIFTM=$(echo $AUTHOR_XSHIFT | gawk '{print 0-$1}')
-
-    if [[ $authorflag -eq 1 && $printcommandflag -eq 1 ]]; then
-      echo "T ${AUTHOR_ID}" >> author.txt
-      if [[ $authortimestampflag -eq 1 ]]; then
-        echo "G 1l" >> author.txt
-        echo "T ${DATE_ID}" >> author.txt
-      fi
-      # Offset the plot down from the map lower left corner
-      AUTHOR_W=$(echo "$MAP_PS_WIDTH_IN / 4" | bc -l)
-      COMMAND_W=$(echo "$MAP_PS_WIDTH_IN * (3/4 - 2/10)" | bc -l)
-      COMMAND_S=$(echo "$MAP_PS_WIDTH_IN * (1/4 + 1/10)" | bc -l)
-      COMMAND_M=$(echo "0 - $COMMAND_S" | bc -l)
-      # Make the paragraph with the author info first (using 1/4 of the space)
-      gmt pslegend author.txt -Dx0/0+w${AUTHOR_W}i+jTL+l1.1 $RJOK $VERBOSE >> map.ps
-      # Move to the right
-      gmt psxy -T -X${COMMAND_S}i $RJOK $VERBOSE >> map.ps
-      gmt pslegend command.txt -DjBL+w${COMMAND_W}i+jTL+l1.1 $RJOK $VERBOSE >> map.ps
-      # Return to original location
-      gmt psxy -T -Y${OFFSETV}i -X${COMMAND_M}i $RJOK $VERBOSE >> map.ps
-    elif [[ $authorflag -eq 1 && $printcommandflag -eq 0 ]]; then
-      if [[ $authortimestampflag -eq 1 ]]; then
-        echo "T ${AUTHOR_ID} | ${DATE_ID}" >> author.txt
-      else
-        echo "T ${AUTHOR_ID} " >> author.txt
-      fi
-      AUTHOR_W=$(echo "$MAP_PS_WIDTH_IN * 8 / 10" | bc -l)
-      gmt pslegend author.txt -Dx0/0+w${AUTHOR_W}i+jTL+l1.1 $RJOK $VERBOSE --FONT_ANNOT_PRIMARY=${AUTHOR_FONT} >> map.ps
-      gmt psxy -T -Y${OFFSETV}i $RJOK $VERBOSE >> map.ps
-    elif [[ $authorflag -eq 0 && $printcommandflag -eq 1 ]]; then
-      COMMAND_W=$(echo "$MAP_PS_WIDTH_IN * 9 / 10" | bc -l)
-      gmt pslegend command.txt -Dx0/0+w${COMMAND_W}i+jTL+l1.1 $RJOK $VERBOSE >> map.ps
-      gmt psxy -T -Y${OFFSETV}i $RJOK $VERBOSE >> map.ps
-    fi
-
-    gmt psxy -T -X${AUTHOR_XSHIFTM}i $RJOK $VERBOSE >> map.ps
-  fi
 
 if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
@@ -19058,13 +17705,6 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
   for plot in ${plots[@]} ; do
   	case $plot in
-      watermark)
-            WATERMARK_W=$(echo "$MAP_PS_WIDTH_IN / 2" | bc -l)
-
-        echo "H 14p,Helvetica-Bold,white ${watermark_text}" > watermark.txt
-        gmt pslegend watermark.txt -DjTR+w${WATERMARK_W}i+jTR -t20 $RJOK $VERBOSE >> map.ps
-
-      ;;
 
       zproj)
 
@@ -19114,11 +17754,6 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
       ;;
       projlegend)
         echo "" > /dev/null
-      ;;
-
-      navticks)
-        gmt psbasemap -Bg ${RJOK} >> map.ps
-        gmt psbasemap -Bsg5d -Bpg1d --MAP_GRID_CROSS_SIZE_PRIMARY=-3p --MAP_GRID_CROSS_SIZE_SECONDARY=+5p --MAP_GRID_PEN_PRIMARY=default,blue --MAP_GRID_PEN_SECONDARY=default,red ${RJOK} >> map.ps
       ;;
 
       pstrain)
@@ -19201,18 +17836,18 @@ if [[ $DATAPLOTTINGFLAG -eq 1 ]]; then
 
       ;;
 
-      cutframe)
-        MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
-        MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
-        MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
-        MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+      # cutframe)
+      #   MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+      #   MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+      #   MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+      #   MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
 
-        gmt_init_tmpdir
+      #   gmt_init_tmpdir
 
-        gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i  -Bltrb -O -K --MAP_FRAME_PEN=0.1p,black >> map.ps
+      #   gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i  -Bltrb -O -K --MAP_FRAME_PEN=0.1p,black >> map.ps
 
-        gmt_remove_tmpdir
-      ;;
+      #   gmt_remove_tmpdir
+      # ;;
 
       mmi)
 
@@ -19995,11 +18630,6 @@ EOF
               uniq -u ${F_SEIS}eq.labels | gmt pstext -Dj${EQ_LABEL_DISTX}/${EQ_LABEL_DISTY}+v0.7p,black -Gwhite  -F+f+a+j -W0.5p,black ${RJSTRING} -O $VERBOSE >> eqlabel_map.ps
           fi
         fi
-        ;;
-
-      execute)
-        info_msg "Executing script $EXECUTEFILE. Be Careful!"
-        source "${EXECUTEFILE}" ${EXEC_ARGS[@]}
         ;;
 
       extragps)
@@ -21126,94 +19756,15 @@ EOF
         gmt psbasemap ${ARROWCMD} $RJOK $VERBOSE --MAP_TITLE_OFFSET=4p --FONT_TITLE=8p,Helvetica,black >> map.ps
         ;;
 
-      maptitle)
-        gmt psbasemap "-B+t${PLOTTITLE}" --FONT_TITLE=20p,Helvetica-bold,black $RJOK $VERBOSE >> map.ps
-        ;;
+      # maptitle)
+      #   gmt psbasemap "-B+t${PLOTTITLE}" --FONT_TITLE=20p,Helvetica-bold,black $RJOK $VERBOSE >> map.ps
+      #   ;;
 
       aprofcodes)
         grep "[$APROFCODES]" ${F_MAPELEMENTS}aprof_database.txt > ${F_MAPELEMENTS}aprof_codes.txt
         gmt pstext ${F_MAPELEMENTS}aprof_codes.txt -F+f14p,Helvetica,black $RJOK $VERBOSE >> map.ps
         ;;
 
-      pagegrid)
-        case ${PAGE_GRID_UNIT} in
-          i)
-            PAGE_GRID_XSIZE=$(echo ${PROJDIM[0]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1/2.54+1,1)
-              }')
-            PAGE_GRID_YSIZE=$(echo ${PROJDIM[1]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1/2.54+1,1)
-              }')
-            PAGE_GRID_XSIZE_P2=$(echo ${PROJDIM[0]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru(($1)/2.54+1,1)
-              }')
-            PAGE_GRID_YSIZE_P2=$(echo ${PROJDIM[1]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru(($1)/2.54+1,1)
-              }')
-          ;;
-          c)
-            PAGE_GRID_XSIZE=$(echo ${PROJDIM[0]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1+1,1)
-              }')
-            PAGE_GRID_YSIZE=$(echo ${PROJDIM[1]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1+1,1)
-              }')
-            PAGE_GRID_XSIZE_P2=$(echo ${PROJDIM[0]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1+1,1)
-              }')
-            PAGE_GRID_YSIZE_P2=$(echo ${PROJDIM[1]} | gawk '
-              @include "tectoplot_functions.awk"
-              {
-                print ru($1+1,1)
-              }')
-            ;;
-          esac
-
-          # echo "Xsize: ${PAGE_GRID_XSIZE}${PAGE_GRID_UNIT}, Ysize: ${PAGE_GRID_YSIZE}${PAGE_GRID_UNIT}"
-
-          # Plot -1 X and -i Y
-          gmt_init_tmpdir
-
-          gmt psbasemap -R0/1/0/1 -JX0${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8 >> map.ps
-
-          gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/0${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8 >> map.ps
-
-          pagegrid_ind=0
-          while [[ $(echo "$pagegrid_ind <= $PAGE_GRID_XSIZE_P2" | bc) -eq 1 ]]; do
-            textoff=$(echo "$pagegrid_ind - 1" | bc )
-            echo "0 0 ${textoff}${PAGE_GRID_UNIT}" | gmt pstext -R0/1/0/1 -C0.1+t -F+f10p,Helvetica,gray+jLB -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa${textoff}${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} $VERBOSE -O -K >> map.ps
-
-            gmt psbasemap -R0/1/0/1 -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8_5_8 >> map.ps
-            ((pagegrid_ind++))
-          done
-
-          pagegrid_ind=0
-          while [[ $(echo "$pagegrid_ind < $PAGE_GRID_YSIZE_P2" | bc) -eq 1 ]]; do
-            textoff=$(echo "$pagegrid_ind - 1" | bc )
-
-            echo "0 0 ${textoff}${PAGE_GRID_UNIT}" | gmt pstext -R0/1/0/1 -C0.1+t -F+f10p,Helvetica,gray+jLB -JX${pagegrid_ind}${PAGE_GRID_UNIT}/${PAGE_GRID_YSIZE_P2}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya${textoff}${PAGE_GRID_UNIT} $VERBOSE -O -K >> map.ps
-
-            gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_XSIZE_P2}${PAGE_GRID_UNIT}/${pagegrid_ind}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,gray,4_8_5_8 >> map.ps
-            ((pagegrid_ind++))
-          done
-          gmt_remove_tmpdir
-          # gmt psbasemap -R0/1/0/1 -JX${i}${PAGE_GRID_UNIT}/${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT} -Ya-${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT} -Br  -O -K --MAP_FRAME_PEN=0.1p,black,- >> map.ps
-          # gmt psbasemap -R0/1/0/1 -JX${PAGE_GRID_MAX_NUM}${PAGE_GRID_UNIT}/${i}${PAGE_GRID_UNIT} -Xa-1${PAGE_GRID_UNIT} -Ya-1${PAGE_GRID_UNIT} -Bt  -O -K --MAP_FRAME_PEN=0.1p,black,4_8_5_8 >> map.ps
-        ;;
 
       mprof)
 
@@ -21387,8 +19938,8 @@ EOF
 
 
               if [[ $plotlineidprimeflag -eq 1 ]]; then
-                get_profcode
-                thiscode=${profcode}
+                get_automatic_profile_name
+                thiscode=${automatic_profile_name}
               else
                 thiscode="P${thissprof}"
               fi
@@ -21401,8 +19952,8 @@ EOF
               ((thissprof++))
 
               if [[ $plotlineidprimeflag -eq 1 ]]; then
-                get_profcode
-                thiscode=${profcode}
+                get_automatic_profile_name
+                thiscode=${automatic_profile_name}
               else
                 thiscode="A${thissprof}"
               fi
@@ -23432,13 +21983,13 @@ shadowalldirflag=0
 
   # This is likely not compatible with the above section
 
-  if [[ $plotbigbarflag -eq 1 ]]; then
+  # if [[ $plotbigbarflag -eq 1 ]]; then
 
-    if [[ ! -e ${BIGBARCPT} ]]; then
-      echo "No CPT file for big bar found"
-    fi
-    gmt psscale -DJCB+w${PSSIZE}i+o0/1c+h+e -C${BIGBARCPT} -Bxaf+l"${BIGBARANNO}" -G${BIGBARLOW}/${BIGBARHIGH} $RJOK ${VERBOSE} >> map.ps
-  fi
+  #   if [[ ! -e ${BIGBARCPT} ]]; then
+  #     echo "No CPT file for big bar found"
+  #   fi
+  #   gmt psscale -DJCB+w${PSSIZE}i+o0/1c+h+e -C${BIGBARCPT} -Bxaf+l"${BIGBARANNO}" -G${BIGBARLOW}/${BIGBARHIGH} $RJOK ${VERBOSE} >> map.ps
+  # fi
 
   current_usergridnumber=1
 
@@ -24131,22 +22682,22 @@ function close_legend_item() {
     [[ -s ${NONCOLORBARLEGEND} ]] && LEGENDITEMS+=("${NONCOLORBARLEGEND}")
   fi
 
-  if [[ $legendonlyflag -eq 1 && $cutframeflag -eq 1 ]]; then
+  # if [[ $legendonlyflag -eq 1 && $cutframeflag -eq 1 ]]; then
 
-    MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
-    MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
-    MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
-    MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+  #   MINPROJ_X=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+  #   MAXPROJ_X=$(echo "(${PROJDIM[0]}/2.54 + 2*${CUTFRAME_DISTANCE})" | bc -l)
+  #   MINPROJ_Y=$(echo "(0 - ${CUTFRAME_DISTANCE})" | bc -l)
+  #   MAXPROJ_Y=$(echo "(${PROJDIM[1]}/2.53 + 2*${CUTFRAME_DISTANCE})" | bc -l)
 
-    # Plot the cutframe as we have skipped the PLOT section
+  #   # Plot the cutframe as we have skipped the PLOT section
 
-    gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i -Bltrb --MAP_FRAME_PEN=0.1p,black -O -K >> map.ps
-    gmt psxy -T ${RJSTRING} -K -O ${VERBOSE} >> map.ps
+  #   gmt psbasemap -R0/${MAXPROJ_X}/0/${MAXPROJ_Y} -JX${MAXPROJ_X}i/${MAXPROJ_Y}i -Xa-${CUTFRAME_DISTANCE}i -Ya-${CUTFRAME_DISTANCE}i -Bltrb --MAP_FRAME_PEN=0.1p,black -O -K >> map.ps
+  #   gmt psxy -T ${RJSTRING} -K -O ${VERBOSE} >> map.ps
 
-    # Create the PDF and name it after the current temporary folder, move to ../
-    # thisname=$(pwd | gawk -F/ '{print $(NF)}')
-    # gmt psconvert -T map.ps -A+m0.5i
-  fi
+  #   # Create the PDF and name it after the current temporary folder, move to ../
+  #   # thisname=$(pwd | gawk -F/ '{print $(NF)}')
+  #   # gmt psconvert -T map.ps -A+m0.5i
+  # fi
 
   if [[ $legendovermapflag -eq 1 ]]; then
     numlegenditems=$(echo "${#LEGENDITEMS[@]} - 1" | bc)

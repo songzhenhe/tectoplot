@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ $# -eq 1 ]]; then
-  echo "make3dcube.sh [inputfile] [outputfile] [datalabel] [buffernumber]"
+  echo "make3dcube.sh [inputfile] [outputfile] [datalabel] [buffernumber] [gridspace]"
   echo "Create a 3D NetCDF data cube from regularly spaced geographic data"
   echo "inputfile is a text file with format: X (lon,deg) Y (lon,deg) Z (depth) V"
   echo "outputfile should have extension .nc"
@@ -94,5 +94,5 @@ done < depths.txt
 
 # gmt grdinterpolate $(cat gridslist.txt) -R0/vs_0.grd -Z -D+x"Longitude; positive east"+y"Latitude; positive north"+z"depth below Earth surface [km]"+dvs+vvs -Gvs.nc
 
-echo grdinterpolate ${grids[@]} -R${grids[0]} -Z${depths}
+echo grdinterpolate ${grids[@]} -R${grids[0]} -Z${depths} -D+x"${xlabel}"+y"${ylabel}"+z"${zlabel}"+d${datalabel}+v${datalabel} -G${cubefile}
 gmt grdinterpolate ${grids[@]} -R${grids[0]} -Z${depths} -D+x"${xlabel}"+y"${ylabel}"+z"${zlabel}"+d${datalabel}+v${datalabel} -G${cubefile}

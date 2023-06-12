@@ -1,6 +1,8 @@
 
 TECTOPLOT_MODULES+=("clip")
 
+# Functions to turn on/off clipping masks
+
 # UPDATED
 # NEW OPTS
 

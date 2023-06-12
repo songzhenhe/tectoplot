@@ -87,6 +87,9 @@ SQLDIR=${TECTOPLOTDIR}sql/
 # Source the following scripts at startup
 BASHSCRIPTDIR=${TECTOPLOTDIR}"bashscripts/"
 
+PARSE_RECIPES_SH=${BASHSCRIPTDIR}"recipes.sh"
+CHECK_AND_RUN_QUERY_SH=${BASHSCRIPTDIR}"query.sh"
+PROFILE_FUNCTIONS_SH=${BASHSCRIPTDIR}"profile_functions.sh"
 DATACUBE_SH=${BASHSCRIPTDIR}"make3dcube.sh"
 IMAGE_SH=${BASHSCRIPTDIR}"image_processing.sh"
 TIME_SH=${BASHSCRIPTDIR}"time.sh"

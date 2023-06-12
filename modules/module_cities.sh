@@ -6,7 +6,6 @@ TECTOPLOT_MODULES+=("cities")
 # NEW OPT
 
 function tectoplot_defaults_cities() {
-
   m_cities_sourcestring="City data from OpenStreetmap (CC-BY)"
   m_cities_short_sourcestring="OSM"
   m_cities_dir="${DATAROOT}OpenStreetmap/"

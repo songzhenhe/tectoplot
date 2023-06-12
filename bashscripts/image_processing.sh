@@ -31,6 +31,10 @@
 ### Image processing functions, mostly using gdal_calc.py
 ### This functions file is sourced by tectoplot
 
+function is_gmt_cpt () {
+  gawk < "${GMTCPTS}" -v id="${1}" 'BEGIN{res=0} ($1==id) {res=1; exit} END {print res}'
+}
+
 function multiply_combine() {
   if [[ ! -e "${2}" ]]; then
     info_msg "Multiply combine: Raster $2 doesn't exist. Copying $1 to $3."

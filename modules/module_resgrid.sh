@@ -14,7 +14,6 @@ function tectoplot_defaults_resgrid() {
   GRAVCPT=${CPTDIR}"grav2.cpt"
   RESGRID_CPT=${F_CPTS}"resgrav.cpt"
   VRES_CPTRANGE=400
-  RESGRID_TRANS=0
   calcvresflag=0
 }
 
@@ -25,27 +24,6 @@ function tectoplot_args_resgrid()  {
 
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
-
-  -vrestrans)
-  if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
-modules/module_resgrid.sh
--vresrtans:     set transparency of plotted -vres grid
--vrestrans [[trans]]
-
-Example: None
---------------------------------------------------------------------------------
-EOF
-fi
-  shift
-
-  if arg_is_positive_float ${1}; then
-    RESGRID_TRANS=$1
-    shift
-    ((tectoplot_module_shift++))
-  fi
-  tectoplot_module_caught=1
-  ;;
 
   -vres)  # Calculate residual gravity or other grid within specified distance of a provided XY line
   tectoplot_get_opts_inline '
