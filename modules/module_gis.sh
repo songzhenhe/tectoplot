@@ -175,7 +175,23 @@ opt fill m_gis_pt_fill string black
 opt str m_gis_pt_str string "0.3p,black"
     point stroke width and color
 opt cpt m_gis_pt_cpt cpt ""
-    cpt to symbolize third column values
+    cpt to symbolize Z column values
+opt cptfield m_gis_pt_cptfield int 3
+    field number to use for Z data (cpt coloring)
+opt legend m_gis_pt_legend string "Point data"
+    text string for map legend entry
+opt label m_gis_pt_label int -1
+    beginning field for label text (-1 = labels off)
+opt labelend m_gis_pt_labelend int -1 
+    end field for label text (-1 = last field in line)
+opt offsetx m_gis_pt_offsetx float 6
+    X offset for labels (pts)
+opt offsety m_gis_pt_offsety float 0
+    Y ofset for labels (pts)
+opt font m_gis_pt_labelfont string "6p,Helvetica,black"
+    font for point labels
+opt just m_gis_pt_just word "L"
+    justification for point labels (L=left, R=right, C=center)
 mes symbol is a GMT psxy -S code
 mes  +(plus), st(a)r, (b|B)ar, (c)ircle, (d)iamond, (e)llipse,
 mes	  (f)ront, octa(g)on, (h)exagon, (i)nvtriangle, (j)rotated rectangle,
@@ -494,12 +510,41 @@ function tectoplot_plot_gis() {
 
   m_gis_pt)
 
+    if [[ ${m_gis_pt_legend[$tt]} == "Point data" ]]; then
+      m_gis_pt_legend[$tt]="Point data ${tt}"
+    fi
+
+    local cptcol=$(echo "${m_gis_pt_cptfield[$tt]} - 1" | bc)
+
     info_msg "Plotting point dataset $tt: ${m_gis_pt_file[$tt]}"
     if [[ ${m_gis_pt_cpt[$tt]} != "" ]]; then
-      gmt psxy ${m_gis_pt_file[$tt]} -W${m_gis_pt_str[$tt]}  -C${m_gis_pt_cpt[$tt]} -G+z -S${m_gis_pt_sym[$tt]}${m_gis_pt_size[$tt]} $RJOK $VERBOSE >> map.ps
+      gmt psxy ${m_gis_pt_file[$tt]} -i0,1,${cptcol} -W${m_gis_pt_str[$tt]} -C${m_gis_pt_cpt[$tt]} -G+z -S${m_gis_pt_sym[$tt]}${m_gis_pt_size[$tt]} $RJOK $VERBOSE >> map.ps
     else
       gmt psxy ${m_gis_pt_file[$tt]} -G${m_gis_pt_fill[$tt]} -W${m_gis_pt_str[$tt]} -S${m_gis_pt_sym[$tt]}${m_gis_pt_size[$tt]} $RJOK $VERBOSE >> map.ps
     fi
+
+    if [[ ${m_gis_pt_label[$tt]} -ne -1 ]]; then
+      gawk < ${m_gis_pt_file[$tt]} -v field=${m_gis_pt_label[$tt]} -v fieldend=${m_gis_pt_labelend[$tt]} '
+      BEGIN {
+        OFMT="%.12f"
+      }
+      {
+        printf("%s %s ", $1, $2)
+        if (fieldend == -1) {
+          this_fieldend = NF
+        } else if (fieldend < field) {
+          this_fieldend = field
+        } else {
+          this_fieldend = fieldend
+        }
+        for(i=field; i<=this_fieldend; ++i) {
+          printf("%s ", $(i))
+        }
+        printf("\n")
+      }
+      ' | gmt pstext -F+f${m_gis_pt_labelfont[$tt]}+j${m_gis_pt_just[$tt]}M -D${m_gis_pt_offsetx[$tt]}p/${m_gis_pt_offsety[$tt]}p ${RJOK} ${VERBOSE} >> map.ps
+    fi
+
     tectoplot_plot_caught=1
   ;;
 
@@ -738,11 +783,43 @@ function tectoplot_plot_gis() {
   esac
 }
 
-# function tectoplot_legend_gis() {
-# }
+function tectoplot_legend_gis() {
+
+  case $1 in
+  m_gis_pt)
+    info_msg "[-pt]: Adding point [$tt] to legend, ${m_gis_pt_file[$tt]} = ${m_gis_pt_sym[$tt]}"
+
+    init_legend_item "m_gis_pt_${tt}"
+
+
+    if [[ ${m_gis_pt_cpt[$tt]} != "" ]]; then
+      cptval=$(gawk < ${m_gis_pt_file[$tt]} -v cptfield=${m_gis_pt_cptfield[$tt]} '(NR==1) {print $(cptfield)}')
+      echo "$CENTERLON $CENTERLAT $cptval" | gmt psxy -W${m_gis_pt_str[$tt]} -C${m_gis_pt_cpt[$tt]} -G+z -S${m_gis_pt_sym[$tt]}${m_gis_pt_size[$tt]} $RJOK $VERBOSE >> ${LEGFILE}
+      echo "$CENTERLON $CENTERLAT ${m_gis_pt_legend[$tt]}" | gmt pstext -F+f${m_gis_pt_labelfont[$tt]}+jLM $VERBOSE ${RJOK} -Y0.01i -X0.15i >> ${LEGFILE}
+    else
+      echo "$CENTERLON $CENTERLAT" | gmt psxy -G${m_gis_pt_fill[$tt]} -W${m_gis_pt_str[$tt]} -S${m_gis_pt_sym[$tt]}${m_gis_pt_size[$tt]} $RJOK $VERBOSE >> ${LEGFILE}
+      echo "$CENTERLON $CENTERLAT ${m_gis_pt_legend[$tt]}" | gmt pstext -F+f${m_gis_pt_labelfont[$tt]}+jLM $VERBOSE ${RJOK} -Y0.01i -X0.15i >> ${LEGFILE}
+    fi
+
+    # Plot the symbol and accompanying text at the CENTERLON/CENTERLAT point (known to be on the map)
+
+    close_legend_item "m_gis_pt_${tt}"
+
+    tectoplot_legend_caught=1
+    ;;
+  esac
+}
 
 function tectoplot_legendbar_gis() {
   case $1 in
+    m_gis_pt)
+      if [[ ${m_gis_pt_cpt[$tt]} != "" ]]; then
+        echo "G 0.2i" >> ${LEGENDDIR}legendbars.txt
+        echo "B ${m_gis_pt_cpt[$tt]} 0.2i ${LEGEND_BAR_HEIGHT}+malu ${LEGENDBAR_OPTS} -Bxaf+l\"${m_gis_pt_legend[$tt]}\"" >> ${LEGENDDIR}legendbars.txt
+        barplotcount=$barplotcount+1
+      fi
+      tectoplot_caught_legendbar=1
+    ;;
     m_gis_gr)
 
       # Is this reference to m_gis_gr_callnum warranted? Or should it be [$tt]

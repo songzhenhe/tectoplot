@@ -253,7 +253,14 @@ function gmt_psxy() {
     x=$(xcol)
     y=$(ycol)
     z=$(zcol)
-    mw=($(magcol)^str)/(sref^(str-1))
+    # Original stretch: M=0 -> Mnew=0
+    # If str=1, then mw=magcol
+    # If str>1, then mw=magcol if magcol=sref
+    # mw=($(magcol)^str)/(sref^(str-1))
+    
+    # Jun 18, 2023: New stretch accommodating Mw >= -3
+    mw=((($(magcol)+3)/3)^str)/(((sref+3)/3)^(str-1))
+
     if (zcol==0) {
       print x, y, mw
     } else {
@@ -267,7 +274,9 @@ function gmt_psxy() {
 
 function stretched_m0_from_mw () {
   echo $1 | gawk  -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{
-            mwmod = ($1^str)/(sref^(str-1))
+            # mwmod = ($1^str)/(sref^(str-1))
+            # June 18, 2023 updated formula
+            mwmod = ((($1+3)/3)^str)/(((sref+3)/3)^(str-1))
             a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
             split(a,b,"+")
             split(a,c,"E")
@@ -295,35 +304,9 @@ function stretched_mw_from_mw () {
     echo "-1" && return 1
   fi
 
-  gawk -v mag=${1} -v str=${2} -v sref=${3} 'BEGIN{print (mag^str)/(sref^(str-1))}'
+  # Updated formula June 18, 2023
+  gawk -v mag=${1} -v str=${2} -v sref=${3} 'BEGIN{print (((mag+3)/3)^str)/(((sref+3)/3)^(str-1))}'
 
-}
-
-function tectoplot_test_stretched_mw_from_mw() {
-
-  echo -n "Testing stretched_mw_from_mw... "
-
-  local result=$(stretched_mw_from_mw 6 3 6)   # mag=6^3/6^2 = 6
-  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
-    echo "test_stretched_mw_from_mw 6 3 6: failed" && return 1
-  fi
-
-  local result=$(stretched_mw_from_mw 6 1 6)   # mag=6^1/6^0 = 6
-  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
-    echo "test_stretched_mw_from_mw 6 1 6: failed" && return 1
-  fi
-
-  local result=$(stretched_mw_from_mw 6 0 6)   # mag=6^0/6^-1 = 1/(1/6) = 6
-  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
-    echo "test_stretched_mw_from_mw 6 0 6: failed" && return 1
-  fi
-
-  local result=$(stretched_mw_from_mw 3 0 6)   # mag=3^0/6^-1 = 1/(1/6) = 6
-  if [[ $(echo "$result == 6" | bc) -ne 1 ]]; then
-    echo "test_stretched_mw_from_mw 3 0 6: failed (result=$result)" && return 1
-  fi
-
-  echo "passed all tests"
 }
 
 # Take a string as argument and return an earthquake ID

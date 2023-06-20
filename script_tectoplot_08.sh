@@ -6102,7 +6102,6 @@ fi
           if [[ $(echo "${EPSG} == 0" | bc) -eq 1 ]]; then
             EPSG="4326"
           fi
-          echo asasa
           # Try to use ogrinfo to get the extent
           # EXTENT={MINLON MAXLON MINLAT MAXLAT}
           # Extent: (-118.146888, 33.992453) - (-118.144898, 34.716438)
@@ -6478,101 +6477,157 @@ fi
     ;;
 
 
-  -utmgrid)
-  utmgridplotlines=""
-  utmgridplotlabels=1
-  UTMGRIDFONTSIZE="8p"
-  UTMGRIDINTERVAL=50000   # UTM grid interval, meters
-  UTMGRIDJUST1="L"        # label justification - default is outside map
-  UTMGRIDJUST2="R"        # label justification - default is outside map
-  UTMGRIDFILL=""
-  UTMGRIDCLIP="-N"
+#   -utmgrid)
+#   utmgridplotlines=""
+#   utmgridplotlabels=1
+#   UTMGRIDFONTSIZE="8p"
+#   UTMGRIDINTERVAL=50000   # UTM grid interval, meters
+#   UTMGRIDJUSTT="L"        # label justification - default is outside map
+#   UTMGRIDJUSTL="R"        # label justification - default is outside map
+#   UTMGRIDJUSTB="R"        # label justification - default is outside map
+#   UTMGRIDJUSTR="L"        # label justification - default is outside map
+#   UTMGRIDFILL=""
+#   UTMGRIDCLIP="-N"
+#   UTMGRIDOFFSET=2
 
-if [[ $USAGEFLAG -eq 1 ]]; then
-cat <<-EOF
--utmgrid:         plot a UTM grid for a specified or inferred zone
-Usage: -utmgrid [[zone]] ... [[options]]
+# if [[ $USAGEFLAG -eq 1 ]]; then
+# cat <<-EOF
+# -utmgrid:         plot a UTM grid for a specified or inferred zone
+# Usage: -utmgrid [[zone]] ... [[options]]
 
-  If zone is not specified, determine from map centerpoint.
+#   If zone is not specified, determine from map centerpoint.
 
-  Options:
-  int          grid interval (meters)
-  inside       plot labels inside the map frame
-  noline       do not plot grid lines
-  nolabel      do not plot grid labels
-  nogeo        turn of geographic frame labels
-  fontsize     set size of grid line labels
+#   Options:
+#   int          grid interval (meters)
+#   inside       plot labels inside the map frame
+#   noline       do not plot grid lines
+#   nolabel      do not plot grid labels
+#   nogeo        turn of geographic frame labels
+#   fontsize     set size of grid line labels
+#   offset       label offset distance (p)
 
---------------------------------------------------------------------------------
-EOF
-shift && continue
-fi
+# --------------------------------------------------------------------------------
+# EOF
+# shift && continue
+# fi
 
-  if arg_is_positive_float $2; then
-    UTMGRIDZONES+=("$2")
-    shift
-  else
-    calcutmgridzonelaterflag=1
-  fi
+#   if arg_is_positive_float $2; then
+#     UTMGRIDZONES+=("$2")
+#     shift
+#   else
+#     calcutmgridzonelaterflag=1
+#   fi
 
-  while ! arg_is_flag $2; do
-    case $2 in
-      fill)
-        shift
-        UTMGRIDFILL="-Gwhite"
-      ;;
-      inside)
-        shift
-        UTMGRIDJUST1="R"
-        UTMGRIDJUST2="L"
-        UTMGRIDCLIP=""
-      ;;
-      int)
-        shift
-        if arg_is_positive_float $2; then
-          UTMGRIDINTERVAL=$2
-          shift
-        else
-          echo "[-utmgrid]: option int requires positive number argument"
-          exit 1
-        fi
-      ;;
-      noline)
-        utmgridplotlines="+i"
-        shift
-      ;;
-      nolabel)
-        utmgridplotlabels=0
-        shift
-      ;;
-      nogeo)
-        utmgridnogeoflag=1
-        shift
-      ;;
-      fontsize)
-        shift
-        if arg_is_flag $2; then
-          echo "[-utmgrid]: option fontsize requires an argument (eg 2p)"
-          exit 1
-        else
-          UTMGRIDFONTSIZE="$2"
-          shift
-        fi
-      ;;
-      *)
-        echo "[-utmgrid]: option $2 not recognized"
-        exit 1
-      ;;
-    esac
-  done
+#   while ! arg_is_flag $2; do
+#     case $2 in
+#       fill)
+#         shift
+#         UTMGRIDFILL="-Gwhite"
+#       ;;
+#       offset)
+#         shift
+#         if ! arg_is_positive_float $2; then
+#           echo "[-utmgrid]: offset option requires positive float argument"
+#           exit 1
+#         else
+#           UTMGRIDOFFSET=$2
+#           shift
+#         fi
+#       ;;
+#       inside)
+#         shift
+#         UTMGRIDJUSTT="R"
+#         UTMGRIDJUSTL="L"
+#         UTMGRIDJUSTB="L"
+#         UTMGRIDJUSTR="R"
+#         UTMGRIDCLIP=""
+#       ;;
+#       justt)
+#         shift
+#         if arg_is_flag $2; then
+#           echo "[-utmgrid]: justt option requires text argument (L | R)"
+#           exit 1
+#         else
+#           UTMGRIDJUSTT=$2
+#           shift
+#         fi
+#       ;;
+#       justl)
+#         shift
+#         if arg_is_flag $2; then
+#           echo "[-utmgrid]: justl option requires text argument (L | R)"
+#           exit 1
+#         else
+#           UTMGRIDJUSTL=$2
+#           shift
+#         fi
+#       ;;
+#       justb)
+#         shift
+#         if arg_is_flag $2; then
+#           echo "[-utmgrid]: justb option requires text argument (L | R)"
+#           exit 1
+#         else
+#           UTMGRIDJUSTB=$2
+#           shift
+#         fi
+#       ;;
+#       justr)
+#         shift
+#         if arg_is_flag $2; then
+#           echo "[-utmgrid]: justr option requires text argument (L | R)"
+#           exit 1
+#         else
+#           UTMGRIDJUSTR=$2
+#           shift
+#         fi
+#       ;;
+#       int)
+#         shift
+#         if arg_is_positive_float $2; then
+#           UTMGRIDINTERVAL=$2
+#           shift
+#         else
+#           echo "[-utmgrid]: option int requires positive number argument"
+#           exit 1
+#         fi
+#       ;;
+#       noline)
+#         utmgridplotlines="+i"
+#         shift
+#       ;;
+#       nolabel)
+#         utmgridplotlabels=0
+#         shift
+#       ;;
+#       nogeo)
+#         utmgridnogeoflag=1
+#         shift
+#       ;;
+#       fontsize)
+#         shift
+#         if arg_is_flag $2; then
+#           echo "[-utmgrid]: option fontsize requires an argument (eg 2p)"
+#           exit 1
+#         else
+#           UTMGRIDFONTSIZE="$2"
+#           shift
+#         fi
+#       ;;
+#       *)
+#         echo "[-utmgrid]: option $2 not recognized"
+#         exit 1
+#       ;;
+#     esac
+#   done
 
-  overlayplots+=("utmgrid")
+#   overlayplots+=("utmgrid")
 
-  if [[ $utmgridnogeoflag -eq 1 ]]; then
-    GRIDCALL="blrt"
-  fi
+#   # if [[ $utmgridnogeoflag -eq 1 ]]; then
+#   #   GRIDCALL="blrt"
+#   # fi
 
-  ;;
+#   ;;
 
   -frameall)
 if [[ $USAGEFLAG -eq 1 ]]; then
@@ -9335,6 +9390,21 @@ ExampleEnd
 EOF
 shift && continue
 fi
+
+  while ! arg_is_flag $2; do
+    case $2 in
+      trans)
+        shift
+        if ! arg_is_positive_float $2; then
+          echo "[-tmultcolor]: trans option requires positive float argument"
+          exit 1
+        fi
+        TMULT_COLOR_TRANS=$2
+        shift
+      ;;
+    esac
+  done
+
   plots+=("tmultcolor")
    ;;
 
@@ -13761,11 +13831,19 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
             # gmt grdconvert ${GRIDFILE} ${F_TOPO}dem.tif=gd:GTiff -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
 
             if [[ $dontcuttopoflag -eq 1 ]]; then
-              echo "Not cutting custom DEM - copying"
               gdal_translate -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
             else
-              gdal_translate -projwin ${DEM_MINLON} ${DEM_MAXLAT} ${DEM_MAXLON} ${DEM_MINLAT} -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
+              gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -f GTiff ${GRIDFILE} ${F_TOPO}dem.tif
 
+              if [[ ! -s ${F_TOPO}dem.tif ]]; then
+                echo "Error cutting DEM - copying instead"
+
+                gdal_translate -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
+              fi
+              # if ! gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -f GTiff ${GRIDFILE} ${F_TOPO}dem.tif; then
+              #   echo "Problem executing gdal_translate -projwin ${MINLON} ${MAXLAT} ${MAXLON} ${MINLAT} -f GTiff ${GRIDFILE} ${F_TOPO}dem.tif"
+              #   gdal_translate -f GTiff ${GRIDFILE}  ${F_TOPO}dem.tif 
+              # fi
               # gmt grdcut ${GRIDFILE} -G${F_TOPO}dem.tif -R${DEM_MINLON}/${DEM_MAXLON}/${DEM_MINLAT}/${DEM_MAXLAT} $VERBOSE
             fi
 
@@ -15589,7 +15667,12 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
 
           timecode=$3
 
-          mwmod = (Mw^str)/(sref^(str-1))
+          # June 18 2023, updated for new scaling
+          # mwmod = (Mw^str)/(sref^(str-1))
+          mwmod=(((Mw+3)/3)^str)/(((sref+3)/3)^(str-1))
+
+
+
           split_a=sprintf("%E", 10^((mwmod + 10.7)*3/2))
           split(split_a,split_b,"+")  # mantissa
           split(split_a,split_c,"E")  # exponent
@@ -15721,17 +15804,22 @@ if [[ $DATAPROCESSINGFLAG -eq 1 ]]; then
     mv ${F_SEIS}tmp.dat ${F_SEIS}eqs.txt
   fi
 
-  if [[ $zcnoscaleflag -eq 1 ]]; then
-    if [[ -e ${F_SEIS}eqs.txt ]]; then
-      gawk < ${F_SEIS}eqs.txt -v nssize=${NOSCALE_SEISSIZE} '{print $1, $2, $3, nssize, $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
-    fi
-  else
-    # Print 8 fields in case we are declustering
-    if [[ $SCALEEQS -eq 1 && -e ${F_SEIS}eqs.txt ]]; then
-      [[ -e ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
-      gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG 'BEGIN{OFMT="%f"} {print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
-    fi
-  fi
+  # if [[ $zcnoscaleflag -eq 1 ]]; then
+  #   if [[ -e ${F_SEIS}eqs.txt ]]; then
+  #     gawk < ${F_SEIS}eqs.txt -v nssize=${NOSCALE_SEISSIZE} '{print $1, $2, $3, nssize, $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+  #   fi
+  # else
+  #   # Print 8 fields in case we are declustering
+  #   if [[ $SCALEEQS -eq 1 && -s ${F_SEIS}eqs.txt ]]; then
+  #     # [[ -s ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
+  #     # gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG 'BEGIN{OFMT="%f"} {print $1, $2, $3, ($4^str)/(sref^(str-1)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+
+  #     # Try a different rescaling approach
+  #     # Mnew = ref^(mag*str)
+  #     [[ -s ${F_SEIS}removed_eqs.txt ]] && gawk < ${F_SEIS}removed_eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG '{print $1, $2, $3, (ref^($4*str)), $5, $6, $7, $8}' > ${F_SEIS}removed_eqs_scaled.txt
+  #     gawk < ${F_SEIS}eqs.txt -v str=$SEISSTRETCH -v sref=$SEISSTRETCH_REFMAG 'BEGIN{OFMT="%f"} {print $1, $2, $3, (ref^($4*str)), $5, $6, $7, $8}' > ${F_SEIS}eqs_scaled.txt
+  #   fi
+  # fi
 
   if [[ $zhighlightflag -eq 1 ]]; then
     for this_z in ${zhigh[@]}; do
@@ -21822,163 +21910,165 @@ shadowalldirflag=0
   	esac
   done
 
-  for plot in ${overlayplots[@]}; do
-    case $plot in
-      utmgrid)
+  # for plot in ${overlayplots[@]}; do
+  #   case $plot in
+#       utmgrid)
 
-        gmt_init_tmpdir
+#         gmt_init_tmpdir
 
-        if [[ $calcutmgridzonelaterflag -eq 1 ]]; then
-          unset UTMGRIDZONES
+#         if [[ $calcutmgridzonelaterflag -eq 1 ]]; then
+#           unset UTMGRIDZONES
 
-          # UTMGRIDZONES+=($(echo "" | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Ju5i -C 2>&1 | grep "selected" | gawk '{print $8}'))
+#           # UTMGRIDZONES+=($(echo "" | gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -Ju5i -C 2>&1 | grep "selected" | gawk '{print $8}'))
 
-          # This breaks terribly if the average longitude is not between -180 and 180
-          UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
-          AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
-          UTMGRIDZONES+=($(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}'))
-        fi
-        gmt_remove_tmpdir
+#           # This breaks terribly if the average longitude is not between -180 and 180
+#           UCENTERLON=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM ${VERBOSE} | gawk '{print $1}')
+#           AVELONp180o6=$(echo "(($UCENTERLON) + 180)/6" | bc -l)
+#           UTMGRIDZONES+=($(echo $AVELONp180o6 1 | gawk  '{val=int($1)+($1>int($1)); print (val>0)?val:1}'))
+#         fi
+#         gmt_remove_tmpdir
 
-        # Strategy: Define the range of eastings and northings represented by
-        # the map region for the given UTM zone.
-
-
-        for thiszone in ${UTMGRIDZONES[@]}; do
-
-            gmt_init_tmpdir
-
-            info_msg "[-utmgrid]: using UTM Zone $thiszone"
-            UTL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTL ${VERBOSE} | gawk '{print $1, $2}'))
-            UBR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBR ${VERBOSE} | gawk '{print $1, $2}'))
-
-            echo ${UTL[@]} > utmcorners.txt
-            echo ${UBR[@]} >> utmcorners.txt
-
-            gawk < utmcorners.txt '{print $2, $1}' | cs2cs EPSG:4326 EPSG:326${thiszone} > utmcorners.utm
-
-            # gmt mapproject utmcorners.txt -R0/1/0/1 -JU${thiszone}/1i -F -C > utmcorners.utm
-
-            UTMRANGE=($(gawk < utmcorners.utm '
-            BEGIN {
-              getline
-              minE=$1
-              maxE=$1
-              minN=$2
-              maxN=$2
-            }
-            {
-              minE=($1<minE)?$1:minE
-              maxE=($1>maxE)?$1:maxE
-              minN=($2<minN)?$2:minN
-              maxN=($2>maxN)?$2:maxN
-            }
-            END {
-              print minE, maxE, minN, maxN
-            }'))
-
-            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
-            @include "tectoplot_functions.awk"
-            BEGIN {
-              fontsmall=(fontsize+0)*0.75
-              # Loop through the Eastings
-              for(i=-2000000; i<=3000000; i=i+interval) {
-                if (i >= minE-2*interval && i <= maxE+2*interval) {
-                  stri=sprintf("%06d", i)
-                  # Loop through the Northings
-                  isub=substr(stri, 1, length(stri)-3)
-                  iend=substr(stri, length(stri)-2, length(stri))
-
-                  print "> -L" isub "@:" fontsmall ":" iend "@::"
-
-                  for(j=-10000000; j<=10000000; j=j+interval) {
-                    if (j >= minN-2*interval && j <= maxN+2*interval) {
-                      print stri, j
-                    }
-                  }
-                }
-              }
-            }' > utmgrid_lon.txt
-
-            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
-            BEGIN {
-              fontsmall=(fontsize+0)*0.75
-              # Loop through the Northings
-              for(j=-10000000; j<=10000000; j=j+interval) {
-                if (j >= minN-2*interval && j <= maxN+2*interval) {
-                  jfix=sprintf("%07d", (j>0)?j:10000000+j)
-                  jsub=substr(jfix, 1, length(jfix)-3)
-                  jend=substr(jfix, length(jfix)-2, length(jfix))
-
-                  print "> -L" jsub "@:" fontsmall ":" jend "@::"
-                  for(i=-2000000; i<=3000000; i=i+interval) {
-                    # Loop through the Eastings
-                    if (i >= minE-2*interval && i <= maxE+2*interval) {
-                      print i, j
-                    }
-                  }
-                }
-              }
-            }' > utmgrid_lat.txt
-
-            gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
-            BEGIN {
-              fontsmall=(fontsize+0)*0.75
-              # Loop through the Northings
-              for(j=-10000000; j<=10000000; j=j+interval) {
-                if (j >= minN-2*interval && j <= maxN+2*interval) {
-                  jfix=sprintf("%s", (j>0)?j:10000000+j)
-                  jsub=substr(jfix, 1, length(jfix)-3)
-                  jend=substr(jfix, length(jfix)-2, length(jfix))
-
-                  print "> -L" jsub "@:" fontsmall ":" jend "@::"
-                  for(i=-2000000; i<=3000000; i=i+interval) {
-                    # Loop through the Eastings
-                    if (i >= minE-2*interval && i <= maxE+2*interval) {
-                      print i, j
-                    }
-                  }
-                }
-              }
-            }' > utmgrid_lat_ne.txt
+#         # Strategy: Define the range of eastings and northings represented by
+#         # the map region for the given UTM zone.
 
 
-            # Project gridlines to lon/lat
-            cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lat.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lat.wgs
-            cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lon.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lon.wgs
+#         for thiszone in ${UTMGRIDZONES[@]}; do
 
-          gmt_remove_tmpdir
+#             gmt_init_tmpdir
 
-          # Plot the gridlines using psxy and the labels using psxy -Sq + pstext
+#             info_msg "[-utmgrid]: using UTM Zone $thiszone"
+#             # UTL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTL ${VERBOSE} | gawk '{print $1, $2}'))
+#             # UTR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjTR ${VERBOSE} | gawk '{print $1, $2}'))
+#             # UBR=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBR ${VERBOSE} | gawk '{print $1, $2}'))
+#             # UBL=($(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjBL ${VERBOSE} | gawk '{print $1, $2}'))
 
-          if [[ $utmgridplotlabels -eq 1 ]]; then
-            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+#             gmt mapproject ${RJSTRING} -We+n -: | cs2cs EPSG:4326 EPSG:326${thiszone} > utmcorners.utm
+#             # gawk < utmcorners.txt '{print $2, $1}' | cs2cs EPSG:4326 EPSG:326${thiszone} > utmcorners.utm
 
-            gmt psxy utmgrid_lon.wgs -SqN-1:+Lh+a90+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
-            mv Line_labels.txt labelsbottom.txt
-            gmt psxy utmgrid_lon.wgs -SqN+1:+Lh+a90+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
-            mv Line_labels.txt labelstop.txt
-            gmt psxy utmgrid_lat.wgs -SqN-1:+Lh+a0+t ${RJOK} ${VERBOSE} > /dev/null
-            mv Line_labels.txt labelsleft.txt
-            gmt psxy utmgrid_lat.wgs -SqN+1:+Lh+a0+t ${RJOK} ${VERBOSE} > /dev/null
-            mv Line_labels.txt labelsright.txt
+#             # gmt mapproject utmcorners.txt -R0/1/0/1 -JU${thiszone}/1i -F -C > utmcorners.utm
 
-            gmt pstext labelstop.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST1} -Dj2p ${RJOK} >> map.ps
-            gmt pstext labelsbottom.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST2} -Dj2p ${RJOK} >> map.ps
-            gmt pstext labelsleft.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST2} -Dj2p ${RJOK} >> map.ps
-            gmt pstext labelsright.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUST1} -Dj2p ${RJOK} >> map.ps
-          else
-            gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-            gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
-          fi
-        done
+#             UTMRANGE=($(gawk < utmcorners.utm '
+#             BEGIN {
+#               getline
+#               minE=$1
+#               maxE=$1
+#               minN=$2
+#               maxN=$2
+#             }
+#             {
+#               minE=($1<minE)?$1:minE
+#               maxE=($1>maxE)?$1:maxE
+#               minN=($2<minN)?$2:minN
+#               maxN=($2>maxN)?$2:maxN
+#             }
+#             END {
+#               print minE, maxE, minN, maxN
+#             }'))
 
-      ;;
-    esac
-  done
+#             gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+#             @include "tectoplot_functions.awk"
+#             BEGIN {
+#               fontsmall=(fontsize+0)*0.75
+#               # Loop through the Eastings
+#               for(i=-2000000; i<=3000000; i=i+interval) {
+#                 if (i >= minE-2*interval && i <= maxE+2*interval) {
+#                   stri=sprintf("%06d", i)
+#                   # Loop through the Northings
+#                   isub=substr(stri, 1, length(stri)-3)
+#                   iend=substr(stri, length(stri)-2, length(stri))
+
+#                   print "> -L" isub "@:" fontsmall ":" iend "@::"
+
+#                   for(j=-10000000; j<=10000000; j=j+interval) {
+#                     if (j >= minN-2*interval && j <= maxN+2*interval) {
+#                       print stri, j
+#                     }
+#                   }
+#                 }
+#               }
+#             }' > utmgrid_lon.txt
+
+#             gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+#             BEGIN {
+#               fontsmall=(fontsize+0)*0.75
+#               # Loop through the Northings
+#               for(j=-10000000; j<=10000000; j=j+interval) {
+#                 if (j >= minN-2*interval && j <= maxN+2*interval) {
+#                   jfix=sprintf("%07d", (j>0)?j:10000000+j)
+#                   jsub=substr(jfix, 1, length(jfix)-3)
+#                   jend=substr(jfix, length(jfix)-2, length(jfix))
+
+#                   print "> -L" jsub "@:" fontsmall ":" jend "@::"
+#                   for(i=-2000000; i<=3000000; i=i+interval) {
+#                     # Loop through the Eastings
+#                     if (i >= minE-2*interval && i <= maxE+2*interval) {
+#                       print i, j
+#                     }
+#                   }
+#                 }
+#               }
+#             }' > utmgrid_lat.txt
+
+#             gawk -v fontsize=${UTMGRIDFONTSIZE} -v interval=${UTMGRIDINTERVAL} -v minE=${UTMRANGE[0]} -v maxE=${UTMRANGE[1]} -v minN=${UTMRANGE[2]} -v maxN=${UTMRANGE[3]} '
+#             BEGIN {
+#               fontsmall=(fontsize+0)*0.75
+#               # Loop through the Northings
+#               for(j=-10000000; j<=10000000; j=j+interval) {
+#                 if (j >= minN-2*interval && j <= maxN+2*interval) {
+#                   jfix=sprintf("%s", (j>0)?j:10000000+j)
+#                   jsub=substr(jfix, 1, length(jfix)-3)
+#                   jend=substr(jfix, length(jfix)-2, length(jfix))
+
+#                   print "> -L" jsub "@:" fontsmall ":" jend "@::"
+#                   for(i=-2000000; i<=3000000; i=i+interval) {
+#                     # Loop through the Eastings
+#                     if (i >= minE-2*interval && i <= maxE+2*interval) {
+#                       print i, j
+#                     }
+#                   }
+#                 }
+#               }
+#             }' > utmgrid_lat_ne.txt
 
 
+#             # Project gridlines to lon/lat
+#             cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lat.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lat.wgs
+#             cs2cs EPSG:326${thiszone} EPSG:4326 -f %.12f utmgrid_lon.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lon.wgs
+
+#           gmt_remove_tmpdir
+
+#           # Plot the gridlines using psxy and the labels using psxy -Sq + pstext
+
+#           if [[ $utmgridplotlabels -eq 1 ]]; then
+#             gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+#             gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+
+# UTMGRID_TOPROT=90
+# UTMGRID_SIDEROT=0
+
+#             gmt psxy utmgrid_lon.wgs -N -SqN-1:+Lh+a${UTMGRID_TOPROT}+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+#             mv Line_labels.txt labelsbottom.txt
+#             gmt psxy utmgrid_lon.wgs -N -SqN+1:+Lh+a${UTMGRID_TOPROT}+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+#             mv Line_labels.txt labelstop.txt
+#             gmt psxy utmgrid_lat.wgs -N -SqN-1:+Lh+a${UTMGRID_SIDEROT}+t ${RJOK} ${VERBOSE} > /dev/null
+#             mv Line_labels.txt labelsleft.txt
+#             gmt psxy utmgrid_lat.wgs -N -SqN+1:+Lh+a${UTMGRID_SIDEROT}+t ${RJOK} ${VERBOSE} > /dev/null
+#             mv Line_labels.txt labelsright.txt
+
+#             gmt pstext labelstop.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUSTT} -Dj${UTMGRIDOFFSET}p ${RJOK} >> map.ps
+#             gmt pstext labelsbottom.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUSTB} -Dj${UTMGRIDOFFSET}p ${RJOK} >> map.ps
+#             gmt pstext labelsleft.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUSTL} -Dj${UTMGRIDOFFSET}p ${RJOK} >> map.ps
+#             gmt pstext labelsright.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} -F+f${UTMGRIDFONTSIZE},Helvetica,black+a+jM${UTMGRIDJUSTR} -Dj${UTMGRIDOFFSET}p ${RJOK} >> map.ps
+#           else
+#             gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+#             gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+#           fi
+
+#         done
+
+  #     ;;
+  #   esac
+  # done
 
 
   # This is likely not compatible with the above section
@@ -22528,7 +22618,7 @@ function close_legend_item() {
           #   EQ_LEG_MAX=8
           # fi
 
-          for thismag in $(seq 2 $EQ_LEG_MAX); do
+          for thismag in $(seq $EQ_MINMAG $EQ_LEG_MAX); do
             if [[ $(echo "$thismag <= $EQ_MAXMAG && $thismag >= $EQ_MINMAG" | bc) -eq 1 ]]; then
               # stretched_mag is the diameter of the earthquake symbol in points
               stretched_mag=$(stretched_mw_from_mw $thismag ${SEISSTRETCH} ${SEISSTRETCH_REFMAG})
@@ -22540,7 +22630,6 @@ function close_legend_item() {
               echo "$CENTERLON $CENTERLAT $thismag" | gmt pstext -F+f6p,Helvetica,black+jCB $VERBOSE -J -R -Ya${stretched_mag_over_2_plus_10}p -O -K >> ${LEGFILE}
             fi
           done
-
           gmt gmtset PROJ_LENGTH_UNIT $OLD_PROJ_LENGTH_UNIT
 
           close_legend_item "seis"
@@ -22578,7 +22667,7 @@ function close_legend_item() {
         echo ${CREDITLINE} >> datasourceslegend.txt
     fi
 
-      if [[ $numsources -ge 1 ]]; then
+      if [[ $numsources -ge 2 ]]; then
         init_legend_item "datasources"
         echo "${CENTERLON} ${CENTERLAT} Data sources " | gmt pstext -F+f6p,Helvetica-bold,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}
         gmt pstext datasourceslegend.txt -M -N -Xa0.6i -F+f6p,Helvetica,black+jLM ${RJOK} ${VERBOSE} >> ${LEGFILE}

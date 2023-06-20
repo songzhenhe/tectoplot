@@ -32,6 +32,42 @@ function tectoplot_args_mapopts()  {
   # The following case statement mimics the argument processing for tectoplot
   case "${1}" in
 
+    -utmgrid)
+  tectoplot_get_opts_inline '
+des -utmgrid plot a UTM coordinate grid for a specified or inferred UTM zone
+opn zone m_mapopts_utmgrid_zone float -1
+  UTM zone number (-1 = infer from map region center longitude)
+opn int m_mapopts_utmgrid_int float 100000 
+  gridline spacing (meters)
+opn inside m_mapopts_utmgrid_insideflag flag 0
+  plot labels inside the map frame
+opn noline m_mapopts_utmgrid_nolineflag flag 0     
+  do not plot grid lines
+opn nolabel m_mapopts_utmgrid_nolabelflag flag 0     
+  do not plot grid labels
+opn nogeo m_mapopts_utmgrid_nogeoflag flag 0        
+  turn of geographic frame labels
+opn fontsize m_mapopts_utmgrid_fontsize float 8
+  font size
+opn offset m_mapopts_utmgrid_offset float 4
+  label offset distance (p)
+opn fill m_mapopts_utmgrid_fill string ""
+  color for filling the UTM grid
+opn clip m_mapopts_utmgrid_clip flag 0
+  clip grid labels falling outsize map area
+opn justcodes m_mapopts_utmgrid_justcodes string "RRLL"
+  label justification codes (R | L) in BLTR order
+opn box m_mapopts_utmgrid_box string ""
+  plot a box with specified fill color behind grid labels
+' "${@}" || return
+
+    if [[ ${m_mapopts_utmgrid_nogeoflag} -eq 1 ]]; then
+      GRIDCALL="blrt"
+    fi      
+
+    plots+=("m_mapopts_utmgrid")
+    ;;
+
     -whichutm)  
   tectoplot_get_opts_inline '
 des -whichutm report UTM zone for map region or specified longitude, then exit
@@ -409,6 +445,198 @@ mes layers in PDF format easier.
 
 function tectoplot_plot_mapopts() {
   case $1 in
+    m_mapopts_utmgrid)
+        local UTMGRIDCLIP="-N"
+        local UTMGRIDFILL=""
+        local UTMGRIDBOX=""
+
+        gmt_init_tmpdir
+
+        if [[ ${m_mapopts_utmgrid_zone} -eq -1 ]]; then
+
+          m_mapopts_utmgrid_zone=$(gmt mapproject -R${MINLON}/${MAXLON}/${MINLAT}/${MAXLAT} -WjCM -Vn | gawk '{
+            centerlon=($1 + 180)/6
+            val=int(centerlon)+(centerlon>int(centerlon)) 
+            print (val>0)?val:1
+          }' )
+
+          if ! arg_is_positive_integer ${m_mapopts_utmgrid_zone}; then
+            echo "[-utmgrid]: Cannot determine UTM Zone for map region ${RJSTRING}"
+            exit 1
+          fi
+        fi
+
+        # Define the range of eastings and northings represented by the map region for the given UTM zone.
+
+        info_msg "[-utmgrid]: using UTM Zone ${m_mapopts_utmgrid_zone}"
+
+        gmt mapproject ${RJSTRING} -We+n -: | cs2cs EPSG:4326 EPSG:326${m_mapopts_utmgrid_zone} > utmcorners.utm
+
+        m_mapopts_utmgrid_range=($(gawk < utmcorners.utm '
+        BEGIN {
+          getline
+          minE=$1
+          maxE=$1
+          minN=$2
+          maxN=$2
+        }
+        {
+          minE=($1<minE)?$1:minE
+          maxE=($1>maxE)?$1:maxE
+          minN=($2<minN)?$2:minN
+          maxN=($2>maxN)?$2:maxN
+        }
+        END {
+          print minE, maxE, minN, maxN
+        }'))
+
+        gawk -v fontsize=${m_mapopts_utmgrid_fontsize} -v interval=${m_mapopts_utmgrid_int} -v minE=${m_mapopts_utmgrid_range[0]} -v maxE=${m_mapopts_utmgrid_range[1]} -v minN=${m_mapopts_utmgrid_range[2]} -v maxN=${m_mapopts_utmgrid_range[3]} '
+        @include "tectoplot_functions.awk"
+        BEGIN {
+          fontsmall=(fontsize+0)*0.75
+          # Loop through the Eastings
+          for(i=-2000000; i<=3000000; i=i+interval) {
+            if (i >= minE-2*interval && i <= maxE+2*interval) {
+              stri=sprintf("%06d", i)
+              # Loop through the Northings
+              isub=substr(stri, 1, length(stri)-3)
+              iend=substr(stri, length(stri)-2, length(stri))
+
+              print "> -L" isub "@:" fontsmall ":" iend "@::"
+
+              for(j=-10000000; j<=10000000; j=j+interval) {
+                if (j >= minN-2*interval && j <= maxN+2*interval) {
+                  print stri, j
+                }
+              }
+            }
+          }
+        }' > utmgrid_lon.txt
+
+        gawk -v fontsize=${m_mapopts_utmgrid_fontsize} -v interval=${m_mapopts_utmgrid_int} -v minE=${m_mapopts_utmgrid_range[0]} -v maxE=${m_mapopts_utmgrid_range[1]} -v minN=${m_mapopts_utmgrid_range[2]} -v maxN=${m_mapopts_utmgrid_range[3]} '
+        BEGIN {
+          fontsmall=(fontsize+0)*0.75
+          # Loop through the Northings
+          for(j=-10000000; j<=10000000; j=j+interval) {
+            if (j >= minN-2*interval && j <= maxN+2*interval) {
+              jfix=sprintf("%07d", (j>0)?j:10000000+j)
+              jsub=substr(jfix, 1, length(jfix)-3)
+              jend=substr(jfix, length(jfix)-2, length(jfix))
+
+              print "> -L" jsub "@:" fontsmall ":" jend "@::"
+              for(i=-2000000; i<=3000000; i=i+interval) {
+                # Loop through the Eastings
+                if (i >= minE-2*interval && i <= maxE+2*interval) {
+                  print i, j
+                }
+              }
+            }
+          }
+        }' > utmgrid_lat.txt
+
+        gawk -v fontsize=${m_mapopts_utmgrid_fontsize} -v interval=${m_mapopts_utmgrid_int} -v minE=${m_mapopts_utmgrid_range[0]} -v maxE=${m_mapopts_utmgrid_range[1]} -v minN=${m_mapopts_utmgrid_range[2]} -v maxN=${m_mapopts_utmgrid_range[3]} '
+        BEGIN {
+          fontsmall=(fontsize+0)*0.75
+          # Loop through the Northings
+          for(j=-10000000; j<=10000000; j=j+interval) {
+            if (j >= minN-2*interval && j <= maxN+2*interval) {
+              jfix=sprintf("%s", (j>0)?j:10000000+j)
+              jsub=substr(jfix, 1, length(jfix)-3)
+              jend=substr(jfix, length(jfix)-2, length(jfix))
+
+              print "> -L" jsub "@:" fontsmall ":" jend "@::"
+              for(i=-2000000; i<=3000000; i=i+interval) {
+                # Loop through the Eastings
+                if (i >= minE-2*interval && i <= maxE+2*interval) {
+                  print i, j
+                }
+              }
+            }
+          }
+        }' > utmgrid_lat_ne.txt
+
+
+        # Project gridlines to lon/lat
+        cs2cs EPSG:326${m_mapopts_utmgrid_zone} EPSG:4326 -f %.12f utmgrid_lat.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lat.wgs
+        cs2cs EPSG:326${m_mapopts_utmgrid_zone} EPSG:4326 -f %.12f utmgrid_lon.txt | sed 's/.*>/>/' | gawk '{ if ($1+0==$1) {print $2, $1} else {print} }' > utmgrid_lon.wgs
+
+        gmt_remove_tmpdir
+
+        # Plot the gridlines using psxy and the labels using psxy -Sq + pstext
+
+      if [[ ${m_mapopts_utmgrid_insideflag} -eq 1 ]]; then
+        m_mapopts_utmgrid_justcodes="LLRR"
+        UTMGRIDCLIP="-N"
+      fi
+
+      if [[ ! -z ${m_mapopts_utmgrid_box} ]]; then
+        UTMGRIDBOX="-G${m_mapopts_utmgrid_box}"
+      fi
+
+      if [[ ${m_mapopts_utmgrid_nolabelflag} -eq 0 ]]; then
+
+UTMGRID_TOPROT=90
+UTMGRID_SIDEROT=0
+
+        gmt psxy utmgrid_lon.wgs -N -SqN-1:+Lh+a${UTMGRID_TOPROT}+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+        mv Line_labels.txt labelsbottom.txt
+        gmt psxy utmgrid_lon.wgs -N -SqN+1:+Lh+a${UTMGRID_TOPROT}+t -W0.1p,black ${RJOK} ${VERBOSE} > /dev/null
+        mv Line_labels.txt labelstop.txt
+        gmt psxy utmgrid_lat.wgs -N -SqN-1:+Lh+a${UTMGRID_SIDEROT}+t ${RJOK} ${VERBOSE} > /dev/null
+        mv Line_labels.txt labelsleft.txt
+        gmt psxy utmgrid_lat.wgs -N -SqN+1:+Lh+a${UTMGRID_SIDEROT}+t ${RJOK} ${VERBOSE} > /dev/null
+        mv Line_labels.txt labelsright.txt
+
+
+        if [[ ${m_mapopts_utmgrid_clip} -eq 1 ]]; then
+          UTMGRIDCLIP=""
+        fi
+
+        if [[ ! -z ${m_mapopts_utmgrid_fill} ]]; then
+          UTMGRIDFILL="-G${m_mapopts_utmgrid_fill}"
+        fi
+
+        if [[ ${m_mapopts_utmgrid_insideflag} -eq 1 ]]; then
+          m_mapopts_utmgrid_justcodes="LLRR"
+          local UTMGRIDJUSTB=${m_mapopts_utmgrid_justcodes:0:1}
+          local UTMGRIDJUSTL=${m_mapopts_utmgrid_justcodes:1:1}
+          local UTMGRIDJUSTT=${m_mapopts_utmgrid_justcodes:2:1}
+          local UTMGRIDJUSTR=${m_mapopts_utmgrid_justcodes:3:1}
+
+          # GMT clipping boxes do not respect inline font commands like @:6: ... so we have to
+          # remove those commands and use an 'average' font size when activating clipping masks
+
+          local mixedsize=$(echo "${m_mapopts_utmgrid_fontsize} * (1 + 0.75) / 2" | bc -l)
+          tr '@' ':' < labelstop.txt | gawk -F: '{print $1 $4}' | gmt pstext ${UTMGRIDCLIP} -F+f${mixedsize}p,Helvetica,black+a+jM${UTMGRIDJUSTT} -G+n -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+          tr '@' ':' < labelsbottom.txt | gawk -F: '{print $1 $4}' | gmt pstext ${UTMGRIDCLIP} -F+f${mixedsize}p,Helvetica,black+a+jM${UTMGRIDJUSTB} -G+n -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+          tr '@' ':' < labelsleft.txt | gawk -F: '{print $1 $4}' | gmt pstext ${UTMGRIDCLIP} -F+f${mixedsize}p,Helvetica,black+a+jM${UTMGRIDJUSTL} -G+n -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+          tr '@' ':' < labelsright.txt | gawk -F: '{print $1 $4}' |  gmt pstext ${UTMGRIDCLIP} -F+f${mixedsize}p,Helvetica,black+a+jM${UTMGRIDJUSTR} -G+n -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+        fi
+      fi
+
+      if [[ ${m_mapopts_utmgrid_nolineflag} -eq 0 ]]; then
+        gmt psxy utmgrid_lon.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+        gmt psxy utmgrid_lat.wgs -W0.1p,black ${RJOK} ${VERBOSE} >> map.ps
+      fi
+
+      if [[ ${m_mapopts_utmgrid_insideflag} -eq 1 ]]; then
+        # Restore 8 (why 8 and not 4?) clipping masks from the pstext -G+n calls
+        gmt psclip -C8 ${RJOK} ${VERBOSE} >> map.ps
+      fi
+      
+      local UTMGRIDJUSTB=${m_mapopts_utmgrid_justcodes:0:1}
+      local UTMGRIDJUSTL=${m_mapopts_utmgrid_justcodes:1:1}
+      local UTMGRIDJUSTT=${m_mapopts_utmgrid_justcodes:2:1}
+      local UTMGRIDJUSTR=${m_mapopts_utmgrid_justcodes:3:1}
+
+      if [[ ${m_mapopts_utmgrid_nolabelflag} -eq 0 ]]; then
+        gmt pstext labelstop.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} ${UTMGRIDBOX} -F+f${m_mapopts_utmgrid_fontsize}p,Helvetica,black+a+jM${UTMGRIDJUSTT} -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+        gmt pstext labelsbottom.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} ${UTMGRIDBOX} -F+f${m_mapopts_utmgrid_fontsize}p,Helvetica,black+a+jM${UTMGRIDJUSTB} -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+        gmt pstext labelsleft.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} ${UTMGRIDBOX} -F+f${m_mapopts_utmgrid_fontsize}p,Helvetica,black+a+jM${UTMGRIDJUSTL} -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps        
+        gmt pstext labelsright.txt ${UTMGRIDCLIP} ${UTMGRIDFILL} ${UTMGRIDBOX} -F+f${m_mapopts_utmgrid_fontsize}p,Helvetica,black+a+jM${UTMGRIDJUSTR} -Dj${m_mapopts_utmgrid_offset}p ${RJOK} >> map.ps
+      fi
+    ;;
+
     m_mapopts_bigbar)
         if [[ ${m_mapopts_bigbar_width} == "map" ]]; then
             m_mapopts_bigbar_width=${PSSIZE}i

@@ -512,10 +512,16 @@ EQMAXDEPTH_COLORSCALE=80     # maximum earthquake color depth (~transition to bl
 SEISSIZE="0.05i"             # seismicity scale
 SEISTRANS=0                  # transparency of seismic data
 SCALEEQS=1                   # if 1, use magnitude to scale points in size
-SEISSCALE=1                  # scale multiplying factor taking M -> p
 SEISSYMBOL="c"               # can be any of +-acdghinpstxy
-SEISSTRETCH=3                # exponential factor used to exaggerate size differences
+
+# SEISSCALE=1                  # scale multiplying factor taking M -> p
+# SEISSTRETCH=3                # exponential factor used to exaggerate size differences
+# SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by sizestretch
+
+SEISSCALE=1                  # scale multiplying factor taking M -> p
+SEISSTRETCH=4                # exponential factor used to exaggerate size differences
 SEISSTRETCH_REFMAG=6         # earthquakes of this size will not be scaled by sizestretch
+
 
 # Currently CMTSCALE=0.07 is needed to match the psxy plotting of seismicity?
 

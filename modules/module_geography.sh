@@ -512,7 +512,6 @@ function tectoplot_plot_geography() {
 
   m_geography_acl)
     if [[ ${#m_geography_acl_list[@]} -gt 1 ]]; then
-      echo list is here ${#m_geography_acl_list[@]}
       echo ${m_geography_acl_list[@]} | tr ' ' ',' > ${F_MAPELEMENTS}selected_country_ids.txt
       gawk -F, '
         BEGIN {
@@ -525,13 +524,13 @@ function tectoplot_plot_geography() {
           }
         }
         (NR!=FNR) {
-          if (inputs[$1]==1) {
+          if (inputs[$1]==1 && $3+0==$3) {
             print $3, $2, $4
           }
         }
       ' ${F_MAPELEMENTS}selected_country_ids.txt $COUNTRY_CODES | gmt pstext -F+f${m_geography_acl_font[$tt]}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
     else
-      gawk -F, < $COUNTRY_CODES '{ print $3, $2, $4}' | gmt pstext -F+f${m_geography_acl_font[$tt]}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
+      gawk -F, < $COUNTRY_CODES '($3+0==$3 && $2+0==$2) { print $3, $2, $4}' | gmt pstext -F+f${m_geography_acl_font[$tt]}=~0.6p,white+jCM $RJOK ${VERBOSE} >> map.ps
     fi
     tectoplot_plot_caught=1
     ;;
