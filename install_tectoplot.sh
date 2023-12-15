@@ -67,7 +67,7 @@ function clone_tectoplot() {
   if [[ -d ${tectoplot_folder_dir}/tectoplot ]]; then
     echo "tectoplot directory ${tectoplot_folder_dir}/tectoplot already exists. Delete before reinstalling!"
   else
-    if git clone https://github.com/kyleedwardbradley/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
+    if git clone https://github.com/songzhenhe/tectoplot.git ${tectoplot_folder_dir}/tectoplot; then
       echo "tectoplot succesfully cloned to ${tectoplot_folder_dir}/tectoplot/"
     else
       echo "ERROR: Could not clone tectoplot repository to ${tectoplot_folder_dir}/tectoplot/"
